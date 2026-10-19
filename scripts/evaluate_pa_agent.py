@@ -225,6 +225,10 @@ def run_deterministic_evaluation(spec: dict[str, Any] | None = None) -> dict[str
                 rows.append(row)
     return {"status": "PASS" if all(row["status"] == "PASS" for row in rows) else "FAIL", "scenario_count": len(rows), "pass_count": sum(row["status"] == "PASS" for row in rows), "scenarios": rows, "fixture_callbacks": {"provider_readback": fixture.provider_calls, "automation_suggest": fixture.automation_calls}}
 def _git_show(commit: str, path: str) -> str:
+    # The public repository starts from a snapshot, so historical baselines are vendored.
+    vendored = ROOT / "evals/baselines" / commit / path.replace("skills/", "").replace("/SKILL.md", "-SKILL.md")
+    if vendored.is_file():
+        return vendored.read_text(encoding="utf-8")
     result = subprocess.run(["git", "show", f"{commit}:{path}"], cwd=ROOT, text=True, capture_output=True, check=True)
     return result.stdout
 def guidance_comparison() -> dict[str, Any]:
