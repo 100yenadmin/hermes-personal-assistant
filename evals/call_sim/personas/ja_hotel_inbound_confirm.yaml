@@ -1,0 +1,17 @@
+id: ja_hotel_inbound_confirm
+name: 架空ホテル
+number: sim-ja-hotel
+language: ja
+role: hotel
+facts:
+  hours: 00:00-24:00
+  address: 架空町三丁目
+  availability: ["2026-11-21 到着確認"]
+  prices: "1泊 12000 JPY"
+  deposit_rules: 追加料金なし
+  menu_notes: 朝食7時
+  phrases:
+    greeting: 架空ホテルでございます。ご到着時刻の確認です。
+    message: ご本人様へのお伝えをお願いいたします。ありがとうございます。
+behaviours: {target_language_only: true}
+inbound: ["ご到着時刻を確認したくお電話しました。"]

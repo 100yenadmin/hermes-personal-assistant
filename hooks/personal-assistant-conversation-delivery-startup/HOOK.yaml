@@ -1,0 +1,4 @@
+name: personal-assistant-conversation-delivery-startup
+description: Open the PA conversation-delivery startup gate after the gateway publishes its injector.
+events:
+  - gateway:startup

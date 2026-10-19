@@ -1,0 +1,27 @@
+{
+  "name": "travel-agent-skills",
+  "version": "0.7.0-rc.1",
+  "description": "Personal assistant travel skills with trip/action ledgers, Browserbase checkout continuity, payment readiness, food/rideshare/check-in/provider-message flows, final-state confirmation, and proof capture.",
+  "author": {
+    "name": "ElectricSheep"
+  },
+  "license": "UNLICENSED",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Personal Assistant Plugin",
+    "shortDescription": "Travel-mode skills for trip memory, booking, check-in, food, rideshare, reservations, refunds, wallet readiness, Browserbase recovery, and proof.",
+    "longDescription": "Local Hermes PA pilot for travel, calendar, household and executive assistance. Eight bounded recipes reuse existing integrations and preserve confirmation and provider evidence.",
+    "developerName": "ElectricSheep",
+    "category": "Productivity",
+    "capabilities": [
+      "skills",
+      "travel",
+      "trip-ledger",
+      "action-ledger",
+      "browserbase",
+      "agent-wallet",
+      "provider-messaging"
+    ],
+    "defaultPrompt": "Turn on travel mode for this trip. Capture the itinerary, use Browserbase-first execution lanes, record checkpoints, bring final-state confirmations before paid or irreversible actions, and verify proof after completion."
+  }
+}

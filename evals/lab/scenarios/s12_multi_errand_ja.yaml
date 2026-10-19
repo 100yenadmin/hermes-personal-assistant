@@ -1,0 +1,92 @@
+id: s12_multi_errand_ja
+capabilities:
+- flight
+- hotel
+- restaurant
+- snacks
+language: ja
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Tokyo
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Tokyo
+  destination: Seoul
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: 2026年11月25日午前NRT→ICN直行便、1名、3万円以下をTrip.comで調べ、最終確認で止めてください。
+  capability: flight
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - trip.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: 同じ旅行で2026年11月25日から27日まで明洞のホテルを1名、1泊15万ウォン以下で準備し、宿泊者情報で止めてください。
+  capability: hotel
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - trip.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: 同じ旅行の2026年11月26日19:00、明洞で2名の夕食を準備してください。ログインが必要なら要約と引き継ぎをお願いします。
+  capability: restaurant
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - catchtable.net
+      - naver.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: 同じホテル、ロッテホテルソウル、中区乙支路30へコンビニのお菓子を2万ウォン以下で準備してください。アプリ専用なら引き継いで、注文しないでください。
+  capability: snacks
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+max_user_turns: 16
+budget_seconds: 1500

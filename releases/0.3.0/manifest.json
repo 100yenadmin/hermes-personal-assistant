@@ -1,0 +1,19 @@
+{
+  "package": "travel-agent-skills",
+  "native_id": "personal-assistant",
+  "display_name": "Personal Assistant Plugin",
+  "version": "0.3.0",
+  "channel": "out-of-box-candidate",
+  "component_id": "addon:travel-agent-skills",
+  "status": "source-candidate",
+  "published": false,
+  "source_commit": "d7c4e68252b8aa0391e649774aa9dd5cf19bf5ed",
+  "artifact": {
+    "name": "travel-agent-skills-0.3.0.tgz",
+    "sha256": null
+  },
+  "rollout": {
+    "scope": "isolated Hermes and local operator acceptance",
+    "fleet_approved": false
+  }
+}

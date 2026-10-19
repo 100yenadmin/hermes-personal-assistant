@@ -1,0 +1,106 @@
+id: s02_tokyo_seoul_ko
+capabilities:
+- flight
+- hotel
+- restaurant
+- food
+- taxi
+language: ko
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Tokyo
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Tokyo
+  destination: Seoul
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: 2026-11-20 오전 NRT→ICN 직항 항공편을 Trip.com에서 성인 1명, 30,000엔 이하로 찾아 최종 확인 화면에서
+    멈춰 주세요.
+  capability: flight
+  answers:
+    seat: 무료라면 통로
+    baggage: 위탁수하물 1개
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - trip.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: 2026-11-20부터 2026-11-27까지 명동 호텔을 1명, 1박 150,000원 이하로 찾아 투숙객 정보 화면까지 준비해 주세요.
+  capability: hotel
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - trip.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: 2026-11-21 19:00 명동 저녁 2명을 네이버 또는 캐치테이블에서 준비해 주세요. 로그인 벽이면 예약 요약과 다음 단계를 알려
+    주세요.
+  capability: restaurant
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - naver.com
+      - catchtable.net
+      - catchtable.co.kr
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: 명동 롯데호텔 서울, 서울 중구 을지로 30으로 배달의민족 또는 쿠팡이츠 음식 30,000원 이하를 준비해 주세요. 앱 전용이면 인계해
+    주세요.
+  capability: food
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+- goal: 2026-11-20 15:00 ICN에서 명동 롯데호텔 서울까지 카카오 T 택시를 준비해 주세요. 앱 전용이면 정확한 단계를 알려 주세요.
+    호출하지 마세요.
+  capability: taxi
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+max_user_turns: 16
+budget_seconds: 1800

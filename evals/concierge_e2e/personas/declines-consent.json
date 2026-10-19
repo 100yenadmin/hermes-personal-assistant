@@ -1,0 +1,20 @@
+{
+  "name": "declines-consent",
+  "note": "Synthetic. The user declines the look-around; setup must move on to call_and_quiet instead of stalling in discovery.",
+  "seed": {
+    "memories/USER.md": "Preferred name: Ana."
+  },
+  "consent_rounds": 1,
+  "expected_discovered": [],
+  "consent": "No thanks, please don't look around; just ask me.",
+  "answers": {
+    "call_and_quiet": "Call me Ana; America/New_York; quiet 22:30 to 07:30.",
+    "worth_a_message": "Only things I must act on today.",
+    "authority": "Prepare options; ask before anything that costs money or contacts people.",
+    "first_trip": "My synthetic Chicago trip next month.",
+    "arrival_help": "A late check-in note to the hotel.",
+    "protect": "Nothing firm.",
+    "route": "This Telegram DM.",
+    "check_in_time": "Three hours before departure."
+  }
+}

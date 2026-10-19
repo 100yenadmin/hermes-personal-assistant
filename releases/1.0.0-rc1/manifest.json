@@ -1,0 +1,22 @@
+{
+  "package": "travel-agent-skills",
+  "display_name": "Travel Agent Skills",
+  "version": "1.0.0-rc1",
+  "channel": "rc",
+  "component_id": "addon:travel-agent-skills",
+  "source_commit": null,
+  "artifact": {
+    "name": "travel-agent-skills-1.0.0-rc1.tgz",
+    "sha256": null
+  },
+  "rollout": {
+    "initial_target": "pilot-customer",
+    "scope": "single pilot customer canary",
+    "tiny_cohort_gate": "split canaries average >=95 with no hard fails"
+  },
+  "legacy_aliases": [
+    "openclaw-hermes-travel-action-pack",
+    "personal-assistant-travel",
+    "addon:travel-action-pack"
+  ]
+}

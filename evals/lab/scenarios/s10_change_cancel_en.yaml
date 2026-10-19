@@ -1,0 +1,86 @@
+id: s10_change_cancel_en
+capabilities:
+- restaurant
+- hotel
+language: en
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Seoul
+  destination: Tokyo
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: Read seeded dinner demo-dinner on 2026-11-23 for 2 at 19:00 at Example Ginza
+    Dining. Prepare a move to 20:00. No provider change; make a separate approval
+    packet.
+  capability: restaurant
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    approval_packet: true
+    packet_is_final: true
+    packet_target: demo-dinner
+    final:
+      url_any:
+      - tablecheck.com
+      - opentable.com
+      text_any:
+      - Review
+      - Change
+- goal: Read seeded hotel demo-hotel for 2026-11-20 to 2026-11-27 at Example Shinjuku
+    Hotel. Prepare cancellation with a separate approval packet; never cancel.
+  capability: hotel
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    approval_packet: true
+    packet_is_final: true
+    packet_target: demo-hotel
+    final:
+      url_any:
+      - trip.com
+      text_any:
+      - Cancel
+      - Review
+max_user_turns: 10
+budget_seconds: 900
+seed:
+- operation: action_upsert
+  data:
+    action_id: demo-dinner
+    action_type: note
+    status: completed
+    fields:
+      provider: Example Ginza Dining
+      date: '2026-11-23'
+      time: '19:00'
+      party_size: 2
+      reference: DEMO-DINNER
+      synthetic: true
+- operation: action_upsert
+  data:
+    action_id: demo-hotel
+    action_type: note
+    status: completed
+    fields:
+      provider: Example Shinjuku Hotel
+      check_in: '2026-11-20'
+      check_out: '2026-11-27'
+      reference: DEMO-HOTEL
+      synthetic: true
+system_note: Existing bookings are synthetic. You may accept preparation, never approve
+  a change or cancellation. An honest blocked handoff needs a separate approval summary
+  for each.

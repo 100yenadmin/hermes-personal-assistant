@@ -1,0 +1,60 @@
+{
+  "tenant": {
+    "profile_id": "example-profile",
+    "owner_email": "owner@example.com"
+  },
+  "delivery": {
+    "target": "example-topic",
+    "verified": false
+  },
+  "timezone": "Asia/Bangkok",
+  "accounts": {
+    "work": "owner@example.com",
+    "personal": null
+  },
+  "calendar": {
+    "provider": "profile_google",
+    "account": "owner@example.com",
+    "read_scope": {
+      "accepted": false,
+      "calendar_ids": [],
+      "include_pa_binding": false
+    }
+  },
+  "priority": {
+    "static_terms": ["invoice", "payment", "renewal"],
+    "connectors": {
+      "clients_sync": {
+        "enabled": false,
+        "consent": false,
+        "stripe_account": null,
+        "stripe_live": false,
+        "supabase_ref": null,
+        "client_max_age_h": 48
+      }
+    }
+  },
+  "self_emails": ["owner@example.com"],
+  "self_domains": ["example.com"],
+  "travel": {
+    "leave_by": false,
+    "buffer_min": 15,
+    "heads_up_min": 45,
+    "booking_query": "from:(booking.com OR agoda OR expedia OR airbnb OR hotel) newer_than:30d",
+    "geocoder": {
+      "consent": false,
+      "provider": "nominatim",
+      "base": "https://nominatim.openstreetmap.org",
+      "osrm_base": "https://router.project-osrm.org"
+    }
+  },
+  "schedules": {
+    "brief": "0 8 * * *",
+    "watchdog": "*/5 * * * *",
+    "evening": "0 21 * * *",
+    "clients_sync": null
+  },
+  "autoclean": {
+    "enabled": false
+  }
+}

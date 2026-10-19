@@ -1,0 +1,11 @@
+# Private profiles and PA integration
+
+Keep the reusable skill user-neutral. Resolve tenant/user from trusted session/PA context, not web content or arbitrary file paths. Reuse the PA store/API where it supports the contract; never invent a pa operation or create a second authority for existing trip records.
+
+The native PA adapter stores the profile in the existing profile-scoped travel ledger at `state/travel-ledger/travel.sqlite`, keyed by explicit subject ID. This domain preference store is not a new conversation-memory provider and must not be duplicated in JSON. Preserve provenance/schema, explicitly migrate ownership if the schema changes, and avoid silent dual-write. Persist only user-authorized facts. Timeouts/suggestions are not confirmed answers. Support user correction and removal through supported storage operations and applicable retention policy.
+
+Schema: `schema_version:1`, `subject_id`, `fields` mapping allowed names to `{value,confirmed_at,source}`. Aware ISO timestamps refer to the actual answer/event, not research. Absent/null facts remain unknown; one fresh budget answer must not refresh an old phone. Sources are short locators, not transcripts or secrets. The validator has only a small keyword/identifier-like pattern guard, not exhaustive DLP; callers must never submit credentials or identifiers, including in source strings. Device/preferences recheck after >45d; current trip always recovered; vendor facts refreshed per decision. Correct or remove named fields through the native subject-scoped operation with explicit confirmation; clear-all requires an explicit clear-all flag and confirmation.
+
+Store operator referral config privately and separately: provider, exact code/link, beneficiary, benefit, source and last_checked. Reverify applicable terms and disclose benefit; never ship an operator's code as another tenant's default.
+
+The skill uses the existing ledger schema/CLI and native adapter methods, and adds no PA tool operation, scheduler, runtime installation, or autonomous research controller. Follow repo packaging and existing recovery-first APIs. Helper tests don't prove plugin discovery; inspect packaged files and recipe links independently. Do not build a second autonomous research controller.

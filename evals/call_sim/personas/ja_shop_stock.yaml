@@ -1,0 +1,16 @@
+id: ja_shop_stock
+name: 架空商店
+number: sim-ja-shop
+language: ja
+role: shop
+facts:
+  hours: 10:00-18:00
+  address: 架空町二丁目
+  availability: ["青い傘 2本"]
+  prices: "傘 2000 JPY"
+  deposit_rules: 取り置き不可
+  menu_notes: 該当なし
+  phrases:
+    greeting: お電話ありがとうございます。架空商店です。
+    info: 青い傘は2本ございます。1本2000円です。取り置きはできません。
+behaviours: {target_language_only: true, busy: false}

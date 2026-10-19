@@ -1,0 +1,37 @@
+id: s07_inbound_hotel_ja
+capabilities:
+- calls
+language: ja
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Tokyo
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Tokyo
+  destination: Kyoto
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: ホテルからの到着時刻の電話に出てください。2026年11月22日23:30到着予定と伝えてよいです。他の変更は承認しません。
+  capability: calls
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: false
+max_user_turns: 10
+budget_seconds: 900
+calls:
+  persona: ja_hotel_inbound_confirm
+  direction: inbound
+  reason: ホテルからの到着時刻の電話に出てください。2026年11月22日23:30到着予定と伝えてよいです。他の変更は承認しません。
+  allowed_outcomes:
+  - answered
+  - message_taken
+  - needs_approval
+  - handoff

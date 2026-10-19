@@ -1,0 +1,20 @@
+{
+  "name": "partial-basics",
+  "note": "Synthetic. USER.md holds only a name, so call_and_quiet is partly known: it must be asked with the name recommended, not marked discovered.",
+  "seed": {
+    "memories/USER.md": "Preferred name: Lee."
+  },
+  "expected_discovered": [],
+  "must_not_discover": ["call_and_quiet"],
+  "consent": "Yes, please look around. Keep anything you find that is correct.",
+  "answers": {
+    "call_and_quiet": "Lee is right; Australia/Sydney; quiet 21:30 to 06:30.",
+    "worth_a_message": "Only problems that change my plans today.",
+    "authority": "Prepare anything; ask before paying or contacting anyone.",
+    "first_trip": "My synthetic Melbourne trip on Friday.",
+    "arrival_help": "Airport pickup.",
+    "protect": "Friday 14:00 workshop.",
+    "route": "This Telegram DM.",
+    "check_in_time": "Three hours before departure."
+  }
+}

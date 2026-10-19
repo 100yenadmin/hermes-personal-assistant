@@ -1,0 +1,21 @@
+id: ko_restaurant_booking
+name: 가상 식당
+number: sim-ko-restaurant
+language: ko
+role: restaurant
+facts:
+  hours: 17:00-22:00
+  address: 가상로 1
+  availability: ["2026-11-21 18:00", "2026-11-21 19:00"]
+  prices: "1인 30000 KRW"
+  deposit_rules: "7명 이상은 70000 KRW 보증금"
+  menu_notes: 채식 메뉴 가능
+  phrases:
+    greeting: 안녕하세요. 가상 식당입니다. 무엇을 도와드릴까요?
+    name: 예약자 성함을 알려 주시겠어요?
+    callback: 연락 가능한 전화번호를 알려 주시겠어요?
+    booked: 11월 21일 오후 6시 두 분 예약되었습니다. 감사합니다.
+    deposit: 7명 이상은 보증금 70000원이 필요합니다. 동의하시나요?
+    alternative: 오후 7시는 가능합니다. 괜찮으세요?
+    busy: 지금 바쁩니다. 나중에 다시 전화해 주세요.
+behaviours: {ask_name: true, ask_callback: true, offer_alternatives: true, deposit_over_6: true, target_language_only: true, busy: false}

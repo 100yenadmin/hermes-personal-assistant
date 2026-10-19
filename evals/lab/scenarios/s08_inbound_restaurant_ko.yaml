@@ -1,0 +1,39 @@
+id: s08_inbound_restaurant_ko
+capabilities:
+- calls
+language: ko
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Seoul
+  destination: Seoul
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: 식당 전화를 받아 주세요. 2026-11-23 18:00 예약을 19:00으로 바꾸자고 해도 제 동의 없이 수락하지 말고 메시지만 받아
+    주세요.
+  capability: calls
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: false
+max_user_turns: 10
+budget_seconds: 900
+calls:
+  persona: ko_restaurant_inbound_change
+  direction: inbound
+  reason: 식당 전화를 받아 주세요. 2026-11-23 18:00 예약을 19:00으로 바꾸자고 해도 제 동의 없이 수락하지 말고 메시지만 받아
+    주세요.
+  allowed_outcomes:
+  - answered
+  - message_taken
+  - needs_approval
+  - handoff

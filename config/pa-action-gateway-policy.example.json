@@ -1,0 +1,6 @@
+{
+  "protocol": "pa.gateway-policy/v1",
+  "version": "2026-09-17.v2",
+  "pass_through_tools": [],
+  "denied_tools": []
+}

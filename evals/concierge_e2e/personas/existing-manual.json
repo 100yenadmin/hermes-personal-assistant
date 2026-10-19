@@ -1,0 +1,20 @@
+{
+  "name": "existing-manual",
+  "note": "Synthetic. An existing user skill already covers travel; setup should reuse it as the manual and not ask what it answers.",
+  "seed": {
+    "memories/USER.md": "Preferred name: Sam. Timezone: Europe/Berlin.",
+    "skills/productivity/sam-travel-routine/SKILL.md": "---\nname: sam-travel-routine\ndescription: Use for Sam's travel, calendar and arrival routine.\n---\n\n# Sam's travel routine\n\n- Check in with Sam 4 hours before every departure.\n- Prepare options, but always ask before booking, paying or contacting anyone.\n- On arrival Sam wants a car pickup arranged; never food delivery.\n- Quiet hours 22:00-06:30 Berlin time.\n"
+  },
+  "expected_discovered": ["call_and_quiet", "authority", "arrival_help", "check_in_time"],
+  "consent": "Yes, please look around. Keep anything you find that is correct.",
+  "answers": {
+    "call_and_quiet": "Call me Sam; Europe/Berlin; quiet 22:00 to 06:30.",
+    "worth_a_message": "Delays, cancellations, and anything I must decide today.",
+    "authority": "Prepare options; ask before booking, paying or contacting anyone.",
+    "first_trip": "My synthetic Lisbon trip on Thursday; times to follow.",
+    "arrival_help": "A car pickup at arrivals.",
+    "protect": "Thursday 16:00 client meeting.",
+    "route": "This Telegram DM.",
+    "check_in_time": "Four hours before departure."
+  }
+}

@@ -1,0 +1,6 @@
+icalendar>=6.3.1,<7
+python-dateutil>=2.9.0.post0,<3
+six>=1.17.0,<2
+tzdata>=2025.3,<2030
+jsonschema>=4.26.0,<5
+PyYAML>=6.0.3,<7

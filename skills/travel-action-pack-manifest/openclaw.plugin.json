@@ -1,0 +1,47 @@
+{
+  "id": "travel-agent-skills",
+  "name": "Personal Assistant Plugin",
+  "version": "0.7.0-rc.1",
+  "description": "Executability-first travel skills for personal assistant and executive assistant agents, with trip memory, action ledgers, Browserbase checkout recovery, payment readiness, final-state confirmations, and proof capture.",
+  "family": "bundle-plugin",
+  "activation": {
+    "onStartup": false
+  },
+  "skills": [
+    "../agent-wallet-payments",
+    "../airline-check-in",
+    "../browserbase-checkout-lane",
+    "../daily-ops",
+    "../food-delivery-to-hotel",
+    "../hotel-check-in",
+    "../itinerary-intake",
+    "../provider-message-refund",
+    "../restaurant-reservations",
+    "../rideshare-booking",
+    "../travel-action-orchestrator",
+    "../travel-action-pack-references",
+    "../travel-approval-packet",
+    "../travel-email-calendar",
+    "../travel-ledger",
+    "../travel-connectivity",
+    "../travel-mode",
+    "../trip-nudges",
+    "../tripcom-flight-hotel-booking",
+    "../weather-trip-briefing"
+  ],
+  "contracts": {
+    "authorityModel": "delegated-authority-with-final-state-confirmation",
+    "runtimeEnforcement": "skills-ledger-v0.1",
+    "browserLane": "browserbase-first-with-reattach",
+    "paymentLane": "reloadable-agent-wallet-or-saved-provider-descriptor"
+  },
+  "supportControl": {
+    "componentId": "addon:travel-agent-skills",
+    "channel": "pilot",
+    "legacyAliases": [
+      "openclaw-hermes-travel-action-pack",
+      "personal-assistant-travel",
+      "addon:travel-action-pack"
+    ]
+  }
+}

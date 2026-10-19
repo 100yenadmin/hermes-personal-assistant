@@ -1,0 +1,16 @@
+id: ja_ryokan_late_checkin
+name: 架空旅館
+number: sim-ja-ryokan
+language: ja
+role: ryokan
+facts:
+  hours: 15:00-23:00
+  address: 架空町一丁目
+  availability: ["2026-11-21 22:00"]
+  prices: "1泊 15000 JPY"
+  deposit_rules: 追加料金なし
+  menu_notes: 夕食は19時まで
+  phrases:
+    greeting: お電話ありがとうございます。架空旅館でございます。
+    info: 夜10時のご到着を承ります。夕食は午後7時までです。
+behaviours: {target_language_only: true, busy: false}

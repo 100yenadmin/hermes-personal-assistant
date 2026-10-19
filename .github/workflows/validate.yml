@@ -1,0 +1,140 @@
+name: validate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate linked issue and release impact
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/release_contract.py pr --event "$GITHUB_EVENT_PATH"
+      - name: Record push metadata applicability
+        if: github.event_name != 'pull_request'
+        run: echo "PR metadata is not applicable to a main push."
+
+  package-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt pytest pyyaml
+      - run: python3 scripts/validate_pack.py
+      - run: >-
+          python3 -m py_compile
+          scripts/build_release.py scripts/check_release.py scripts/check_pa_release_lifecycle.py
+          scripts/probe_installed_version.py scripts/publish_release.py scripts/reinstall_pinned.py
+          scripts/release_contract.py scripts/verify_release_assets.py scripts/verify_release_recovery.py
+          skills/travel-ledger/scripts/travel_ledger.py scripts/validate_pack.py
+      - run: python -m pytest tests -q
+
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt pytest
+      - run: bash scripts/package_release.sh --output-dir "$RUNNER_TEMP/dist-one"
+      - run: bash scripts/package_release.sh --output-dir "$RUNNER_TEMP/dist-two"
+      - name: Prove deterministic bytes
+        run: |
+          cmp "$RUNNER_TEMP/dist-one/travel-agent-skills-$(cat VERSION).tgz" "$RUNNER_TEMP/dist-two/travel-agent-skills-$(cat VERSION).tgz"
+          cmp "$RUNNER_TEMP/dist-one/travel-agent-skills-$(cat VERSION).tgz.sha256" "$RUNNER_TEMP/dist-two/travel-agent-skills-$(cat VERSION).tgz.sha256"
+          cmp "$RUNNER_TEMP/dist-one/travel-agent-skills-$(cat VERSION).manifest.json" "$RUNNER_TEMP/dist-two/travel-agent-skills-$(cat VERSION).manifest.json"
+      - run: python3 scripts/verify_release_assets.py --dir "$RUNNER_TEMP/dist-one" --version "$(cat VERSION)"
+      - run: python -m pytest tests/test_release_archive.py -q
+
+  release-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install packaging pytest pyyaml
+      - run: >-
+          python -m pytest
+          tests/test_release_contract.py tests/test_release_checker.py
+          tests/test_probe_installed_version.py tests/test_publish_release.py
+          tests/test_reinstall_pinned.py -q
+
+  native-lifecycle:
+    name: native-lifecycle (${{ matrix.hermes_sha }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        hermes_sha:
+          - 49c6d4a9e0dddc64d6333c5b1fcc9d911463a8fd
+          - 6e2b8e070d28b1a3381a3fb290b6b8d6cce13cef
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch exact Hermes source
+        run: |
+          git init -q "$RUNNER_TEMP/hermes-agent"
+          git -C "$RUNNER_TEMP/hermes-agent" remote add origin https://github.com/NousResearch/hermes-agent.git
+          git -C "$RUNNER_TEMP/hermes-agent" fetch --depth=1 origin "${{ matrix.hermes_sha }}"
+          git -C "$RUNNER_TEMP/hermes-agent" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/hermes-agent" rev-parse HEAD)" = "${{ matrix.hermes_sha }}"
+      - run: python -m pip install -e "$RUNNER_TEMP/hermes-agent"
+      - run: python -m pip install -r requirements.txt
+      - name: Native pinned install and reinstall lifecycle
+        run: >-
+          python scripts/check_pa_release_lifecycle.py
+          --hermes "$(command -v hermes)"
+          --hermes-root "$RUNNER_TEMP/hermes-agent"
+          --source "$GITHUB_WORKSPACE"
+          --receipt "$RUNNER_TEMP/native-lifecycle-${{ matrix.hermes_sha }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-lifecycle-${{ matrix.hermes_sha }}
+          path: ${{ runner.temp }}/native-lifecycle-${{ matrix.hermes_sha }}.json
+
+  validate:
+    name: validate
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [pr-metadata, package-tests, archive, release-contract, native-lifecycle]
+    steps:
+      - name: Require every mandatory job
+        env:
+          REQUIRED_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          results = json.loads(os.environ["REQUIRED_RESULTS"])
+          expected = {"pr-metadata", "package-tests", "archive", "release-contract", "native-lifecycle"}
+          assert set(results) == expected, (set(results), expected)
+          failed = {name: value.get("result") for name, value in results.items() if value.get("result") != "success"}
+          assert not failed, failed
+          print(json.dumps({"ok": True, "mandatory_jobs": sorted(expected)}))
+          PY

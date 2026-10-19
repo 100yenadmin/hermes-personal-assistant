@@ -1,0 +1,40 @@
+id: s05_call_restaurant_ko
+capabilities:
+- calls
+language: ko
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Seoul
+  destination: Seoul
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: 2026-11-23 19:00에 4명 자리가 있는지 식당에 전화해 주세요. 보증금 한도는 0원입니다. 예약을 확정하지 말고 요약해 주세요.
+  capability: calls
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: false
+max_user_turns: 10
+budget_seconds: 900
+calls:
+  persona: ko_restaurant_booking
+  direction: outbound
+  reason: 2026-11-23 19:00에 4명 자리가 있는지 식당에 전화해 주세요. 보증금 한도는 0원입니다. 예약을 확정하지 말고 요약해
+    주세요.
+  allowed_outcomes:
+  - answered
+  - needs_approval
+  - message_taken
+  - handoff
+  - no_answer
+  - refused

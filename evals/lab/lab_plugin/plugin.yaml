@@ -1,0 +1,6 @@
+name: pa-capability-lab
+version: 1.0.0
+manifest_version: 1
+api_version: 1
+description: Evaluation-only observer and demo final-submit tripwire.
+provides_hooks: [pre_tool_call, post_tool_call]

@@ -1,0 +1,41 @@
+name: personal-assistant
+label: Personal Assistant Plugin
+version: 0.7.0-rc.1
+description: Durable personal operations for calendar, communication, meetings, household, shopping, travel and executive follow-through.
+manifest_version: 1
+api_version: 1
+provides_tools:
+  - pa
+  - pa_delivery_ack
+  - pa_call
+provides_hooks:
+  - pre_tool_call
+  - pre_llm_call
+python_dependencies:
+  - icalendar>=6.3.1,<7
+  - python-dateutil>=2.9.0.post0,<3
+  - six>=1.17.0,<2
+  - tzdata>=2025.3,<2030
+  - jsonschema>=4.26.0,<5
+  - PyYAML>=6.0.3,<7
+config_schema:
+  observe:
+    type: dict
+    default: {}
+    description: Validated observer settings; configuring this starts no jobs.
+  setup_offer:
+    type: bool
+    default: true
+    description: Offer guided setup once on the first message of a new session
+  daily_ops_enabled:
+    type: bool
+    default: false
+    description: Enable only through a separately approved scheduler setup.
+  conversation_delivery:
+    type: dict
+    default: {}
+    description: Opt-in only; requires an exact verified existing-session route and an explicitly installed gateway startup hook.
+  calls:
+    type: dict
+    default: {}
+    description: "Phone transport: none (default) returns a script; sim requires a loopback sim_url. No real phone transport."

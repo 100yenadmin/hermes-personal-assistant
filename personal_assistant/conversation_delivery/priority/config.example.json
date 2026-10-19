@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "enabled": true,
+  "connector": {
+    "command": "/absolute/path/to/configured/gog"
+  },
+  "accounts": [
+    {"alias": "work", "account": "<configured-existing-account>", "account_selector": "0"},
+    {"alias": "personal", "account": "<configured-existing-account>", "account_selector": "1"}
+  ],
+  "rules": [
+    {"id": "named-sender", "field": "sender", "pattern": "priority.example", "query": "from:(priority.example)"},
+    {"id": "named-subject", "field": "subject", "pattern": "account review", "query": "subject:(\"account review\")"}
+  ],
+  "filters": {
+    "self_emails": [],
+    "self_domains": []
+  },
+  "limits": {
+    "max_pages": 4,
+    "page_size": 25,
+    "max_threads": 40,
+    "max_events": 16,
+    "max_provider_output_bytes": 2097152,
+    "sender_bytes": 512,
+    "subject_bytes": 1024,
+    "snippet_bytes": 768,
+    "body_bytes": 4096,
+    "source_link_bytes": 1024,
+    "expiry_seconds": 604800,
+    "max_packet_bytes": 65536
+  },
+  "source_link_template": "https://mail.google.com/mail/u/?authuser={account_selector}#all/{thread_id}/{message_id}"
+}

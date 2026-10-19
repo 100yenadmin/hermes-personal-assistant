@@ -1,0 +1,19 @@
+{
+  "name": "known-basics",
+  "note": "Synthetic. USER.md already holds name, timezone, quiet hours and the delivery chat. Discovery should not ask call_and_quiet; route asks which account or app, which USER.md does not answer.",
+  "seed": {
+    "memories/USER.md": "Preferred name: Mina. Timezone: Asia/Tokyo. Quiet hours 23:00-07:00.\n§\nCheck-ins and travel messages go to this Telegram DM."
+  },
+  "expected_discovered": ["call_and_quiet"],
+  "consent": "Yes, please look around. Keep anything you find that is correct.",
+  "answers": {
+    "call_and_quiet": "Call me Mina; Asia/Tokyo; quiet 23:00 to 07:00.",
+    "worth_a_message": "Only flight or gate changes, and one useful arrival idea.",
+    "authority": "Prepare anything; ask before paying, booking or messaging anyone.",
+    "first_trip": "My synthetic Osaka trip next week; I will give flight times later.",
+    "arrival_help": "A taxi from the station and dinner ideas near the hotel.",
+    "protect": "My Monday 09:00 team call.",
+    "route": "This Telegram DM.",
+    "check_in_time": "Two hours before departure."
+  }
+}

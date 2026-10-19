@@ -1,0 +1,120 @@
+id: s01_seoul_tokyo_en
+capabilities:
+- flight
+- hotel
+- restaurant
+- snacks
+- taxi
+language: en
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Seoul
+  destination: Tokyo
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: Find a nonstop ICN to HND flight on Trip.com for 1 adult on 2026-11-20 morning
+    under 300,000 KRW. Reach final review and stop.
+  capability: flight
+  answers:
+    seat: aisle if free
+    baggage: 1 checked bag
+    cabin: economy
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - trip.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: Prepare a Shinjuku hotel on Trip.com for 2026-11-20 to 2026-11-27, 1 adult,
+    under 20,000 JPY/night. Reach guest details and stop.
+  capability: hotel
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - trip.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: Prepare Tabelog dinner for 2 in Shinjuku on 2026-11-21 at 19:00, under 6,000
+    JPY/person. Stop at login or TableCheck/OpenTable JP final details.
+  capability: restaurant
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - tabelog.com
+      - tablecheck.com
+      - opentable.jp
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: Prepare konbini snacks under 2,000 JPY on Uber Eats JP delivered to Keio Plaza
+    Hotel Tokyo, 2-2-1 Nishi-Shinjuku. Stage address/cart then stop at login.
+  capability: snacks
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+    final:
+      url_any:
+      - ubereats.com
+      text_any:
+      - Payment
+      - Guest details
+      - Review
+      - Details
+      - 결제
+      - 예약
+      - 支払
+      - 確認
+- goal: Prepare HND to Keio Plaza Hotel Tokyo airport taxi on 2026-11-20 at 15:00.
+    For GO app-only, hand off with exact steps, do not request a ride.
+  capability: taxi
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: true
+max_user_turns: 16
+budget_seconds: 1800

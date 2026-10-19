@@ -1,0 +1,39 @@
+id: s06_call_shop_ja
+capabilities:
+- calls
+language: ja
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Tokyo
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Tokyo
+  destination: Kyoto
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: 2026年11月24日に店へ行きたいです。電話で白い象印 SM-ZB48 480ml ボトルの在庫と閉店時間を聞いてください。取り置きや購入はしないでください。
+  capability: calls
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: false
+max_user_turns: 10
+budget_seconds: 900
+calls:
+  persona: ja_shop_stock
+  direction: outbound
+  reason: 2026年11月24日に店へ行きたいです。電話で白い象印 SM-ZB48 480ml ボトルの在庫と閉店時間を聞いてください。取り置きや購入はしないでください。
+  allowed_outcomes:
+  - answered
+  - needs_approval
+  - message_taken
+  - handoff
+  - no_answer
+  - refused

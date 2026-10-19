@@ -1,0 +1,67 @@
+{
+  "schema": "pa-local-eva-v1",
+  "scope": "synthetic local recipe coverage",
+  "claim_boundary": "Synthetic fixtures check catalog routing and expected native pa-tool sequencing; they do not prove agent, provider, runtime, customer, or fleet behavior.",
+  "recipes": [
+    {
+      "id": "R1",
+      "scenarios": [
+        {"name": "trip_import", "input": {"source": "synthetic itinerary", "facts": ["route", "dates"]}, "expected": {"outcome": "trip facts imported", "operations": ["status", "trip_import", "action_upsert"]}},
+        {"name": "trip_change", "input": {"change": "synthetic departure time"}, "expected": {"outcome": "trip changed while omitted facts remain", "operations": ["status", "trip_import", "action_upsert"]}},
+        {"name": "trip_export", "input": {"format": "ics", "scope": "local"}, "expected": {"outcome": "credential-free export receipt", "operations": ["status", "export", "action_upsert"]}}
+      ]
+    },
+    {
+      "id": "R2",
+      "scenarios": [
+        {"name": "booking", "input": {"action": "flight booking", "submit": "Book"}, "expected": {"outcome": "prepared then confirmed and verified", "confirmation_required": true, "operations": ["status", "action_upsert", "action_prepare", "action_confirm", "action_claim", "action_result"]}},
+        {"name": "checkin", "input": {"action": "airline check-in", "submit": "Check in"}, "expected": {"outcome": "prepared then confirmed and verified", "confirmation_required": true, "operations": ["status", "action_upsert", "action_prepare", "action_confirm", "action_claim", "action_result"]}},
+        {"name": "ground", "input": {"action": "ground ride", "submit": "Request ride"}, "expected": {"outcome": "prepared then confirmed and verified", "confirmation_required": true, "operations": ["status", "action_upsert", "action_prepare", "action_confirm", "action_claim", "action_result"]}},
+        {"name": "reservation", "input": {"action": "restaurant reservation", "submit": "Reserve"}, "expected": {"outcome": "prepared then confirmed and verified", "confirmation_required": true, "operations": ["status", "action_upsert", "action_prepare", "action_confirm", "action_claim", "action_result"]}},
+        {"name": "confirmed_submit_recovery", "input": {"action": "booking", "result": "timeout after confirmation"}, "expected": {"outcome": "unknown preserved and no replay", "operations": ["status", "action_result", "action_upsert"]}}
+      ]
+    },
+    {
+      "id": "R3",
+      "scenarios": [
+        {"name": "refund", "input": {"action": "refund request", "provider": "synthetic provider"}, "expected": {"outcome": "confirmed request or durable blocker", "confirmation_required": true, "operations": ["status", "action_prepare", "action_confirm", "action_claim", "action_result"]}},
+        {"name": "return", "input": {"action": "return request", "item": "synthetic item"}, "expected": {"outcome": "confirmed request or durable blocker", "confirmation_required": true, "operations": ["status", "action_prepare", "action_confirm", "action_claim", "action_result"]}}
+      ]
+    },
+    {
+      "id": "R4",
+      "scenarios": [
+        {"name": "calendar_conflict", "input": {"calendar": "private", "events": ["synthetic event A", "synthetic event B"]}, "expected": {"outcome": "conflict surfaced with next action", "operations": ["status", "action_upsert"]}},
+        {"name": "meeting_prep", "input": {"meeting": "synthetic meeting", "attendees": "accepted scope"}, "expected": {"outcome": "meeting packet read back without invite", "operations": ["status", "action_upsert"]}}
+      ]
+    },
+    {
+      "id": "R5",
+      "scenarios": [
+        {"name": "daily_brief", "input": {"timezone": "UTC", "sources": ["calendar", "tasks"]}, "expected": {"outcome": "current brief receipt", "operations": ["status", "action_upsert"]}},
+        {"name": "reminder", "input": {"item": "synthetic due item", "schedule": "accepted native routine"}, "expected": {"outcome": "suggested automation with no install-time job", "operations": ["status", "action_upsert", "automations"]}}
+      ]
+    },
+    {
+      "id": "R6",
+      "scenarios": [
+        {"name": "inbox_review", "input": {"scope": "accepted inbox", "thread": "synthetic thread"}, "expected": {"outcome": "next action identified", "operations": ["status", "action_upsert"]}},
+        {"name": "pending_reply", "input": {"recipient": "synthetic recipient", "body": "synthetic draft"}, "expected": {"outcome": "draft or confirmed provider-visible reply", "confirmation_required": true, "operations": ["status", "action_prepare", "action_confirm", "action_claim", "action_result"]}}
+      ]
+    },
+    {
+      "id": "R7",
+      "scenarios": [
+        {"name": "receipt", "input": {"service": "synthetic service", "receipt": "synthetic receipt"}, "expected": {"outcome": "receipt reconciled", "operations": ["status", "action_upsert"]}},
+        {"name": "renewal", "input": {"service": "synthetic service", "term": "synthetic term"}, "expected": {"outcome": "confirmed renewal or cancellation decision", "confirmation_required": true, "operations": ["status", "action_prepare", "action_confirm", "action_claim", "action_result"]}}
+      ]
+    },
+    {
+      "id": "R8",
+      "scenarios": [
+        {"name": "shopping", "input": {"item": "synthetic item", "budget": "synthetic budget"}, "expected": {"outcome": "prepared cart or verified order", "confirmation_required": true, "operations": ["status", "action_prepare", "action_confirm", "action_claim", "action_result"]}},
+        {"name": "service", "input": {"service": "synthetic service", "appointment": "synthetic slot"}, "expected": {"outcome": "prepared or verified service request", "confirmation_required": true, "operations": ["status", "action_prepare", "action_confirm", "action_claim", "action_result"]}}
+      ]
+    }
+  ]
+}

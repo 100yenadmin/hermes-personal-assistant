@@ -1,0 +1,85 @@
+name: release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.contract.outputs.publish }}
+      version: ${{ steps.contract.outputs.version }}
+      source_sha: ${{ steps.contract.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: contract
+        name: Classify exact merged PR
+        run: python3 scripts/release_contract.py merge --event "$GITHUB_EVENT_PATH" --github-output "$GITHUB_OUTPUT"
+
+  build:
+    if: needs.classify.outputs.publish == 'true'
+    needs: classify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.classify.outputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt pytest PyYAML
+      - run: python3 scripts/validate_pack.py
+      - run: python -m pytest tests/test_release_archive.py tests/test_release_contract.py -q
+      - run: bash scripts/package_release.sh --output-dir dist
+      - run: python3 scripts/verify_release_assets.py --dir dist --version "${{ needs.classify.outputs.version }}"
+      - run: >-
+          python3 scripts/release_contract.py notes --event "$GITHUB_EVENT_PATH"
+          --output dist/release-notes.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pa-release-${{ needs.classify.outputs.version }}-${{ needs.classify.outputs.source_sha }}
+          path: dist/
+
+  publish:
+    if: needs.classify.outputs.publish == 'true'
+    needs: [classify, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.classify.outputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: pa-release-${{ needs.classify.outputs.version }}-${{ needs.classify.outputs.source_sha }}
+          path: dist
+      - name: Publish or resume same-byte release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/publish_release.py
+          --repo "$GITHUB_REPOSITORY"
+          --source-sha "${{ needs.classify.outputs.source_sha }}"
+          --version "${{ needs.classify.outputs.version }}"
+          --assets-dir dist
+          --notes-file dist/release-notes.md

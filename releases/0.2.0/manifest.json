@@ -1,0 +1,17 @@
+{
+  "package": "travel-agent-skills",
+  "native_id": "personal-assistant",
+  "display_name": "Personal Assistant Plugin",
+  "version": "0.2.0",
+  "channel": "local-pilot-candidate",
+  "component_id": "addon:travel-agent-skills",
+  "source_commit": null,
+  "artifact": {
+    "name": "travel-agent-skills-0.2.0.tgz",
+    "sha256": null
+  },
+  "rollout": {
+    "scope": "local operator only",
+    "fleet_approved": false
+  }
+}

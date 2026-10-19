@@ -1,0 +1,6 @@
+hooks:
+  pre_tool_call:
+    - command: "/absolute/admin-owned/hermes-python /absolute/admin-owned/personal-assistant/scripts/pa_action_gateway.py --profile-root /absolute/managed-profile --policy /absolute/admin-owned/personal-assistant/config/pa-action-gateway-policy.json"
+      matcher: ".*"
+      timeout: 5
+      fail_closed: true

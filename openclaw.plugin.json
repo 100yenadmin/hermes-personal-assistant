@@ -1,0 +1,63 @@
+{
+  "id": "travel-agent-skills",
+  "name": "Personal Assistant Plugin",
+  "version": "0.7.0-rc.1",
+  "description": "Executability-first travel skills for personal assistant and executive assistant agents, with trip memory, action ledgers, Browserbase checkout recovery, payment readiness, final-state confirmations, and proof capture.",
+  "family": "bundle-plugin",
+  "activation": {
+    "onStartup": false
+  },
+  "skills": [
+    "skills/agent-wallet-payments",
+    "skills/airline-check-in",
+    "skills/browserbase-checkout-lane",
+    "skills/daily-ops",
+    "skills/food-delivery-to-hotel",
+    "skills/hotel-check-in",
+    "skills/itinerary-intake",
+    "skills/provider-message-refund",
+    "skills/restaurant-reservations",
+    "skills/rideshare-booking",
+    "skills/travel-action-orchestrator",
+    "skills/travel-action-pack-references",
+    "skills/travel-approval-packet",
+    "skills/travel-email-calendar",
+    "skills/travel-ledger",
+    "skills/travel-connectivity",
+    "skills/travel-mode",
+    "skills/trip-nudges",
+    "skills/tripcom-flight-hotel-booking",
+    "skills/weather-trip-briefing"
+  ],
+  "openclaw": {
+    "compat": {
+      "pluginApi": ">=2026.5.27"
+    }
+  },
+  "contracts": {
+    "authorityModel": "delegated-authority-with-final-state-confirmation",
+    "runtimeEnforcement": "skills-ledger-v0.1",
+    "browserLane": "browserbase-first-with-reattach",
+    "paymentLane": "reloadable-agent-wallet-or-saved-provider-descriptor"
+  },
+  "supportControl": {
+    "componentId": "addon:travel-agent-skills",
+    "channel": "pilot",
+    "legacyAliases": [
+      "openclaw-hermes-travel-action-pack",
+      "personal-assistant-travel",
+      "addon:travel-action-pack"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "daily_ops_enabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Scheduled read-only email/calendar ops (briefs, priority alerts). Cron registration remains an explicit, customer-confirmed setup step. Config location: DAILY_OPS_CONFIG env or ./daily_ops.config.json."
+      }
+    }
+  }
+}

@@ -1,0 +1,96 @@
+name: release-recovery-v040-rc1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: release-recovery-v040-rc1
+  cancel-in-progress: false
+
+env:
+  ORIGINAL_RUN_ID: "34879649204"
+  ORIGINAL_RUN_HEAD_SHA: 7493af309cd24cd727002631ba409ed7af85a163
+  ORIGINAL_ARTIFACT: pa-release-0.4.0-rc.1-cf0b130f34e6676342ecb3cd3e88bbff6a4cb613
+  RELEASE_VERSION: 0.4.0-rc.1
+  RELEASE_SOURCE_SHA: cf0b130f34e6676342ecb3cd3e88bbff6a4cb613
+  ARCHIVE_SHA256: 386e82cc6b2cffbf93c5505557a5148c3401eb318c7b936b22a330581750f390
+  CHECKSUM_SHA256: 1c0b12f55b1e829dd4b9c8db628527363d1eec62dcaab7b0486103146568f7d9
+  MANIFEST_SHA256: 9591dc4f4e3a2cab08c343c46508161bcd01d40f4237a02407aef1fe213ae55c
+  NOTES_SHA256: 19f9f3d9b9eeb99da16fff8acd79a4d376d099f558f8ee5dade01557b3f06816
+
+jobs:
+  verify-original-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main dispatch
+        run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ORIGINAL_ARTIFACT }}
+          path: dist
+          repository: ${{ github.repository }}
+          run-id: ${{ env.ORIGINAL_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Read original run identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN_ID" > "$RUNNER_TEMP/original-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/original-jobs.json"
+      - name: Verify frozen source and bytes
+        run: >-
+          python3 -m scripts.verify_release_recovery
+          --dir dist --run-json "$RUNNER_TEMP/original-run.json"
+          --jobs-json "$RUNNER_TEMP/original-jobs.json"
+          --repository "$GITHUB_REPOSITORY" --run-id "$ORIGINAL_RUN_ID"
+          --run-head-sha "$ORIGINAL_RUN_HEAD_SHA"
+          --source-sha "$RELEASE_SOURCE_SHA" --version "$RELEASE_VERSION"
+          --archive-sha256 "$ARCHIVE_SHA256" --checksum-sha256 "$CHECKSUM_SHA256"
+          --manifest-sha256 "$MANIFEST_SHA256" --notes-sha256 "$NOTES_SHA256"
+
+  publish-frozen-build:
+    needs: verify-original-build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Require main dispatch
+        run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ORIGINAL_ARTIFACT }}
+          path: dist
+          repository: ${{ github.repository }}
+          run-id: ${{ env.ORIGINAL_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Read original run identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN_ID" > "$RUNNER_TEMP/original-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ORIGINAL_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/original-jobs.json"
+      - name: Reverify frozen source and bytes
+        run: >-
+          python3 -m scripts.verify_release_recovery
+          --dir dist --run-json "$RUNNER_TEMP/original-run.json"
+          --jobs-json "$RUNNER_TEMP/original-jobs.json"
+          --repository "$GITHUB_REPOSITORY" --run-id "$ORIGINAL_RUN_ID"
+          --run-head-sha "$ORIGINAL_RUN_HEAD_SHA"
+          --source-sha "$RELEASE_SOURCE_SHA" --version "$RELEASE_VERSION"
+          --archive-sha256 "$ARCHIVE_SHA256" --checksum-sha256 "$CHECKSUM_SHA256"
+          --manifest-sha256 "$MANIFEST_SHA256" --notes-sha256 "$NOTES_SHA256"
+      - name: Resume exact draft with corrected publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/publish_release.py
+          --repo "$GITHUB_REPOSITORY" --source-sha "$RELEASE_SOURCE_SHA"
+          --version "$RELEASE_VERSION" --assets-dir dist
+          --notes-file dist/release-notes.md

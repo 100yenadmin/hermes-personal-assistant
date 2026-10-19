@@ -1,0 +1,29 @@
+id: s09_concierge
+capabilities:
+- concierge
+language: en
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic traveller; no logins, payment methods, passport or real contact
+    details. Never submit.
+trip:
+  origin: Seoul
+  destination: Tokyo
+  depart_date: '2026-11-20'
+  return_date: '2026-11-27'
+  travellers: 1
+steps:
+- goal: Provide arrival concierge help for Tokyo on 2026-11-20.
+  capability: concierge
+  answers:
+    preference: No preference
+    payment: No payment method; demo only
+  expect:
+    or_handoff: true
+    ledger: false
+max_user_turns: 10
+budget_seconds: 900
+requires: gateway
