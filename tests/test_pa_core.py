@@ -117,12 +117,12 @@ class CoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ledger = Ledger(tmp)
             data = ICS.replace(b"SUMMARY:Meet", b"RRULE:FREQ=DAILY;COUNT=3\r\nEXDATE;TZID=Asia/Seoul:20260907T130000\r\nSUMMARY:Meet")
-            import_trip(ledger, "trip", data, guide="Door code: 1234\nMap https://example.org/map\nInvite https://example.org/join?token=secret")
+            import_trip(ledger, "trip", data, guide="Door code: 9182736\nMap https://example.org/map\nInvite https://example.org/join?token=secret")
             out = export_trip(ledger, "trip", Path(tmp) / "export")
             event = Calendar.from_ical(Path(out["calendar"]).read_bytes()).walk("VEVENT")[0]
             self.assertEqual(event["EXDATE"].params["TZID"], "Asia/Seoul")
             text = Path(out["reference"]).read_text()
-            self.assertNotIn("1234", text)
+            self.assertNotIn("9182736", text)  # 7 digits: never inside a timestamp
             self.assertNotIn("token=secret", text)
             self.assertIn("https://example.org/map", text)
 
