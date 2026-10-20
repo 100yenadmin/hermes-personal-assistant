@@ -7,7 +7,7 @@ from .state import legacy, now
 CORE_QUESTIONS = ("call_and_quiet", "worth_a_message", "authority", "first_trip",
                   "arrival_help", "protect", "route", "check_in_time")
 CHIEF_OF_STAFF_QUESTIONS = ("cos_priorities", "cos_radar_topics", "cos_daily_time",
-                            "cos_weekly_slot", "cos_schedules")
+                            "cos_kickoff_slot", "cos_weekly_slot", "cos_schedules")
 SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS}
 FILE_TARGETS = {"user_memory", "soul_section", "manual_skill", "context_file"}
 TARGETS = FILE_TARGETS | {"pa_preferences"}  # Via pa automations preferences; no file/readback.

@@ -20,8 +20,10 @@ from personal_assistant.onboarding_hook import make_pre_llm_call
 from personal_assistant.state import Ledger
 
 ROOT = Path(__file__).resolve().parents[1]
-COS = ("cos_daily", "cos_weekly")
-NAMES = ("personal-assistant-cos-daily", "personal-assistant-cos-weekly")
+COS = ("cos_daily", "cos_kickoff", "cos_weekly")
+NAMES = ("personal-assistant-cos-daily", "personal-assistant-cos-kickoff", "personal-assistant-cos-weekly")
+# The weekly closeout defaults to Friday 15:00; tests built on a Monday slot save it explicitly.
+MONDAY_CLOSEOUT = {"cos_weekly_day": "mon", "cos_weekly_time": "10:00"}
 
 
 def config(root, modes=True, *, legacy=False, enabled=True):
@@ -93,7 +95,7 @@ def test_registration_marker(tmp_path, monkeypatch, modes, expected):
 
 def test_mode_command_stops_only_cos(tmp_path, monkeypatch):
     ledger = ledger_at(tmp_path)
-    for kind in ("cos_weekly", "daily_brief"):
+    for kind in ("cos_kickoff", "cos_weekly", "daily_brief"):
         rule(ledger, kind)
     for kind in COS:
         ledger.put("action", "pa:suggestion:" + kind, {"suggestion_id": kind},
@@ -115,7 +117,7 @@ def test_mode_command_stops_only_cos(tmp_path, monkeypatch):
     assert "Chief of Staff: on" in command("status")
     reply = command("mode chief-of-staff off")
     assert settings["modes"]["chief_of_staff"] is False
-    assert "2" in reply and "paused" in reply and "removed" in reply
+    assert "3" in reply and "paused" in reply and "removed" in reply
     assert {c.args[0] for c in cron.pause_job.call_args_list} == set(COS)
     assert {c.args[0] for c in cron.remove_job.call_args_list} == set(COS)
     assert {c.args[0] for c in suggest.dismiss_suggestion.call_args_list} == set(COS)
@@ -158,6 +160,7 @@ def test_config_reader_matches_native_fallback(tmp_path, legacy):
 @pytest.mark.parametrize("kind", COS)
 def test_cos_false_gates(tmp_path, case, reason, kind):
     ledger = ledger_at(tmp_path, kind)
+    preferences(ledger, MONDAY_CLOSEOUT)
     now = dt.datetime.fromisoformat("2026-10-20T12:00:00+09:00")
     if case == "off": config(tmp_path, False)
     if case == "unaccepted": rule(ledger, kind, accepted=False)
@@ -168,7 +171,7 @@ def test_cos_false_gates(tmp_path, case, reason, kind):
     if case == "snooze": preferences(ledger, {"snooze_until": "2026-10-21T12:00:00+09:00"})
     if case == "quiet": now = now.replace(hour=23)
     if case == "early": now = now.replace(hour=9, minute=29)
-    if case == "early" and kind == "cos_weekly": now = now.replace(day=19)
+    if case == "early" and kind != "cos_daily": now = now.replace(day=19)
     assert cron_precheck(ledger, kind, enabled=case != "disabled", moment=now) == {
         "wakeAgent": False, "reason": reason}
     assert not any(a["action_type"] == "notification" for a in ledger.list("action"))
@@ -177,31 +180,33 @@ def test_cos_false_gates(tmp_path, case, reason, kind):
 @pytest.mark.parametrize("kind", COS)
 def test_cos_occurrence_once(tmp_path, kind):
     ledger = ledger_at(tmp_path, kind)
-    preferences(ledger, {"cos_daily_time": "09:45", "cos_weekly_day": "wed", "cos_weekly_time": "10:15"})
+    preferences(ledger, {"cos_daily_time": "09:45", "cos_weekly_day": "wed", "cos_weekly_time": "10:15",
+                         "cos_kickoff_day": "wed", "cos_kickoff_time": "10:15"})
     now = dt.datetime.fromisoformat("2026-12-30T10:15:00+09:00")
     before = now.replace(hour=9, minute=44) if kind == "cos_daily" else now - dt.timedelta(minutes=1)
     assert not cron_precheck(ledger, kind, enabled=True, moment=before)["wakeAgent"]
-    if kind == "cos_weekly":
+    if kind != "cos_daily":
         assert not cron_precheck(ledger, kind, enabled=True, moment=now - dt.timedelta(days=1))["wakeAgent"]
     first = cron_precheck(ledger, kind, enabled=True, moment=now)
     assert first["wakeAgent"]
     auto.record_notification(ledger, first["occurrence_id"], "suppressed")
     assert not cron_precheck(Ledger(tmp_path), kind, enabled=True, moment=now + dt.timedelta(hours=1))["wakeAgent"]
-    if kind == "cos_weekly":
+    if kind != "cos_daily":
         assert not cron_precheck(ledger, kind, enabled=True, moment=now + dt.timedelta(days=4))["wakeAgent"]
     later = now + dt.timedelta(days=1 if kind == "cos_daily" else 7)
     assert cron_precheck(ledger, kind, enabled=True, moment=later)["wakeAgent"]
 
 
 @pytest.mark.parametrize("changes", [{"cos_daily_time": "25:00"}, {"cos_weekly_time": "9:00"},
-    {"cos_weekly_day": "monday"}])
+    {"cos_weekly_day": "monday"}, {"cos_kickoff_time": "9:00"}, {"cos_kickoff_day": "monday"}])
 def test_preferences_validate_clock_and_day(tmp_path, changes):
     with pytest.raises(ValueError): preferences(Ledger(tmp_path), changes)
 
 
 def test_suggestions_and_script_gate(tmp_path, monkeypatch, capsys):
     ledger = ledger_at(tmp_path)
-    rule(ledger, COS[1])
+    for kind in COS[1:]:
+        rule(ledger, kind)
     config(tmp_path, False)
     assert prepare_suggestions(ledger)["jobs"] == []
     config(tmp_path)
@@ -221,7 +226,8 @@ def test_suggestions_and_script_gate(tmp_path, monkeypatch, capsys):
         )
         path = Path(_install_precheck(ledger, kind))
         assert str(path) == spec["script"] and kind in path.read_text()
-    assert suggest.add_suggestion.call_count == 2
+    assert suggest.add_suggestion.call_count == 3
+    assert {c.kwargs["title"] for c in suggest.add_suggestion.call_args_list} == set(NAMES)
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     config(tmp_path, False, legacy=True)
     script_main(COS[0])
@@ -249,6 +255,7 @@ def test_status_mode(tmp_path):
 @pytest.mark.parametrize("kind", COS)
 def test_cos_rule_revision_cannot_repeat_report(tmp_path, kind):
     ledger = ledger_at(tmp_path, kind)
+    preferences(ledger, MONDAY_CLOSEOUT)
     now = dt.datetime.fromisoformat("2026-10-20T12:00:00+09:00")
     rule(ledger, kind, profile_id="fixture-profile", account="fixture-account", rule_revision="v1")
     assert cron_precheck(ledger, kind, enabled=True, moment=now)["wakeAgent"]
@@ -317,9 +324,12 @@ def test_registered_cos_skills_are_gated_after_mode_off(tmp_path, monkeypatch, s
 @pytest.mark.parametrize("timezone", ["UTC", None])
 def test_cos_precheck_uses_rule_timezone_or_preference(tmp_path, kind, timezone):
     ledger = ledger_at(tmp_path, kind)
+    preferences(ledger, MONDAY_CLOSEOUT)
     rule(ledger, kind, timezone=timezone)
     zone = timezone or "Asia/Tokyo"
     now = dt.datetime.fromisoformat("2026-10-19T10:00:00" + ("+00:00" if timezone else "+09:00"))
+    if kind == "cos_kickoff":
+        now = now.replace(hour=11)  # The kickoff defaults to Monday 11:00.
     before = now.replace(hour=9, minute=29 if kind == "cos_daily" else 59)
     assert cron_precheck(ledger, kind, enabled=True, moment=before) == {
         "wakeAgent": False, "reason": "before_cos_time"}
@@ -337,6 +347,7 @@ def test_cos_precheck_uses_rule_timezone_or_preference(tmp_path, kind, timezone)
 def test_cos_rule_zone_works_without_a_preference_zone(tmp_path, kind):
     config(tmp_path)
     ledger = Ledger(tmp_path)
+    preferences(ledger, MONDAY_CLOSEOUT)
     rule(ledger, kind, timezone="UTC")
     now = dt.datetime.fromisoformat("2026-10-19T15:00:00+00:00")
     assert prepare_suggestions(ledger)["jobs"][0]["timezone"] == "UTC"
@@ -389,3 +400,109 @@ def test_origin_destination_lets_hermes_bind_the_accepting_topic(tmp_path, monke
         assert job["job_spec"]["deliver"] == "origin" and "origin" not in job["job_spec"]
     text = (Path(__file__).resolve().parents[1] / "skills/pa-setup/references/where-answers-go.md").read_text()
     assert '"destination":"origin"' in text and "accept each one in its own topic" in text
+
+
+def test_closeout_and_kickoff_defaults():
+    assert (auto.DEFAULTS["cos_weekly_day"], auto.DEFAULTS["cos_weekly_time"]) == ("fri", "15:00")
+    assert (auto.DEFAULTS["cos_kickoff_day"], auto.DEFAULTS["cos_kickoff_time"]) == ("mon", "11:00")
+    assert auto.COS_JOBS["cos_kickoff"] == "personal-assistant-cos-kickoff"
+    assert auto.COS_JOBS["cos_weekly"] == "personal-assistant-cos-weekly"
+    assert auto.suggest_automation_jobs(chief_of_staff=True)["max_jobs"] == 5
+
+
+def test_kickoff_suggestion_has_its_own_skill_precheck_and_origin(tmp_path, monkeypatch):
+    config(tmp_path)
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Tokyo"})
+    rule(ledger, "cos_kickoff", destination="origin")
+    native(monkeypatch, tmp_path)
+    jobs = prepare_suggestions(ledger, native=True)["jobs"]
+    assert [j["kind"] for j in jobs] == ["cos_kickoff"]
+    spec = jobs[0]["job_spec"]
+    assert spec["name"] == "personal-assistant-cos-kickoff" and spec["deliver"] == "origin"
+    assert spec["skills"] == ["personal-assistant:personal-assistant", "personal-assistant:cos-kickoff"]
+    assert spec["script"].endswith("scripts/personal_assistant_pa_cos_kickoff_precheck.py")
+    assert "script_main('cos_kickoff')" in Path(spec["script"]).read_text()
+
+
+def test_kickoff_precheck_due_window_and_closeout_cutoff(tmp_path):
+    ledger = ledger_at(tmp_path, "cos_kickoff")  # Defaults: kickoff Mon 11:00, closeout Fri 15:00.
+    at = lambda text: dt.datetime.fromisoformat(text + "+09:00")
+    assert cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-19T10:59:00")) == {
+        "wakeAgent": False, "reason": "before_cos_time"}
+    # A missed kickoff catches up during the week, but never at or after Friday's closeout.
+    for late in ("2026-10-23T15:00:00", "2026-10-24T12:00:00"):
+        assert cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at(late)) == {
+            "wakeAgent": False, "reason": "after_cos_closeout"}
+    first = cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-23T14:59:00"))
+    assert first["wakeAgent"] and first["occurrence_id"] == auto.notification_occurrence_id("cos_kickoff", "2026-W43")
+    assert first["last_closeout_note"] == "cos:weekly:2026-W42"
+    assert not cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-23T14:59:30"))["wakeAgent"]
+    nxt = cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-26T11:00:00"))
+    assert nxt["wakeAgent"] and nxt["last_closeout_note"] == "cos:weekly:2026-W43"
+
+
+def test_kickoff_after_an_earlier_closeout_catches_up_until_week_end(tmp_path):
+    ledger = ledger_at(tmp_path, "cos_kickoff")
+    preferences(ledger, {"cos_weekly_day": "mon", "cos_weekly_time": "10:00", "cos_kickoff_day": "wed"})
+    result = cron_precheck(ledger, "cos_kickoff", enabled=True,
+                           moment=dt.datetime.fromisoformat("2026-10-25T21:00:00+09:00"))
+    assert result["wakeAgent"] and result["last_closeout_note"] == "cos:weekly:2026-W43"
+
+
+@pytest.mark.parametrize("moment,note", [
+    ("2027-01-04T11:00:00+09:00", "cos:weekly:2026-W53"),  # Friday 2027-01-01 is in 2026-W53.
+    ("2027-01-01T15:00:00+09:00", None),  # The closeout slot itself ends kickoff catch-up.
+    ("2026-12-28T11:00:00+09:00", "cos:weekly:2026-W52"),
+])
+def test_last_closeout_note_across_the_year_boundary(tmp_path, moment, note):
+    ledger = ledger_at(tmp_path, "cos_kickoff")
+    result = cron_precheck(ledger, "cos_kickoff", enabled=True, moment=dt.datetime.fromisoformat(moment))
+    assert result.get("last_closeout_note") == note
+    assert result["wakeAgent"] is (note is not None)
+
+
+def test_closeout_slot_on_the_same_day_is_this_weeks_note(tmp_path):
+    ledger = ledger_at(tmp_path, "cos_kickoff")
+    preferences(ledger, {"cos_weekly_day": "mon", "cos_weekly_time": "10:00"})
+    result = cron_precheck(ledger, "cos_kickoff", enabled=True,
+                           moment=dt.datetime.fromisoformat("2027-01-04T11:00:00+09:00"))
+    assert result["last_closeout_note"] == "cos:weekly:2027-W01"
+
+
+def test_daily_tick_needs_no_day_key(tmp_path):
+    assert "cos_daily_day" not in auto.DEFAULTS
+    ledger = ledger_at(tmp_path, "cos_daily")
+    result = cron_precheck(ledger, "cos_daily", enabled=True,
+                           moment=dt.datetime.fromisoformat("2026-10-21T09:30:00+09:00"))
+    assert result["wakeAgent"] and "last_closeout_note" not in result
+
+
+def test_closeout_never_reports_a_closeout_note(tmp_path):
+    ledger = ledger_at(tmp_path, "cos_weekly")
+    result = cron_precheck(ledger, "cos_weekly", enabled=True,
+                           moment=dt.datetime.fromisoformat("2026-10-23T15:00:00+09:00"))
+    assert result["wakeAgent"] and "last_closeout_note" not in result
+    assert result["occurrence_id"] == auto.notification_occurrence_id("cos_weekly", "2026-W43")
+
+
+def test_mode_off_removes_a_kickoff_job_only_by_exact_name(tmp_path, monkeypatch):
+    ledger = ledger_at(tmp_path, "cos_kickoff")
+    cron, _ = native(monkeypatch, tmp_path, jobs=[
+        {"id": "pa", "name": "personal-assistant-cos-kickoff"},
+        {"id": "hand", "name": "CoS weekly kickoff"}])
+    reply = make_pa_command(tmp_path, lambda k, d: {}, Mock())("mode chief-of-staff off")
+    cron.remove_job.assert_called_once_with("pa")
+    assert "removed 1 CoS jobs" in reply
+    assert all(auto._rule_data(r).get("paused") for r in ledger.list("action")
+               if r["action_type"] == "automation_rule")
+
+
+def test_setup_guides_hand_made_kickoff_and_closeout_jobs():
+    text = " ".join((ROOT / "skills/pa-setup/references/where-answers-go.md").read_text().split())
+    assert "List Hermes jobs first" in text
+    assert "hand-made kickoff or closeout job" in text
+    assert "keep it" in text and "do not create the matching PA rule" in text
+    assert "replace it" in text and "removes the hand-made job in Hermes before accepting" in text
+    assert "Never remove a hand-made job yourself" in text
+    assert "/suggestions accept personal-assistant-cos-kickoff" in text

@@ -1,18 +1,18 @@
 ---
 name: cos-weekly
-description: Compare priorities with the week's evidence and recommendation outcomes, then propose at most one batched improvement in Chief of Staff mode.
+description: Close out the week in Chief of Staff mode by comparing priorities with the week's evidence and recommendation outcomes, then propose at most one batched improvement.
 metadata:
   openclaw:
     skillKey: cos-weekly
   hermes:
     category: productivity
-    tags: ["personal-assistant", "chief-of-staff", "weekly", "outcomes"]
+    tags: ["personal-assistant", "chief-of-staff", "weekly", "closeout", "outcomes"]
     pa_mode: chief_of_staff
 ---
 
-# Chief of Staff weekly
+# Chief of Staff weekly closeout
 
-Run from the accepted `cos_weekly` job. Use the user's language. Require Chief
+Run from the accepted `cos_weekly` job, the weekly closeout. Use the user's language. Require Chief
 of Staff mode; if off, explain `/pa mode chief-of-staff on` in a human turn.
 Read `references/recommendation-state.md` for the shared event, retrieval,
 delivery and owner-approved follow-up protocol.
@@ -55,6 +55,10 @@ and `verified` distinct in `stage`. Applied requires actual readback;
 verified requires evidence of the promised result. Never silently edit
 SOUL.md, USER.md, skills or the manual. Never install software.
 
+On the same note, record `carry_over`: the open loops and decisions still needed,
+each with its source, or `"none"`. The next weekly kickoff reads it; never set
+next week's focus here.
+
 For a consequential skill or process change, propose one cheap check: freeze
 two sanitized tool-output cases (the motivating failure and an ordinary case),
 compare old and new text on both with the same model and settings, without live
@@ -66,7 +70,7 @@ Check the manual's byte size. Above about 8 KB, flag it in this same batch and
 propose distilling or replacing text, never appending a second manual. Keep
 engineering lessons in their own project context. Do not edit to meet the budget.
 
-## Close the weekly report
+## Close the week
 
 Then load `personal-assistant:cos-radar` for this week's single benchmark offer,
 if any. Include it in the single final response; Hermes delivers that owner message

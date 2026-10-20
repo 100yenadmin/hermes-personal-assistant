@@ -10,7 +10,7 @@ from personal_assistant.entry import SCHEMA
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COS_SKILLS = ("cos-daily", "cos-weekly", "cos-scout", "cos-radar")
+COS_SKILLS = ("cos-daily", "cos-kickoff", "cos-weekly", "cos-scout", "cos-radar")
 OPERATIONS = set(SCHEMA["parameters"]["properties"]["operation"]["enum"])
 STATE_REFERENCE = ROOT / "skills/cos-weekly/references/recommendation-state.md"
 
@@ -91,3 +91,27 @@ def test_ignored_requires_evidence_the_offer_reached_owner():
         assert "a chat reply" in text and "visible in this chat's history" in text
         assert "only the `unknown` hand-off receipt" in text
         assert "stays `unknown`" in text
+
+
+def test_kickoff_reads_the_last_closeout_and_sets_one_focus():
+    text = " ".join((ROOT / "skills/cos-kickoff/SKILL.md").read_text().split())
+    assert "`last_closeout_note`" in text
+    assert 'pa(operation="context", data={"kind":"action","action_id":"<last_closeout_note>"})' in text
+    assert "no closeout recorded" in text and "infer nothing" in text
+    assert "`cos:kickoff:<local ISO week>`" in text and "`closeout_ref`" in text
+    assert "exactly one focus" in text
+    assert "Radar stays in the weekly closeout" in text and "only if the last closeout recorded one" in text
+    assert "`[SILENT]`" in text and "nothing new" in text
+    assert "beta" not in text.lower()
+    assert (ROOT / "skills/cos-kickoff/references/recommendation-state.md").read_text() == (
+        ROOT / "skills/cos-daily/references/recommendation-state.md").read_text()
+
+
+def test_closeout_records_carry_over_for_the_kickoff():
+    text = " ".join((ROOT / "skills/cos-weekly/SKILL.md").read_text().split())
+    assert "# Chief of Staff weekly closeout" in text
+    assert "`carry_over`" in text and "`cos:weekly:<local ISO week>`" in text
+    assert "personal-assistant:cos-radar" in text
+    state = " ".join(STATE_REFERENCE.read_text().split())
+    assert "all five CoS skills" in state and "kickoff `cos:kickoff:<local ISO week>`" in state
+    assert "cos-kickoff" in state and "`carry_over`" in state

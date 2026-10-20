@@ -9,27 +9,30 @@ from .state import stable_id, legacy
 from .modes import config_getter, cos_enabled
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+WEEKLY_COS = ("cos_kickoff", "cos_weekly")  # Only these kinds have a `<kind>_day` preference.
 
 
 def preferences(ledger, changes=None):
     prior = ledger.get("action", "pa:preferences")
     if changes is not None:
-        allowed = {"timezone", "brief_time", "quiet_hours", "paused", "snooze_until", "cos_daily_time", "cos_weekly_day", "cos_weekly_time"}
+        allowed = {"timezone", "brief_time", "quiet_hours", "paused", "snooze_until", "cos_daily_time",
+                   "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time"}
         if set(changes) - allowed:
             raise ValueError("unknown preference")
         if "timezone" in changes:
             ZoneInfo(changes["timezone"])
-        for key in ("cos_daily_time", "cos_weekly_time"):
+        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time"):
             if key in changes:
                 value = changes[key]
                 if not isinstance(value, str) or len(value) != 5 or dt.time.fromisoformat(value).strftime("%H:%M") != value:
                     raise ValueError(f"{key} must be HH:MM")
-        if "cos_weekly_day" in changes and changes["cos_weekly_day"] not in WEEKDAYS:
-            raise ValueError("cos_weekly_day must be mon..sun")
+        for key in (kind + "_day" for kind in WEEKLY_COS):
+            if key in changes and changes[key] not in WEEKDAYS:
+                raise ValueError(f"{key} must be mon..sun")
         merged = {**(prior or {}).get("fields", {}), **changes}  # A report inside quiet hours is never sent.
         quiet = merged.get("quiet_hours") or auto.DEFAULTS["quiet_hours"]
         start, end = quiet.get("start", "22:00"), quiet.get("end", "07:00")
-        for key in ("cos_daily_time", "cos_weekly_time"):
+        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time"):
             value = merged.get(key)
             if value and (key in changes or "quiet_hours" in changes) and (
                     (value >= start or value < end) if start > end else start <= value < end):
@@ -38,8 +41,24 @@ def preferences(ledger, changes=None):
     return (prior or {}).get("fields", {})
 
 
+def _slot(prefs, kind):
+    """A weekly CoS slot as a comparable (weekday index, "HH:MM") pair."""
+    return (WEEKDAYS.index(prefs.get(kind + "_day", auto.DEFAULTS[kind + "_day"])),
+            prefs.get(kind + "_time", auto.DEFAULTS[kind + "_time"]))
+
+
+def _last_closeout_week(prefs, local):
+    """ISO week of the latest closeout slot at or before `local`."""
+    day, clock = _slot(prefs, "cos_weekly")
+    date = local.date() + dt.timedelta(days=day - local.weekday())
+    if (local.weekday(), local.strftime("%H:%M")) < (day, clock):
+        date -= dt.timedelta(days=7)
+    return "%04d-W%02d" % date.isocalendar()[:2]
+
+
 def _precheck_path(ledger, kind):
-    suffix = {"daily_brief": "brief", "due_source_check": "due", "cos_daily": "cos_daily", "cos_weekly": "cos_weekly"}[kind]
+    suffix = {"daily_brief": "brief", "due_source_check": "due", "cos_daily": "cos_daily",
+              "cos_kickoff": "cos_kickoff", "cos_weekly": "cos_weekly"}[kind]
     return ledger.root / "scripts" / f"personal_assistant_pa_{suffix}_precheck.py"
 
 
@@ -192,10 +211,17 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     state = {**prefs, "actions": due, "accepted_sources": rules, "active_travel": active}
     if cos:
         clock_key = kind + "_time"
-        day = WEEKDAYS.index(prefs.get("cos_weekly_day", auto.DEFAULTS["cos_weekly_day"]))
-        if ((kind == "cos_weekly" and local.weekday() < day)
-                or ((kind == "cos_daily" or local.weekday() == day)
-                    and local.strftime("%H:%M") < prefs.get(clock_key, auto.DEFAULTS[clock_key]))):
+        moment_slot = (local.weekday(), local.strftime("%H:%M"))
+        if kind in WEEKLY_COS:
+            slot = _slot(prefs, kind)
+            if moment_slot < slot:
+                return {"wakeAgent": False, "reason": "before_cos_time"}
+            # A missed kickoff catches up within its ISO week, but never once a
+            # later closeout slot in that week has come.
+            closeout = _slot(prefs, "cos_weekly")
+            if kind == "cos_kickoff" and slot < closeout <= moment_slot:
+                return {"wakeAgent": False, "reason": "after_cos_closeout"}
+        elif moment_slot[1] < prefs.get(clock_key, auto.DEFAULTS[clock_key]):
             return {"wakeAgent": False, "reason": "before_cos_time"}
         state.update(actions=[{"due": True}], chief_of_staff=True, timezone=zone)
         logical = local.date().isoformat() if kind == "cos_daily" else "%04d-W%02d" % local.isocalendar()[:2]
@@ -227,9 +253,12 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     occurrence = (auto.notification_occurrence_id(kind, logical) if cos else
                   auto.notification_occurrence_id(rule_id, logical, revision if payload else None))
     claim = auto.claim_notification(ledger, occurrence, rule_id=rule_id, payload=payload)
-    return {"wakeAgent": claim["claimed"], "occurrence_id": occurrence,
-            "destination": next(iter(destinations)), "due_sources": check.get("due_sources", []),
-            "due_action_ids": [a["action_id"] for a in due]}
+    result = {"wakeAgent": claim["claimed"], "occurrence_id": occurrence,
+              "destination": next(iter(destinations)), "due_sources": check.get("due_sources", []),
+              "due_action_ids": [a["action_id"] for a in due]}
+    if kind == "cos_kickoff":  # Computed here so the model never does ISO-week arithmetic.
+        result["last_closeout_note"] = "cos:weekly:" + _last_closeout_week(prefs, local)
+    return result
 
 
 def dispatch(ledger, data, *, get_config=None):

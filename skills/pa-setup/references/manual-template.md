@@ -98,7 +98,7 @@ pause/resume, failure behavior, and source of the accepted setting.>
 Keep one publisher per brief or alert. Speak when there is a decision, deadline
 or preparation worth acting on: explain why now and the next action. Stay silent
 for unchanged checks; omit counters, job IDs and generic inbox instructions.
-Keep daily guidance short. Weekly review flags a manual beyond about 8 KB.
+Keep daily guidance short. The weekly closeout flags a manual beyond about 8 KB.
 
 Engineering or product lessons go to the repo or an issue, not here.
 ```

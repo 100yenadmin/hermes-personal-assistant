@@ -1,13 +1,14 @@
 # Shared CoS recommendation state
 
-Use this protocol in all four CoS skills. Keep safe summaries and source
+Use this protocol in all five CoS skills. Keep safe summaries and source
 references, never credentials or raw inbox contents.
 
 ## Identity
 
 Each recommendation or offer is one PA note action with a stable ID:
-daily `cos:daily:<local date>`, weekly `cos:weekly:<local ISO week>`,
-radar `cos:radar:<local ISO week>`, scout `cos:scout:<stable need key>`.
+daily `cos:daily:<local date>`, kickoff `cos:kickoff:<local ISO week>`,
+weekly closeout `cos:weekly:<local ISO week>`, radar `cos:radar:<local ISO week>`,
+scout `cos:scout:<stable need key>`.
 Keep the same ID across retries, replies and outcome updates. Include the
 timezone and date or week; never infer the week from UTC alone.
 
@@ -16,10 +17,11 @@ timezone and date or week; never infer the week from UTC alone.
 Record with one call. PA merges top-level fields, so an update sends only the
 fields that changed (and `history` with the new entry appended):
 
-`pa(operation="action_upsert", data={"action_id":"<stable ID>","action_type":"note","status":"completed","fields":{"title":"CoS: <safe summary>","cos_skill":"<cos-daily|cos-weekly|cos-scout|cos-radar>","offered_at":"<timestamp with offset>","timezone":"<IANA>","summary":"...","evidence":"...","benefit":"...","next_action":"...","review_at":"<timestamp with offset>","stage":"draft","outcome":"unknown"}})`
+`pa(operation="action_upsert", data={"action_id":"<stable ID>","action_type":"note","status":"completed","fields":{"title":"CoS: <safe summary>","cos_skill":"<cos-daily|cos-kickoff|cos-weekly|cos-scout|cos-radar>","offered_at":"<timestamp with offset>","timezone":"<IANA>","summary":"...","evidence":"...","benefit":"...","next_action":"...","review_at":"<timestamp with offset>","stage":"draft","outcome":"unknown"}})`
 
 Add `week`, `disposition`, `follow_up_at`, `wake_id`, `armed`, `usefulness`,
-`calendar_readback` or `history` when they apply. `completed` means the note was
+`calendar_readback`, `carry_over` (closeout), `focus` and `closeout_ref` (kickoff)
+or `history` when they apply. `completed` means the note was
 written, never that the recommendation was used. Read the note back with
 `pa(operation="context", data={"kind":"action","action_id":"<stable ID>"})`
 and check the fields you wrote before you deliver or report.

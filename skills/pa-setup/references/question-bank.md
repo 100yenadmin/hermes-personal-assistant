@@ -67,7 +67,7 @@ Use setup `{"action":"start","section":"chief_of_staff"}` for an explicit start.
 Resume saved answers; use the intro, consent and discovery pa-setup flow without
 asking core travel questions. With consent, recover priorities and radar topics
 from USER.md and the existing manual, and timing from automation preferences.
-Ask only the five CoS questions in `references/question-bank.md`, one short
+Ask only the six CoS questions in `references/question-bank.md`, one short
 question with a recommendation per turn. Record answers under their `cos_` IDs.
 They never replace core answers; include saved answers from both sections in review.
 
@@ -75,7 +75,7 @@ Then use pa-setup steps 6–7: propose, show the exact changes, and wait for exp
 apply. Priorities and radar topics use the existing USER.md/manual write path;
 times use `pa automations` action `preferences`. Follow the destination reference
 for schedules: only an explicit yes in a human turn authorizes the selected
-`cos_daily` and/or `cos_weekly` rules for this verified chat and native suggestions.
+`cos_daily`, `cos_kickoff` and/or `cos_weekly` rules for this verified chat and native suggestions.
 Recommend leaving schedules off until wanted. An answer or a general apply does
 not turn an unapproved schedule on. Never install software or silently edit files.
 After apply, ask for `/new`; the fresh-session check must retrieve a saved CoS
@@ -96,8 +96,9 @@ of the recommendation; defaults are suggestions. Skip/later/you decide still wor
 | `cos_priorities` | “What are your top three priorities?” | Reuse stated priorities; otherwise suggest naming one current commitment first. | Compact priorities in USER.md; detail in the existing manual. |
 | `cos_radar_topics` | “Which topics should I watch for useful tools?” | Reuse stated needs; otherwise suggest only tools that help the priorities above. | USER.md/manual; never a new research job. |
 | `cos_daily_time` | “When would a daily suggestion help?” | Keep the existing preference, otherwise 09:30 in the confirmed timezone. | `cos_daily_time` (HH:MM) in PA preferences. |
-| `cos_weekly_slot` | “When should we review the week?” | Keep the existing slot, otherwise Monday 10:00 in the confirmed timezone. | `cos_weekly_day` (mon..sun), `cos_weekly_time` (HH:MM). |
-| `cos_schedules` | “Would you like daily, weekly, both, or neither in this chat?” | Neither until wanted; explain daily may stay silent and weekly includes radar. | Only an explicit yes to each selected schedule permits its rule and suggestion; Hermes acceptance still enables the job. |
+| `cos_kickoff_slot` | “When should we kick off the week?” | Keep the existing slot, otherwise Monday 11:00 in the confirmed timezone, moved later if it falls inside quiet hours. | `cos_kickoff_day` (mon..sun), `cos_kickoff_time` (HH:MM). |
+| `cos_weekly_slot` | “When should we close out the week?” | Keep the existing slot, otherwise Friday 15:00 in the confirmed timezone, moved earlier if it falls inside quiet hours. | `cos_weekly_day` (mon..sun), `cos_weekly_time` (HH:MM). |
+| `cos_schedules` | “Which would you like in this chat: the daily suggestion, the weekly kickoff, the weekly closeout, or none?” | None until wanted; explain daily may stay silent, the kickoff sets one focus from the last closeout, and the closeout includes radar. | Ask about daily, kickoff and closeout separately: each schedule needs its own explicit yes before its rule and suggestion; Hermes acceptance still enables the job. |
 
 Record these IDs through setup `record`; include both sections' saved answers
 in the same review. Times alone never approve schedules. Confirm a missing
