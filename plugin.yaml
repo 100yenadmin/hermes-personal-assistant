@@ -42,4 +42,4 @@ config_schema:
   calls:
     type: dict
     default: {}
-    description: "Phone transport: none (default) returns a script; sim requires a loopback sim_url. No real phone transport."
+    description: "Phone transport: none returns a script; sim is loopback; elevenlabs arms one approved inbound message-taking bridge. Requires separate operator deployment; never auto-starts or dials."

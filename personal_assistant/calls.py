@@ -1,4 +1,4 @@
-"""Approval-gated text calls; the only connected transport is a loopback lab."""
+"""Approval-gated calls; real inbound bridging is explicit, opt-in, and separate."""
 import datetime as dt
 import ipaddress
 import json
@@ -27,6 +27,7 @@ PARAMS = {
     'call_id': {'type': 'string', 'pattern': '^[a-f0-9]{32}$'},
     'purpose': {'type': 'string', 'minLength': 1, 'maxLength': 1000},
     'language': {'type': 'string', 'enum': list(DISCLOSURES)},
+    'direction': {'type': 'string', 'enum': ['outbound', 'inbound']},
     'to': {'type': 'object', 'properties': {'name': {'type': 'string', 'minLength': 1},
                                          'number': {'type': 'string'}},
            'required': ['name'], 'additionalProperties': False},
@@ -42,7 +43,7 @@ PARAMS = {
     'outcome': {'type': 'string', 'enum': OUTCOMES},
     'summary': {'type': 'string', 'maxLength': 1000},
 }
-SCHEMA = {'name': 'pa_call', 'description': 'Prepare an approval card, then start, answer or hold a call. Load phone-calls or answering-calls. Only sim is connected; no transport returns a script.',
+SCHEMA = {'name': 'pa_call', 'description': 'Prepare an approval card, then start, answer or hold a call. Load phone-calls or answering-calls. sim is a lab; elevenlabs can arm one approved inbound message-taking bridge; none returns a script.',
           'parameters': {'type': 'object', 'properties': PARAMS, 'required': ['action'],
                          'additionalProperties': False, 'allOf': [
               {'if': {'properties': {'action': {'const': action}}},
@@ -152,9 +153,19 @@ def _dispatch(ledger, args, config, session_id):
             brief['on_behalf_of'] = clean(args['on_behalf_of'])
         brief['limits'].setdefault('max_deposit', 0)
         brief['disclosure'] = disclosure(brief['language'], args.get('on_behalf_of'))
-        record = dict(schema=1, call_id=uuid.uuid4().hex, direction='outbound', status='prepared',
+        direction = args.get('direction', 'outbound')
+        if direction == 'inbound':
+            from .phone_bridge import _DISCLOSURE
+            brief.update(direction=direction, disclosure=_DISCLOSURE[brief['language']])
+        record = dict(schema=1, call_id=uuid.uuid4().hex, direction=direction, status='prepared',
                       brief=brief, transcript=[], turn_count=0, outcome=None, summary='', session_id=session_id,
                       created_at=now(), ended_at=None)
+        if direction == 'inbound' and config.get('transport') == 'elevenlabs':
+            from .phone_bridge import bridge_setup, digest
+            record['bridge_plan'] = bridge_setup(ledger, config)
+            brief['bridge'] = {'agent_id': record['bridge_plan']['agent_id'],
+                               'destination': record['bridge_plan']['handoff']['route']['destination']}
+            record['brief_digest'] = digest(brief)
         record = _save(ledger, record, args.get('trip_id'))
         return {'status': 'prepared', 'call_id': record['call_id'], 'call_card': brief}
     if action == 'status' and not args.get('call_id'):
@@ -167,11 +178,21 @@ def _dispatch(ledger, args, config, session_id):
     if action == 'start':
         if not record or record['status'] != 'prepared' or args.get('confirmed') is not True:
             return {'status': 'confirmation_required', 'note': 'Show the call card and obtain an explicit yes.'}
+        if config.get('transport') == 'elevenlabs':
+            from .phone_bridge import arm
+            return arm(ledger, record, config)
+        if record['direction'] == 'inbound':
+            return {'status': 'invalid_request', 'note': 'An inbound card can only arm the explicit elevenlabs bridge.'}
         if config.get('transport', 'none') == 'none':
             record.update(status='handoff', outcome='handoff')
             _save(ledger, record)
             return {'status': 'no_transport', 'script': _script(record['brief']),
                     'note': 'Call yourself with this script, or connect a phone transport (#98).'}
+    elif record and record.get('transport') == 'elevenlabs':
+        if action == 'end' and record['status'] == 'armed' and args['outcome'] == 'cancelled':
+            from .phone_bridge import cancel_armed
+            return cancel_armed(ledger, identity, args['summary'])
+        return {'status': 'transport_error', 'note': 'Bridge-owned call: use status and reconcile provider terminal proof. pa_call cannot send speech, hang up, or invent a remote outcome.'}
     elif action == 'answer':
         if record:
             return {'status': 'invalid_state'}
