@@ -136,13 +136,25 @@ def check_release(*, gh: str, repository: str, channel: str,
     }
     observed_commit = installed.get("observed_commit")
     observed_version = installed.get("observed_version")
+    migration_required = installed.get("source_kind") == "legacy_openclaw"
+    if migration_required:
+        base.pop("operator_archive_path")
     unhealthy_status = None
     if installed.get("installed"):
-        if installed.get("install_ok") is not True:
+        if installed.get("invalid_reason"):
+            unhealthy_status = "installed_invalid"
+        elif migration_required:
+            unhealthy_status = "migration_required"
+        elif installed.get("source_kind") == "native_git" and installed.get("source_identity_reason") in {
+            "local_edits", "source_mismatch",
+        }:
+            unhealthy_status = installed["source_identity_reason"]
+        elif installed.get("install_ok") is not True:
             unhealthy_status = "installed_invalid"
         elif installed.get("dependencies_ok") is not True:
             unhealthy_status = "dependencies_missing"
-        elif not isinstance(observed_commit, str) or not FULL_SHA.fullmatch(observed_commit):
+        elif (installed.get("source_identity_known") is False
+              or not isinstance(observed_commit, str) or not FULL_SHA.fullmatch(observed_commit)):
             unhealthy_status = "installed_source_identity_unknown"
     if selected is None:
         if unhealthy_status:
@@ -164,12 +176,14 @@ def check_release(*, gh: str, repository: str, channel: str,
     }
     base["selected_release"] = summary
     base["release_changes"] = selected.get("body") or ""
-    if unhealthy_status:
+    if unhealthy_status and unhealthy_status != "migration_required":
         base["ok"] = False
         base["status"] = unhealthy_status
         return base
-    if not installed.get("installed"):
-        base["status"] = "not_installed"
+    if not installed.get("installed") or migration_required:
+        base["status"] = "migration_required" if migration_required else "not_installed"
+        if migration_required:
+            base["ok"] = False
         base["proposed_command"] = _shell_command(
             ["hermes", "plugins", "install", repository, "--ref", source_sha, "--no-enable"],
             hermes_home=hermes_home,
@@ -197,7 +211,9 @@ def check_release(*, gh: str, repository: str, channel: str,
                 "--hermes-home", str(hermes_home),
             ]
         )
-    else:
+    elif installed.get("source_kind") in {"native_archive", "native_copy"} and (
+        hermes_home / "plugins" / "personal-assistant"
+    ).is_dir():
         base["operator_archive_path"] = str((hermes_home / "plugins" / "personal-assistant").resolve())
         base["proposed_command"] = _shell_command(
             [

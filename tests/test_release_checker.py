@@ -65,6 +65,7 @@ def test_explicit_pilot_can_propose_newer_publication_despite_lower_numeric_vers
 
 
 def test_archive_install_gets_canonical_path_and_explicit_replacement_proposal(tmp_path):
+    (tmp_path / ".hermes/plugins/personal-assistant").mkdir(parents=True)
     with mock.patch.object(check_release, "probe", return_value=installed(source_kind="native_archive")), \
          mock.patch.object(check_release, "select_release", return_value=release()), \
          mock.patch.object(check_release, "resolve_tag_commit", return_value="e" * 40):
@@ -133,3 +134,15 @@ def test_no_release_does_not_mask_unhealthy_installed_profile(tmp_path):
     assert result["ok"] is False
     assert result["status"] == "dependencies_missing"
     assert result["selected_release"] is None
+
+
+def test_absent_native_target_never_gets_archive_proposal(tmp_path):
+    with mock.patch.object(check_release, "probe", return_value=installed(source_kind="native_archive")), \
+         mock.patch.object(check_release, "select_release", return_value=release()), \
+         mock.patch.object(check_release, "resolve_tag_commit", return_value="e" * 40):
+        result = check_release.check_release(
+            gh="unused", repository="owner/repo", channel="pilot",
+            system_home=tmp_path, hermes_home=tmp_path / ".hermes",
+        )
+    assert result["proposed_command"] is None
+    assert result.get("operator_archive_path") is None
