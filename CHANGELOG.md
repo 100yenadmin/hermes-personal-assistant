@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 0.8.0-rc.1 — 2026-10-20
+
+- **Chief of Staff mode (opt-in).** `/pa mode chief-of-staff on|off` turns it on per profile; it is off by default. Turning it off removes the CoS cron jobs and blocks later prechecks at once. Follow-up wakes already armed in HeartBeat 2.0 stay armed, but when one arrives the agent is told to cancel it and stay silent. The CoS skills are hidden after the next gateway restart and new session. While they are still loaded, the agent is told not to use them.
+- **Four CoS skills.**
+  - `cos-daily`: one useful, evidence-backed next action a day, or silence when nothing clears the bar.
+  - `cos-weekly`: a weekly review that keeps used, declined, ignored and unknown outcomes separate.
+  - `cos-scout`: adopt-versus-build research for a named need, with an adopt, trial, watch or ignore decision, the smallest trial, and a follow-up date.
+  - `cos-radar`: at most one tool benchmark a week; a slot is booked only on a yes, through PA's bound calendar, with a read-back.
+  Each recommendation is one stable PA note, updated in place. Follow-ups use an owner-approved HeartBeat 2.0 `at` wake in the same chat; no other scheduler is created.
+- **Daily and weekly schedules.** These use the existing native suggestion path. PA suggests `personal-assistant-cos-daily` / `-cos-weekly` only for rules the user accepted for a verified chat, and Hermes `/suggestions accept` creates the job.
+  - Five-minute prechecks honour the saved time, the rule's timezone, quiet hours, pause and snooze. PA claims each daily or weekly occurrence once in the profile ledger and never retries an existing claim. This does not guarantee exactly-once chat delivery.
+  - The report is the run's final response, which Hermes delivers. Silence is `[SILENT]`.
+  - Conflicting rule timezones or chats never wake, and a report time inside quiet hours is refused.
+- **Reports go to the chat or Telegram topic where you accept them (#22).** Setup records the destination as `origin`, and Hermes binds it when `/suggestions accept` runs. Accept daily and weekly in different topics to keep them apart; accepting from the CLI or Desktop falls back to a configured home channel, and without one nothing is delivered.
+- **CoS setup section.** `/pa setup chief-of-staff` asks five questions (priorities, radar topics, daily time, weekly slot, which schedules), with its own progress, through the same reviewed-write flow as core setup. Schedules need an explicit yes for each one.
+- **Daily Ops scheduled jobs reach the user (#21).** The morning brief and evening due-source jobs used local delivery plus an agent send tool that Hermes v0.22.2 does not have, so they could never reach the user. Newly accepted jobs now deliver the run's final response to the verified chat, the same way as CoS. Upgrading does not rewrite a job you already accepted. If you accepted `personal-assistant-daily-brief` or `personal-assistant-due-source-check` on an earlier version, remove it in Hermes, ask the assistant to suggest PA automations again (the `pa` automations `suggest` action), and accept the new suggestion with `/suggestions accept`.
+- **Trip concierge fixes from the live pilot (#23).**
+  - **Be at the airport vs leave by.** The time shown as "leave by" was really the time to be at the airport. PA now shows "be at the airport by" and gives a leave-by time only once the transfer from where you're staying is known. The agent asks for it once, and it is tied to the departure airport. Daily Ops and alerts never say "LEAVE NOW" without it. Armed wakes carry over unchanged.
+  - **Saving flight facts.** A flat single-flight `record_facts` form; flight segments are accepted as a list, a single flight or a JSON string; and skill guidance to send one `pa` call per tool call. A wrapper parse error is no longer reported as the ledger rejecting the flight.
+  - **Offer after import.** A trip import or flight-facts save returns a read-only hint to offer the trip watch, and the import skills point to it. The hint stops once the user answers or a plan exists; an unanswered question can come back on a later import.
+  - **Night alerts.** With night alerts on, PA recommends HeartBeat's `quiet_hours_urgent` setting (profile-wide, off by default) and explains it. PA never changes it.
+  - **Trip-watch status before a plan exists** returns "not planned" instead of an error.
+- **Capability Lab.** CoS scenarios s13–s16 cover a daily report, justified silence, a Korean scout and a weekly review with a benchmark yes. They use Hermes's own cron prompt builder and silence matcher. Lab only; not shipped behaviour.
+- **Evidence.** CoS wave 2 at `296644e` on `gpt-6.1-sol`, 3 runs per scenario: 12/12 runs pass the deterministic checks and 11/12 pass the judge.
+  - Daily report 3/3 and justified silence 3/3, with top judge scores in every run.
+  - Korean scout: 3/3 checks, 2/3 judge. The failing run credited a price to the official page that came from a search result.
+  - Weekly review: 3/3 checks after two lab checks were corrected to accept equivalent wording (#22); the first score was 1/3, and the product text is unchanged.
+  - 0 installs, 0 profile-file writes, 0 unapproved wakes, 0 message-tool calls.
+  - Wave 2 predates the #19 quiet-hours and destination-conflict guards. The CoS skills and scheduled job prompts are unchanged since then.
+  - Confirmation wave 3 at the release code (`e628aea`), 1 run per scenario: 4/4 runs pass the deterministic checks and 4/4 pass the judge, with 0 installs, 0 profile-file writes, 0 unapproved wakes and 0 message-tool calls.
+- **Unchanged.** Install stays inert; no job exists until the user accepts it in Hermes; no software is installed and no profile file is edited without review.
+
 ## 0.7.0-rc.1 — 2026-10-19
 
 - **Travel concierge.** Trip watch adds check-in, arrival and watcher arms, saved wake receipts and lost-wake recovery. The observer checks itinerary, flight and weather changes; offers follow each notice, while a decline silences that offer type for the trip. Feasibility shows arrival buffers and alternatives; leave-by feeds Daily Ops, and an accepted leave-earlier offer returns the exact replan call without counting weather twice.
