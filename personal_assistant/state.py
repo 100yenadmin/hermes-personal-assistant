@@ -43,9 +43,12 @@ class Ledger:
             candidate = self.root / candidate
         try:
             candidate.relative_to(self.root)
-            candidate.resolve().relative_to(self.root)
+            resolved = candidate.resolve()
+            resolved.relative_to(self.root)
         except ValueError:
             raise ValueError("ledger must remain within active profile") from None
+        if resolved == self.root:
+            raise RuntimeError(f"TRAVEL_LEDGER_DB must name a database file under {self.root}, not the root itself")
         legacy._validate_existing_path(self.root, candidate)
         self.path = candidate
         if read_only:

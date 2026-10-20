@@ -46,12 +46,12 @@ def _install_precheck(ledger, kind):
                f"sys.path.insert(0, {str(package)!r})\n"
                "from personal_assistant.automation_workflow import script_main\n"
                f"script_main({kind!r})\n").encode("utf-8")
-    legacy._ensure_directory(ledger.root, target.parent)
-    legacy._validate_existing_path(ledger.root, target)
+    legacy._ensure_directory(ledger.root, target.parent, owned=False, label="Hermes scripts directory")
+    legacy._validate_existing_path(ledger.root, target, owned=False, label="Hermes scripts directory")
     try:
         fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     except FileExistsError:
-        legacy._validate_existing_path(ledger.root, target)
+        legacy._validate_existing_path(ledger.root, target, owned=False, label="Hermes scripts directory")
         if target.read_bytes() != content:
             raise ValueError(f"PA precheck path already contains different content: {target}")
     else:

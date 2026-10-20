@@ -6,12 +6,15 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from icalendar import Calendar
 from personal_assistant.entry import dispatch
-from personal_assistant.state import Ledger
+from personal_assistant.automation import upsert_automation_rule
+from personal_assistant.automation_workflow import prepare_suggestions
+from personal_assistant.state import Ledger, LedgerPermissionError
 from personal_assistant.trips import import_trip, export_trip
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,6 +64,58 @@ class CoreTests(unittest.TestCase):
             with patch.dict(os.environ, {"TRAVEL_LEDGER_DB": str(outside / "travel.sqlite")}):
                 with self.assertRaisesRegex(ValueError, "remain within active profile"):
                     Ledger(root)
+
+    def test_native_override_root_is_not_a_database_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            for value in (str(root), ".", "nested/.."):
+                for read_only in (False, True):
+                    with self.subTest(value=value, read_only=read_only), patch.dict(
+                        os.environ, {"TRAVEL_LEDGER_DB": value}
+                    ), self.assertRaisesRegex(
+                        RuntimeError, "TRAVEL_LEDGER_DB must name a database file.*not the root itself"
+                    ):
+                        Ledger(root, read_only=read_only)
+
+    def prepare_native_suggestions(self, ledger):
+        upsert_automation_rule(ledger, "daily_brief", {"kind": "daily_brief", "accepted": True,
+            "destination": "fixture-owner", "destination_verified": True, "timezone": "UTC"})
+        modules = {
+            "gateway.session_context": SimpleNamespace(get_session_env=lambda name: None),
+            "hermes_constants": SimpleNamespace(get_hermes_home=lambda: str(ledger.root)),
+            "cron.jobs": SimpleNamespace(list_jobs=lambda **kwargs: []),
+            "cron.suggestions": SimpleNamespace(add_suggestion=lambda **kwargs: {"id": "fixture-suggestion"}),
+        }
+        with patch.dict(sys.modules, modules):
+            return prepare_suggestions(ledger, native=True)
+
+    def test_native_setup_accepts_hermes_managed_scripts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Ledger(tmp)
+            scripts = ledger.root / "scripts"
+            scripts.mkdir(mode=0o770)
+            scripts.chmod(0o770)
+            result = self.prepare_native_suggestions(ledger)
+            self.assertTrue(result["jobs"])
+            for job in result["jobs"]:
+                path = Path(job["job_spec"]["script"])
+                self.assertEqual(path.parent, scripts)
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(scripts.stat().st_mode), 0o770)
+            self.prepare_native_suggestions(ledger)  # Existing file validation uses the same ownership.
+            path.chmod(0o660)
+            with self.assertRaisesRegex(LedgerPermissionError, "database has group/world-writable"):
+                self.prepare_native_suggestions(ledger)
+
+    def test_native_setup_rejects_world_writable_hermes_scripts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Ledger(tmp)
+            scripts = ledger.root / "scripts"
+            scripts.mkdir(mode=0o700)
+            scripts.chmod(0o777)
+            with self.assertRaisesRegex(LedgerPermissionError, "Hermes scripts directory.*world-writable"):
+                self.prepare_native_suggestions(ledger)
+            self.assertEqual(list(scripts.iterdir()), [])
 
     def test_explicit_action_id_accepts_documented_identity_components(self):
         with tempfile.TemporaryDirectory() as root:
