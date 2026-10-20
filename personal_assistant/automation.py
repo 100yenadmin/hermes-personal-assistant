@@ -237,7 +237,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
         if kind in COS_JOBS:
             schedule, name = "*/5 * * * *", COS_JOBS[kind]
             skills = _SKILLS[kind]
-            prompt = f"Load skill {skills[0]} and run it; record its delivered, suppressed or unknown receipt using pa automations receipt."
+            prompt = f"Load skill {skills[0]} and run it. Your final response is the owner message, or exactly [SILENT]; record the receipt with pa automations receipt as the skill says before you reply."
         elif kind == "daily_brief":
             schedule, name = "0 8 * * *", "personal-assistant-daily-brief"
             prompt = "Run the accepted PA daily brief using the qualified skills; respect the local precheck and quiet hours."

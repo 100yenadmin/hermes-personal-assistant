@@ -76,8 +76,8 @@ def prepare_suggestions(ledger, *, native=False, get_config=None):
         if job["kind"] in auto.COS_JOBS:
             job["job_spec"] = {"name": job["name"], "schedule": "*/5 * * * *",
                 "script": str(_precheck_path(ledger, job["kind"])),
-                "skills": ["personal-assistant:personal-assistant", *job["skills"]], "deliver": "local",
-                "prompt": job["prompt"] + " Load all named job skills. Use the precheck's already claimed occurrence and verified destination; send only a useful accepted owner notification. Record delivered with provider proof, suppressed for justified silence, or unknown for uncertain delivery. Never resend an occurrence. Do not create jobs. Cron delivery is local to avoid duplicate replies."}
+                "skills": ["personal-assistant:personal-assistant", *job["skills"]], "deliver": job["deliver"],
+                "prompt": job["prompt"]}
             continue
         brief = job["kind"] == "daily_brief"
         collector = "personal_assistant.daily_ops.morning_brief" if brief else "personal_assistant.daily_ops.evening_register"
@@ -95,8 +95,8 @@ def prepare_suggestions(ledger, *, native=False, get_config=None):
         job["job_spec"] = {"name": job["name"], "schedule": "*/5 * * * *",
             "script": str(_precheck_path(ledger, job["kind"])),
             "skills": skills,
-            "deliver": "local",
-            "prompt": job["prompt"] + f" Use the accepted daily-ops source in its configured timezone; {due_rule}. Invoke the read-only collector {collector} only after the local precheck. The evening collector is the due-source check, not a third scheduled job. The script supplies an already claimed notification occurrence and verified destination. Use the existing message tool only for a useful accepted owner notification. Record delivered with its provider receipt, suppressed if nothing useful, or unknown if delivery is uncertain using pa automations receipt. Never resend an existing occurrence. Refresh source checkpoints only after successful reads. Do not create jobs or make purchases. Cron delivery is local to avoid sending your response twice."}
+            "deliver": job["deliver"],  # Hermes delivers the final response; cron runs have no send tool.
+            "prompt": job["prompt"] + f" Use the accepted daily-ops source in its configured timezone; {due_rule}. Invoke the read-only collector {collector} only after the local precheck. The evening collector is the due-source check, not a third scheduled job. The script supplies an already claimed notification occurrence. Your final response is the owner message, which Hermes delivers to the verified destination; never use a message tool. For a useful message, first record the occurrence with pa automations receipt unknown and note \"Final response handed to Hermes cron delivery\"; if nothing is useful, record suppressed and reply exactly [SILENT]. Never resend an existing occurrence. Refresh source checkpoints only after successful reads. Do not create jobs or make purchases."}
     if native:
         native_profile_guard(ledger)
         from cron.jobs import list_jobs

@@ -72,3 +72,22 @@ def test_cos_inventory_is_optional():
                  ROOT / "skills/travel-action-pack-manifest/openclaw.plugin.json"):
         inventory = json.loads(path.read_text())["skills"]
         assert optional <= {Path(item).name for item in inventory}
+
+
+def test_scheduled_delivery_reference_is_final_response_handoff():
+    text = STATE_REFERENCE.read_text().split("## Scheduled delivery receipts\n", 1)[1].split("\n## ", 1)[0]
+    assert "final response" in text and "[SILENT]" in text
+    assert '"receipt":"unknown"' in text
+    assert "Final response handed to Hermes cron delivery" in text
+    assert "Never use a message tool in a scheduled run" in text
+    assert "Send one useful message with the existing message tool" not in text
+
+
+def test_ignored_requires_evidence_the_offer_reached_owner():
+    for path in (STATE_REFERENCE, ROOT / "skills/cos-daily/SKILL.md"):
+        text = " ".join(path.read_text().split())
+        assert "explicit skip" in text and "no owner reply by `review_at`" in text
+        assert "known to have reached the owner" in text
+        assert "a chat reply" in text and "visible in this chat's history" in text
+        assert "only the `unknown` hand-off receipt" in text
+        assert "stays `unknown`" in text

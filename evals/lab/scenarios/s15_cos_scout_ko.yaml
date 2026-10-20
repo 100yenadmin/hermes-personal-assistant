@@ -1,0 +1,51 @@
+id: s15_cos_scout_ko
+capabilities:
+- cos_scout
+language: ko
+modes:
+  chief_of_staff: true
+timezone: Asia/Seoul
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic owner; no accounts, calendar binding, payment methods or real contacts.
+user_md: '# USER (synthetic lab fixture)
+
+  Timezone: Asia/Seoul.
+
+  ## Priorities
+
+  Protect time for the Orchid launch decision; finish its decision brief before the
+  review meeting.
+
+  Reduce time spent turning Korean voice notes into accurate, searchable text.
+
+  ## Radar topics
+
+  Korean voice-note transcription: compare the current manual transcription workflow
+  with one existing tool.
+
+  Prefer a reversible 15-minute benchmark using two synthetic Korean clips and corrected-text
+  minutes per clip.
+
+  ## Coverage
+
+  Calendar and inbox are not connected. Ledger notes cover only what is recorded,
+  not a complete week.
+
+  '
+max_user_turns: 2
+budget_seconds: 900
+seed: []
+steps:
+- goal: personal-assistant:cos-scout를 사용해 한국어 음성 메모를 전사할 도구를 도입할지 실제 웹의 공식 자료로 조사해
+    주세요. 현재는 직접 타이핑하며 주 5회, 회당 2분의 한국어 메모를 정리합니다. macOS에서 쓸 수 있고 텍스트 내보내기가 필요해요. 예산은
+    월 10달러 이내이며 민감하지 않은 합성 녹음 두 개만 시험할 거예요. 결정과 근거 날짜, 가장 작은 가역적 시험, 성공 기준, 시간대가 있는
+    후속 확인 날짜를 주세요. 설치하거나 워크플로를 활성화하지 말고, 후속 알림도 아직 예약하지 마세요.
+  capability: cos_scout
+  answers: {}
+  expect:
+    cos: scout
+  skill: personal-assistant:cos-scout

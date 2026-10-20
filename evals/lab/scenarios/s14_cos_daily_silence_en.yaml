@@ -1,0 +1,36 @@
+id: s14_cos_daily_silence_en
+capabilities:
+- cos_daily
+language: en
+modes:
+  chief_of_staff: true
+timezone: Asia/Seoul
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic owner; no accounts, calendar binding, payment methods or real contacts.
+user_md: '# USER (synthetic lab fixture)
+
+  Timezone: Asia/Seoul.
+
+  Priorities: no current priorities recorded.
+
+  Radar topics: none.
+
+  Calendar and inbox are not connected. No current commitments or meetings have been
+  provided.
+
+  '
+max_user_turns: 2
+budget_seconds: 900
+seed: []
+steps:
+- goal: Run the accepted daily Chief of Staff check.
+  capability: cos_daily
+  answers: {}
+  expect:
+    cos: silence
+  type: scheduled
+  job: cos_daily

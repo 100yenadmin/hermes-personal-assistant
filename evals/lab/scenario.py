@@ -3,6 +3,7 @@ import datetime as dt
 import re
 from pathlib import Path
 import yaml
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
@@ -17,8 +18,19 @@ def validate(s):
     require(s.get("language") in ("en", "ja", "ko"), "language")
     caps = s.get("capabilities")
     require(isinstance(caps, list) and caps and all(isinstance(c, str) for c in caps), "capabilities")
-    for group, keys in (("persona", ("name", "email", "phone", "home_city", "notes")),
-                        ("trip", ("origin", "destination", "depart_date", "return_date", "travellers"))):
+    if "modes" in s:
+        require(isinstance(s["modes"], dict) and s["modes"] == {"chief_of_staff": True}, "modes")
+    cos = s.get("modes", {}).get("chief_of_staff") is True
+    if cos:
+        require(isinstance(s.get("user_md"), str) and bool(s["user_md"].strip()), "user_md")
+        try:
+            ZoneInfo(s.get("timezone", ""))
+        except (ZoneInfoNotFoundError, ValueError, TypeError):
+            raise ValueError("timezone: expected IANA timezone") from None
+    groups = [("persona", ("name", "email", "phone", "home_city", "notes"))]
+    if not cos:
+        groups.append(("trip", ("origin", "destination", "depart_date", "return_date", "travellers")))
+    for group, keys in groups:
         require(isinstance(s.get(group), dict), group)
         for key in keys:
             require(key in s[group] and s[group][key] is not None, f"{group}.{key}")
@@ -26,19 +38,23 @@ def validate(s):
         require(isinstance(s["persona"][key], str), "persona." + key)
     require(isinstance(s["persona"]["email"], str) and re.fullmatch(r"[^@\s]+@[^@\s]+\.invalid", s["persona"]["email"]), "persona.email")
     require(bool(re.fullmatch(r"\+1[- ]?202[- ]?555[- ]?01\d\d", str(s["persona"]["phone"]))), "persona.phone")
-    for key in ("depart_date", "return_date"):
+    for key in (() if cos else ("depart_date", "return_date")):
         try:
             dt.date.fromisoformat(str(s["trip"][key]))
         except (ValueError, TypeError):
             raise ValueError(f"trip.{key}: expected ISO date") from None
-    require(str(s["trip"]["return_date"]) >= str(s["trip"]["depart_date"]), "trip.return_date")
-    require(type(s["trip"]["travellers"]) is int and s["trip"]["travellers"] > 0, "trip.travellers")
+    if not cos:
+        require(str(s["trip"]["return_date"]) >= str(s["trip"]["depart_date"]), "trip.return_date")
+        require(type(s["trip"]["travellers"]) is int and s["trip"]["travellers"] > 0, "trip.travellers")
     for key in ("max_user_turns", "budget_seconds"):
         require(type(s.get(key)) is int and s[key] > 0, key)
     require(isinstance(s.get("steps"), list) and s["steps"], "steps")
     for i, step in enumerate(s["steps"]):
         prefix = f"steps[{i}]"
         require(isinstance(step, dict), prefix)
+        require(step.get("type", "chat") in ("chat", "scheduled"), prefix + ".type")
+        if step.get("type") == "scheduled":
+            require(cos and step.get("job") in ("cos_daily", "cos_weekly"), prefix + ".job")
         require(isinstance(step.get("goal"), str) and bool(step["goal"].strip()), prefix + ".goal")
         require(step.get("capability") in caps, prefix + ".capability")
         require(isinstance(step.get("answers"), dict), prefix + ".answers")
@@ -48,7 +64,12 @@ def validate(s):
             require(type(ex.get(key, False)) is bool, prefix + ".expect." + key)
         if ex.get("packet_is_final"):
             require(isinstance(ex.get("packet_target"), str) and bool(ex["packet_target"]), prefix + ".expect.packet_target")
-        require("final" in ex or ex.get("or_handoff") or "calls" in s, prefix + ".expect.final")
+        if cos:
+            require(ex.get("cos") in ("daily", "silence", "scout", "weekly", "radar_reply"), prefix + ".expect.cos")
+            require((step.get("type") == "scheduled") == (ex["cos"] in ("daily", "silence", "weekly")), prefix + ".type")
+            if step.get("type") == "scheduled":
+                require(step["job"] == ("cos_weekly" if ex["cos"] == "weekly" else "cos_daily"), prefix + ".job")
+        require("final" in ex or ex.get("or_handoff") or "calls" in s or cos, prefix + ".expect.final")
         if "final" in ex:
             for key in ("url_any", "text_any"):
                 values = ex["final"].get(key) if isinstance(ex["final"], dict) else None
@@ -61,6 +82,14 @@ def validate(s):
         require(isinstance(allowed, list) and all(isinstance(o, str) for o in allowed) and set(allowed) <= set(CALL_OUTCOMES), "calls.allowed_outcomes")
     require(s.get("requires") in (None, "gateway"), "requires")
     require(isinstance(s.get("seed", []), list), "seed")
+    if cos:
+        require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
+        for i, item in enumerate(s.get("seed", [])):
+            require(isinstance(item, dict) and item.get("operation") == "action_upsert"
+                    and isinstance(item.get("data"), dict), f"seed[{i}]")
+            data = item["data"]
+            require(data.get("action_type") in ("note", "commitment") and isinstance(data.get("fields"), dict)
+                    and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     return s
 
 

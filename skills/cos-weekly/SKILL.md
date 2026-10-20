@@ -47,8 +47,9 @@ Offer no more than one batched improvement proposal, in this exact format:
 - Evidence: the observed failure, affected priority, source and expected benefit.
 - Rollback: how to restore the old wording or process if it does not help.
 
-Record it on the `cos:weekly:<local ISO week>` note as `stage: "draft"`, with
-`outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
+Record it on the `cos:weekly:<local ISO week>` note with every field the reference
+lists, including `benefit` and `review_at` (next week's slot), as `stage: "draft"`,
+with `outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
 wait for explicit apply approval in chat. Keep `draft`, `approved`, `applied`
 and `verified` distinct in `stage`. Applied requires actual readback;
 verified requires evidence of the promised result. Never silently edit
@@ -68,11 +69,14 @@ engineering lessons in their own project context. Do not edit to meet the budget
 ## Close the weekly report
 
 Then load `personal-assistant:cos-radar` for this week's single benchmark offer,
-if any. Include it in the same weekly message; radar must not send a second
-notification. Record a separate recommendation identity for an actual radar
+if any. Include it in the single final response; Hermes delivers that owner message
+to the verified destination. Never use a message tool in a scheduled run.
+Record a separate recommendation identity for an actual radar
 offer, but use only this job's one delivery receipt. If neither review nor radar
-contains useful information, send nothing and record `suppressed`; use `unknown`
-for uncertain delivery and `delivered` only with provider receipt evidence.
+contains useful information, record `suppressed` with a safe note and reply exactly
+`[SILENT]` (nothing else). For a report, write and read back the note, then record
+`unknown` before the final response as the reference says. `delivered` needs a
+provider receipt the run cannot see.
 Never replay an already handled occurrence.
 
 Send no proactive message outside this scheduled job or an owner-approved HB2
