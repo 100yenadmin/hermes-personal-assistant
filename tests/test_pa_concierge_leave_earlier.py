@@ -28,7 +28,7 @@ def seed(root):
     ledger.put("action", "pa:observe:" + watch_id, {"notices": [
         {"id": "n_aaaaaaaa", "weather_extra_minutes": 10},
         {"id": OCCURRENCE, "offer_type": "weather_leave_early", "weather_extra_minutes": 45,
-         "signals": ["Leave by 08:15 (+45 min for snow)"]}]})
+         "signals": ["Be at the airport by 08:15 (+45 min for snow)"]}]})
     return ledger, watch_id
 
 
@@ -114,7 +114,7 @@ def test_accepted_weather_unknown_inputs_return_manual_note(tmp_path, missing):
             conn.execute("delete from pa_events where event_id=?", (trip_watch._event_id("synthetic"),))
     else:
         ledger.put("action", "pa:observe:" + watch_id, {"notices": [
-            {"id": OCCURRENCE, "signals": ["Leave by 08:15 (+45 min for snow)"]}]})
+            {"id": OCCURRENCE, "signals": ["Be at the airport by 08:15 (+45 min for snow)"]}]})
     saved = accept(tmp_path)
     assert saved["next"] is None
     assert saved["next_note"] == "replan manually: lead unknown"
@@ -155,10 +155,10 @@ def test_accepted_weather_status_keeps_offered_leave_by(tmp_path):
     ledger.put("action", "pa:observe:" + watch_id, {"notices": [], "weather": {
         "last": {"severity": "snow", "at": "2026-11-10T06:00:00Z"}}})
     result = trip_watch.status(ledger, "synthetic", at="2026-11-10T06:00:00Z")
-    assert result["leave_by"]["local_time"] == "07:45"
-    assert result["leave_by"]["weather_extra_minutes"] == 0
+    assert result["at_airport_by"]["local_time"] == "07:45"
+    assert result["at_airport_by"]["weather_extra_minutes"] == 0
     assert result["inputs"]["weather_included_minutes"] == 45
-    assert next(m for m in result["moments"] if m["key"] == "leave_by")["at"] == "2026-11-10T07:45:00+00:00"
+    assert next(m for m in result["moments"] if m["key"] == "at_airport_by")["at"] == "2026-11-10T07:45:00+00:00"
 
 
 def test_accepted_worse_weather_keeps_the_cumulative_buffer(tmp_path):
@@ -177,7 +177,7 @@ def test_accepted_worse_weather_keeps_the_cumulative_buffer(tmp_path):
     dispatch(tmp_path, saved["next"])
     ledger.put("action", "pa:observe:" + watch_id, {"notices": [], "weather": {
         "last": {"severity": "snow", "at": "2026-11-10T06:00:00Z"}}})
-    assert trip_watch.status(ledger, "synthetic", at="2026-11-10T06:00:00Z")["leave_by"]["local_time"] == "07:45"
+    assert trip_watch.status(ledger, "synthetic", at="2026-11-10T06:00:00Z")["at_airport_by"]["local_time"] == "07:45"
 
 
 def test_legacy_plan_without_included_buffer_writes_zero_to_the_watch(tmp_path):

@@ -40,5 +40,5 @@ Use itinerary facts from `itinerary-intake`, confirmed calendar events, weather 
 ## Example
 
 ```text
-You should leave for SFO around 5:35 AM for your 8:10 AM flight. Traffic is normal, and online check-in is open. I can check you in now if you want.
+Be at SFO by 5:10 AM for your 8:10 AM flight; with your known 40-minute transfer, leave by 4:30 AM. Online check-in is open. I can check you in now if you want.
 ```

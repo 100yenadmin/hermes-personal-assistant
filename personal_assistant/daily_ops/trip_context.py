@@ -121,7 +121,7 @@ def leave_by_alerts(cfg: dict, events: list[dict], now_utc: dt.datetime, route_m
     for item in departures:
         try:
             watched.append((dt.datetime.fromisoformat(item["departure_at"].replace("Z", "+00:00")),
-                            dt.datetime.fromisoformat(item["leave_by_at"].replace("Z", "+00:00"))))
+                            dt.datetime.fromisoformat((item.get("leave_by_at") or item["at_airport_by_at"]).replace("Z", "+00:00")), bool(item.get("leave_by_at"))))
         except (KeyError, TypeError, ValueError, AttributeError):
             continue
     if travel.get("leave_by") is not True or (not watched and (geocoder.get("consent") is not True or not base)):
@@ -146,7 +146,7 @@ def leave_by_alerts(cfg: dict, events: list[dict], now_utc: dt.datetime, route_m
         delta = starts - now_utc
         if delta < dt.timedelta(0) or delta > dt.timedelta(hours=6):
             continue
-        matched = sorted((abs((starts - departure).total_seconds()), leave) for departure, leave in watched
+        matched = sorted((abs((starts - departure).total_seconds()), leave, known) for departure, leave, known in watched
                          if departure.tzinfo and leave.tzinfo and abs((starts - departure).total_seconds()) <= 90 * 60)
         if matched:
             leave_at = matched[0][1]  # The flight closest to the event, not the earliest leave time.
@@ -182,6 +182,8 @@ def leave_by_alerts(cfg: dict, events: list[dict], now_utc: dt.datetime, route_m
         line = (f"✈️ {'LEAVE NOW' if phase == 'now' else f'leave in {remaining}m'} — {title} · airport leave-by {airport_time}" if matched else
                 f"🚗 {'LEAVE NOW' if phase == 'now' else f'leave in {remaining}m'} — {title} "
                 f"at {local} · {int(minutes)}m drive + {buffer_min}m buffer · from {label}")
+        if matched and not matched[0][2]:
+            line = f"✈️ airport by {airport_time} — {title} (transfer time unknown)"
         alerts.append({
             "line": line,
             "key": stable_id(occurrence, phase),
