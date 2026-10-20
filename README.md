@@ -144,6 +144,8 @@ Focused tests live in `tests/`; the full package, archive, release-contract, and
 native lifecycle matrices run in GitHub Actions. Source and fixture success do
 not establish live-provider or customer acceptance.
 
+See [provider proof levels](docs/provider-proof-levels.md) for demonstrated preparation and honest handoffs.
+
 To roll back, pause any explicitly configured jobs, disable the native plugin,
 and preserve the ledger for re-enable, export, or approved restoration. Schema
 changes are additive and retain legacy rows. Follow the bounded procedure in
