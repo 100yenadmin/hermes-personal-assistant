@@ -2,6 +2,7 @@ import io
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import sys
 from email.message import Message
@@ -253,9 +254,14 @@ def test_rows_written_outside_pa_never_reach_browserbase(tmp_path):
     ledger = Ledger(tmp_path)
     assert ledger.get("action", "pa:browser-session:FOREIGN")["action_type"] == "browser_session"
     ledger.put("action", "pa:browser-session:ODD", {"bb_session_id": "ODD", "owner_tag": "é"}, action_type="browser_session", status="active")
+    with sqlite3.connect(ledger.path) as raw:  # R47: an escaped lone surrogate decodes, but cannot be encoded again.
+        raw.execute("insert into actions (action_id, trip_id, action_type, provider, status, fields_json, created_at, updated_at) "
+                    "values (?, null, 'browser_session', 'browserbase', 'active', ?, 'x', 'x')",
+                    ("pa:browser-session:SURR", '{"bb_session_id": "SURR", "owner_tag": "\\ud800"}'))
+    ledger.put("action", "pa:browser-session:DICT", {"bb_session_id": "DICT", "owner_tag": {"x": 1}}, action_type="browser_session", status="active")
     ledger.put("action", "pa:browser-session:a/../b", {"bb_session_id": "a/../b"}, action_type="browser_session", status="active")
     opener = Opener()
-    for identity in ("FOREIGN", "ODD", "a/../b"):
+    for identity in ("FOREIGN", "ODD", "SURR", "DICT", "a/../b"):
         for action in ("live_view", "connect", "release"):
             assert browser_session(ledger, {"action": action, "bb_session_id": identity}, opener=opener,
                                    get_secret=SECRETS.get) == {"status": "error", "reason": "Unknown PA Browserbase session"}

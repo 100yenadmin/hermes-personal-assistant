@@ -45,7 +45,7 @@ def browser_session(ledger, data, *, opener=None, get_secret=None, base_url=API)
         row = ledger.get("action", row_id) if SESSION_ID.fullmatch(identity) else None
         # Any shell can write the ledger, but only PA holds the key: the tag proves PA created this session.
         if (not row or row["action_type"] != "browser_session" or row["fields"].get("bb_session_id") != identity
-                or not hmac.compare_digest(str(row["fields"].get("owner_tag", "")).encode(), _owner_tag(key, project, identity).encode())):
+                or not _tag_matches(row["fields"].get("owner_tag"), _owner_tag(key, project, identity))):
             return {"status": "error", "reason": "Unknown PA Browserbase session"}
     base = base_url.rstrip("/")
     transport = opener if opener is not None else build_opener(ProxyHandler({}), NoRedirect())
@@ -145,3 +145,11 @@ def _origin(url):
 def _owner_tag(key, project, identity):
     """HMAC of the session id under the API key; reveals nothing about the key and cannot be forged without it."""
     return hmac.new(key.encode(), f"pa-browser-session:{project}:{identity}".encode(), hashlib.sha256).hexdigest()
+
+
+def _tag_matches(stored, expected):
+    """Constant-time check; a malformed tag from a hand-written row is a mismatch, never a crash."""
+    try:
+        return isinstance(stored, str) and hmac.compare_digest(stored.encode(), expected.encode())
+    except (TypeError, UnicodeError):
+        return False
