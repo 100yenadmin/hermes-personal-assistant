@@ -11,7 +11,7 @@ metadata:
 
 Load only for trip import, an explicit change, or an ICS or Markdown export.
 The native `pa` tool owns the record and source revision.
-1. Use `pa.context` with kind `trip`, `source`, or `guide`; `pa.trip_import` applies only source facts.
+1. Use `pa.context` with kind `trip`, `source`, or `guide`; `pa.trip_import` applies only source facts. If `next_step.offer_trip_watch`, load `personal-assistant:trip-concierge` and ask `next_step.question` once.
 2. Use `pa.next_action` for linked commitments and ask one blocking question only when needed.
 3. `pa.action_upsert` records preparation and `pa.export` writes to a fresh directory. For a refresh, pass `overwrite=true` only for PA-generated files from the same profile and trip whose prior hashes still match; otherwise keep the default refusal.
 4. Read the files back with the available file tool and check that shared output contains no credentials or personal booking records.

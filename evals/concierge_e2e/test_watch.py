@@ -168,7 +168,7 @@ def test_weather_offer_then_decline(rig):
     assert fields(rig, "pa:observe:" + rig.watch_id)["weather"]["last"]["severity"] == "clear"
     occurrences, final = [], "OFFER-WEATHER: leave earlier for snow."
     rig.director.actions = offer_actions(rig, occurrences, "weather_leave_early", final,
-                                         ("Leave by", "+45 min for snow"))
+                                         ("Be at the airport by", "+45 min for snow"))
     rig.weather.code = 71
     rig.wait(lambda: rig.director.errors or final in rig.texts(), "snow leave-earlier offer")
     rig.gateway.wait_idle(timeout=30)

@@ -2,17 +2,17 @@ import datetime as dt
 
 import pytest
 
-from personal_assistant.trip_math import ARRIVAL_DEFAULTS, feasibility, leave_by
+from personal_assistant.trip_math import ARRIVAL_DEFAULTS, feasibility, at_airport_by
 
 DEPARTURE = "2026-11-10T12:03:59Z"
 ARRIVAL = "2026-11-10T18:00:00Z"
 
 
-def test_leave_by_basis_floor_and_local_time():
-    scheduled = leave_by(DEPARTURE, 180, "Asia/Tokyo")
+def test_at_airport_by_basis_floor_and_local_time():
+    scheduled = at_airport_by(DEPARTURE, 180, "Asia/Tokyo")
     assert scheduled == {"at": "2026-11-10T18:00:00+09:00", "local_time": "18:00", "timezone": "Asia/Tokyo",
                          "basis": "scheduled", "lead_minutes": 180, "weather_extra_minutes": 0, "weather_included_minutes": 0, "severity": None, "assumed": []}
-    estimated = leave_by(DEPARTURE, 180, "Asia/Tokyo", estimated="2026-11-10T12:29:00Z")
+    estimated = at_airport_by(DEPARTURE, 180, "Asia/Tokyo", estimated="2026-11-10T12:29:00Z")
     assert estimated["basis"] == "estimated" and estimated["local_time"] == "18:25"
 
 
@@ -21,13 +21,13 @@ def test_leave_by_basis_floor_and_local_time():
     ("2026-11-01T07:33:00Z", "2026-11-01T01:30:00-04:00"),
     ("2026-11-01T08:33:00Z", "2026-11-01T01:30:00-05:00")])
 def test_dst_safe_elapsed_minutes(departure, expected):
-    assert leave_by(departure, 120, "America/New_York")["at"] == expected
+    assert at_airport_by(departure, 120, "America/New_York")["at"] == expected
 
 
 @pytest.mark.parametrize("severity,extra", [(None, 0), ("clear", 0), ("unknown", 0), ("gusts", 15),
     ("heavy rain", 30), ("freezing", 30), ("thunderstorm", 30), ("snow", 45)])
 def test_weather_extras_and_assumptions(severity, extra):
-    result = leave_by(DEPARTURE, 180, "UTC", severity=severity)
+    result = at_airport_by(DEPARTURE, 180, "UTC", severity=severity)
     assert result["weather_extra_minutes"] == extra
     assert result["assumed"] == (["weather_extra_minutes"] if extra else [])
     assert dt.datetime.fromisoformat(result["at"]) == dt.datetime(2026, 11, 10, 9, tzinfo=dt.timezone.utc) - dt.timedelta(minutes=extra)
@@ -36,7 +36,7 @@ def test_weather_extras_and_assumptions(severity, extra):
 @pytest.mark.parametrize("value", [-1, 1.5, True, "20"])
 def test_minutes_require_nonnegative_ints(value):
     with pytest.raises(ValueError):
-        leave_by(DEPARTURE, value, "UTC")
+        at_airport_by(DEPARTURE, value, "UTC")
     for key in ARRIVAL_DEFAULTS:
         with pytest.raises(ValueError):
             feasibility(ARRIVAL, "2026-11-10T22:00:00Z", "UTC", **{key: value})
@@ -45,7 +45,7 @@ def test_minutes_require_nonnegative_ints(value):
 @pytest.mark.parametrize("kwargs", [{"departure": "2026-11-10T12:00:00"}, {"estimated": "2026-11-10T12:00:00"}])
 def test_leave_rejects_naive_times(kwargs):
     with pytest.raises(ValueError):
-        leave_by(**{"departure": DEPARTURE, "lead_minutes": 180, "origin_tz": "UTC", **kwargs})
+        at_airport_by(**{"departure": DEPARTURE, "lead_minutes": 180, "origin_tz": "UTC", **kwargs})
 
 
 @pytest.mark.parametrize("key", ["arrival", "estimated", "commitment_at"])
@@ -80,12 +80,12 @@ def test_cancelled_or_diverted_has_no_math(status):
 
 
 def test_fixed_offset_zone_from_manual_trip_inputs():
-    assert leave_by(DEPARTURE, 180, "UTC+09:00")["local_time"] == "18:00"
+    assert at_airport_by(DEPARTURE, 180, "UTC+09:00")["local_time"] == "18:00"
 
 
 @pytest.mark.parametrize("included,extra,time", [(45, 0, "07:45"), (30, 15, "07:45"), (60, 0, "07:30")])
 def test_weather_already_in_lead_adds_only_the_difference(included, extra, time):
-    result = leave_by("2026-11-10T11:30:00Z", 180 + included, "UTC",
+    result = at_airport_by("2026-11-10T11:30:00Z", 180 + included, "UTC",
                       severity="snow", included_minutes=included)
     assert result["local_time"] == time
     assert result["weather_extra_minutes"] == extra
@@ -96,4 +96,4 @@ def test_weather_already_in_lead_adds_only_the_difference(included, extra, time)
 @pytest.mark.parametrize("value", [-1, 1.5, True, "20", None])
 def test_included_minutes_require_nonnegative_ints(value):
     with pytest.raises(ValueError):
-        leave_by(DEPARTURE, 180, "UTC", included_minutes=value)
+        at_airport_by(DEPARTURE, 180, "UTC", included_minutes=value)

@@ -115,8 +115,8 @@ def test_status_computes_timing_notices_without_changing_payload(tmp_path, with_
     before = raw_events(ledger)
     result = tw.status(ledger, "synthetic", at=BASE["at"])
     assert raw_events(ledger) == before and result["revision"] == planned["revision"]
-    assert result["leave_by"]["basis"] == ("estimated" if with_facts else "scheduled")
-    assert result["leave_by"]["at"] == ("2026-11-10T17:45:00+09:00" if with_facts else "2026-11-10T08:15:00+00:00")
+    assert result["at_airport_by"]["basis"] == ("estimated" if with_facts else "scheduled")
+    assert result["at_airport_by"]["at"] == ("2026-11-10T17:45:00+09:00" if with_facts else "2026-11-10T08:15:00+00:00")
     assert [n["id"] for n in result["notices"]] == [f"n_{i:08x}" for i in (6, 5, 4, 3, 2)]
     assert set(result["notices"][0]) == {"id", "offer_type", "signals", "last_at"}
     first = next(m for m in result["moments"] if m["key"] == "first_commitment")
@@ -124,18 +124,18 @@ def test_status_computes_timing_notices_without_changing_payload(tmp_path, with_
     assert first["feasibility"]["reachable"] is (not with_facts)
     assert first["feasibility"]["slack_minutes"] == (-45 if with_facts else 15)
     stale = tw.status(ledger, "synthetic", at="2026-11-09T15:01:00Z")
-    assert stale["leave_by"]["weather_extra_minutes"] == 0
+    assert stale["at_airport_by"]["weather_extra_minutes"] == 0
 
 
 def test_status_without_observer_and_missing_departure_inputs(tmp_path):
     ledger = Ledger(tmp_path)
     planned = tw.plan(ledger, **BASE)
-    assert planned["notices"] == [] and planned["leave_by"] is not None
+    assert planned["notices"] == [] and planned["at_airport_by"] is not None
     with ledger.connect() as conn:
         payload = json.loads(conn.execute("select payload_json from pa_events").fetchone()[0])
         payload["inputs"].pop("origin_timezone")
         conn.execute("update pa_events set payload_json=?", (json.dumps(payload),))
-    assert tw.status(ledger, "synthetic")["leave_by"] is None
+    assert tw.status(ledger, "synthetic")["at_airport_by"] is None
 
 
 def test_accepted_earlier_leave_survives_watch_carry_and_departures(tmp_path):
@@ -144,12 +144,12 @@ def test_accepted_earlier_leave_survives_watch_carry_and_departures(tmp_path):
     tw.record_wake(ledger, "synthetic", "watch", "w_watch")
     offer(ledger, action="record", occurrence="n_00000001", outcome="accepted", offer_type="weather_leave_early")
     changed = tw.plan(ledger, trip_id="synthetic", airport_lead_minutes=210, at=BASE["at"])
-    before = next(m["at"] for m in original["moments"] if m["key"] == "leave_by")
-    after = next(m["at"] for m in changed["moments"] if m["key"] == "leave_by")
+    before = next(m["at"] for m in original["moments"] if m["key"] == "at_airport_by")
+    after = next(m["at"] for m in changed["moments"] if m["key"] == "at_airport_by")
     assert dt.datetime.fromisoformat(before) - dt.datetime.fromisoformat(after) == dt.timedelta(minutes=30)
     assert changed["arms"]["watch"]["carried_from"] == original["revision"]
     assert ledger.get("action", "pa:observe-watch:" + tw._watch_id("synthetic"))["fields"]["airport_lead_minutes"] == 210
-    assert tw.departures(ledger) == [{"trip_id": "synthetic", "departure_at": changed["inputs"]["departure_at"], "leave_by_at": after, "airport_lead_minutes": 210}]
+    assert tw.departures(ledger) == [{"trip_id": "synthetic", "departure_at": changed["inputs"]["departure_at"], "at_airport_by_at": after, "airport_lead_minutes": 210}]
     assert tw.plan(ledger, trip_id="synthetic", at=BASE["at"])["inputs"]["airport_lead_minutes"] == 210
 
 
@@ -213,9 +213,9 @@ def test_collect_trip_passes_departures_and_falls_back(tmp_path, monkeypatch, fa
 def test_status_survives_bad_timing_inputs_and_daily_ops_skips_bad_departures(tmp_path, monkeypatch):
     ledger = Ledger(tmp_path)
     tw.plan(ledger, **BASE)
-    monkeypatch.setattr(tw.trip_math, "leave_by", lambda *a, **k: (_ for _ in ()).throw(ValueError("bad zone")))
+    monkeypatch.setattr(tw.trip_math, "at_airport_by", lambda *a, **k: (_ for _ in ()).throw(ValueError("bad zone")))
     status = tw.status(ledger, "synthetic", at=BASE["at"])
-    assert status["timing_error"] is True and status["leave_by"] is None and status["moments"]
+    assert status["timing_error"] is True and status["at_airport_by"] is None and status["moments"]
     from personal_assistant.daily_ops import trip_context
     cfg = {"travel": {"leave_by": True}, "timezone": "UTC"}
     bad = [{"departure_at": "not a time", "leave_by_at": "x"}, {"leave_by_at": "2026-11-20T06:00:00+00:00"}, None]
@@ -240,7 +240,7 @@ def test_timing_keeps_the_flight_in_the_air_and_skips_cancelled_legs(tmp_path):
     rebooked = seg("o2", "AAA", "BBB", "2026-11-10T15:00:00Z", "2026-11-10T21:00:00Z")
     ledger.put("action", "pa:trip-facts:synthetic", {"digest": "t2", "segments": [cancelled, rebooked, back]})
     status = tw.status(ledger, "synthetic", at=BASE["at"])
-    assert status["leave_by"]["at"] == "2026-11-10T12:00:00+00:00"  # 15:00 rebooked departure minus the 180-minute lead.
+    assert status["at_airport_by"]["at"] == "2026-11-10T12:00:00+00:00"  # 15:00 rebooked departure minus the 180-minute lead.
     assert tw.departures(ledger, at=BASE["at"])[0]["departure_at"] == "2026-11-10T15:00:00Z"
 
 
@@ -249,7 +249,7 @@ def test_departures_skip_cancelled_trips_and_follow_computed_leave_by(tmp_path):
     tw.plan(ledger, **BASE)
     ledger.put("action", "pa:observe:" + tw._watch_id("synthetic"), {"weather": {"last": {"severity": "snow", "at": "2026-11-10T07:00:00Z"}}})
     [entry] = tw.departures(ledger, at="2026-11-10T08:00:00Z")
-    assert entry["leave_by_at"] == "2026-11-10T08:15:00+00:00"  # 12:00 minus 180 minutes minus 45 for snow.
+    assert entry["at_airport_by_at"] == "2026-11-10T08:15:00+00:00"  # 12:00 minus 180 minutes minus 45 for snow.
     ledger.put("action", "pa:trip-facts:synthetic", {"digest": "c", "segments": [
         seg("o", "AAA", "BBB", BASE["departure_at"], BASE["arrival_at"], status="cancelled")]})
     assert tw.departures(ledger, at="2026-11-10T08:00:00Z") == []
