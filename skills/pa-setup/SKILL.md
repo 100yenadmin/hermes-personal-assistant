@@ -52,7 +52,7 @@ Progress lives in the `pa:setup` record, never a state-loop event.
 Answer sources are `user` or `discovered`. File targets are `user_memory`,
 `soul_section`, `manual_skill`, and `context_file`; `pa_preferences` is proposal-only.
 Read `status`, `requested_mode`, `next_question`, `answers`, `skipped`, `asked`,
-`proposal`, `proposal_draft`, `applied`, and `fresh_check`, plus `requested_section`. Omitting `section` on `start` preserves the requested section; `/pa setup` requests core. Only IDs in the two question-bank sections may appear in `record` answers, skipped or asked. Use `start` for a requested start, never to reset a fresh-session check.
+`proposal`, `proposal_draft`, `applied`, and `fresh_check`, plus `requested_section`. Omitting `section` on `start` preserves the requested section; `/pa setup` requests core, or continues an active setup in the current chat. Only IDs in the two question-bank sections may appear in `record` answers, skipped or asked. Use `start` for a requested start, never to reset a fresh-session check.
 ## Chief of Staff section
 `/pa setup chief-of-staff`: first check mode; if off, explain `/pa mode chief-of-staff on`, restart and a new session, then stop.
 Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow in `references/question-bank.md` and the reviewed destinations in `references/where-answers-go.md`.

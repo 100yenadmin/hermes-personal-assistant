@@ -4,6 +4,7 @@
 
 - Later setup answers keep applied/checked setup intact and flag changes for the next review; fresh checks name the cause when refused (#28).
 - Context retrieval infers trip, action or source from one unambiguous ID; guide queries still need an explicit kind.
+- Guided setup now runs only in the chat where it is active. Other chats of the same user get one short first-turn line, and `/pa setup` continues setup in the current chat, keeping its section, answers and any pending proposal. A setup bound by an earlier release is active in no chat until the next `/pa setup` (#29).
 
 ## 0.8.0-rc.1 — 2026-10-20
 

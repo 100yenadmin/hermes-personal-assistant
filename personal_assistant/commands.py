@@ -38,6 +38,12 @@ def make_pa_command(root, get_config=None, set_config=None):
             if parts == ["status"]:
                 current = setup.state(Ledger(root))
                 return f"Setup: {current['status']}. Next question: {current['next_question'] or 'none'}. Answered {current['counts']['answers']} of {current['counts']['total']}. " + modes_text() + (" Changes not yet applied." if current['pending_changes'] else "")
+            if parts and parts[0] == "setup":
+                from .onboarding_hook import command_chat_key
+                here = command_chat_key()  # Setup moves to the chat the command was said in.
+            if parts == ["setup"] and setup.state(Ledger(root))["status"] in {"requested", "in_progress", "proposed"}:
+                setup.continue_here(Ledger(root), active_chat=here)  # Keeps the section and progress; only the chat moves.
+                return "Setup continues here. Send me any message and I'll pick up where we left off."
             if parts and parts[0] == "setup" and len(parts) <= 2:
                 section = parts[1] if len(parts) == 2 else "core"
                 section = "chief_of_staff" if section == "chief-of-staff" else section
@@ -45,7 +51,7 @@ def make_pa_command(root, get_config=None, set_config=None):
                     return "Unknown setup section. Use /pa setup for core setup, /pa setup chief-of-staff, or /pa setup review."
                 if section == "chief_of_staff" and not cos_enabled(get_config):
                     return "Chief of Staff is off. Use /pa mode chief-of-staff on, then hermes gateway restart and a new session; run /pa setup chief-of-staff there."
-                setup.request(Ledger(root), None if section == "review" else section)
+                setup.request(Ledger(root), None if section == "review" else section, active_chat=here)
                 if section == "chief_of_staff":
                     return "Chief of Staff setup is ready. Send me any message and I'll start — one question at a time, 5 in all. Say pause any time."
                 return READY

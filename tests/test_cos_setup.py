@@ -61,7 +61,9 @@ def test_cos_command_maps_hyphenated_section_and_leaves_core_review_alone(tmp_pa
     assert "5" in command("setup chief-of-staff")
     assert setup.state(Ledger(tmp_path))["requested_section"] == "chief_of_staff"
     assert "of 5" in command("status")
-    assert command("setup") == READY
+    assert command("setup").startswith("Setup continues here.")  # A bare /pa setup keeps the active section.
+    assert setup.state(Ledger(tmp_path))["requested_section"] == "chief_of_staff"
+    assert command("setup core") == READY
     assert setup.state(Ledger(tmp_path))["requested_section"] == "core"
     assert command("setup review") == READY
     assert setup.state(Ledger(tmp_path))["requested_mode"] == "review"
