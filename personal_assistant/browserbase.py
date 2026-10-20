@@ -31,7 +31,7 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
     if not (key and project):
         return {"status": "needs_setup", "reason": "Browserbase is not configured for this profile",
                 "next_step": "Add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID to the profile's secrets."}
-    identity = str(data.get("bb_session_id") or "")
+    identity = data.get("bb_session_id") if isinstance(data.get("bb_session_id"), str) else ""
     row_id = "pa:browser-session:" + identity
     if action != "create":
         row = ledger.get("action", row_id)

@@ -109,6 +109,11 @@ def test_forged_rows_bad_ids_and_partial_replies_touch_nothing(tmp_path):
         assert browser_session(ledger, {"action": action, "bb_session_id": "FOREIGN"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
         assert browser_session(ledger, {"action": action, "bb_session_id": 7}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
     assert not opener.calls
+    # R43: a number never matches a PA session id, even one PA created as "7".
+    browser_session(ledger, {"action": "create"}, opener=Opener({**CREATED, "id": "7"}, {}), get_secret=SECRETS.get)
+    numeric = Opener()
+    assert browser_session(ledger, {"action": "release", "bb_session_id": 7}, opener=numeric, get_secret=SECRETS.get)["status"] == "error"
+    assert not numeric.calls
     # A create reply without a connection URL leaves no active row behind.
     assert browser_session(ledger, {"action": "create"}, opener=Opener({"id": "bb-9"}), get_secret=SECRETS.get)["status"] == "error"
     assert ledger.get("action", "pa:browser-session:bb-9") is None

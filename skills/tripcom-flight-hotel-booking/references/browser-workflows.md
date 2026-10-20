@@ -4,4 +4,4 @@ Search, compare, log in through an existing profile integration, use saved sessi
 
 Stop once at final booking/payment, cancellation, material profile/payment change, nonrefundable/unclear terms, outbound messages, calls, or human verification that still requires a response after configured browser lanes are tried.
 
-Use an final confirmation summary for final actions. after confirmation, compare the live page with the packet before clicking the final action. If price, dates, traveler, refund terms, payment descriptor, merchant, or final button changed after confirmation, ask again.
+Use an final confirmation summary for final actions. after confirmation, compare the live page with the packet before clicking the final action; in a Browserbase session the user clicks it in the live view. If price, dates, traveler, refund terms, payment descriptor, merchant, or final button changed after confirmation, ask again.

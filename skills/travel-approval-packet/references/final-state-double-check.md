@@ -28,7 +28,7 @@ Confirm and I'll place it.
 
 ## After The User Confirms
 
-Re-read the live page. If the amount, merchant, address, route, dates, traveler, payment descriptor, refund/no-show policy, delivery window, or final action label changed, refresh the summary and ask once again. If it matches, submit immediately and verify provider-visible proof.
+Re-read the live page. If the amount, merchant, address, route, dates, traveler, payment descriptor, refund/no-show policy, delivery window, or final action label changed, refresh the summary and ask once again. If it matches, submit immediately and verify provider-visible proof. In a Browserbase session the final pay/book/reserve tap is the user's, in the live view: send the link instead of clicking, wait, then verify.
 
 ## Tone
 
