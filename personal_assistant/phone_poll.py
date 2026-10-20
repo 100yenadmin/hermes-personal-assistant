@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -17,11 +16,13 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 from .conversation_delivery.config import load_settings, require_under_home
 from .conversation_delivery.packet import serialize_packet, validate_packet
 from .conversation_delivery.store import QueueError, QueueStore
-from .phone_safety import restricted_phone_text
+from .phone_safety import restricted_phone_fields, restricted_phone_text
 from .privacy import clean
 
 MAX_RESPONSE = 1024 * 1024
 MAX_EVIDENCE = 512 * 1024
+MAX_UNIX_SECONDS = 253402300799  # Last second of calendar year 9999.
+MAX_CALL_SECONDS = 86400
 TERMINAL = frozenset({'done', 'failed'})
 _STATUSES = TERMINAL | {'initiated', 'in-progress', 'processing'}
 _REVISION = 'terminal-v1'  # One immutable snapshot per agent/conversation, even if analysis changes.
@@ -37,20 +38,29 @@ def _identity(value, prefix):
     return value
 
 
-def _integer(value, field):
-    if type(value) is not int or value < 0:
+def _integer(value, field, *, maximum=MAX_UNIX_SECONDS):
+    if type(value) is not int or not 0 <= value <= maximum:
         raise PollError('invalid_' + field)
     return value
 
 
-def _text(value, *, limit=8000):
+def _enum(value, choices, field):
+    if not isinstance(value, str) or value not in choices:
+        raise PollError('invalid_' + field)
+    return value
+
+
+def _raw_text(value, *, limit=8000):
     if not isinstance(value, str) or len(value) > limit:
         raise PollError('invalid_or_oversized_text')
     if any(ord(ch) < 32 and ch not in '\n\r\t' for ch in value):
         raise PollError('invalid_text_control')
-    # Inspect the complete original utterance, including grouped digits spanning
-    # tabs/NBSP/newlines; splitting or JSON escaping first can hide a card value.
-    if restricted_phone_text(value, allow_callback=True):
+    return value
+
+
+def _text(value, *, limit=8000):
+    value = _raw_text(value, limit=limit)
+    if restricted_phone_text(value):
         return '[Restricted detail omitted.]'
     return clean(value)
 
@@ -83,7 +93,7 @@ class ElevenLabsReader:
             raise PollError('provider_result_too_large')
         try:
             result = json.loads(raw)
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, RecursionError, OverflowError):
             raise PollError('invalid_provider_json') from None
         if not isinstance(result, dict):
             raise PollError('invalid_provider_json')
@@ -110,31 +120,57 @@ def terminal_evidence(data, agent_id, conversation_id):
     if (not isinstance(data, dict) or data.get('agent_id') != agent_id
             or data.get('conversation_id') != conversation_id):
         raise PollError('unbound_conversation_detail')
-    if data.get('status') not in TERMINAL:
+    status = _enum(data.get('status'), _STATUSES, 'detail_status')
+    if status not in TERMINAL:
         return None
     raw_turns = data.get('transcript')
     if not isinstance(raw_turns, list) or len(raw_turns) > 400:
         raise PollError('transcript_outside_limits')
     transcript = []
     for turn in raw_turns:
-        if not isinstance(turn, dict) or turn.get('role') not in {'user', 'agent'}:
+        if not isinstance(turn, dict):
             raise PollError('invalid_transcript')
+        role = _enum(turn.get('role'), {'user', 'agent'}, 'transcript_role')
         if turn.get('message') is None and (turn.get('tool_calls') or turn.get('tool_results') or turn.get('platform_event')):
             continue
         stamp = turn.get('time_in_call_secs')
-        if stamp is not None and (type(stamp) not in (int, float) or not math.isfinite(stamp) or stamp < 0):
+        # Compare before any float conversion: giant JSON integers must not
+        # overflow math.isfinite. This also rejects bool, NaN and infinity.
+        if stamp is not None and (type(stamp) not in (int, float) or not 0 <= stamp <= MAX_CALL_SECONDS):
             raise PollError('invalid_transcript_time')
-        transcript.append({'who': 'pa' if turn['role'] == 'agent' else 'them',
-                           'text': _text(turn.get('message')), 'time_in_call_secs': stamp})
-    analysis = data.get('analysis') or {}
-    metadata = data.get('metadata') or {}
+        transcript.append({'who': 'pa' if role == 'agent' else 'them',
+                           'text': _raw_text(turn.get('message')), 'time_in_call_secs': stamp})
+    analysis = {} if data.get('analysis') is None else data['analysis']
+    metadata = {} if data.get('metadata') is None else data['metadata']
     if not isinstance(analysis, dict) or not isinstance(metadata, dict):
         raise PollError('invalid_call_analysis')
-    summary = _text(analysis.get('transcript_summary') or 'Provider summary unavailable; review the transcript.')
+    summary = analysis.get('transcript_summary')
+    if summary is None or summary == '':
+        summary = 'Provider summary unavailable; review the transcript.'
+    summary = _raw_text(summary)
+    originals = [turn['text'] for turn in transcript] + [summary]
+    if sum(len(text.encode('utf-8')) for text in originals) > MAX_EVIDENCE:
+        raise PollError('call_evidence_too_large')
+    # One scan BEFORE cleaning, escaping or splitting. It spans adjacent user
+    # turns, interleaved agent turns and the provider summary. No caller label
+    # can grant the typed, owner-approved compiler callback exception.
+    restricted = restricted_phone_fields(originals)
+    # An agent may repeat a number or insert numeric prompts between user
+    # fragments. Also inspect each speaker's stream so that interleaving cannot
+    # hide the caller's card. The summary joins each projection as well.
+    for speaker in ('pa', 'them'):
+        indices = [index for index, turn in enumerate(transcript) if turn['who'] == speaker] + [len(transcript)]
+        restricted.update(indices[index] for index in restricted_phone_fields([originals[i] for i in indices]))
+    sanitized = ['[Restricted detail omitted.]' if index in restricted else clean(text)
+                 for index, text in enumerate(originals)]
+    for turn, text in zip(transcript, sanitized):
+        turn['text'] = text
+    summary = sanitized[-1]
     selected_metadata = {}
     for field in ('start_time_unix_secs', 'call_duration_secs'):
         if field in metadata:
-            selected_metadata[field] = _integer(metadata[field], field)
+            selected_metadata[field] = _integer(metadata[field], field, maximum=(
+                MAX_CALL_SECONDS if field == 'call_duration_secs' else MAX_UNIX_SECONDS))
     owner_summary = (
         f'Outcome: call {data["status"]}. Provider-reported summary: {summary}\n'
         'Agreements: not independently verified; any reported agreement is only call evidence.\n'
@@ -246,9 +282,8 @@ class PhonePoller:
                         raise PollError('unbound_list_conversation')
                     identity = _identity(item.get('conversation_id'), 'conv_')
                     started = _integer(item.get('start_time_unix_secs'), 'start_time')
-                    if item.get('status') not in _STATUSES:
-                        raise PollError('invalid_list_status')
-                    if started < since or item.get('status') not in TERMINAL or identity in seen_calls:
+                    status = _enum(item.get('status'), _STATUSES, 'list_status')
+                    if started < since or status not in TERMINAL or identity in seen_calls:
                         continue
                     seen_calls.add(identity)
                     calls.append(self._collect(identity))

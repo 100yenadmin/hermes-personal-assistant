@@ -8,19 +8,33 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from .privacy import clean
+from .phone_safety import RestrictedContent, display_name
 from .state import Ledger, now
 
 OUTCOMES = ['booked', 'needs_approval', 'no_answer', 'refused', 'answered', 'message_taken', 'handoff', 'cancelled']
 DISCLOSURES = {  # (named, generic): spoken first, so no unfilled placeholders.
     'ja': ('AIアシスタントです。{name}様の代理でお電話しております。', 'AIアシスタントです。お客様の代理でお電話しております。'),
     'ko': ('{name}님을 대신해 전화드리는 AI 비서입니다.', '고객님을 대신해 전화드리는 AI 비서입니다.'),
-    'en': ('Hello, this is an AI assistant calling on behalf of {name}.', 'Hello, this is an AI assistant calling on behalf of a guest.'),
+    'en': ('Hello, this is an AI assistant calling on behalf of {name}.', 'Hello, this is an AI assistant calling on behalf of my client.'),
 }
 
 
 def disclosure(language, name=None):
     named, generic = DISCLOSURES[language]
-    return named.format(name=name.strip()) if isinstance(name, str) and name.strip() else generic
+    safe_name = display_name(name)
+    return named.format(name=safe_name) if safe_name else generic
+
+
+_PARTY = {'type': 'integer', 'minimum': 1, 'maximum': 1000}
+_DATE = {'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}
+_TIME = {'type': 'string', 'pattern': '^[0-9]{2}:[0-9]{2}$'}
+_FACT = {'oneOf': [
+    {'type': 'object', 'properties': {'type': {'const': kind}, 'value': schema},
+     'required': ['type', 'value'], 'additionalProperties': False}
+    for kind, schema in {
+        'name': {'type': 'string', 'minLength': 1, 'maxLength': 40},
+        'callback': {'type': 'string', 'pattern': '^\\+[1-9][0-9]{7,14}$'},
+        'date': _DATE, 'time': _TIME, 'party_size': _PARTY}.items()]}
 
 PARAMS = {
     'action': {'type': 'string', 'enum': ['prepare', 'compile', 'start', 'say', 'end', 'answer', 'status']},
@@ -31,12 +45,19 @@ PARAMS = {
     'to': {'type': 'object', 'properties': {'name': {'type': 'string', 'minLength': 1, 'maxLength': 200},
                                          'number': {'type': 'string', 'maxLength': 64}},
            'required': ['name'], 'additionalProperties': False},
-    'may_share': {'type': 'array', 'maxItems': 20, 'items': {'type': 'string', 'minLength': 1, 'maxLength': 1000}},
+    'may_share': {'type': 'array', 'maxItems': 20, 'items': {'anyOf': [
+        {'type': 'string', 'minLength': 1, 'maxLength': 1000}, _FACT]}},
     'limits': {'type': 'object', 'properties': {
-        'party_size': {'type': 'integer', 'minimum': 1},
+        'party_size': _PARTY,
         'party_size_range': {'type': 'object', 'properties': {
-            'min': {'type': 'integer', 'minimum': 1}, 'max': {'type': 'integer', 'minimum': 1}},
+            'min': _PARTY, 'max': _PARTY},
             'required': ['min', 'max'], 'additionalProperties': False},
+        'date': _DATE, 'time': _TIME,
+        'date_range': {'type': 'object', 'properties': {'start': _DATE, 'end': _DATE},
+                       'required': ['start', 'end'], 'additionalProperties': False},
+        'time_range': {'type': 'object', 'properties': {'start': _TIME, 'end': _TIME},
+                       'required': ['start', 'end'], 'additionalProperties': False},
+        'timezone': {'type': 'string', 'minLength': 1, 'maxLength': 64},
         'preferred_time': {'type': 'string', 'minLength': 1, 'maxLength': 500},
         'time_window': {'type': 'string', 'maxLength': 500},
         'flexibility': {'type': 'string', 'maxLength': 500},
@@ -147,6 +168,9 @@ def dispatch(profile_root, args, *, config=None, session_id=None):
             if config is not None and not isinstance(config, dict):
                 return {'status': 'transport_error', 'note': 'calls config must be an object.'}
             return _dispatch(Ledger(profile_root, read_only=args['action'] == 'compile'), args, config or {}, session_id)
+        except RestrictedContent as error:
+            return {'status': 'restricted_content', 'fields': error.fields,
+                    'note': 'Redact the listed fields and prepare a new call card.'}
         except (ValueError, KeyError, TypeError):
             return {'status': 'invalid_request', 'note': 'Check the required fields and call state.'}
 

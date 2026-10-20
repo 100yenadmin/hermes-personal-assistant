@@ -32,17 +32,36 @@ The actual outbound execution/approval binding is a later integration gate.
 
 The schema retains `party_size`, `time_window`, `max_deposit` and `other`, and adds:
 
-- `limits.party_size_range: {min, max}`: inclusive, ordered positive integers;
+- `limits.party_size_range: {min, max}`: inclusive, ordered integers (1–1,000);
   a preferred `party_size`, if present, must be inside this range.
 - `limits.preferred_time`: the preferred date/time and timezone, as explicit text.
 - `limits.time_window`: the owner's exact permitted date/time window and timezone.
 - `limits.flexibility`: exact pre-approved flexibility, e.g. `Any table type`.
+- Typed `limits.date` (`YYYY-MM-DD`), `time` (`HH:MM`), `date_range` / `time_range`
+  (`{start, end}`, ordered), and IANA `timezone` avoid ambiguous free-text numbers.
 
-Time windows remain declarative owner-provided text, not an inferred date or a
-machine-validated scheduling interval. Absent choices mean **not approved**.
-Use explicit dates and timezones; prepare a new card when material facts change.
+Legacy `preferred_time` / `time_window` remain exact owner-provided text. Strict
+calendar-only forms (ISO dates, `HH:MM`, optional IANA timezone and a date/time
+range) are validated as calendar tokens, not joined into a card number. Thus
+`2026-11-21 - 2026-11-22` compiles unchanged, even if a calendar digit stream
+passes Luhn by chance. Other legacy wording remains scanned free text; it is not
+inferred or repaired. These are declarative choices, not scheduling/execution
+permission. Absent choices mean **not approved**. Use explicit dates/timezones;
+prepare a new card when material facts change.
+
 `may_share` contains at most 20 exact facts, not permission to retrieve more facts.
-`on_behalf_of` is the explicitly allowed name used in an outbound disclosure.
+Prefer typed `{type, value}` facts: `name` (validated display name), `callback`
+(ASCII E.164), `date`, `time`, or `party_size` (integer 1–1,000). Unknown types or
+keys are rejected. Strings remain supported for compatibility and other exact
+owner-approved facts. An exact legacy `Callback: +…` or `Callback number: +…`
+string is adapted to a validated typed callback, not given a generic text bypass.
+
+The first message is a fixed disclosure template. Only `on_behalf_of` containing
+1–40 letters/spaces/apostrophes/hyphens, single-line with no digits or sentence
+punctuation, can fill its name slot. Otherwise it uses the generic disclosure
+(English: `calling on behalf of my client`), and the invalid display-name text
+is not exported as a call fact. The native prepare disclosure uses the same
+validation. Restricted card/credential content still refuses compilation.
 No owner identity, private persona, memory or other profile file is imported.
 
 The return value is the documented `conversation_initiation_client_data` object:
@@ -67,20 +86,25 @@ Japanese/Korean briefs also carry a local fallback phrase. A legacy nonzero
 `disclosure`, arbitrary prompts, routing/session keys, transcripts, destination
 phone numbers and extra ledger fields are not forwarded. Selected public facts
 that known privacy filters would rewrite are refused rather than silently
-changing the approved brief. Shared phone-sensitive checks reject recognizable
-long card-like digit runs (bare, brand-labelled or grouped with repeated
-whitespace/hyphens) in all selected public fields, including the verbatim
-disclosure name. Inspection-only Unicode/whitespace normalization covers tabs,
-NBSP and fullwidth digits; original string leaves are inspected before JSON
-escaping. Approved input is rejected, not normalized/repaired. The only
-long-number exception is an exact `Callback number: +…` (or `Callback: +…`)
-E.164 fact explicitly listed in `may_share`; it cannot appear as a name or be
-extended with extra card data. A callback-labelled 13–19 digit value that passes
-the payment-card Luhn checksum is still refused: a rare phone/card ambiguity
-must go back to the owner, not become permission to disclose card data. Ordinary
-shorter callback numbers and non-card-like long callback facts remain supported.
-This conservative field-sensitive rule preserves
-approved callback facts without treating arbitrary long numbers as public.
+changing the approved brief. A shared mapped scanner normalizes Unicode decimal
+digits, keeps digits only across **all selected free-text fields together**, and
+checks every 13–19 digit Luhn window. Original character positions map matches
+back to every implicated field. Dots, slashes, arbitrary punctuation, whitespace,
+letters and split facts therefore cannot bypass inspection by changing separators.
+This happens before privacy cleaning, JSON escaping or packet splitting; approved
+facts are refused, never rewritten. Typed calendar/count values are semantically
+validated, not treated as free-text payment values. Validated callbacks have only
+a field-scoped exception; any 13–19 digit checksum-valid window **within** a
+callback still refuses it, and cross-field windows are never exempt. Ambiguous
+phone/card values need owner review rather than disclosure.
+
+Native `compile` returns `restricted_content` with safe field paths, e.g.
+`fields: ["may_share[0]"]`, and instructions to redact/prepare a new card. It does
+not echo the sensitive value or hide the refusal behind `invalid_request`.
+This is conservative payment-value filtering, **not universal PII detection**:
+spelled-out digits, checksum-invalid card numbers and standalone CVV/expiry
+phrases are not comprehensively detected. Unrelated free-text numbers can also
+form a checksum-valid window; use typed dates/times/counts where applicable.
 These are prompt/schema guarantees, **not** proof
 that a live front model always obeys them.
 
@@ -120,12 +144,20 @@ chooses `since` inside provider retention and a page cap (default ten). Every
 run rescans that window, rather than advancing a watermark past processing calls.
 Pagination loops/invalid cursors fail explicitly; the page cap and per-call
 failures report partial coverage. The command exits nonzero for partial coverage.
+Status and role values must be valid strings before enum membership; integers
+must be bounded before numeric use. Unix times are 0–253402300799, call-relative
+times/durations 0–86400 seconds (booleans, infinity and NaN rejected). Malformed
+calls yield a sanitized per-call error while valid calls in the page still queue.
 Provider failure is evidence to review, not permission to retry a call.
 
 A terminal snapshot selects spoken user/agent messages with call-relative times,
 start/duration, provider status and a labelled provider-reported summary. It drops
 initiation data, caller metadata, tool inputs/results, model reasoning and raw
-provider receipts. Known credential/card/passport/link patterns are filtered.
+provider receipts. The same mapped Luhn scanner inspects the complete original
+transcript plus summary, also projecting each speaker's turns so interleaved
+numeric agent speech cannot hide a user-split card. Every implicated turn/summary
+is omitted in full, not just the final group. Caller labels grant no callback
+exception. Known credential/card/passport/link patterns are also filtered.
 Filtering is deliberately conservative, **not universal PII detection**: selected
 call evidence remains private, destination-bound owner data. Do not publish it or
 commit real-call fixtures. Limits are 400 raw turn entries, 8,000 characters per

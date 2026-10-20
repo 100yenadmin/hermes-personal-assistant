@@ -167,7 +167,8 @@ def test_prepare_compile_refuses_formatted_card_name(tmp_path, separator):
     result = calls.dispatch(tmp_path, dict(action='prepare', **brief))
     assert result['status'] == 'prepared'
     compiled = calls.dispatch(tmp_path, {'action': 'compile', 'call_id': result['call_id']})
-    assert compiled['status'] == 'invalid_request'
+    assert compiled['status'] == 'restricted_content'
+    assert compiled['fields'] == ['on_behalf_of']
     assert 'conversation_initiation_client_data' not in compiled
 
 
