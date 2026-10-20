@@ -48,8 +48,11 @@ def _text(value, *, limit=8000):
         raise PollError('invalid_or_oversized_text')
     if any(ord(ch) < 32 and ch not in '\n\r\t' for ch in value):
         raise PollError('invalid_text_control')
-    return clean('\n'.join('[Restricted detail omitted.]' if restricted_phone_text(line, allow_callback=True) else line
-                           for line in value.splitlines()))
+    # Inspect the complete original utterance, including grouped digits spanning
+    # tabs/NBSP/newlines; splitting or JSON escaping first can hide a card value.
+    if restricted_phone_text(value, allow_callback=True):
+        return '[Restricted detail omitted.]'
+    return clean(value)
 
 
 class NoRedirect(HTTPRedirectHandler):

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from .phone_safety import restricted_phone_text
+from .phone_safety import restricted_phone_text, restricted_phone_value
 from .privacy import clean
 
 FALLBACK = "I'll confirm and call you back"
@@ -48,12 +48,11 @@ def compile_brief(card):
     public['counterpart'] = selected['to']['name']
     public['choices'] = {key: limits[key] for key in (
         'party_size', 'party_size_range', 'preferred_time', 'time_window', 'flexibility', 'other') if key in limits}
-    encoded = json.dumps(public, ensure_ascii=False)
-    non_fact_fields = json.dumps({key: value for key, value in public.items() if key != 'may_share'},
-                                ensure_ascii=False)
-    if (clean(public) != public or restricted_phone_text(non_fact_fields)
+    non_fact_fields = {key: value for key, value in public.items() if key != 'may_share'}
+    if (clean(public) != public or restricted_phone_value(non_fact_fields)
             or any(restricted_phone_text(fact, allow_callback=True) for fact in selected['may_share'])):
         raise ValueError('call card contains restricted facts; prepare a redacted card')
+    encoded = json.dumps(public, ensure_ascii=False)
     language = selected['language']
     inbound = selected.get('direction', 'outbound') == 'inbound'
     first = INBOUND_DISCLOSURES[language] if inbound else disclosure(language, selected.get('on_behalf_of'))

@@ -200,8 +200,25 @@ def test_shared_filter_preserves_explicit_callback_but_removes_card_values():
     callback = 'Callback number: +1234567890123'
     assert _text(callback) == callback
     for value in ('Visa: 4111111111111111', '4111111111111111', '4111 1111 1111 1111',
-                  '378282246310005', callback + '; Visa: 4111111111111111'):
+                  '378282246310005', callback + '; Visa: 4111111111111111',
+                  '4111  1111  1111  1111', '4111\t1111\t1111\t1111',
+                  '4111\u00a01111\u00a01111\u00a01111', '4111\n1111\n1111\n1111',
+                  '４１１１ １１１１ １１１１ １１１１'):
         assert _text(value) == '[Restricted detail omitted.]'
+
+
+@pytest.mark.parametrize('separator', ['  ', '\t', '\u00a0'])
+def test_formatted_card_value_never_reaches_queued_evidence(tmp_path, separator):
+    value = separator.join(['4111', '1111', '1111', '1111'])
+    item = detail()
+    item['transcript'][0]['message'] = value
+    item['analysis']['transcript_summary'] = value
+    poller = PhonePoller(tmp_path, config(tmp_path), Reader({CONV: item}))
+    assert poller.poll_once(since=1)['calls'][0]['status'] == 'queued'
+    saved = evidence(poller.queue)
+    assert saved['transcript'][0]['text'] == '[Restricted detail omitted.]'
+    assert '[Restricted detail omitted.]' in saved['owner_summary']
+    assert value not in json.dumps(saved, ensure_ascii=False)
 
 
 def test_quoted_multibyte_transcript_fits_configured_packet_limit(tmp_path):

@@ -68,8 +68,11 @@ Japanese/Korean briefs also carry a local fallback phrase. A legacy nonzero
 phone numbers and extra ledger fields are not forwarded. Selected public facts
 that known privacy filters would rewrite are refused rather than silently
 changing the approved brief. Shared phone-sensitive checks reject recognizable
-13–19 digit card-like values (bare, brand-labelled or space/hyphen-separated)
-in all selected public fields, including the verbatim disclosure name. The only
+long card-like digit runs (bare, brand-labelled or grouped with repeated
+whitespace/hyphens) in all selected public fields, including the verbatim
+disclosure name. Inspection-only Unicode/whitespace normalization covers tabs,
+NBSP and fullwidth digits; original string leaves are inspected before JSON
+escaping. Approved input is rejected, not normalized/repaired. The only
 long-number exception is an exact `Callback number: +…` (or `Callback: +…`)
 E.164 fact explicitly listed in `may_share`; it cannot appear as a name or be
 extended with extra card data. This conservative field-sensitive rule preserves
