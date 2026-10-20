@@ -331,6 +331,31 @@ def test_cos_precheck_uses_rule_timezone_or_preference(tmp_path, kind, timezone)
 
 
 @pytest.mark.parametrize("kind", COS)
+def test_cos_rule_zone_works_without_a_preference_zone(tmp_path, kind):
+    config(tmp_path)
+    ledger = Ledger(tmp_path)
+    rule(ledger, kind, timezone="UTC")
+    now = dt.datetime.fromisoformat("2026-10-19T15:00:00+00:00")
+    assert prepare_suggestions(ledger)["jobs"][0]["timezone"] == "UTC"
+    assert cron_precheck(ledger, kind, enabled=True, moment=now)["wakeAgent"]
+    rule(ledger, kind, timezone=None)
+    assert cron_precheck(ledger, kind, enabled=True, moment=now) == {
+        "wakeAgent": False, "reason": "disabled_or_timezone_missing"}
+
+
+@pytest.mark.parametrize("kind", COS)
+def test_conflicting_cos_rule_zones_never_wake(tmp_path, kind):
+    ledger = ledger_at(tmp_path, kind)
+    auto.upsert_automation_rule(ledger, kind + "-second", {
+        "kind": kind, "accepted": True, "destination": "telegram:fixture-owner",
+        "destination_verified": True, "timezone": "UTC"})
+    now = dt.datetime.fromisoformat("2026-10-19T15:00:00+00:00")
+    assert cron_precheck(ledger, kind, enabled=True, moment=now) == {
+        "wakeAgent": False, "reason": "timezone_conflict"}
+    assert not any(a["action_type"] == "notification" for a in ledger.list("action"))
+
+
+@pytest.mark.parametrize("kind", COS)
 def test_paused_cos_rules_require_reacceptance_for_suggestions(tmp_path, monkeypatch, kind):
     ledger = ledger_at(tmp_path, kind)
     for other in ("daily_brief", "due_source_check"):

@@ -141,9 +141,9 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     """Return Hermes wakeAgent JSON; no network or LLM on an empty tick."""
     prefs = preferences(ledger)
     zone = prefs.get("timezone")
-    if not enabled or not zone:
-        return {"wakeAgent": False, "reason": "disabled_or_timezone_missing"}
     cos = kind in auto.COS_JOBS
+    if not enabled or not (zone or cos):  # A CoS rule may carry its own zone.
+        return {"wakeAgent": False, "reason": "disabled_or_timezone_missing"}
     if cos and not cos_enabled(config_getter(ledger.root)):
         return {"wakeAgent": False, "reason": "chief_of_staff_off"}
     current = moment or dt.datetime.now(dt.timezone.utc)
@@ -155,8 +155,12 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     destinations = {r.get("destination") for r in rules}
     if len(destinations) != 1 or not next(iter(destinations)):
         return {"wakeAgent": False, "reason": "destination_conflict"}
-    if cos:
-        zone = rules[0].get("timezone") or zone
+    if cos:  # Resolve each rule's zone as the suggestion does; never pick between zones.
+        zones = {r.get("timezone") or zone for r in rules}
+        if len(zones) != 1 or None in zones:
+            reason = "timezone_conflict" if len(zones - {None}) > 1 else "disabled_or_timezone_missing"
+            return {"wakeAgent": False, "reason": reason}
+        zone = zones.pop()
     if any(r.get("snooze_until") and auto._value_time(r["snooze_until"], zone) > current for r in rules):
         return {"wakeAgent": False, "reason": "routine_snoozed"}
     local = current.astimezone(ZoneInfo(zone))
