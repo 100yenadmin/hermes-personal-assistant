@@ -17,6 +17,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 from .conversation_delivery.config import load_settings, require_under_home
 from .conversation_delivery.packet import serialize_packet, validate_packet
 from .conversation_delivery.store import QueueError, QueueStore
+from .phone_safety import restricted_phone_text
 from .privacy import clean
 
 MAX_RESPONSE = 1024 * 1024
@@ -24,9 +25,6 @@ MAX_EVIDENCE = 512 * 1024
 TERMINAL = frozenset({'done', 'failed'})
 _STATUSES = TERMINAL | {'initiated', 'in-progress', 'processing'}
 _REVISION = 'terminal-v1'  # One immutable snapshot per agent/conversation, even if analysis changes.
-_SENSITIVE = re.compile(
-    r'api[ _-]?key|authorization|\b(?:sk-|whsec_|xi-api-key|bearer\s)|password|secret|'
-    r'\bcard\s*(?:number|details)|\b(?:\d[ -]?){13,19}\b', re.I)
 
 
 class PollError(ValueError):
@@ -50,7 +48,7 @@ def _text(value, *, limit=8000):
         raise PollError('invalid_or_oversized_text')
     if any(ord(ch) < 32 and ch not in '\n\r\t' for ch in value):
         raise PollError('invalid_text_control')
-    return clean('\n'.join('[Restricted detail omitted.]' if _SENSITIVE.search(line) else line
+    return clean('\n'.join('[Restricted detail omitted.]' if restricted_phone_text(line, allow_callback=True) else line
                            for line in value.splitlines()))
 
 

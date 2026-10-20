@@ -67,7 +67,14 @@ Japanese/Korean briefs also carry a local fallback phrase. A legacy nonzero
 `disclosure`, arbitrary prompts, routing/session keys, transcripts, destination
 phone numbers and extra ledger fields are not forwarded. Selected public facts
 that known privacy filters would rewrite are refused rather than silently
-changing the approved brief. These are prompt/schema guarantees, **not** proof
+changing the approved brief. Shared phone-sensitive checks reject recognizable
+13–19 digit card-like values (bare, brand-labelled or space/hyphen-separated)
+in all selected public fields, including the verbatim disclosure name. The only
+long-number exception is an exact `Callback number: +…` (or `Callback: +…`)
+E.164 fact explicitly listed in `may_share`; it cannot appear as a name or be
+extended with extra card data. This conservative field-sensitive rule preserves
+approved callback facts without treating arbitrary long numbers as public.
+These are prompt/schema guarantees, **not** proof
 that a live front model always obeys them.
 
 The prompt has an explicitly unavailable future `check_with_owner(question,

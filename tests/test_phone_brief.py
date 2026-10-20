@@ -118,3 +118,40 @@ def test_empty_choices_still_require_hard_stops_and_fallback():
     assert 'absent means not approved' in prompt
     assert FALLBACK in prompt
     assert 'deposit: hard stop' in prompt
+
+
+@pytest.mark.parametrize('value', ['Visa: 4111111111111111', '4111111111111111',
+                                  '4111 1111 1111 1111', '378282246310005'])
+@pytest.mark.parametrize('field', ['may_share', 'on_behalf_of', 'purpose', 'counterpart', 'choices'])
+def test_payment_card_values_never_reach_any_compiled_field(value, field):
+    brief = card()
+    if field == 'may_share':
+        brief['may_share'] = [value]
+    elif field == 'counterpart':
+        brief['to']['name'] = value
+    elif field == 'choices':
+        brief['limits']['other'] = value
+    else:
+        brief[field] = value
+    with pytest.raises(ValueError, match='restricted'):
+        compile_brief(brief)
+
+
+def test_approved_e164_callback_is_preserved_only_in_exact_allowed_fact():
+    brief = card()
+    callback = 'Callback number: +1234567890123'
+    brief['may_share'] = [callback]
+    payload = compile_brief(brief)
+    assert callback in payload['dynamic_variables']['pa_allowed_facts']
+    assert callback in payload['conversation_config_override']['agent']['prompt']['prompt']
+    # Do not let a label embedded in the name or another field become a bypass.
+    brief['on_behalf_of'] = callback
+    with pytest.raises(ValueError, match='restricted'):
+        compile_brief(brief)
+
+
+def test_callback_label_cannot_launder_a_card_value():
+    brief = card()
+    brief['may_share'] = ['Callback number: +1234567890123; Visa: 4111111111111111']
+    with pytest.raises(ValueError, match='restricted'):
+        compile_brief(brief)

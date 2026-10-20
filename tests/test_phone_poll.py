@@ -195,6 +195,15 @@ def test_missing_analysis_is_explicit_not_a_booking_claim(tmp_path):
     assert value['outcome'] == 'needs_owner_review'
 
 
+def test_shared_filter_preserves_explicit_callback_but_removes_card_values():
+    from personal_assistant.phone_poll import _text
+    callback = 'Callback number: +1234567890123'
+    assert _text(callback) == callback
+    for value in ('Visa: 4111111111111111', '4111111111111111', '4111 1111 1111 1111',
+                  '378282246310005', callback + '; Visa: 4111111111111111'):
+        assert _text(value) == '[Restricted detail omitted.]'
+
+
 def test_quoted_multibyte_transcript_fits_configured_packet_limit(tmp_path):
     item = detail()
     item['transcript'] = [{'role': 'user', 'message': ('\\"가' * 700), 'time_in_call_secs': n} for n in range(12)]
