@@ -108,7 +108,7 @@ class TravelLedgerTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE((ledger_dir / "travel.sqlite").stat().st_mode), 0o600)
 
         ledger_dir.chmod(0o770)
-        with self.assertRaisesRegex(RuntimeError, "group/world-writable"):
+        with self.assertRaisesRegex(self.ledger.LedgerPermissionError, "group/world-writable"):
             self.ledger.db_path()
 
         ledger_dir.chmod(0o700)
@@ -137,11 +137,41 @@ class TravelLedgerTests(unittest.TestCase):
         ):
             os.environ["TRAVEL_LEDGER_DB"] = value
             self.assertEqual(Path(self.ledger.db_path()), expected.resolve())
+
+    def test_override_escape_fails_for_containment(self):
+        profile = self.make_root()
         profile.chmod(0o2770)
-        for value in (str(Path(self.temp.name) / "outside.sqlite"), "../../outside.sqlite", str(profile / "root.sqlite")):
+        os.environ["HERMES_HOME"] = str(profile)
+        for value in (str(Path(self.temp.name) / "outside.sqlite"), "../outside.sqlite"):
             os.environ["TRAVEL_LEDGER_DB"] = value
-            with self.assertRaisesRegex(RuntimeError, "must stay under|group/world-writable"):
+            with self.subTest(value=value), self.assertRaisesRegex(RuntimeError, "must stay under") as error:
                 self.ledger.db_path()
+            self.assertIs(type(error.exception), RuntimeError)
+
+    def test_override_direct_parent_fails_for_permissions(self):
+        profile = self.make_root()
+        profile.chmod(0o2770)
+        os.environ["HERMES_HOME"] = str(profile)
+        os.environ["TRAVEL_LEDGER_DB"] = str(profile / "root.sqlite")
+        with self.assertRaisesRegex(self.ledger.LedgerPermissionError, "group/world-writable"):
+            self.ledger.db_path()
+
+    def test_override_root_is_not_a_database_file(self):
+        profile = self.make_root()
+        os.environ["HERMES_HOME"] = str(profile)
+        for value in (str(profile), ".", "nested/.."):
+            os.environ["TRAVEL_LEDGER_DB"] = value
+            for operation in (self.ledger.db_path, lambda: self.run_command("init")):
+                with self.subTest(value=value, operation=operation), self.assertRaisesRegex(
+                    RuntimeError, "TRAVEL_LEDGER_DB must name a database file.*not the root itself"
+                ):
+                    operation()
+
+    def test_connect_at_rejects_root_equivalent_path_without_creating_directories(self):
+        profile = self.make_root()
+        with self.assertRaisesRegex(RuntimeError, "TRAVEL_LEDGER_DB must name a database file.*not the root itself"):
+            self.ledger.connect_at(profile, profile / "nested" / "..")
+        self.assertFalse((profile / "nested").exists())
 
     def test_symlink_file_type_and_directory_permissions_fail_closed(self):
         profile = self.make_root()
