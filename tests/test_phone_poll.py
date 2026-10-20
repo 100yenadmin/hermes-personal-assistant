@@ -207,6 +207,12 @@ def test_shared_filter_preserves_explicit_callback_but_removes_card_values():
         assert _text(value) == '[Restricted detail omitted.]'
 
 
+@pytest.mark.parametrize('number', ['378282246310005', '4222222222222'])
+def test_callback_label_cannot_launder_card_number_into_call_evidence(number):
+    from personal_assistant.phone_poll import _text
+    assert _text('Callback number: +' + number) == '[Restricted detail omitted.]'
+
+
 @pytest.mark.parametrize('separator', ['  ', '\t', '\u00a0'])
 def test_formatted_card_value_never_reaches_queued_evidence(tmp_path, separator):
     value = separator.join(['4111', '1111', '1111', '1111'])

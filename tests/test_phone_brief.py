@@ -169,3 +169,11 @@ def test_prepare_compile_refuses_formatted_card_name(tmp_path, separator):
     compiled = calls.dispatch(tmp_path, {'action': 'compile', 'call_id': result['call_id']})
     assert compiled['status'] == 'invalid_request'
     assert 'conversation_initiation_client_data' not in compiled
+
+
+@pytest.mark.parametrize('number', ['378282246310005', '4222222222222'])
+def test_callback_label_cannot_launder_checksum_valid_card_number(number):
+    brief = card()
+    brief['may_share'] = ['Callback number: +' + number]
+    with pytest.raises(ValueError, match='restricted'):
+        compile_brief(brief)

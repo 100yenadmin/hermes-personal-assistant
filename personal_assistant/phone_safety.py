@@ -12,7 +12,22 @@ _CREDENTIAL = re.compile(
     r'\b(?:card\s*(?:number|details)|passport\s*(?:number|id))', re.I)
 _CARD_VALUE = re.compile(r'\d{13,}')
 _INSPECTION_SEPARATORS = re.compile(r'[\s\-\u2010-\u2015\u200b\u200c\u200d\ufeff]+')
-_CALLBACK_FACT = re.compile(r'Callback(?: number)?:\s*\+[1-9][0-9]{7,14}', re.I)
+_CALLBACK_FACT = re.compile(r'Callback(?: number)?:\s*\+(?P<number>[1-9][0-9]{7,14})', re.I)
+
+
+def _card_checksum(digits):
+    """Fail closed on a card-length Luhn value even if labelled as a callback.
+
+    A rare phone/card ambiguity needs owner review, not automatic disclosure.
+    Ordinary shorter callback numbers and non-card-like E.164 facts still work.
+    """
+    if not 13 <= len(digits) <= 19:
+        return False
+    total = 0
+    for index, digit in enumerate(reversed(digits)):
+        value = int(digit) * (2 if index % 2 else 1)
+        total += value - 9 if value > 9 else value
+    return total % 10 == 0
 
 
 def restricted_phone_text(text, *, allow_callback=False):
@@ -20,8 +35,9 @@ def restricted_phone_text(text, *, allow_callback=False):
     normalized = unicodedata.normalize('NFKC', text)
     if _CREDENTIAL.search(normalized):
         return True
-    if allow_callback and _CALLBACK_FACT.fullmatch(text.strip()):
-        return False
+    callback = _CALLBACK_FACT.fullmatch(text.strip()) if allow_callback else None
+    if callback:
+        return _card_checksum(callback['number'])
     # Inspection only: never rewrite an approved field or echo this normalization.
     # Scan original string leaves, before JSON escapes hide tabs/newlines.
     return bool(_CARD_VALUE.search(_INSPECTION_SEPARATORS.sub('', normalized)))

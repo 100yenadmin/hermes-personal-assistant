@@ -75,7 +75,11 @@ NBSP and fullwidth digits; original string leaves are inspected before JSON
 escaping. Approved input is rejected, not normalized/repaired. The only
 long-number exception is an exact `Callback number: +…` (or `Callback: +…`)
 E.164 fact explicitly listed in `may_share`; it cannot appear as a name or be
-extended with extra card data. This conservative field-sensitive rule preserves
+extended with extra card data. A callback-labelled 13–19 digit value that passes
+the payment-card Luhn checksum is still refused: a rare phone/card ambiguity
+must go back to the owner, not become permission to disclose card data. Ordinary
+shorter callback numbers and non-card-like long callback facts remain supported.
+This conservative field-sensitive rule preserves
 approved callback facts without treating arbitrary long numbers as public.
 These are prompt/schema guarantees, **not** proof
 that a live front model always obeys them.
