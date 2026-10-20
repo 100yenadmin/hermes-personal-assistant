@@ -4,7 +4,7 @@
 
 ## 0.8.0-rc.1 — 2026-10-20
 
-- **Chief of Staff mode (opt-in).** `/pa mode chief-of-staff on|off` turns it on per profile; it is off by default. Turning it off stops CoS schedules and follow-ups at once, and the CoS skills are hidden after the next gateway restart and new session. While they are still loaded, the agent is told not to use them.
+- **Chief of Staff mode (opt-in).** `/pa mode chief-of-staff on|off` turns it on per profile; it is off by default. Turning it off removes the CoS cron jobs and blocks later prechecks at once. Follow-up wakes already armed in HeartBeat 2.0 stay armed, but when one arrives the agent is told to cancel it and stay silent. The CoS skills are hidden after the next gateway restart and new session. While they are still loaded, the agent is told not to use them.
 - **Four CoS skills.**
   - `cos-daily`: one useful, evidence-backed next action a day, or silence when nothing clears the bar.
   - `cos-weekly`: a weekly review that keeps used, declined, ignored and unknown outcomes separate.
@@ -12,10 +12,10 @@
   - `cos-radar`: at most one tool benchmark a week; a slot is booked only on a yes, through PA's bound calendar, with a read-back.
   Each recommendation is one stable PA note, updated in place. Follow-ups use an owner-approved HeartBeat 2.0 `at` wake in the same chat; no other scheduler is created.
 - **Daily and weekly schedules.** These use the existing native suggestion path. PA suggests `personal-assistant-cos-daily` / `-cos-weekly` only for rules the user accepted for a verified chat, and Hermes `/suggestions accept` creates the job.
-  - Five-minute prechecks honour the saved time, the rule's timezone, quiet hours, pause and snooze. They claim one occurrence per local day or ISO week, so a report is never sent twice.
+  - Five-minute prechecks honour the saved time, the rule's timezone, quiet hours, pause and snooze. PA claims each daily or weekly occurrence once in the profile ledger and never retries an existing claim. This does not guarantee exactly-once chat delivery.
   - The report is the run's final response, which Hermes delivers. Silence is `[SILENT]`.
   - Conflicting rule timezones or chats never wake, and a report time inside quiet hours is refused.
-- **Reports go to the chat or Telegram topic where you accept them (#22).** Setup records the destination as `origin`, and Hermes binds it when `/suggestions accept` runs. Accept daily and weekly in different topics to keep them apart; accepting from the CLI or Desktop sends to the home channel.
+- **Reports go to the chat or Telegram topic where you accept them (#22).** Setup records the destination as `origin`, and Hermes binds it when `/suggestions accept` runs. Accept daily and weekly in different topics to keep them apart; accepting from the CLI or Desktop falls back to a configured home channel, and without one nothing is delivered.
 - **CoS setup section.** `/pa setup chief-of-staff` asks five questions (priorities, radar topics, daily time, weekly slot, which schedules), with its own progress, through the same reviewed-write flow as core setup. Schedules need an explicit yes for each one.
 - **Daily Ops scheduled jobs reach the user (#21).** The morning brief and evening due-source jobs used local delivery plus an agent send tool that Hermes v0.22.2 does not have, so they could never reach the user. They now deliver the run's final response to the verified chat, the same way as CoS.
 - **Capability Lab.** CoS scenarios s13–s16 cover a daily report, justified silence, a Korean scout and a weekly review with a benchmark yes. They use Hermes's own cron prompt builder and silence matcher. Lab only; not shipped behaviour.
@@ -24,7 +24,7 @@
   - Korean scout: 3/3 checks, 2/3 judge. The failing run credited a price to the official page that came from a search result.
   - Weekly review: 3/3 checks after two lab checks were corrected to accept equivalent wording (#22); the first score was 1/3, and the product text is unchanged.
   - 0 installs, 0 profile-file writes, 0 unapproved wakes, 0 message-tool calls.
-  - Later changes (#19 setup, #22 topic delivery) do not touch the scheduled paths these scenarios run.
+  - Wave 2 predates the #19 quiet-hours and destination-conflict guards. The CoS skills and scheduled job prompts are unchanged since then.
 - **Unchanged.** Install stays inert; no job exists until the user accepts it in Hermes; no software is installed and no profile file is edited without review.
 
 ## 0.7.0-rc.1 — 2026-10-19
