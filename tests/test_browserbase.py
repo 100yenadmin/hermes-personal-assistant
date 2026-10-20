@@ -9,7 +9,7 @@ from urllib.request import HTTPHandler, ProxyHandler, build_opener
 from urllib.response import addinfourl
 
 import pytest
-from personal_assistant.browserbase import NoRedirect, browser_session
+from personal_assistant.browserbase import NoRedirect, _origin, browser_session
 from personal_assistant.capabilities import discover
 from personal_assistant.entry import dispatch
 from personal_assistant.state import Ledger
@@ -229,3 +229,10 @@ def test_connect_returns_a_fresh_connection_for_a_running_owned_session(tmp_path
     for reply in ({"id": "bb-1", "status": "TIMED_OUT", "connectUrl": fresh}, {"id": "bb-1", "status": "RUNNING"}, denied):
         out = browser_session(ledger, {"action": "connect", "bb_session_id": "bb-1"}, opener=Opener(reply), get_secret=SECRETS.get)
         assert out["status"] == "error" and fresh not in json.dumps(out) and KEY not in json.dumps(out)
+
+
+def test_tab_origin_drops_userinfo_path_query_and_bad_values():
+    assert _origin("https://user:pass@id.example:8443/cb?code=SECRET#token=T") == "https://id.example:8443"
+    assert _origin("http://[::1]:8080/a") == "http://[::1]:8080"
+    for bad in (None, 7, "", "about:blank", "https://[::1", "https://h.example:99999/"):
+        assert _origin(bad) is None

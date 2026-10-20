@@ -127,6 +127,10 @@ def _origin(url):
     """A tab's scheme and host only: page URLs can carry OAuth codes or signed tokens."""
     try:
         parts = urlsplit(url) if isinstance(url, str) else None
+        host, port = (parts.hostname, parts.port) if parts else (None, None)
     except ValueError:
         return None
-    return f"{parts.scheme}://{parts.netloc}" if parts and parts.scheme and parts.netloc else None
+    if not (parts and parts.scheme and host):
+        return None
+    host = f"[{host}]" if ":" in host else host  # Never the userinfo part of netloc.
+    return f"{parts.scheme}://{host}" + (f":{port}" if port else "")
