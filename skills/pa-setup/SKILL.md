@@ -25,7 +25,7 @@ or review PA. Resume from saved progress; do not restart a completed interview.
 - “Skip”, “later”, and “you decide” always work. Skip leaves an answer unknown;
   later pauses; you decide accepts the stated recommendation, not extra authority.
 - Help with an off-topic request first, then resume at the unanswered question.
-- Record every section answer immediately, including corrections and delegated choices. Record skipped IDs too. Do not pretend an unasked question was asked.
+- Record every section answer immediately, including corrections and delegated choices. Record skipped IDs too; never pretend an unasked question was asked. After apply, changed answers keep setup applied with `pending_changes: true`; the fresh check is unaffected.
 - Never write SOUL.md, USER.md, the manual, context files, or automation preferences
   before explicit apply. Setup progress and proposals are the only interview writes.
 - On “pause”, call setup `pause` and stop the interview. On refusal, use `decline`.
@@ -59,7 +59,7 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
 
 ## Flow
 
-1. Read setup status; for an applied setup with a pending or failed check, use the
+1. Read setup status; `pending_changes` waits for the next `/pa setup review`, then propose and apply to save it in files. For applied setup with a pending or failed check, use the
    Fresh-session check section directly. If `status` is `proposed`, read the current
    targets, rebuild the exact diff, `propose` again and get approval of that diff,
    then step 7; saved summaries never authorize writes. Otherwise introduce briefly:
@@ -128,7 +128,7 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
 
 The new-session hook may load this section without the interview. First read `pa(operation="setup", data={"action":"status"})`; do not call `start`.
 If `requested_section` is `chief_of_staff`, run the CoS check in `references/question-bank.md` instead: no flight question and no trip or check-in arming.
-If `status` is not `applied`, resume its flow; if `fresh_check.status` is already
+Later recorded answers leave the fresh check unaffected. If `status` is not `applied`, resume its flow; if `fresh_check.status` is already
 `passed`, do not rerun from the hook note. When `pending` or `failed`, run the check
 in a session other than the apply session: load the saved manual/USER.md through
 normal memory/skill loading and answer

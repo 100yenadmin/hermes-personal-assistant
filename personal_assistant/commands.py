@@ -37,7 +37,7 @@ def make_pa_command(root, get_config=None, set_config=None):
                 return "Chief of Staff: on. Run hermes gateway restart to reload plugins, then start a new session for the CoS skills."
             if parts == ["status"]:
                 current = setup.state(Ledger(root))
-                return f"Setup: {current['status']}. Next question: {current['next_question'] or 'none'}. Answered {current['counts']['answers']} of {current['counts']['total']}. " + modes_text()
+                return f"Setup: {current['status']}. Next question: {current['next_question'] or 'none'}. Answered {current['counts']['answers']} of {current['counts']['total']}. " + modes_text() + (" Changes not yet applied." if current['pending_changes'] else "")
             if parts and parts[0] == "setup" and len(parts) <= 2:
                 section = parts[1] if len(parts) == 2 else "core"
                 section = "chief_of_staff" if section == "chief-of-staff" else section

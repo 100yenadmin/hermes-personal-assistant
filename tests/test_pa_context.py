@@ -15,6 +15,27 @@ ICS = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:source-1\r\nDTSTAR
 
 
 class ContextTests(unittest.TestCase):
+    def test_l39_infers_context_kind_from_one_id(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            import_trip(ledger, "trip-1", ICS)
+            ledger.put("action", "action-1", {"source_record_id": "source-1"})
+            for kind, identity in (("trip", "trip-1"), ("action", "action-1"), ("source", "source-1")):
+                for explicit in ({}, {"kind": ""}, {"kind": None}):
+                    with self.subTest(kind=kind, explicit=explicit):
+                        result = retrieve(ledger, {kind + "_id": identity, **explicit})
+                        self.assertEqual(result["kind"], kind)
+
+    def test_l39_context_kind_errors_are_actionable(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            for data in ({}, {"trip_id": "t", "action_id": "a"}, {"trip_id": "t", "source_id": "s"},
+                         {"action_id": "a", "source_id": "s"}, {"trip_id": "t", "query": "rain"},
+                         {"kind": "invalid", "source_id": "s"}):
+                with self.subTest(data=data), self.assertRaises(ValueError) as exc:
+                    retrieve(ledger, data)
+                self.assertEqual(str(exc.exception), "context needs kind (trip, action, source, or guide); guide takes trip_id plus optional query")
+
     def test_native_kanban_reader_uses_exact_read_only_store(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "kanban.db"

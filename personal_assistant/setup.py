@@ -16,7 +16,7 @@ TARGETS = FILE_TARGETS | {"pa_preferences"}  # Via pa automations preferences; n
 def _view(fields):
     result = {"status": "not_started", "requested_section": None, "requested_mode": None,
               "asked": [], "answers": {}, "skipped": [], "proposal": {"writes": []},
-              "applied": [], "applied_session_id": None, "fresh_check": {},
+              "applied": [], "applied_session_id": None, "fresh_check": {}, "pending_changes": False,
               "offer_shown_at": None, "updated_at": None, "look_around_consent": None,
               "active_platform": None, "active_sender_id": None, **fields}
     review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
@@ -79,10 +79,17 @@ def record(ledger, answers=None, skipped=None, asked=None, consent=None):
             raise ValueError("answer requires text and user/discovered source")
         normalized[qid] = {"text": answer["text"][:300], "source": answer["source"]}
     prior = state(ledger)
-    return _save(ledger, "in_progress", answers={k: v for k, v in {**prior["answers"], **normalized}.items() if k not in skipped},
-                 skipped=list(dict.fromkeys(q for q in prior["skipped"] + skipped if q not in normalized or q in skipped)),
+    merged = {k: v for k, v in {**prior["answers"], **normalized}.items() if k not in skipped}
+    skipped = list(dict.fromkeys(q for q in prior["skipped"] + skipped if q not in normalized or q in skipped))
+    completed = prior["status"] in {"applied", "checked"}
+    result = _save(ledger, prior["status"] if completed else "in_progress", answers=merged, skipped=skipped,
+                 pending_changes=prior["pending_changes"] or (completed and (merged != prior["answers"] or skipped != prior["skipped"])),
                  asked=list(dict.fromkeys(prior["asked"] + asked)), proposal={"writes": []},
                  look_around_consent=prior["look_around_consent"] if consent is None else consent)
+    if completed and result["pending_changes"]:
+        result["next_step"] = ("Saved. Setup is still in place; this answer is not in your files yet. "
+                               "Include it in the next review (/pa setup review), then propose and apply.")
+    return result
 
 
 def _items(items, key):
@@ -175,16 +182,24 @@ def applied(ledger, readbacks, session_id=None):
         raise ValueError("readbacks must match proposed file targets")
     readbacks = [_readback(ledger.root, item) for item in readbacks]
     return _save(ledger, "applied", applied=readbacks, requested_mode=None,
-                 applied_session_id=session_id, fresh_check={"status": "pending"})
+                 applied_session_id=session_id, fresh_check={"status": "pending"}, pending_changes=False)
 
 
 def fresh_check(ledger, status, session_id=None):
     if status not in {"passed", "failed"}:
         raise ValueError("invalid fresh-check status")
     current = state(ledger)
-    if (current["status"] != "applied" or current["fresh_check"].get("status") not in {"pending", "failed"}
-            or not session_id or session_id == current["applied_session_id"]):
-        raise ValueError("fresh check requires applied setup and a different session")
+    if current["status"] == "checked":
+        raise ValueError("fresh check already passed")
+    pending = current["fresh_check"].get("status") in {"pending", "failed"}
+    if current["status"] in {"requested", "in_progress", "proposed"} and pending:
+        raise ValueError("setup was reopened (new review or proposal); propose and apply again before the fresh check")
+    if current["status"] != "applied":
+        raise ValueError("no fresh check is pending; apply setup first")
+    if not pending:
+        raise ValueError("no fresh check is pending")
+    if not session_id or session_id == current["applied_session_id"]:
+        raise ValueError("the fresh check must run in a new session (/new), not the session that applied setup")
     failed_sessions = current["fresh_check"].get("failed_sessions", [])
     if session_id in failed_sessions:
         raise ValueError("fresh check retry needs a new session (/new)")

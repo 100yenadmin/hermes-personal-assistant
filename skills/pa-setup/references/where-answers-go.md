@@ -2,7 +2,7 @@
 
 No destination write happens before the user reviews the diff and explicitly
 says apply. This includes memory calls and preference/job changes. Setup `record`
-and `propose` save interview progress only; they do not apply it.
+and `propose` save interview progress only; after apply, recorded changes keep setup applied with `pending_changes: true` and leave the fresh check unaffected; save them in files through the next `/pa setup review`, then propose and apply.
 
 | Kind | Destination | Setup target |
 |---|---|---|

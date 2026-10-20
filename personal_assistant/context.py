@@ -97,9 +97,13 @@ def status_snapshot(ledger, data: dict[str, Any] | None = None) -> dict[str, Any
 
 
 def retrieve(ledger, data: dict[str, Any]) -> dict[str, Any]:
-    kind = str(data.get("kind", "")).strip().lower()
+    kind = str(data.get("kind") or "").strip().lower()
+    if not kind and not (data.get("trip_id") and "query" in data):
+        inferred = [name for name in ("trip", "action", "source") if data.get(name + "_id")]
+        if len(inferred) == 1:
+            kind = inferred[0]
     if kind not in {"trip", "action", "source", "guide"}:
-        raise ValueError("context kind must be trip, action, source, or guide")
+        raise ValueError("context needs kind (trip, action, source, or guide); guide takes trip_id plus optional query")
     limit, offset = _paging(data)
     if kind == "trip":
         trip_id = data.get("trip_id")
