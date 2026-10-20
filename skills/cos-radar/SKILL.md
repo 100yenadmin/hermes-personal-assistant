@@ -48,7 +48,7 @@ Never install software or treat discovery as approval to adopt or activate it.
    availability. Reuse already authorized calendar reads to check the slot.
 2. Read `pa(operation="context", data={"kind":"action","action_id":"pa:calendar-binding"})`.
    An absent binding may return “action not found”. If absent or not `bound`,
-   say no calendar is bound and offer setup. Reuse the profile's existing Google
+   say no calendar is bound and, in the same reply, offer to set one up. Reuse the profile's existing Google
    authorization; never start another login silently. After explicit destination
    approval, use `pa(operation="calendar_bind", data={"calendar_id":"<explicit calendar id>","expected_account":"<approved account>"})`.
    Never use `primary` as the destination ID or guess the account.

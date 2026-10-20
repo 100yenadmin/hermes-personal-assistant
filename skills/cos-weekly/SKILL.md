@@ -47,8 +47,9 @@ Offer no more than one batched improvement proposal, in this exact format:
 - Evidence: the observed failure, affected priority, source and expected benefit.
 - Rollback: how to restore the old wording or process if it does not help.
 
-Record it on the `cos:weekly:<local ISO week>` note as `stage: "draft"`, with
-`outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
+Record it on the `cos:weekly:<local ISO week>` note with every field the reference
+lists, including `benefit` and `review_at` (next week's slot), as `stage: "draft"`,
+with `outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
 wait for explicit apply approval in chat. Keep `draft`, `approved`, `applied`
 and `verified` distinct in `stage`. Applied requires actual readback;
 verified requires evidence of the promised result. Never silently edit
