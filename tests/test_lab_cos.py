@@ -78,6 +78,21 @@ def run_fake(root, scenario_id="s13_cos_daily_en", failure=None):
             entry.dispatch(hh, {"operation": "automations", "data": {"action": "receipt",
                 "occurrence_id": claim["occurrence_id"], "receipt": "suppressed", "note": "Nothing actionable."}})
             return {"final_response": "" if failure == "empty" else "[SILENT]", "messages": []}
+        if "kickoff" in scenario_id:
+            closeout = claim["last_closeout_note"]
+            if failure != "unread_closeout":
+                common.append(root / "tools.jsonl", {"name": "pa", "step": observer.step, "structured_args": {
+                    "operation": "context", "data": {"kind": "action", "action_id": closeout}}})
+            note(hh, "cos:kickoff:" + values["week"], "cos-kickoff", values, stage="draft", week=values["week"],
+                 focus="Finish the Orchid decision brief scope", closeout_ref=closeout)
+            text = ("Focus: finish the Orchid decision brief scope this week; last week's closeout carried it over.\n"
+                    "First step: draft two scope options. Decision needed: which scope. Reply no to choose another focus.")
+            if failure == "two_focus":
+                text += "\nFocus 2: also clear the voice-note backlog."
+            entry.dispatch(hh, {"operation": "automations", "data": {"action": "receipt",
+                "occurrence_id": claim["occurrence_id"], "receipt": "unknown",
+                "note": "Final response handed to Hermes cron delivery"}})
+            return {"final_response": text, "messages": [{"role": "assistant", "content": text}]}
         weekly = "weekly" in scenario_id
         identity = "cos:weekly:" + values["week"] if weekly else "cos:daily:" + values["today"]
         row = note(hh, identity, "cos-weekly" if weekly else "cos-daily", values, stage="draft")
@@ -142,7 +157,8 @@ def test_mode_and_real_seeding_precheck(tmp_path):
     assert not (hh / "cron").exists() and not (hh / "scripts").exists()
 
 
-@pytest.mark.parametrize("scenario", ["s13_cos_daily_en", "s14_cos_daily_silence_en", "s16_cos_weekly_en"])
+@pytest.mark.parametrize("scenario", ["s13_cos_daily_en", "s14_cos_daily_silence_en", "s16_cos_weekly_en",
+                                      "s17_cos_kickoff_en"])
 def test_fake_scheduled_child(tmp_path, scenario):
     s, hh, result, seen = run_fake(tmp_path, scenario)
     assert result["all_pass"], result
@@ -369,8 +385,9 @@ def test_cos_dry_run_selection_uses_no_runtime(capsys, monkeypatch):
     monkeypatch.setattr(runner, "token", deny)
     assert main(["run", "--scenario", "cos", "--dry-run", "--workers", "1"]) == 0
     jobs = json.loads(capsys.readouterr().out)["jobs"]
-    assert len(jobs) == 4 and {j["scenario"] for j in jobs} == {
-        "s13_cos_daily_en", "s14_cos_daily_silence_en", "s15_cos_scout_ko", "s16_cos_weekly_en"}
+    assert len(jobs) == 5 and {j["scenario"] for j in jobs} == {
+        "s13_cos_daily_en", "s14_cos_daily_silence_en", "s15_cos_scout_ko", "s16_cos_weekly_en",
+        "s17_cos_kickoff_en"}
 
 
 def test_scheduled_prompt_uses_hermes_delivery_contract(tmp_path):
@@ -448,3 +465,21 @@ def test_outcome_and_setup_wording_variants(tmp_path):
         transcript[-1]["content"] = base + tail
         common.write(tmp_path / "transcript.json", transcript)
         assert checks.evaluate(tmp_path, s)["steps"][1]["checks"]["no_calendar_honesty"] is expected
+
+
+def test_kickoff_reads_last_weeks_closeout_note(tmp_path):
+    s, hh, result, seen = run_fake(tmp_path, "s17_cos_kickoff_en")
+    assert result["all_pass"], result
+    values = common.read(tmp_path / "seed.json")["variables"]
+    turn = common.read(tmp_path / "run.json")["scheduled_turns"][0]
+    assert turn["last_closeout_note"] == "cos:weekly:" + values["last_week"]
+    assert turn["last_closeout_note"] in seen[0][0]  # Hermes injects the precheck JSON.
+    seeded = cos_checks.notes(common.read(tmp_path / "seed.json")["ledger"], turn["last_closeout_note"])
+    assert cos_checks.fields(seeded[0])["carry_over"]
+
+
+@pytest.mark.parametrize("failure,key", [("unread_closeout", "reads_closeout"), ("two_focus", "one_focus")])
+def test_kickoff_violations_fail(tmp_path, failure, key):
+    result = run_fake(tmp_path, "s17_cos_kickoff_en", failure=failure)[2]
+    assert not result["all_pass"]
+    assert result["steps"][0]["checks"][key] is False

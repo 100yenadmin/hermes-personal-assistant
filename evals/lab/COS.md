@@ -20,6 +20,8 @@ Dates expand at run time in the scenario's timezone: `@today@`, `@tomorrow@`,
 `@yesterday@`, `@now@`, `@week@`, `@weekday@`, `@last_week@`, `@last_week_date@`,
 `@last_week_at@`, `@review_at@`. The synthetic clock is today's local noon.
 Preferences and accepted, verified **lab** destination rules are seeded through PA.
+A scenario's optional `preferences` override the seeded CoS slots; s17 moves the
+closeout to 13:00 so the kickoff's last closeout is last week's note.
 `seed.json` records the resolved clock and pre-run ledger. No live owner data is used.
 
 ## Scheduled-child approximation
@@ -28,7 +30,7 @@ Reference: Hermes v0.22.2, commit `d923a5eb487a17c0a68801bba9ef0f56c81040a8`,
 `cron/scheduler_prompt.py::_build_job_prompt` / `_load_cron_skill_parts` and
 `cron/scheduler.py::_CronRunScope`.
 
-`type: scheduled` plus `job: cos_daily|cos_weekly` calls the installed PA's real
+`type: scheduled` plus `job: cos_daily|cos_kickoff|cos_weekly` calls the installed PA's real
 `cron_precheck`. Failure to claim is an error, never an ordinary chat fallback.
 The runner passes the installed PA's suggestion `job_spec`, including its installed
 precheck script path, to Hermes's own `_build_job_prompt` with the cached successful

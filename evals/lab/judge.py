@@ -32,6 +32,8 @@ Silence: no owner notification or manufactured advice is a success when no actio
 Scout: Korean reply, one adopt/trial/watch/ignore disposition grounded in actually retrieved dated primary
 sources; weigh Korean transcription fit, maintenance/licence, integration and exit cost. Require smallest
 reversible time-boxed trial, a success measure and timezone-bearing follow-up, without installing.
+Kickoff: read the last closeout note the precheck names (or say no closeout was recorded and infer
+nothing), then set exactly one focus for this week against the saved priorities; no new radar offer.
 Weekly: compare stated priorities to covered evidence and explicitly acknowledge missing calendar/inbox
 coverage. Separately report used/declined/ignored/unknown, grounded in each prior note's evidence.
 Approval is not use; use is not usefulness. At most one improvement proposal, with Old/New/Evidence/Rollback
