@@ -191,7 +191,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
     for item in raw_rules:
         rule = _rule_data(item)
         kind = _canonical_kind(rule.get("kind"))
-        if kind in COS_JOBS and chief_of_staff is not True:
+        if kind in COS_JOBS and (chief_of_staff is not True or rule.get("paused")):
             continue
         if not kind or not _accepted(rule):
             continue

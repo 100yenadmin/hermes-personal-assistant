@@ -30,8 +30,9 @@ def _unattended(platform=None):
     return resolved in UNATTENDED_SOURCES
 
 
-def make_pre_llm_call(root, get_config):
+def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
     def hook(**kwargs):
+        mode_context = None
         try:
             message = kwargs.get("user_message")
             image = False
@@ -52,6 +53,8 @@ def make_pre_llm_call(root, get_config):
                     or (isinstance(history, list) and history and isinstance(history[-1], dict)
                         and history[-1].get("display_kind") == "internal_notification")):
                 return None
+            if chief_of_staff and not cos_enabled(get_config):
+                mode_context = {"context": "Chief of Staff mode is off: do not load or run personal-assistant:cos-* skills; if asked, say it is off and how to turn it on."}
             ledger = Ledger(root, timeout=0.1, read_only=True)
             current = setup.state(ledger)
             status = current["status"]
@@ -62,7 +65,7 @@ def make_pre_llm_call(root, get_config):
                 if current["active_platform"] is None:
                     setup.start(Ledger(root, timeout=0.1), active_platform=platform, active_sender_id=sender)
                 elif (platform, sender) != (current["active_platform"], current["active_sender_id"]):
-                    return None
+                    return mode_context
                 interview_start = (f"show what discovery found as one summary, then ask only the next question ({current['next_question']})"
                                    if current["look_around_consent"] == "granted"
                                    else f"the look-around was declined; read no private sources; ask only the next question ({current['next_question']})"
@@ -91,8 +94,10 @@ def make_pre_llm_call(root, get_config):
                   and setup.offer_turn(Ledger(root, timeout=0.1), current, kwargs, history or [])):
                 text = "After answering this message, offer once, in one sentence, that the user can type /pa setup for a short guided setup."
             else:
-                return None
+                return mode_context
+            if mode_context:
+                text = mode_context["context"] + "\n" + text
             return {"context": text}
         except Exception:
-            return None
+            return mode_context
     return hook
