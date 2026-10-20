@@ -80,7 +80,9 @@ Recommend leaving schedules off until wanted. An answer or a general apply does
 not turn an unapproved schedule on. Never install software or silently edit files.
 After apply, ask for `/new`; the fresh-session check must retrieve a saved CoS
 priority or radar topic (or a saved time if no context was saved), then call setup
-`fresh_check` with passed/failed. Do not run the core trip/check-in arming steps.
+`fresh_check` with passed/failed. If every CoS answer was skipped, nothing was saved
+to check: call `fresh_check` with `passed` and say so. Do not run the core
+trip/check-in arming steps.
 
 ## Chief of Staff questions
 

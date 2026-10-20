@@ -113,7 +113,7 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
    hashes; never compute or invent them. On a failed readback, fix the write and call
    again; with no file targets use `readbacks: []`. Keep failures and pending writes
    visible. Verify preference/job changes through their own status operations.
-8. Ask the user to start a new session with `/new` and ask, for example,
+8. Core only (a CoS setup skips 8–9 and follows its question-bank flow). Ask for `/new`, then ask, for example,
    “When would you check in before my next flight?” Do not arm a wake yet:
    `/new` can orphan existing HB2 wakes.
 9. Complete the fresh-session check below, then load
