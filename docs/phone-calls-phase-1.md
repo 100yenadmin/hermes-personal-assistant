@@ -61,7 +61,13 @@ The first message is a fixed disclosure template. Only `on_behalf_of` containing
 punctuation, can fill its name slot. Otherwise it uses the generic disclosure
 (English: `calling on behalf of my client`), and the invalid display-name text
 is not exported as a call fact. The native prepare disclosure uses the same
-validation. Restricted card/credential content still refuses compilation.
+validation and retains a negative name-validity decision across privacy cleaning;
+removing a trailing line separator cannot turn a generic prepared disclosure into
+a named compiled one. Other selected facts changed by prepare-time privacy
+cleaning carry only safe field paths and refuse compilation, rather than silently
+promoting a rewritten typed name/callback or fact. No raw sensitive backup is
+stored. These internal validation markers are never exported. Restricted
+card/credential content still refuses compilation.
 No owner identity, private persona, memory or other profile file is imported.
 
 The return value is the documented `conversation_initiation_client_data` object:

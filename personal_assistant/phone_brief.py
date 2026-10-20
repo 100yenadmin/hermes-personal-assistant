@@ -6,7 +6,7 @@ import json
 import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .phone_safety import RestrictedContent, display_name, restricted_phone_fields, valid_callback
+from .phone_safety import COMPILE_REDACTION_FIELDS, RestrictedContent, display_name, restricted_phone_fields, valid_callback
 from .privacy import clean
 
 FALLBACK = "I'll confirm and call you back"
@@ -151,6 +151,11 @@ def compile_brief(card):
 
     if not isinstance(card, dict):
         raise ValueError('call card must be an object')
+    redacted = card.get('compile_redacted_fields', [])
+    if not isinstance(redacted, list) or any(not isinstance(path, str) or path not in COMPILE_REDACTION_FIELDS for path in redacted):
+        raise ValueError('invalid prepared call card')
+    if redacted:
+        raise RestrictedContent(redacted)
     names = ('purpose', 'language', 'direction', 'to', 'may_share', 'limits', 'on_behalf_of')
     selected = {key: card[key] for key in names if key in card}
     try:
@@ -167,6 +172,8 @@ def compile_brief(card):
     # The destination number is routing, not a fact the front model may disclose.
     public = {key: selected[key] for key in ('purpose', 'may_share')}
     safe_name = display_name(selected.get('on_behalf_of'))
+    if card.get('display_name_valid') is False:
+        safe_name = None  # Native prepare can restrict a name, never enable one.
     if safe_name:
         public['on_behalf_of'] = safe_name
     public['counterpart'] = selected['to']['name']

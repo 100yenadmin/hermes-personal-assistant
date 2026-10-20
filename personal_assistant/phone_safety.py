@@ -12,6 +12,7 @@ _CREDENTIAL = re.compile(
     r'api[ _-]?key|authorization|\b(?:sk-|whsec_|xi-api-key|bearer\s)|password|secret|'
     r'\b(?:card\s*(?:number|details)|passport\s*(?:number|id))', re.I)
 _CALLBACK = re.compile(r'\+[1-9][0-9]{7,14}')
+COMPILE_REDACTION_FIELDS = ('purpose', 'may_share', 'limits', 'to.name')
 
 
 class RestrictedContent(ValueError):

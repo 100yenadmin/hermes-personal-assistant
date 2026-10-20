@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from .privacy import clean
-from .phone_safety import RestrictedContent, display_name
+from .phone_safety import COMPILE_REDACTION_FIELDS, RestrictedContent, display_name
 from .state import Ledger, now
 
 OUTCOMES = ['booked', 'needs_approval', 'no_answer', 'refused', 'answered', 'message_taken', 'handoff', 'cancelled']
@@ -179,8 +179,21 @@ def _dispatch(ledger, args, config, session_id):
     action = args['action']
     if action == 'prepare':
         brief = clean({k: args[k] for k in ('purpose', 'language', 'to', 'may_share', 'limits')})
+        original_public = {key: args[key] for key in ('purpose', 'may_share', 'limits')}
+        original_public['to.name'] = args['to']['name']
+        cleaned_public = {key: brief[key] for key in ('purpose', 'may_share', 'limits')}
+        cleaned_public['to.name'] = brief['to']['name']
+        redacted = [key for key in COMPILE_REDACTION_FIELDS if original_public[key] != cleaned_public[key]]
+        if redacted:
+            # Store only safe paths, never a second/raw copy of sensitive facts.
+            # A compiler must refuse rewritten facts, not promote cleaned input.
+            brief['compile_redacted_fields'] = redacted
         if args.get('on_behalf_of'):
             brief['on_behalf_of'] = clean(args['on_behalf_of'])
+            if display_name(args['on_behalf_of']) is None:
+                # Preserve the ORIGINAL validation decision across privacy.clean
+                # (splitlines may remove a trailing newline from an invalid name).
+                brief['display_name_valid'] = False
         brief['limits'].setdefault('max_deposit', 0)
         brief['disclosure'] = disclosure(brief['language'], args.get('on_behalf_of'))
         direction = args.get('direction', 'outbound')
