@@ -47,13 +47,20 @@ def _slot(prefs, kind):
             prefs.get(kind + "_time", auto.DEFAULTS[kind + "_time"]))
 
 
-def _last_closeout_week(prefs, local):
-    """ISO week of the latest closeout slot at or before `local`."""
-    day, clock = _slot(prefs, "cos_weekly")
-    date = local.date() + dt.timedelta(days=day - local.weekday())
-    if (local.weekday(), local.strftime("%H:%M")) < (day, clock):
-        date -= dt.timedelta(days=7)
-    return "%04d-W%02d" % date.isocalendar()[:2]
+def _week_slot(local, slot, zone):
+    """`slot` in the ISO week of `local`, as an aware instant in `zone`."""
+    monday = local.date() - dt.timedelta(days=local.weekday())
+    return dt.datetime.combine(monday + dt.timedelta(days=slot[0]), dt.time.fromisoformat(slot[1]), ZoneInfo(zone))
+
+
+def _latest_closeout(prefs, local, zone):
+    """The latest closeout slot at or before `local`; the closeout runs in its own rule's `zone`."""
+    at = _week_slot(local, _slot(prefs, "cos_weekly"), zone)
+    while at > local:
+        at -= dt.timedelta(days=7)
+    while at + dt.timedelta(days=7) <= local:
+        at += dt.timedelta(days=7)
+    return at
 
 
 def _precheck_path(ledger, kind):
@@ -175,8 +182,9 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
         return {"wakeAgent": False, "reason": "chief_of_staff_off"}
     current = moment or dt.datetime.now(dt.timezone.utc)
     actions = ledger.list("action")
-    rules = [auto._rule_data(a) for a in actions if a["action_type"] == "automation_rule"]
-    rules = [r for r in rules if r.get("kind") == kind and r.get("accepted") and r.get("destination_verified") and not r.get("paused")]
+    accepted = [r for r in (auto._rule_data(a) for a in actions if a["action_type"] == "automation_rule")
+                if r.get("accepted") and r.get("destination_verified") and not r.get("paused")]
+    rules = [r for r in accepted if r.get("kind") == kind]
     if not rules:
         return {"wakeAgent": False, "reason": "no_accepted_routine"}
     destinations = {r.get("destination") for r in rules}
@@ -216,11 +224,14 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             slot = _slot(prefs, kind)
             if moment_slot < slot:
                 return {"wakeAgent": False, "reason": "before_cos_time"}
-            # A missed kickoff catches up within its ISO week, but never once a
-            # later closeout slot in that week has come.
-            closeout = _slot(prefs, "cos_weekly")
-            if kind == "cos_kickoff" and slot < closeout <= moment_slot:
-                return {"wakeAgent": False, "reason": "after_cos_closeout"}
+            if kind == "cos_kickoff":
+                # Compare instants: the closeout rule may carry another zone.
+                zones = {r.get("timezone") or prefs.get("timezone") for r in accepted if r.get("kind") == "cos_weekly"}
+                closeout = _latest_closeout(prefs, local, zones.pop() if len(zones) == 1 and None not in zones else zone)
+                # A missed kickoff catches up within its ISO week, but never once a
+                # later closeout slot in that week has come.
+                if closeout > _week_slot(local, slot, zone):
+                    return {"wakeAgent": False, "reason": "after_cos_closeout"}
         elif moment_slot[1] < prefs.get(clock_key, auto.DEFAULTS[clock_key]):
             return {"wakeAgent": False, "reason": "before_cos_time"}
         state.update(actions=[{"due": True}], chief_of_staff=True, timezone=zone)
@@ -257,7 +268,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
               "destination": next(iter(destinations)), "due_sources": check.get("due_sources", []),
               "due_action_ids": [a["action_id"] for a in due]}
     if kind == "cos_kickoff":  # Computed here so the model never does ISO-week arithmetic.
-        result["last_closeout_note"] = "cos:weekly:" + _last_closeout_week(prefs, local)
+        result["last_closeout_note"] = "cos:weekly:%04d-W%02d" % closeout.date().isocalendar()[:2]
     return result
 
 

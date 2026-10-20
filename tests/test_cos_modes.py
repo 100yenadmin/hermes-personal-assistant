@@ -470,6 +470,22 @@ def test_closeout_slot_on_the_same_day_is_this_weeks_note(tmp_path):
     assert result["last_closeout_note"] == "cos:weekly:2027-W01"
 
 
+def test_kickoff_reads_a_closeout_rule_in_another_zone(tmp_path):
+    # R40 F1: the closeout runs Monday 15:00 Tokyo (06:00Z); the kickoff rule is in UTC.
+    config(tmp_path)
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Tokyo", "cos_weekly_day": "mon", "cos_weekly_time": "15:00"})
+    rule(ledger, "cos_kickoff", timezone="UTC")
+    rule(ledger, "cos_weekly")
+    at = lambda text: dt.datetime.fromisoformat(text + "+00:00")
+    result = cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-19T11:00:00"))
+    assert result["wakeAgent"] and result["last_closeout_note"] == "cos:weekly:2026-W43"
+    # Friday closeout at 15:00 Tokyo (06:00Z) ends the UTC kickoff's catch-up at 06:00Z.
+    preferences(ledger, {"cos_weekly_day": "fri"})
+    assert cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-23T06:00:00")) == {
+        "wakeAgent": False, "reason": "after_cos_closeout"}
+
+
 def test_daily_tick_needs_no_day_key(tmp_path):
     assert "cos_daily_day" not in auto.DEFAULTS
     ledger = ledger_at(tmp_path, "cos_daily")
