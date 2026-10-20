@@ -99,7 +99,8 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
             # Each tab has its own live view; the agent sends the link of the tab holding the step.
             pages = debug.get("pages") if isinstance(debug.get("pages"), list) else []
             tabs = [{"title": page.get("title"), "url": page.get("url"), "live_view_url": page["debuggerFullscreenUrl"]}
-                    for page in pages if isinstance(page, dict) and isinstance(page.get("debuggerFullscreenUrl"), str)]
+                    for page in pages if isinstance(page, dict) and isinstance(page.get("debuggerFullscreenUrl"), str)
+                    and page["debuggerFullscreenUrl"]]
             return {"bb_session_id": identity, "live_view_url": url, **({"tabs": tabs} if len(tabs) > 1 else {})}
         request("/v1/sessions/" + identity, {"projectId": project, "status": "REQUEST_RELEASE"})
         ledger.put("action", row_id, {}, status="released")

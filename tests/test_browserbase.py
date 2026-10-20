@@ -151,6 +151,11 @@ def test_live_view_refresh_failures_and_ledger_failure_release(tmp_path, monkeyp
     one = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
                           opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": pages[:1]}), get_secret=SECRETS.get)
     assert one == {"bb_session_id": "bb-1", "live_view_url": LIVE}
+    # R45: a tab with an empty link is not a handoff target and does not count toward the tab list.
+    blank = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                            opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": [pages[0], {"title": "Verify", "debuggerFullscreenUrl": ""}]}),
+                            get_secret=SECRETS.get)
+    assert blank == {"bb_session_id": "bb-1", "live_view_url": LIVE}
     def locked(*args, **kwargs):
         raise RuntimeError("database is locked")
     monkeypatch.setattr(ledger, "put", locked)
