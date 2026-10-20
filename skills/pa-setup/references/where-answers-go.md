@@ -122,8 +122,8 @@ Set up schedules from the chat that should receive the reports. If this surface
 cannot receive pushed messages, ask the user to continue there; never guess a chat ID.
 The destination is `"origin"`: Hermes binds it to the chat, including the Telegram
 topic or thread, where `/suggestions accept` runs. To send daily and weekly to
-different topics, accept each one in its own topic. Accepting from the CLI or Desktop
-sends to the home channel instead. `destination_verified: true`
+different topics, accept each one in its own topic. Accept in a chat, not the CLI or
+Desktop: there Hermes uses a configured home channel or delivers nothing. `destination_verified: true`
 records the owner's explicit yes in this chat; PA runs no other verification, and
 Hermes shows each suggested job before `/suggestions accept`, which is the final check.
 After apply, use the existing
