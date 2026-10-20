@@ -104,3 +104,14 @@ def test_quiet_hours_check_only_covers_saved_cos_times(tmp_path):
     with pytest.raises(ValueError, match="cos_weekly_time 10:00"):
         preferences(ledger, {"quiet_hours": {"start": "09:00", "end": "11:00"}})
     assert preferences(ledger)["quiet_hours"] == {"start": "08:00", "end": "10:00"}
+
+
+@pytest.mark.parametrize("kind", ["cos_daily", "cos_weekly"])
+def test_cos_suggestion_withheld_when_rules_disagree_on_the_chat(tmp_path, kind):
+    from personal_assistant import automation as auto
+    ledger = Ledger(tmp_path)
+    for rule_id, chat in ((kind, "telegram:one"), (kind + "-2", "telegram:two")):
+        auto.upsert_automation_rule(ledger, rule_id, {"kind": kind, "accepted": True, "destination": chat,
+                                                      "destination_verified": True, "timezone": "Asia/Tokyo"})
+    result = auto.suggest_automation_jobs(ledger=ledger, chief_of_staff=True)
+    assert result["jobs"] == [] and f"{kind}: conflicting destinations" in result["missing_inputs"]

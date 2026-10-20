@@ -187,7 +187,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
     raw_rules, trips = _rules_from(source, ledger)
     # Use UTC solely to inspect explicit trip dates when no configured timezone exists.
     current = _now(now, timezone or "UTC")
-    grouped, missing, seen = {}, [], set()
+    grouped, missing, seen, conflicted = {}, [], set(), set()
     for item in raw_rules:
         rule = _rule_data(item)
         kind = _canonical_kind(rule.get("kind"))
@@ -216,6 +216,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
             continue
         if entry["destination"] != target:
             missing.append(f"{kind}: conflicting destinations")
+            conflicted.add(kind)
             continue
         entry["rules"].append(identity)
         source_ref = rule.get("source_ref")
@@ -224,8 +225,8 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
     active = _trip_active(trips, current)
     jobs = []
     for kind in ("daily_brief", "due_source_check", *COS_JOBS):
-        if kind not in grouped:
-            continue
+        if kind not in grouped or (kind in COS_JOBS and kind in conflicted):
+            continue  # A CoS job whose rules disagree on the chat would never wake.
         entry = grouped[kind]
         settings = {
             "quiet_hours": dict(DEFAULTS["quiet_hours"]),
