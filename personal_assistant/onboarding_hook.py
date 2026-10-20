@@ -7,6 +7,37 @@ from .state import Ledger
 from .modes import cos_enabled
 
 UNATTENDED_SOURCES = frozenset({"subagent", "cron", "oneshot", "webhook", "kanban", "tool", "batch", "curator"})
+ELSEWHERE = "PA setup is in progress in another chat; say /pa setup to continue here."
+COS_STOPPED = ("Chief of Staff setup is stopped while the mode is off. Explain /pa mode chief-of-staff on, then hermes gateway "
+               "restart and a new session. Do not record answers, create rules or suggest jobs.")
+
+
+def _chat_key(kwargs):
+    """Gateway turns key on chat + thread (survives /new); CLI, Desktop and TUI key on the session."""
+    try:
+        from gateway.session_context import get_session_env
+    except ImportError:
+        get_session_env = os.environ.get
+    platform, chat = kwargs.get("platform") or "", get_session_env("HERMES_SESSION_CHAT_ID", "") or ""
+    if chat:
+        return f"{platform}:{chat}:{get_session_env('HERMES_SESSION_THREAD_ID', '') or ''}"
+    return f"{platform}:session:{kwargs.get('session_id') or ''}"
+
+
+def command_chat_key():
+    """The gateway chat a /pa command came from, keyed like `_chat_key`; None off the gateway.
+
+    Hermes binds HERMES_SESSION_* around plugin command handlers. The agent names LOCAL `cli`."""
+    try:
+        from gateway.session_context import get_session_env
+    except ImportError:
+        return None
+    chat = get_session_env("HERMES_SESSION_CHAT_ID", "") or ""
+    platform = get_session_env("HERMES_SESSION_PLATFORM", "") or ""
+    if not chat or not platform:
+        return None
+    platform = "cli" if platform == "local" else platform
+    return f"{platform}:{chat}:{get_session_env('HERMES_SESSION_THREAD_ID', '') or ''}"
 
 
 def _unattended(platform=None):
@@ -59,13 +90,22 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
             current = setup.state(ledger)
             status = current["status"]
             if status in {"requested", "in_progress", "proposed"}:
-                if current["requested_section"] == "chief_of_staff" and not cos_enabled(get_config):
-                    return {"context": "Chief of Staff setup is stopped while the mode is off. Explain /pa mode chief-of-staff on, then hermes gateway restart and a new session. Do not record answers, create rules or suggest jobs."}
-                platform, sender = kwargs.get("platform") or "", kwargs.get("sender_id") or ""
-                if current["active_platform"] is None:
-                    setup.start(Ledger(root, timeout=0.1), active_platform=platform, active_sender_id=sender)
-                elif (platform, sender) != (current["active_platform"], current["active_sender_id"]):
+                platform, sender, chat = kwargs.get("platform") or "", kwargs.get("sender_id") or "", _chat_key(kwargs)
+                cos_stopped = current["requested_section"] == "chief_of_staff" and not cos_enabled(get_config)
+                unbound = current["active_platform"] is None
+                reserved = unbound and current["active_chat"] not in (None, chat)  # /pa setup named another chat.
+                if unbound and not reserved and cos_stopped:
+                    return {"context": COS_STOPPED}  # Never bind or mutate setup while the mode is off.
+                if unbound and not reserved:
+                    setup.start(Ledger(root, timeout=0.1), active_platform=platform, active_sender_id=sender, active_chat=chat)
+                elif not unbound and (platform, sender) != (current["active_platform"], current["active_sender_id"]):
                     return mode_context
+                elif reserved or chat != current["active_chat"]:  # A legacy row (no active_chat) is active in no chat.
+                    if not kwargs.get("is_first_turn"):
+                        return mode_context
+                    return {"context": (mode_context["context"] + "\n" if mode_context else "") + ELSEWHERE}
+                if cos_stopped:
+                    return {"context": COS_STOPPED}
                 interview_start = (f"show what discovery found as one summary, then ask only the next question ({current['next_question']})"
                                    if current["look_around_consent"] == "granted"
                                    else f"the look-around was declined; read no private sources; ask only the next question ({current['next_question']})"

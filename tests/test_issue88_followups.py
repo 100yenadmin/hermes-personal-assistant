@@ -194,7 +194,7 @@ def test_failed_turn_notice_is_not_offer_delivery(tmp_path):
 
 def test_mid_interview_draft_keeps_interview_in_progress(tmp_path):
     ledger = Ledger(tmp_path)
-    setup.start(ledger, active_platform="telegram", active_sender_id="synthetic")
+    setup.start(ledger, active_platform="telegram", active_sender_id="synthetic", active_chat="telegram:session:s2")
     setup.record(ledger, answers={"call_and_quiet": {"text": "Synthetic", "source": "user"}}, asked=["call_and_quiet"])
     writes = [{"target": "manual_skill", "summary": "Synthetic deeper preference"}]
     saved = dispatch(tmp_path, {"operation": "setup", "data": {"action": "propose", "writes": writes, "draft": True}})

@@ -76,7 +76,7 @@ The native plugin registers:
 
 The `pa` operation groups are:
 
-- **Guided setup:** `setup`; `/pa setup` begins on your next message.
+- **Guided setup:** `setup`; `/pa setup` begins on your next message. Setup runs in one chat; in another chat, `/pa setup` continues it there.
 - **Discovery:** `status`, `capabilities`, `recipes`.
 - **Context:** `context`, `next_action`.
 - `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
