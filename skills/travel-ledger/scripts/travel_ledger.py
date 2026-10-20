@@ -66,6 +66,7 @@ CONNECTIVITY_SENSITIVE_NUMERIC_PATTERN = re.compile(r"(?<!\d)\d{15,20}(?!\d)")
 class LedgerPermissionError(RuntimeError):
     pass
 
+
 def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
@@ -197,13 +198,17 @@ def _candidate_path(root):
         resolved.relative_to(root)
     except (OSError, ValueError) as exc:
         raise RuntimeError(f"{TRAVEL_LEDGER_DB_ENV} must stay under {root}") from exc
+    if resolved == root:
+        raise RuntimeError(f"{TRAVEL_LEDGER_DB_ENV} must name a database file under {root}, not the root itself")
     return resolved
 
 
-def _validate_existing_path(root, candidate):
+def _validate_existing_path(root, candidate, *, owned=True, label="ledger directory"):
     """Reject symlinked path components and insecure existing DB paths."""
+    if candidate == root:
+        raise RuntimeError(f"{TRAVEL_LEDGER_DB_ENV} must name a database file under {root}, not the root itself")
     if candidate.parent == root:
-        _validate_directory(root, f"ledger directory {root}", owned=True)
+        _validate_directory(root, f"{label} {root}", owned=owned)
     relative = candidate.relative_to(root)
     current = root
     for index, part in enumerate(relative.parts):
@@ -229,13 +234,13 @@ def _validate_existing_path(root, candidate):
                 raise RuntimeError(f"ledger path component must be a directory: {current}")
             _validate_directory(
                 current,
-                f"ledger directory {current}",
-                owned=current == candidate.parent,
+                f"{label if current == candidate.parent else 'ledger directory'} {current}",
+                owned=owned and current == candidate.parent,
             )
 
 
-def _ensure_directory(root, path):
-    """Create missing ledger directories with restrictive permissions."""
+def _ensure_directory(root, path, *, owned=True, label="ledger directory"):
+    """Create private directories; the caller selects leaf ownership."""
     relative = path.relative_to(root)
     current = root
     for part in relative.parts:
@@ -256,8 +261,8 @@ def _ensure_directory(root, path):
             raise RuntimeError(f"ledger path component must be a directory: {current}")
         _validate_directory(
             current,
-            f"ledger directory {current}",
-            owned=current == path,
+            f"{label if current == path else 'ledger directory'} {current}",
+            owned=owned and current == path,
         )
 
 
