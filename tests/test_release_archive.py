@@ -31,6 +31,8 @@ def test_built_archive_registers_and_exports(tmp_path):
     home = tmp_path / "profile"
     home.mkdir()
     ctx = SimpleNamespace(_manager=SimpleNamespace(home_path=home),
+                          get_config=lambda key, default=None: default,
+                          set_config=lambda key, value: None,
                           register_tool=lambda **kw: tools.update({kw["name"]: kw}),
                           register_hook=lambda name, callback: hooks.update({name: callback}),
                           register_command=lambda name, handler, **kw: commands.update({name: handler}),

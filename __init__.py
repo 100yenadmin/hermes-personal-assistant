@@ -33,6 +33,10 @@ def register(ctx):
     )
     from .personal_assistant.state import Ledger
     from .personal_assistant.conversation_delivery import register_if_enabled
+    from .personal_assistant.modes import cos_enabled
+
+    get_config = getattr(ctx, "get_config", lambda key, default: default)
+    chief_of_staff = cos_enabled(get_config)
 
     configured_home = os.environ.get("HERMES_HOME")
     manager_home = getattr(getattr(ctx, "_manager", None), "home_path", None)
@@ -56,6 +60,7 @@ def register(ctx):
             "session_id": kwargs.get("session_id"),
             "task_id": kwargs.get("task_id"),
             "observe_settings": get_config("observe", {}) if callable(get_config) else {},
+            "get_config": get_config,
             "authorization_store": active_gateway.store,
         }), ensure_ascii=False)
 
@@ -100,12 +105,16 @@ def register(ctx):
     from .personal_assistant.onboarding_hook import make_pre_llm_call
     register_command = getattr(ctx, "register_command", None)
     if callable(register_command):
-        register_command("pa", make_pa_command(root), description="Personal Assistant: guided setup and status",
-                         args_hint="setup | setup review | status | help")
+        register_command("pa", make_pa_command(root, get_config, getattr(ctx, "set_config", None)), description="Personal Assistant: guided setup, modes and status",
+                         args_hint="setup | setup review | status | mode | help")
     get_config = getattr(ctx, "get_config", None)
     ctx.register_hook("pre_llm_call", make_pre_llm_call(
         root, lambda key, default: get_config(key, default) if callable(get_config) else default))
     register_if_enabled(ctx)
     for path in sorted((Path(__file__).parent / "skills").rglob("SKILL.md")):
         frontmatter, description = _skill_metadata(path)
+        metadata = frontmatter.get("metadata") or {}
+        hermes = metadata.get("hermes") if isinstance(metadata, dict) else None
+        if isinstance(hermes, dict) and hermes.get("pa_mode") == "chief_of_staff" and not chief_of_staff:
+            continue
         ctx.register_skill(path.parent.name, path, description=description, frontmatter=frontmatter)

@@ -7,6 +7,9 @@ from .state import Ledger, stable_id
 
 DEFAULTS = {
     "brief_time": "08:00",
+    "cos_daily_time": "09:30",
+    "cos_weekly_day": "mon",
+    "cos_weekly_time": "10:00",
     "quiet_hours": {"start": "22:00", "end": "07:00"},
     "due_interval_minutes": 5,
     "travel_source_refresh_minutes": 15,
@@ -15,6 +18,8 @@ DEFAULTS = {
     "authenticated_guides": "manual",
 }
 _SKILLS = {
+    "cos_daily": ["personal-assistant:cos-daily"],
+    "cos_weekly": ["personal-assistant:cos-weekly", "personal-assistant:cos-radar"],
     "daily_brief": [
         "personal-assistant:r5-brief-reminders",
         "personal-assistant:daily-ops",
@@ -26,6 +31,7 @@ _SKILLS = {
         "personal-assistant:daily-ops",
     ],
 }
+COS_JOBS = {"cos_daily": "personal-assistant-cos-daily", "cos_weekly": "personal-assistant-cos-weekly"}
 _TERMINAL_RECEIPTS = {"delivered", "suppressed", "unknown"}
 
 def _value_time(value, timezone):
@@ -176,8 +182,8 @@ def _due_actions(actions, current):
         if fields.get("due") is True or (due_at and _value_time(due_at, zone) and _value_time(due_at, zone) <= current): return True
     return False
 def suggest_automation_jobs(source=None, *, destination=None, destination_verified=False,
-                            timezone=None, now=None, ledger=None):
-    """Build at most two inert native cron suggestions from accepted rules."""
+                            timezone=None, now=None, ledger=None, chief_of_staff=False):
+    """Build inert native cron suggestions from accepted rules and enabled modes."""
     raw_rules, trips = _rules_from(source, ledger)
     # Use UTC solely to inspect explicit trip dates when no configured timezone exists.
     current = _now(now, timezone or "UTC")
@@ -185,6 +191,8 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
     for item in raw_rules:
         rule = _rule_data(item)
         kind = _canonical_kind(rule.get("kind"))
+        if kind in COS_JOBS and chief_of_staff is not True:
+            continue
         if not kind or not _accepted(rule):
             continue
         identity = str(rule.get("automation_rule_id", rule.get("source_ref", item.get("action_id", len(seen)))))
@@ -215,7 +223,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
             entry["sources"].append(source_ref)
     active = _trip_active(trips, current)
     jobs = []
-    for kind in ("daily_brief", "due_source_check"):
+    for kind in ("daily_brief", "due_source_check", *COS_JOBS):
         if kind not in grouped:
             continue
         entry = grouped[kind]
@@ -225,7 +233,11 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
             "inbox_refresh_minutes": DEFAULTS["inbox_refresh_minutes"],
             "authenticated_guides": DEFAULTS["authenticated_guides"],
         }
-        if kind == "daily_brief":
+        if kind in COS_JOBS:
+            schedule, name = "*/5 * * * *", COS_JOBS[kind]
+            skills = _SKILLS[kind]
+            prompt = f"Load skill {skills[0]} and run it; record its delivered, suppressed or unknown receipt using pa automations receipt."
+        elif kind == "daily_brief":
             schedule, name = "0 8 * * *", "personal-assistant-daily-brief"
             prompt = "Run the accepted PA daily brief using the qualified skills; respect the local precheck and quiet hours."
             skills = _SKILLS[kind]
@@ -246,7 +258,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
         })
     return {
         "status": "suggested" if jobs else ("missing_inputs" if missing else "no_accepted_rules"),
-        "suggestions": jobs, "jobs": jobs, "max_jobs": 2, "install": False,
+        "suggestions": jobs, "jobs": jobs, "max_jobs": 4 if chief_of_staff is True else 2, "install": False,
         "missing_inputs": sorted(set(missing)), "network_requests": 0,
     }
 def script_precheck(state=None, *, now=None, timezone=None, kind=None, quiet_hours=None,
@@ -254,6 +266,8 @@ def script_precheck(state=None, *, now=None, timezone=None, kind=None, quiet_hou
                     unresolved_refunds=False, urgent=False):
     """Pure local gate used before a scheduled child performs any work."""
     data = state if isinstance(state, dict) else {}
+    if kind in COS_JOBS and data.get("chief_of_staff") is not True:
+        return {"run": False, "allowed": False, "status": "suppressed", "reason": "chief_of_staff_off"}
     timezone = timezone or data.get("timezone")
     if not timezone:
         return {"run": False, "allowed": False, "status": "blocked", "reason": "timezone_required"}

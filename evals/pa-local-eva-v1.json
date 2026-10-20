@@ -39,7 +39,7 @@
       "id": "R5",
       "scenarios": [
         {"name": "daily_brief", "input": {"timezone": "UTC", "sources": ["calendar", "tasks"]}, "expected": {"outcome": "current brief receipt", "operations": ["status", "action_upsert"]}},
-        {"name": "reminder", "input": {"item": "synthetic due item", "schedule": "accepted native routine"}, "expected": {"outcome": "suggested automation with no install-time job", "operations": ["status", "action_upsert", "automations"]}}
+        {"name": "reminder", "input": {"item": "synthetic due item", "schedule": "accepted native routine", "cos_modes": ["off", "on"]}, "expected": {"outcome": "suggested automation with no install-time job; CoS suggestions only while on", "operations": ["status", "action_upsert", "automations"]}}
       ]
     },
     {

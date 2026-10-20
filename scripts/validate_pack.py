@@ -184,6 +184,14 @@ def main():
         fail(errors, "plugin.yaml must keep native ID personal-assistant")
     if str(native_manifest.get("version")) != VERSION:
         fail(errors, "plugin.yaml version does not match VERSION")
+    modes = (native_manifest.get("config_schema") or {}).get("modes", {})
+    if modes.get("type") != "dict" or modes.get("default") != {} or not modes.get("description"):
+        fail(errors, "plugin.yaml modes must be an inert dict setting")
+    for path in SKILLS.glob("cos-*/SKILL.md"):
+        header = path.read_text().split("---", 2)
+        front = yaml.safe_load(header[1]) if len(header) == 3 else {}
+        if (front or {}).get("metadata", {}).get("hermes", {}).get("pa_mode") != "chief_of_staff":
+            fail(errors, f"{path.parent.name} must declare the chief_of_staff mode marker")
     if set(native_manifest.get("provides_tools") or []) != {"pa", "pa_delivery_ack", "pa_call"}:
         fail(errors, "plugin.yaml must declare pa, pa_call and conditional pa_delivery_ack tools")
     if set(native_manifest.get("python_dependencies") or []) != requirements:

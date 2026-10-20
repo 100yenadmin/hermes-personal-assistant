@@ -19,6 +19,10 @@ python_dependencies:
   - jsonschema>=4.26.0,<5
   - PyYAML>=6.0.3,<7
 config_schema:
+  modes:
+    type: dict
+    default: {}
+    description: Optional modes; chief_of_staff is off unless explicitly true.
   observe:
     type: dict
     default: {}

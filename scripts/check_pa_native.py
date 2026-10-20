@@ -60,6 +60,7 @@ with tempfile.TemporaryDirectory(prefix="pa-isolated-") as temporary:
         assert not (isinstance(result, dict) and result.get("error")), "native tool pipeline returned an error"
         return result
     assert "personal-assistant:travel-ledger" in manager._plugin_skills
+    assert not any(name.startswith("personal-assistant:cos-") for name in manager._plugin_skills), "CoS must default off"
     recipes = call({"operation": "recipes"})
     assert len(recipes) == 8
     assert all(recipe["skill"] in manager._plugin_skills for recipe in recipes)

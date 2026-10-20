@@ -76,6 +76,17 @@ Daily Ops and conversation delivery are separately configured. Protected
 provider actions retain their workflow-specific confirmation and readback
 requirements. Unknown submission outcomes remain blocked until reconciled.
 
+Chief of Staff is optional: `plugins.entries.personal-assistant.settings.modes`
+defaults to `{}` and enables it only with `chief_of_staff: true`. `/pa mode`
+shows Assistant, Travel and Chief of Staff; `/pa mode chief-of-staff on` saves
+the setting, then `hermes gateway restart` and a new session expose its skills.
+`/pa mode chief-of-staff off` stops PA's CoS jobs, dismisses pending CoS
+suggestions and pauses their rules. Assistant and Travel stay on.
+After explicit acceptance of verified-destination rules, `pa automations suggest`
+can offer `cos_daily` (09:30 local) and `cos_weekly` (Monday 10:00 local, including
+radar). Their five-minute local prechecks respect quiet hours, pause and snooze,
+and claim one report per local day or ISO week. Installation creates no jobs.
+
 ## Quick start
 
 After an approved installation and activation:

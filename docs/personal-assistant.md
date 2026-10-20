@@ -96,6 +96,22 @@ call before relying on it.
 
 ## Domain workflows
 
+Chief of Staff defaults off. Set `chief_of_staff: true` in the dict at
+`plugins.entries.personal-assistant.settings.modes`, or use
+`/pa mode chief-of-staff on`; `hermes gateway restart` and a new session apply
+the skill registration. `/pa mode` and both status paths show the mode;
+`/pa mode chief-of-staff off` removes PA CoS jobs, dismisses pending suggestions
+and pauses CoS rules. Mode changes are refused in cron children or across profiles.
+
+The existing `pa automations suggest` path offers accepted CoS rules only while
+the mode is on: `cos_daily` loads `personal-assistant:cos-daily`, and `cos_weekly`
+loads `personal-assistant:cos-weekly` plus `personal-assistant:cos-radar`.
+Preferences `cos_daily_time` (09:30), `cos_weekly_day` (mon..sun, default mon)
+and `cos_weekly_time` (10:00) use the configured timezone. Five-minute local
+prechecks honor quiet hours, pause and snooze, and claim one daily or ISO-week
+occurrence before waking; receipts use delivered, suppressed or unknown.
+Scout stays on demand; installation enables no jobs or follow-ups.
+
 The recipe router exposes eight bounded workflow families:
 
 1. trip intake, change, and portable export;
