@@ -30,24 +30,27 @@ Reference: Hermes v0.22.2, commit `d923a5eb487a17c0a68801bba9ef0f56c81040a8`,
 
 `type: scheduled` plus `job: cos_daily|cos_weekly` calls the installed PA's real
 `cron_precheck`. Failure to claim is an error, never an ordinary chat fallback.
-The runner loads the installed skills named by `prepare_suggestions`' real job
-spec, adds the fenced `## Script Output` JSON and scheduled-job hint, and starts
-with fresh history. The cron ContextVar is set for that turn and restored before
-the scripted human reply. s16's second step supplies a fixed benchmark yes and
-slot; no model-generated user can authorize a provider effect. CoS steps use one
-assistant turn each; `max_user_turns` bounds the number of scripted steps.
+The runner passes the installed PA's suggestion `job_spec`, including its installed
+precheck script path, to Hermes's own `_build_job_prompt` with the cached successful
+claim JSON. Hermes supplies the cron hint and Script Output block verbatim, plus
+its native prompt scanning/notepad/skill loading. If plugin-qualified skills cannot
+resolve in the disposable home, the runner prepends the existing installed skill
+blocks to a native prompt built without skill lookup; it records the unresolved
+names and fallback in `run.json.scheduled_turns[].prompt_fidelity`.
+Each scheduled turn starts with fresh history. The cron ContextVar is set for that
+turn and restored before the scripted human reply. s16's second step supplies a
+fixed benchmark yes and slot; no model-generated user can authorize a provider
+effect. CoS steps use one assistant turn each; `max_user_turns` bounds the scripted steps.
 
-Differences: no scheduler process, script subprocess, gateway, native prompt scanner,
-notepad, bundled-skill/config injection, cron session store or real chat adapter.
-Hermes's generic hint says the final response auto-delivers, while PA's job sets
-`deliver=local` and requires explicit message/receipt calls. This harness replaces
-only that hint's delivery instructions with the local-job contract. It exposes
-`lab_send_message` instead of the real `send_message`, without overriding native
-tools. The tool captures to `messages.jsonl`, returns `provider: lab` and a unique
-capture reference, and rejects wrong/unclaimed destinations or duplicate sends.
-The agent must record its own PA receipt using that reference. A local capture
-proves no real-provider delivery. Final cron responses are local logs; silence is
-zero captures plus the agent's `suppressed` receipt and empty/`[SILENT]` log.
+The scheduled final response IS the owner message. Hermes's own
+`cron.scheduler._is_cron_silence_response` suppresses silent responses; otherwise
+exactly one final-response capture is written to `messages.jsonl`, with the claimed
+occurrence and notes present at delivery. Reports record an `unknown` hand-off
+receipt before replying; silence records `suppressed` and replies exactly `[SILENT]`.
+There is no lab message tool or invented provider receipt. Message-tool attempts
+are blocked, retained as failure signals and fail the scheduled step's checks.
+Differences: no scheduler process, script subprocess, gateway, cron session store
+or real chat adapter. A local final-response capture proves no real-provider delivery.
 
 ## Evidence and limits
 
@@ -56,11 +59,15 @@ Per-step ledger snapshots and `notes_at_delivery` prove note timing; profile
 content/mtime manifests detect protected-file changes. Skill writes and install-like
 execution attempts are blocked and fail checks. The existing final-submit tripwire
 is retained. Terminal/file/cron/delegation/real-message tools stay outside the surface.
-Checks count daily notes/words, check seeded citations, receipt/provider-reference
-agreement, required note fields, weekly outcome sections/proposal labels and radar
+Checks count daily notes/words, check seeded citations, receipt/claimed-occurrence
+agreement and absence of message-tool calls, required note fields, weekly outcome sections/proposal labels and radar
 identities. Label-based single-offer/proposal checks are heuristics; they do not prove
 semantic cardinality, usefulness or source support. The existing judge checks those
 with priorities, seed outcomes, captured notifications, notes and retrieved web text.
+Hermes skill-use counters (`skills/.usage.json` and its lock) are excluded from
+the protected-content snapshot; all skill instructions remain protected.
+Offline tests can scope the Hermes pin with `PA_LAB_HERMES_SOURCE` to avoid
+putting its unrelated `tests` package on global `PYTHONPATH`.
 No new judge model/schema is introduced; usefulness is scored under correctness.
 Live scout/radar research uses real web tools; offline tests use synthetic results.
 Report local results as exploratory until the orchestrator creates/publishes the

@@ -1,4 +1,4 @@
-"""Offline-testable CoS fixtures and a local-delivery cron-child approximation.
+"""Offline-testable CoS fixtures and Hermes cron prompt/final-response delivery capture.
 
 See COS.md for differences from Hermes v0.22.2. No job registration or outbound IO.
 The installed PA namespace is injected so seeds and claims use that exact version.
@@ -100,6 +100,9 @@ def protected_files(hh):
         if base.exists():
             paths.update(p for p in base.rglob("*") if p.is_file() and
                          (base.name == "skills" or "skills" in p.relative_to(base).parts))
+    # Native skill_view/bump_use maintains counters here; these are bookkeeping,
+    # not protected skill instructions. Keep every other skill file protected.
+    paths.difference_update(hh / "skills" / n for n in (".usage.json", ".usage.json.lock"))
     return {str(p.relative_to(hh)): {"sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
                 "mtime_ns": p.stat().st_mtime_ns, "size": p.stat().st_size}
             for p in sorted(paths) if p.is_file()}
@@ -111,7 +114,7 @@ def skill_block(package, name):
             'its instructions. The full skill content is loaded below.]\n\n' + path.read_text().strip())
 
 
-def scheduled_prompt(hh, package, step, api, values):
+def scheduled_prompt(hh, package, step, api, values, *, fidelity=None):
     store = api.state.Ledger(hh)
     claim = api.automation_workflow.cron_precheck(store, step["job"], enabled=True,
                                                moment=dt.datetime.fromisoformat(values["now"]))
@@ -119,15 +122,20 @@ def scheduled_prompt(hh, package, step, api, values):
         raise ValueError("scheduled precheck did not claim: " + str(claim))
     job = next(j["job_spec"] for j in api.automation_workflow.prepare_suggestions(store)["jobs"]
                if j["kind"] == step["job"])
-    hint = ('[IMPORTANT: You are running as a scheduled cron job. This job has deliver=local: '
-            'your final response is a local run log, not an owner notification. For an owner message use '
-            'lab_send_message with the verified destination and occurrence below. This lab-only transport '
-            'returns real local capture evidence (provider lab), never a real messaging-provider receipt. '
-            'Record the PA receipt yourself using that evidence. For silence, send no message, record '
-            'suppressed, and return exactly [SILENT]. Never create or update a cron job.]\n\n')
-    prompt = ("## Script Output\nThe following data was collected by a pre-run script. "
-              "Use it as context for your analysis.\n\n```\n" + json.dumps(claim) + "\n```\n\n" + job["prompt"])
-    return "\n\n".join(skill_block(package, n) for n in job["skills"]) + "\n\n" + hint + prompt, claim
+    from cron.scheduler_prompt import _build_job_prompt
+    job = {**job, "script": str(api.automation_workflow._precheck_path(store, step["job"]))}
+    prompt = _build_job_prompt(job, prerun_script=(True, json.dumps(claim)))
+    missing = [n for n in job["skills"] if f'invoked the "{n}" skill' not in prompt]
+    if missing:
+        # The pin may not resolve plugin-qualified names in this disposable home.
+        # Rebuild without skill lookup to remove its skipped-skill notice; retain
+        # Hermes's hint, script block, notepad and scanning, then prepend local skills.
+        prompt = _build_job_prompt({**job, "skills": []}, prerun_script=(True, json.dumps(claim)))
+        prompt = "\n\n".join(skill_block(package, n) for n in job["skills"]) + "\n\n" + prompt
+    if fidelity is not None:
+        fidelity.update(plugin_skills_loaded=not missing, unresolved_skills=missing,
+                        skill_fallback=bool(missing))
+    return prompt, claim
 
 
 def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
@@ -143,7 +151,8 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
             scheduled = step.get("type") == "scheduled"
             if scheduled:
                 history = []
-                message, claim = scheduled_prompt(hh, package, step, api, values)
+                fidelity = {}
+                message, claim = scheduled_prompt(hh, package, step, api, values, fidelity=fidelity)
                 write(root / "active-occurrence.json", {**claim, "step": index})
             else:
                 (root / "active-occurrence.json").unlink(missing_ok=True)
@@ -164,12 +173,14 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
             transcript.append({"role": "assistant", "content": reply, "step": index,
                                "scheduled": scheduled})
             meta.update(pages=observer.pages, evidence=observer.capture(index))
-            write(root / f"ledger-step-{index}.json", ledger(hh))
+            snapshot = ledger(hh)
+            write(root / f"ledger-step-{index}.json", snapshot)
             if scheduled:
+                capture_final_response(root, index, claim, reply, snapshot)
                 receipt = api.automation.notification_receipt(api.state.Ledger(hh), claim["occurrence_id"])
                 sent = [m for m in lines(root / "messages.jsonl") if m["step"] == index and m.get("accepted")]
                 meta["scheduled_turns"].append({"step": index, **claim, "message_sent": bool(sent),
-                    "message_count": len(sent), "receipt": receipt})
+                    "message_count": len(sent), "receipt": receipt, "prompt_fidelity": fidelity})
             write(root / "run.json", meta)
             write(root / "transcript.json", transcript)
     finally:
@@ -179,21 +190,11 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
     return transcript
 
 
-def capture_message(root, args):
-    """The evaluation provider: only the active synthetic destination; every attempt retained."""
-    from .common import read
-    active = read(root / "active-occurrence.json", {})
-    prior = lines(root / "messages.jsonl")
-    accepted = bool(active and args.get("destination") == active["destination"]
-                    and args.get("occurrence_id") == active["occurrence_id"]
-                    and str(args.get("message", "")).strip()
-                    and not any(m.get("accepted") and m.get("occurrence_id") == active["occurrence_id"] for m in prior))
-    reference = "lab-message-" + str(len(prior) + 1) if accepted else None
-    from .runner import ledger
-    notes = [row for row in ledger(root / "home/.hermes").get("actions", [])
-             if row["action_id"].startswith("cos:")]
-    record = {**args, "notes_at_delivery": notes, "step": active.get("step"), "accepted": accepted, "provider": "lab",
-              "receipt_reference": reference}
-    append(root / "messages.jsonl", record)
-    return {"sent": accepted, "provider": "lab", "receipt_reference": reference,
-            "error": None if accepted else "No active occurrence, wrong destination, empty or duplicate message"}
+def capture_final_response(root, step, claim, final, snapshot):
+    """Capture Hermes's delivered owner message; never manufacture provider proof."""
+    from cron.scheduler import _is_cron_silence_response
+    if _is_cron_silence_response(final):
+        return
+    notes = [row for row in snapshot.get("actions", []) if row["action_id"].startswith("cos:")]
+    append(root / "messages.jsonl", {"step": step, "occurrence_id": claim["occurrence_id"],
+           "accepted": True, "message": final, "notes_at_delivery": notes})

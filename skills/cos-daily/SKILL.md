@@ -34,7 +34,7 @@ Use its shared state, delivery and follow-up rules throughout this skill.
    Avoid repeating an unresolved, declined or ignored offer without new evidence.
 4. Choose at most one recommendation for the local date. Require a current
    source, a reason to act now, a plausible benefit and an executable next step.
-   Do not send generic productivity advice or an unchanged status report.
+   Do not offer generic productivity advice or an unchanged status report.
 
 ## Offer or suppress
 
@@ -48,9 +48,10 @@ Keep the whole recommendation at most 200 words. Include:
 
 Record the recommendation as a `cos:daily:<local date>` note with
 `outcome: "unknown"` before delivery (see the reference). Use the scheduled occurrence receipt path
-in the reference. If nothing clears the bar on a scheduled turn, send nothing and call
+in the reference: the final response is the owner message; never use a message tool.
+Record `unknown` before returning a report. If nothing clears the bar, call
 `pa(operation="automations", data={"action":"receipt","occurrence_id":"<claimed occurrence_id>","receipt":"suppressed","note":"No current recommendation justified an interruption."})`.
-Justified silence is a valid report; do not manufacture an offer to fill it.
+Then reply exactly `[SILENT]` (nothing else). Justified silence is valid; do not manufacture an offer to fill it.
 
 ## Respond to the owner
 
@@ -58,7 +59,8 @@ Never act on the recommendation without a yes in chat. A yes permits only the
 stated next action; keep the selected domain workflow's final confirmation for
 paying, booking, sending, contacting or cancelling. Approval alone is not `used`.
 Record observed use as `used`, an explicit no as `declined`, an explicit skip
-or a known-delivered unanswered offer past its review date as `ignored`, and
+or a scheduled report handed to Hermes delivery or a chat reply with no owner
+reply by `review_at` as `ignored`, and
 uncertainty as `unknown`. Use the same recommendation identity on replies and readbacks.
 Never install software or silently edit SOUL.md, USER.md, skills or the manual.
 Send no proactive message outside this scheduled job or an owner-approved HB2

@@ -98,6 +98,10 @@ class Observer:
         self.cos = enabled(read(self.out / "scenario.json", {}))
 
     def pre(self, tool_name, args, task_id="", **kw):
+        if self.cos and tool_name in ("send_message", "lab_send_message"):
+            append(self.out / "message-tripwire.jsonl", {"tool": tool_name, "step": self.step,
+                                                       "reason": "message_tool_attempt"})
+            return {"action": "block", "message": "Lab tripwire: final responses deliver CoS reports; message tools are forbidden."}
         if self.cos and tool_name == "skill_manage" and args.get("action") not in ("list", "view", "read"):
             append(self.out / "profile-tripwire.jsonl", {"tool": tool_name, "step": self.step,
                                                        "reason": "skill_write_attempt"})
@@ -195,12 +199,3 @@ def register(ctx):
     observer = Observer(os.environ["PA_LAB_OUT"])
     ctx.register_hook("pre_tool_call", observer.pre)
     ctx.register_hook("post_tool_call", observer.post)
-    from evals.lab.cos import capture_message, enabled
-    from evals.lab.common import read
-    if enabled(read(observer.out / "scenario.json", {})):
-        schema = {"name": "lab_send_message", "description": "Capture one synthetic owner notification locally. Returns provider=lab receipt evidence; never sends to a real account.",
-                  "parameters": {"type": "object", "properties": {k: {"type": "string"} for k in
-                      ("destination", "occurrence_id", "message")}, "required": ["destination", "occurrence_id", "message"], "additionalProperties": False}}
-        ctx.register_tool(name="lab_send_message", toolset="pa_lab_delivery", schema=schema,
-                          handler=lambda args, **kw: json.dumps(capture_message(observer.out, args)),
-                          description=schema["description"])

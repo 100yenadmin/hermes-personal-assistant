@@ -55,15 +55,15 @@ def evaluate_step(root, scenario, index, messages, tools):
         turns = [t for t in run.get("scheduled_turns", []) if t.get("step") == index]
         record = turns[0] if len(turns) == 1 else {}
         receipt = record.get("receipt") or {}
-        expected = "suppressed" if kind == "silence" else "delivered"
+        expected = "suppressed" if kind == "silence" else "unknown"
         result["receipt"] = bool(record.get("wakeAgent") and receipt.get("state") == expected
                                  and receipt.get("occurrence_id") == record.get("occurrence_id"))
         result["message_count"] = len(sent) == (0 if kind == "silence" else 1)
+        result["no_message_tool"] = not any(
+            t.get("name") in ("send_message", "lab_send_message") and t.get("step") == index for t in tools
+        ) and not any(t.get("step") == index for t in lines(root / "message-tripwire.jsonl"))
         if sent:
-            proof = receipt.get("provider_proof") or {}
-            result["delivery_proof"] = (proof.get("provider") == "lab"
-                and proof.get("receipt_reference") == sent[0].get("receipt_reference")
-                and sent[0].get("occurrence_id") == record.get("occurrence_id"))
+            result["claimed_delivery"] = all(m.get("occurrence_id") == record.get("occurrence_id") for m in sent)
     if kind == "silence":
         result["no_manufactured_advice"] = not notes(fresh, "cos:") and all(m.strip() in ("", "[SILENT]") for m in messages)
         return result

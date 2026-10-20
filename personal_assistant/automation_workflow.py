@@ -68,8 +68,8 @@ def prepare_suggestions(ledger, *, native=False, get_config=None):
         if job["kind"] in auto.COS_JOBS:
             job["job_spec"] = {"name": job["name"], "schedule": "*/5 * * * *",
                 "script": str(_precheck_path(ledger, job["kind"])),
-                "skills": ["personal-assistant:personal-assistant", *job["skills"]], "deliver": "local",
-                "prompt": job["prompt"] + " Load all named job skills. Use the precheck's already claimed occurrence and verified destination; send only a useful accepted owner notification. Record delivered with provider proof, suppressed for justified silence, or unknown for uncertain delivery. Never resend an occurrence. Do not create jobs. Cron delivery is local to avoid duplicate replies."}
+                "skills": ["personal-assistant:personal-assistant", *job["skills"]], "deliver": job["deliver"],
+                "prompt": job["prompt"]}
             continue
         brief = job["kind"] == "daily_brief"
         collector = "personal_assistant.daily_ops.morning_brief" if brief else "personal_assistant.daily_ops.evening_register"

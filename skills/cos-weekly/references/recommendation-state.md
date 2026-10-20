@@ -34,21 +34,28 @@ note by ID. An incomplete list is not proof that no offer exists.
 
 `outcome` is `used`, `declined`, `ignored` or `unknown`. Record `used` only from
 observed execution or the owner's report, `declined` from an explicit no,
-`ignored` from an explicit skip or a known-delivered offer with no reply by
-`review_at`, and `unknown` when evidence is missing. `stage` is `draft`, then
+`ignored` from an explicit skip, or a scheduled report handed to Hermes delivery
+or a chat reply with no owner reply by `review_at`, and `unknown` when evidence
+is missing. `stage` is `draft`, then
 `approved` on a yes, `applied` after a completed change is read back, and
 `verified` once the promised result is checked. Approval is not use, and use is
 not usefulness.
 
 ## Scheduled delivery receipts
 
-Use only the job's already claimed `occurrence_id` and verified destination.
-Send one useful message with the existing message tool, then call
-`pa(operation="automations", data={"action":"receipt","occurrence_id":"<claimed occurrence_id>","receipt":"delivered","proof":{"provider":"<actual provider>","receipt_reference":"<actual returned receipt reference>"}})`.
-Use `receipt: "suppressed"` and a safe `note` when nothing justifies a message;
-send no placeholder. Use `receipt: "unknown"` if delivery is uncertain; inspect
-the receipt before retrying. Never resend a handled occurrence or invent proof.
-Cos-weekly includes radar in its single message and owns that one receipt.
+In a scheduled CoS run, the run's final response IS the owner message. Hermes
+delivers it to the job's verified destination. Never use a message tool in a scheduled run.
+Use only the job's already claimed `occurrence_id`.
+
+Report: write and read back the note first. Then call
+`pa(operation="automations", data={"action":"receipt","occurrence_id":"<claimed occurrence_id>","receipt":"unknown","note":"Final response handed to Hermes cron delivery"})`
+and give the report as the final response. `delivered` needs a provider receipt
+the run cannot see.
+
+Silence: record `receipt: "suppressed"` with a safe note, and make the final
+response exactly `[SILENT]` (nothing else).
+Never resend a handled occurrence or invent proof.
+Cos-weekly includes radar in its single final response and owns that one receipt.
 On-demand chat replies and HB2 wakes do not claim cron occurrences.
 
 ## Optional follow-up

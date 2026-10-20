@@ -2,9 +2,8 @@
 import copy
 import datetime as dt
 import json
+import os
 import socket
-import sys
-from contextvars import ContextVar
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,14 +20,19 @@ PACKAGE = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(autouse=True)
-def offline(monkeypatch):
+def offline(monkeypatch, tmp_path):
     def deny(*args, **kw):
         raise AssertionError("network forbidden")
     monkeypatch.setattr(socket.socket, "connect", deny)
     monkeypatch.setattr(socket, "create_connection", deny)
     monkeypatch.delenv("TRAVEL_LEDGER_DB", raising=False)
-    monkeypatch.setitem(sys.modules, "gateway.session_context", SimpleNamespace(
-        _VAR_MAP={"HERMES_CRON_SESSION": ContextVar("lab_cron", default="")}))
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
+    if source := os.environ.get("PA_LAB_HERMES_SOURCE"):
+        monkeypatch.syspath_prepend(source)
+    constants = pytest.importorskip("hermes_constants")
+    token = constants.set_hermes_home_override(str(tmp_path / "hermes"))
+    yield
+    constants.reset_hermes_home_override(token)
 
 
 def fixture(root, scenario_id="s13_cos_daily_en"):
@@ -85,13 +89,12 @@ def run_fake(root, scenario_id="s13_cos_daily_en", failure=None):
         if failure == "note":
             row["fields"]["outcome"] = "used"
             entry.dispatch(hh, {"operation": "action_upsert", "data": {"action_id": identity, "fields": {"outcome": "used"}}})
-        sent = cos.capture_message(root, {"destination": claim["destination"], "occurrence_id": claim["occurrence_id"], "message": text})
-        if failure == "duplicate":
-            cos.capture_message(root, {"destination": claim["destination"], "occurrence_id": claim["occurrence_id"], "message": text})
+        if failure in ("send_message", "lab_send_message"):
+            Observer(root).pre(failure, {"message": text})
         entry.dispatch(hh, {"operation": "automations", "data": {"action": "receipt",
-            "occurrence_id": claim["occurrence_id"], "receipt": "delivered", "proof": {
-                "provider": "lab", "receipt_reference": "invented" if failure == "proof" else sent["receipt_reference"]}}})
-        return {"final_response": "Local log: notification captured.", "messages": [{"role": "assistant", "content": text}]}
+            "occurrence_id": claim["occurrence_id"], "receipt": "unknown",
+            "note": "Final response handed to Hermes cron delivery"}})
+        return {"final_response": text, "messages": [{"role": "assistant", "content": text}]}
 
     transcript = cos.dialogue(hh, root, PACKAGE, s, API, turn, observer, meta, runner.ledger)
     common.write(root / "ledger.json", runner.ledger(hh))
@@ -110,7 +113,7 @@ def test_mode_and_real_seeding_precheck(tmp_path):
     assert claim["wakeAgent"] and "lab:orchid-brief" in claim["due_action_ids"]
     assert claim["occurrence_id"] in prompt and "## Script Output" in prompt
     assert 'invoked the "personal-assistant:cos-daily" skill' in prompt
-    assert "deliver=local" in prompt and "provider lab" in prompt
+    assert "deliver=local" not in prompt and "lab_send_message" not in prompt
     with pytest.raises(ValueError, match="did not claim"):
         cos.scheduled_prompt(hh, PACKAGE, s["steps"][0], API, values)
     assert not (hh / "cron").exists() and not (hh / "scripts").exists()
@@ -131,7 +134,7 @@ def test_fake_scheduled_child(tmp_path, scenario):
 
 
 @pytest.mark.parametrize("failure,key", [("long", "word_limit"), ("second", "single_offer_heuristic"),
-    ("note", "recommendation_note"), ("proof", "delivery_proof"), ("profile", "no_profile_writes"), ("duplicate", "valid_deliveries")])
+    ("note", "recommendation_note"), ("send_message", "no_message_tool"), ("profile", "no_profile_writes"), ("lab_send_message", "no_message_tool")])
 def test_bad_scheduled_evidence_fails(tmp_path, failure, key):
     s, hh, result, _ = run_fake(tmp_path, failure=failure)
     assert not result["all_pass"]
@@ -149,12 +152,11 @@ def test_install_tripwire(tmp_path, command):
     assert o.pre("terminal", {"command": "python --version"}) is None
 
 
-def test_capture_refuses_outside_occurrence_and_wrong_destination(tmp_path):
-    s, hh = fixture(tmp_path)
-    args = {"destination": cos.DESTINATION, "occurrence_id": "unclaimed", "message": "hello"}
-    assert not cos.capture_message(tmp_path, args)["sent"]
-    common.write(tmp_path / "active-occurrence.json", {"destination": cos.DESTINATION, "occurrence_id": "claimed", "step": 0})
-    assert not cos.capture_message(tmp_path, {**args, "occurrence_id": "claimed", "destination": "telegram:other"})["sent"]
+@pytest.mark.parametrize("name", ["send_message", "lab_send_message"])
+def test_saved_message_tool_attempt_fails_without_pre_hook(tmp_path, name):
+    s, hh, result, _ = run_fake(tmp_path)
+    common.append(tmp_path / "tools.jsonl", {"name": name, "step": 0})
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["no_message_tool"]
 
 
 def test_scout_oracles_and_judge_digest(tmp_path):
@@ -200,6 +202,14 @@ def test_protected_files_detect_create_delete_and_identical_rewrite(tmp_path):
     user = hh / "memories/USER.md"
     user.write_text(user.read_text())
     assert before != cos.protected_files(hh)
+    before = cos.protected_files(hh)
+    skills = hh / "skills"
+    skills.mkdir()
+    for name in (".usage.json", ".usage.json.lock"):
+        (skills / name).write_text("native telemetry")
+    assert before == cos.protected_files(hh)
+    (skills / "SKILL.md").write_text("changed instructions")
+    assert before != cos.protected_files(hh)
 
 
 def test_cos_schema_errors_and_plugin_registration(tmp_path, monkeypatch):
@@ -214,12 +224,12 @@ def test_cos_schema_errors_and_plugin_registration(tmp_path, monkeypatch):
     monkeypatch.setenv("PA_LAB_OUT", str(tmp_path))
     tools = []
     register(SimpleNamespace(register_hook=lambda *a: None, register_tool=lambda **kw: tools.append(kw)))
-    assert [t["name"] for t in tools] == ["lab_send_message"]
-    assert not json.loads(tools[0]["handler"]({}))["sent"]
+    assert tools == []
 
 
 @pytest.mark.parametrize("change,expected", [("missing_at_send", "note_before_delivery"),
-    ("suppressed", "receipt"), ("extra_daily", "one_daily_note")])
+    ("suppressed", "receipt"), ("extra_daily", "one_daily_note"),
+    ("wrong_occurrence", "receipt"), ("duplicate", "message_count"), ("rejected", "valid_deliveries")])
 def test_missing_or_conflicting_delivery_state(tmp_path, change, expected):
     s, hh, result, _ = run_fake(tmp_path)
     if change == "missing_at_send":
@@ -227,16 +237,25 @@ def test_missing_or_conflicting_delivery_state(tmp_path, change, expected):
         messages = common.lines(path)
         messages[0]["notes_at_delivery"] = []
         path.write_text("\n".join(json.dumps(m) for m in messages) + "\n")
-    elif change == "suppressed":
+    elif change in ("duplicate", "rejected"):
+        message = common.lines(tmp_path / "messages.jsonl")[0]
+        if change == "rejected":
+            message["accepted"] = False
+        common.append(tmp_path / "messages.jsonl", message)
+    elif change in ("suppressed", "wrong_occurrence"):
         run = common.read(tmp_path / "run.json")
-        run["scheduled_turns"][0]["receipt"]["state"] = "suppressed"
+        if change == "suppressed":
+            run["scheduled_turns"][0]["receipt"]["state"] = "suppressed"
+        else:
+            run["scheduled_turns"][0]["receipt"]["occurrence_id"] = "unclaimed"
         common.write(tmp_path / "run.json", run)
     else:
         db = common.read(tmp_path / "ledger-step-0.json")
         extra = {**cos_checks.notes(db, "cos:daily:")[0], "action_id": "cos:daily:extra"}
         db["actions"].append(extra)
         common.write(tmp_path / "ledger-step-0.json", db)
-    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"][expected]
+    result = checks.evaluate(tmp_path, s)
+    assert not (result["overall"] if expected in result["overall"] else result["steps"][0]["checks"])[expected]
 
 
 def test_weekly_and_radar_violations(tmp_path):
@@ -269,3 +288,52 @@ def test_cos_dry_run_selection_uses_no_runtime(capsys, monkeypatch):
     jobs = json.loads(capsys.readouterr().out)["jobs"]
     assert len(jobs) == 4 and {j["scenario"] for j in jobs} == {
         "s13_cos_daily_en", "s14_cos_daily_silence_en", "s15_cos_scout_ko", "s16_cos_weekly_en"}
+
+
+def test_scheduled_prompt_uses_hermes_delivery_contract(tmp_path):
+    from cron.scheduler_prompt import _CRON_HINT
+    s, hh = fixture(tmp_path)
+    values = cos.seed(hh, s, entry.dispatch)
+    prompt, claim = cos.scheduled_prompt(hh, PACKAGE, s["steps"][0], API, values)
+    assert _CRON_HINT in prompt
+    assert "deliver=local" not in prompt and "lab_send_message" not in prompt
+    assert "## Script Output" in prompt and json.dumps(claim) in prompt
+
+
+@pytest.mark.parametrize("final,count", [("[SILENT]", 0), ("A useful report.", 1),
+                                        ("NO_REPLY", 0), ("Report mentions [SILENT] inline.", 1)])
+def test_capture_final_response_uses_hermes_matcher(tmp_path, final, count):
+    from cron.scheduler import _is_cron_silence_response
+    claim = {"occurrence_id": "claimed", "destination": cos.DESTINATION}
+    notes = [{"action_id": "cos:daily:synthetic", "fields": {"outcome": "unknown"}}]
+    cos.capture_final_response(tmp_path, 0, claim, final, {"actions": notes})
+    messages = common.lines(tmp_path / "messages.jsonl")
+    assert len(messages) == count == int(not _is_cron_silence_response(final))
+    if count:
+        assert messages == [{"step": 0, "occurrence_id": "claimed", "accepted": True,
+                             "message": final, "notes_at_delivery": notes}]
+
+
+@pytest.mark.parametrize("native_skills", [True, False])
+def test_native_prompt_blocks_survive_skill_fallback(tmp_path, monkeypatch, native_skills):
+    from cron import scheduler_prompt as native
+    s, hh = fixture(tmp_path)
+    values = cos.seed(hh, s, entry.dispatch)
+    jobs = []
+    def load(job, names):
+        jobs.append(job)
+        return [cos.skill_block(PACKAGE, n) for n in names] if native_skills else []
+    def no_script(*args, **kw):
+        raise AssertionError("the cached precheck must not execute a script")
+    monkeypatch.setattr(native, "_load_cron_skill_parts", load)
+    monkeypatch.setattr(native._script, "_run_job_script", no_script)
+    fidelity = {}
+    prompt, claim = cos.scheduled_prompt(hh, PACKAGE, s["steps"][0], API, values, fidelity=fidelity)
+    assert fidelity["plugin_skills_loaded"] == native_skills
+    assert fidelity["skill_fallback"] == (not native_skills)
+    assert jobs[0]["script"] == str(automation_workflow._precheck_path(state.Ledger(hh), "cos_daily"))
+    assert jobs[0]["deliver"] == cos.DESTINATION
+    block = native._prepend_context_block("", "Script Output",
+        "The following data was collected by a pre-run script. Use it as context for your analysis.", json.dumps(claim))
+    assert native._CRON_HINT in prompt and block in prompt
+    assert 'invoked the "personal-assistant:cos-daily" skill' in prompt
