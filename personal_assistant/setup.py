@@ -18,7 +18,7 @@ def _view(fields):
               "asked": [], "answers": {}, "skipped": [], "proposal": {"writes": []},
               "applied": [], "applied_session_id": None, "fresh_check": {}, "pending_changes": False,
               "offer_shown_at": None, "updated_at": None, "look_around_consent": None,
-              "active_platform": None, "active_sender_id": None, **fields}
+              "active_platform": None, "active_sender_id": None, "active_chat": None, **fields}
     review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
     questions = (tuple(q for section in SECTIONS.values() for q in section) if review
                  else SECTIONS.get(result["requested_section"], CORE_QUESTIONS))
@@ -52,17 +52,18 @@ def request(ledger, section="core"):
     status = "in_progress" if prior["status"] in {"in_progress", "proposed"} else "requested"
     return _save(ledger, status, requested_section=section,
                  requested_mode="review" if section is None else None,
-                 active_platform=None, active_sender_id=None, proposal={"writes": []})
+                 active_platform=None, active_sender_id=None, active_chat=None, proposal={"writes": []})
 
 
-def start(ledger, section=None, *, active_platform=None, active_sender_id=None):
+def start(ledger, section=None, *, active_platform=None, active_sender_id=None, active_chat=None):
     if section is not None:
         _section(section)
     prior = state(ledger)
     return _save(ledger, prior["status"] if prior["status"] == "proposed" else "in_progress",
                  requested_section=prior["requested_section"] if section is None else section,
                  active_platform=active_platform,
-                 active_sender_id=active_sender_id if active_platform is not None else None)
+                 active_sender_id=active_sender_id if active_platform is not None else None,
+                 active_chat=active_chat if active_platform is not None else None)
 
 
 def record(ledger, answers=None, skipped=None, asked=None, consent=None):

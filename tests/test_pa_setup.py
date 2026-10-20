@@ -419,7 +419,7 @@ def test_setup_binds_conversation_and_request_rebinds(tmp_path, sender):
             setup.propose(ledger, [{"target": "user_memory", "summary": "Synthetic"}])
         assert hook(**{**human, "platform": "desktop"}) is None
         assert hook(**{**human, "sender_id": "different"}) is None
-        assert hook(**{**human, "session_id": "compacted"})
+        assert hook(**human) and hook(**{**human, "session_id": "other"}) is None  # CLI: a session is a chat.
     setup.request(ledger)
     assert setup.state(ledger)["active_platform"] is None
     assert hook(**{**human, "platform": "desktop", "sender_id": "different"})
@@ -612,3 +612,80 @@ def test_setup_skill_records_consent_without_expanding():
     skill = (Path(__file__).resolve().parents[1] / "skills/pa-setup/SKILL.md").read_text()
     assert 'Save `consent: "granted"` or `"declined"` with the first `record` call' in skill
     assert len(skill.splitlines()) <= 151
+
+
+ELSEWHERE = "PA setup is in progress in another chat; say /pa setup to continue here."
+
+
+def _chat_turn(monkeypatch, hook, chat="", thread="", **kwargs):
+    module = ModuleType("gateway.session_context")
+    ids = {"HERMES_SESSION_CHAT_ID": chat, "HERMES_SESSION_THREAD_ID": thread}
+    module.get_session_env = lambda name, default="": ids.get(name, default)
+    monkeypatch.setitem(sys.modules, "gateway.session_context", module)
+    return hook(**{"user_message": "Hi", "platform": "telegram", "sender_id": "7", "session_id": "s",
+                   "is_first_turn": False, **kwargs})
+
+
+def test_setup_note_stays_in_its_topic_and_moves_with_pa_setup(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger)
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "A")["context"]
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:A"
+    assert _chat_turn(monkeypatch, hook, "-100", "B", session_id="b") is None
+    assert _chat_turn(monkeypatch, hook, "-100", "B", session_id="b", is_first_turn=True) == {"context": ELSEWHERE}
+    assert len(ELSEWHERE) <= 120
+    assert _chat_turn(monkeypatch, hook, "-100", "B", sender_id="other", is_first_turn=True) is None
+    # A topic reset keeps the chat key, so the new session still gets the interview.
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "A", session_id="a2",
+                                                  is_first_turn=True)["context"]
+    assert make_pa_command(tmp_path)("setup") == READY  # /pa setup in topic B.
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "B", session_id="b")["context"]
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:B"
+    assert _chat_turn(monkeypatch, hook, "-100", "A", session_id="a3", is_first_turn=True) == {"context": ELSEWHERE}
+    assert _chat_turn(monkeypatch, hook, "-100", "A", session_id="a3") is None
+
+
+@pytest.mark.parametrize("active,other", [("7", "-200"), ("-200", "7")])
+def test_dm_and_group_are_separate_chats(tmp_path, monkeypatch, active, other):
+    setup.request(Ledger(tmp_path))
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, active)["context"]
+    assert _chat_turn(monkeypatch, hook, other, is_first_turn=True) == {"context": ELSEWHERE}
+    assert _chat_turn(monkeypatch, hook, other) is None
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, active)["context"]
+
+
+def test_legacy_binding_claims_no_chat_until_pa_setup(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    ledger.put("action", "pa:setup", {"status": "in_progress", "active_platform": "telegram", "active_sender_id": "7"})
+    assert setup.state(ledger)["active_chat"] is None
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    for chat, thread in (("-100", "A"), ("-100", "B"), ("7", "")):
+        assert _chat_turn(monkeypatch, hook, chat, thread, is_first_turn=True) == {"context": ELSEWHERE}
+        assert _chat_turn(monkeypatch, hook, chat, thread) is None
+    make_pa_command(tmp_path)("setup")
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "B")["context"]
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:B"
+
+
+def test_cli_chat_key_is_the_session(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger)
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, platform="cli", sender_id="", session_id="one")["context"]
+    assert setup.state(ledger)["active_chat"] == "cli:session:one"
+    assert _chat_turn(monkeypatch, hook, platform="cli", sender_id="", session_id="two") is None
+    assert _chat_turn(monkeypatch, hook, platform="cli", sender_id="", session_id="two",
+                      is_first_turn=True) == {"context": ELSEWHERE}
+
+
+def test_fresh_check_note_is_not_scoped_to_the_setup_chat(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    ledger.put("action", "pa:setup", {"status": "in_progress", "active_platform": "telegram",
+                                      "active_sender_id": "7", "active_chat": "telegram:-100:A"})
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "a")
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    note = _chat_turn(monkeypatch, hook, "-100", "B", session_id="b", is_first_turn=True)["context"]
+    assert note.startswith("Setup was saved in an earlier session.")

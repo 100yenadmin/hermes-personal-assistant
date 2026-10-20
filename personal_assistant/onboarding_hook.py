@@ -7,6 +7,19 @@ from .state import Ledger
 from .modes import cos_enabled
 
 UNATTENDED_SOURCES = frozenset({"subagent", "cron", "oneshot", "webhook", "kanban", "tool", "batch", "curator"})
+ELSEWHERE = "PA setup is in progress in another chat; say /pa setup to continue here."
+
+
+def _chat_key(kwargs):
+    """Gateway turns key on chat + thread (survives /new); CLI, Desktop and TUI key on the session."""
+    try:
+        from gateway.session_context import get_session_env
+    except ImportError:
+        get_session_env = os.environ.get
+    platform, chat = kwargs.get("platform") or "", get_session_env("HERMES_SESSION_CHAT_ID", "") or ""
+    if chat:
+        return f"{platform}:{chat}:{get_session_env('HERMES_SESSION_THREAD_ID', '') or ''}"
+    return f"{platform}:session:{kwargs.get('session_id') or ''}"
 
 
 def _unattended(platform=None):
@@ -61,11 +74,15 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
             if status in {"requested", "in_progress", "proposed"}:
                 if current["requested_section"] == "chief_of_staff" and not cos_enabled(get_config):
                     return {"context": "Chief of Staff setup is stopped while the mode is off. Explain /pa mode chief-of-staff on, then hermes gateway restart and a new session. Do not record answers, create rules or suggest jobs."}
-                platform, sender = kwargs.get("platform") or "", kwargs.get("sender_id") or ""
+                platform, sender, chat = kwargs.get("platform") or "", kwargs.get("sender_id") or "", _chat_key(kwargs)
                 if current["active_platform"] is None:
-                    setup.start(Ledger(root, timeout=0.1), active_platform=platform, active_sender_id=sender)
+                    setup.start(Ledger(root, timeout=0.1), active_platform=platform, active_sender_id=sender, active_chat=chat)
                 elif (platform, sender) != (current["active_platform"], current["active_sender_id"]):
                     return mode_context
+                elif chat != current["active_chat"]:  # A legacy row (no active_chat) is active in no chat.
+                    if not kwargs.get("is_first_turn"):
+                        return mode_context
+                    return {"context": (mode_context["context"] + "\n" if mode_context else "") + ELSEWHERE}
                 interview_start = (f"show what discovery found as one summary, then ask only the next question ({current['next_question']})"
                                    if current["look_around_consent"] == "granted"
                                    else f"the look-around was declined; read no private sources; ask only the next question ({current['next_question']})"
