@@ -3,7 +3,7 @@ from . import setup
 from .state import Ledger
 from .modes import config_getter, cos_enabled
 
-USAGE = "Use /pa setup, /pa setup review, /pa status, /pa mode, /pa mode chief-of-staff on|off, or /pa help."
+USAGE = "Use /pa setup, /pa setup chief-of-staff, /pa setup review, /pa status, /pa mode, /pa mode chief-of-staff on|off, or /pa help."
 READY = "Setup is ready. Send me any message and I'll start — one question at a time, about 8 in all. Say pause any time."
 
 
@@ -37,12 +37,17 @@ def make_pa_command(root, get_config=None, set_config=None):
                 return "Chief of Staff: on. Run hermes gateway restart to reload plugins, then start a new session for the CoS skills."
             if parts == ["status"]:
                 current = setup.state(Ledger(root))
-                return f"Setup: {current['status']}. Next question: {current['next_question'] or 'none'}. Answered {current['counts']['answers']} of {len(setup.CORE_QUESTIONS)}. " + modes_text()
+                return f"Setup: {current['status']}. Next question: {current['next_question'] or 'none'}. Answered {current['counts']['answers']} of {current['counts']['total']}. " + modes_text()
             if parts and parts[0] == "setup" and len(parts) <= 2:
                 section = parts[1] if len(parts) == 2 else "core"
+                section = "chief_of_staff" if section == "chief-of-staff" else section
                 if section not in {*setup.SECTIONS, "review"}:
-                    return "Unknown setup section. Use /pa setup for core setup, or /pa setup review."
+                    return "Unknown setup section. Use /pa setup for core setup, /pa setup chief-of-staff, or /pa setup review."
+                if section == "chief_of_staff" and not cos_enabled(get_config):
+                    return "Chief of Staff is off. Use /pa mode chief-of-staff on, then hermes gateway restart and a new session; run /pa setup chief-of-staff there."
                 setup.request(Ledger(root), None if section == "review" else section)
+                if section == "chief_of_staff":
+                    return "Chief of Staff setup is ready. Send me any message and I'll start — one question at a time, 5 in all. Say pause any time."
                 return READY
             return USAGE
         except ValueError as exc:
