@@ -41,7 +41,7 @@ class WorkflowTests(unittest.TestCase):
             preferences(ledger, {"paused": False, "snooze_until": "2026-09-07T12:00:00+09:00"})
             self.assertFalse(cron_precheck(ledger, "due_source_check", enabled=True, moment=now)["wakeAgent"])
 
-    def test_two_native_specs_use_scripts_without_auto_delivery(self):
+    def test_two_native_specs_use_scripts_and_hermes_delivery(self):
         with tempfile.TemporaryDirectory() as root:
             ledger = self.setup_ledger(root, "daily_brief")
             self.setup_ledger(root, "due_source_check")
@@ -49,7 +49,12 @@ class WorkflowTests(unittest.TestCase):
             self.assertFalse((Path(root) / "scripts").exists())
             self.assertEqual(len(result["jobs"]), 2)
             for job in result["jobs"]:
-                self.assertEqual(job["job_spec"]["deliver"], "local")
+                # Hermes v0.22.2 cron runs have no agent send tool, so the final response is the message.
+                self.assertEqual(job["job_spec"]["deliver"], job["deliver"])
+                self.assertNotEqual(job["deliver"], "local")
+                self.assertIn("exactly [SILENT]", job["job_spec"]["prompt"])
+                self.assertIn("never use a message tool", job["job_spec"]["prompt"])
+                self.assertNotIn("Record delivered", job["job_spec"]["prompt"])
                 self.assertNotIn("collector", job["job_spec"])
                 self.assertNotIn("due_rule", job["job_spec"])
                 self.assertTrue(job["job_spec"]["script"].endswith("_precheck.py"))
