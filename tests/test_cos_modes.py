@@ -214,8 +214,11 @@ def test_suggestions_and_script_gate(tmp_path, monkeypatch, capsys):
         if kind == "cos_weekly": expected.append("personal-assistant:cos-radar")
         spec = job["job_spec"]
         assert spec["skills"] == expected
-        assert spec["schedule"] == "*/5 * * * *" and spec["deliver"] == "local"
-        assert "receipt" in spec["prompt"] and expected[1] in spec["prompt"]
+        assert spec["schedule"] == "*/5 * * * *" and spec["deliver"] == job["destination"]
+        assert spec["prompt"] == (
+            f"Load skill {expected[1]} and run it. Your final response is the owner message, "
+            "or exactly [SILENT]; record the receipt with pa automations receipt as the skill says before you reply."
+        )
         path = Path(_install_precheck(ledger, kind))
         assert str(path) == spec["script"] and kind in path.read_text()
     assert suggest.add_suggestion.call_count == 2

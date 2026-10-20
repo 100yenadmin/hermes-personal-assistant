@@ -14,7 +14,7 @@ def main(argv=None):
     home.add_argument("--fish")
     home.add_argument("--browser", choices=("local", "browserbase"), default="local")
     run = sub.add_parser("run")
-    run.add_argument("--scenario", default="all")
+    run.add_argument("--scenario", default="all", help="all, cos, or an exact scenario id")
     run.add_argument("--scenarios", default=str(CATALOG))
     run.add_argument("--runs", type=int, default=1)
     run.add_argument("--workers", type=int, default=3)
