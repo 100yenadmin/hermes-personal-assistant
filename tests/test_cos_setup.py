@@ -4,6 +4,8 @@ from personal_assistant.commands import READY, make_pa_command
 from personal_assistant.entry import dispatch
 from personal_assistant.onboarding_hook import make_pre_llm_call
 from personal_assistant.state import Ledger
+from personal_assistant.automation_workflow import preferences
+import pytest
 
 
 COS = ("cos_priorities", "cos_radar_topics", "cos_daily_time", "cos_weekly_slot", "cos_schedules")
@@ -84,3 +86,21 @@ def test_pending_cos_setup_stops_if_mode_is_turned_off(tmp_path):
     note = make_pre_llm_call(tmp_path, lambda k, d=None: d)(user_message="Ready", platform="telegram")
     assert "Do not record answers, create rules or suggest jobs" in note["context"]
     assert setup.state(ledger) == before
+
+
+@pytest.mark.parametrize("changes", [{"cos_daily_time": "23:00"}, {"cos_weekly_time": "06:30"},
+                                     {"cos_daily_time": "10:00", "quiet_hours": {"start": "09:00", "end": "11:00"}}])
+def test_cos_time_inside_quiet_hours_is_refused(tmp_path, changes):
+    ledger = Ledger(tmp_path)
+    with pytest.raises(ValueError, match="inside quiet hours"):
+        preferences(ledger, changes)
+    assert preferences(ledger) == {}
+
+
+def test_quiet_hours_check_only_covers_saved_cos_times(tmp_path):
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"quiet_hours": {"start": "08:00", "end": "10:00"}})  # No CoS times saved.
+    preferences(ledger, {"cos_daily_time": "21:59", "cos_weekly_time": "10:00"})
+    with pytest.raises(ValueError, match="cos_weekly_time 10:00"):
+        preferences(ledger, {"quiet_hours": {"start": "09:00", "end": "11:00"}})
+    assert preferences(ledger)["quiet_hours"] == {"start": "08:00", "end": "10:00"}

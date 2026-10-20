@@ -26,6 +26,14 @@ def preferences(ledger, changes=None):
                     raise ValueError(f"{key} must be HH:MM")
         if "cos_weekly_day" in changes and changes["cos_weekly_day"] not in WEEKDAYS:
             raise ValueError("cos_weekly_day must be mon..sun")
+        merged = {**(prior or {}).get("fields", {}), **changes}  # A report inside quiet hours is never sent.
+        quiet = merged.get("quiet_hours") or auto.DEFAULTS["quiet_hours"]
+        start, end = quiet.get("start", "22:00"), quiet.get("end", "07:00")
+        for key in ("cos_daily_time", "cos_weekly_time"):
+            value = merged.get(key)
+            if value and (key in changes or "quiet_hours" in changes) and (
+                    (value >= start or value < end) if start > end else start <= value < end):
+                raise ValueError(f"{key} {value} is inside quiet hours {start}-{end}, so that report would never be sent; choose a time outside quiet hours")
         prior = ledger.put("action", "pa:preferences", changes, action_type="preferences", status="configured")
     return (prior or {}).get("fields", {})
 

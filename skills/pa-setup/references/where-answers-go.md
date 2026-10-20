@@ -111,7 +111,8 @@ Explain `/pa mode chief-of-staff on`, then `hermes gateway restart` and a new
 session. Never create rules while off. Save `cos_priorities` and
 `cos_radar_topics` through the reviewed USER.md/manual path above. Apply
 `cos_daily_time`, `cos_weekly_day` and `cos_weekly_time` through preferences
-(defaults 09:30, mon, 10:00 in the confirmed IANA timezone).
+(defaults 09:30, mon, 10:00 in the confirmed IANA timezone). PA refuses a time
+inside quiet hours, because that report would never be sent; offer one outside them.
 
 Only an explicit yes in a human turn to daily, weekly, or both permits those
 schedules. “You decide”, skipped timing or a general apply is not a schedule yes.
