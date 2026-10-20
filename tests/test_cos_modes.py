@@ -373,3 +373,19 @@ def test_paused_cos_rules_require_reacceptance_for_suggestions(tmp_path, monkeyp
     assert {j["kind"] for j in prepare_suggestions(ledger)["jobs"]} == remaining
     rule(ledger, kind, paused=False)
     assert {j["kind"] for j in prepare_suggestions(ledger)["jobs"]} == remaining | {kind}
+
+
+def test_origin_destination_lets_hermes_bind_the_accepting_topic(tmp_path, monkeypatch):
+    config(tmp_path)
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Tokyo"})
+    for kind in COS:
+        rule(ledger, kind, destination="origin")
+    native(monkeypatch, tmp_path)
+    jobs = prepare_suggestions(ledger, native=True)["jobs"]
+    assert {j["kind"] for j in jobs} == set(COS)
+    for job in jobs:
+        # No origin key: Hermes stamps the accepting chat and topic at /suggestions accept.
+        assert job["job_spec"]["deliver"] == "origin" and "origin" not in job["job_spec"]
+    text = (Path(__file__).resolve().parents[1] / "skills/pa-setup/references/where-answers-go.md").read_text()
+    assert '"destination":"origin"' in text and "accept each one in its own topic" in text

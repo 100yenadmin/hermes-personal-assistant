@@ -89,7 +89,7 @@ def evaluate_step(root, scenario, index, messages, tools):
         result["approved_details"] = (all(detail in text for detail in step["expect"]["details"])
                                       and len(radar) == 1 and fields(radar[0]).get("stage") == "approved")
         result["no_calendar_honesty"] = bool(re.search(r"(?:no calendar.{0,35}(?:bound|connected)|calendar.{0,35}(?:not|isn't).{0,15}(?:bound|connected))", text, re.I)
-                                             and re.search(r"set\s*up|setup|connect|bind", text, re.I))
+                                             and re.search(r"\bset\b\s*(?:\w+\s+){0,2}up\b|setup|connect|bind", text, re.I))
         result["no_calendar_mapping"] = not any(fields(r).get("calendar_mapping") for r in notes(db, "cos:radar:"))
         return result
     prefix = {"daily": "cos:daily:" + values.get("today", "MISSING"),
@@ -121,7 +121,7 @@ def evaluate_step(root, scenario, index, messages, tools):
             result["scout_decision"] = f.get("disposition") in ("adopt", "trial", "watch", "ignore")
             result["follow_up"] = aware(f.get("follow_up_at"))
         else:
-            result["separate_outcomes"] = all(re.search(r"(?im)^\s*(?:[-#]+\s*)?" + word + r"\s*[:—-]", label_text)
+            result["separate_outcomes"] = all(re.search(r"(?im)^\s*(?:[-#]+\s*)?" + word + r"(?:\s*/\s*\w+)?\s*[:—-]", label_text)
                                                for word in ("used", "declined", "ignored", "unknown"))
             labels = {k: len(re.findall(r"(?im)^\s*(?:[-#]+\s*)?" + k + r"\s*:", label_text)) for k in ("Old", "New", "Evidence", "Rollback")}
             result["one_proposal_format"] = (all(n == 0 for n in labels.values()) or

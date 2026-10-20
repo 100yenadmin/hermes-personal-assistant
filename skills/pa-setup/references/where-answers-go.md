@@ -120,11 +120,14 @@ Read automation status and Hermes jobs first; reuse an existing selected rule
 and publisher instead of making duplicates. Show the proposed rules in review.
 Set up schedules from the chat that should receive the reports. If this surface
 cannot receive pushed messages, ask the user to continue there; never guess a chat ID.
-The destination is this chat's Hermes delivery target. `destination_verified: true`
+The destination is `"origin"`: Hermes binds it to the chat, including the Telegram
+topic or thread, where `/suggestions accept` runs. To send daily and weekly to
+different topics, accept each one in its own topic. Accepting from the CLI or Desktop
+sends to the home channel instead. `destination_verified: true`
 records the owner's explicit yes in this chat; PA runs no other verification, and
 Hermes shows each suggested job before `/suggestions accept`, which is the final check.
 After apply, use the existing
-`pa(operation="automations", data={"action":"rule","rule_id":"<stable rule id>","rule":{"kind":"cos_daily","accepted":true,"destination":"<this chat's delivery target>","destination_verified":true,"timezone":"<IANA zone>","accepted_at":"<aware acceptance timestamp>"}})`.
+`pa(operation="automations", data={"action":"rule","rule_id":"<stable rule id>","rule":{"kind":"cos_daily","accepted":true,"destination":"origin","destination_verified":true,"timezone":"<IANA zone>","accepted_at":"<aware acceptance timestamp>"}})`.
 Use `cos_weekly` with its own stable rule ID for weekly; create only the selected kinds.
 Rules store intent and create no jobs. Read automation status back, then call
 `pa(operation="automations", data={"action":"suggest","native":true})`.
@@ -133,7 +136,7 @@ Check that the chosen suggestions actually exist; do not claim they are enabled.
 Tell the user: “Run `/suggestions` in Hermes to review pending automations.
 Accept daily with `/suggestions accept personal-assistant-cos-daily` and weekly
 with `/suggestions accept personal-assistant-cos-weekly`, only for the schedules
-you chose.” Hermes v0.22.2 accepts an exact title or ID, or the current pending
+you chose, each in the chat or topic that should receive it.” Hermes v0.22.2 accepts an exact title or ID, or the current pending
 number (`/suggestions accept N`); re-list after each numbered acceptance because
 numbers shift. This is the CLI and gateway chat command, not a shell
 `hermes cron` subcommand. Acceptance creates the native job; verify Hermes's
