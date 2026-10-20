@@ -181,11 +181,21 @@ def serialize_packet(packet: Mapping[str, Any]) -> bytes:
     return json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+# Rendering escapes "<" (1 byte) as "\u003c" (6 bytes), so every admitted packet still renders:
+# the original 20 KiB header headroom plus the worst-case escape growth of a full packet.
+MAX_RENDERED_BYTES = 20 * 1024 + 5 * MAX_PACKET_BYTES
+
+
 def render_packet(packet: Mapping[str, Any], claim_token: str) -> str:
     """Render an explicitly untrusted user message; never turn packet data into control text."""
     normalized = validate_packet(packet)
     token = _text(claim_token, "claim_token", 128)
-    body = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    # "<" only occurs inside JSON strings, where "\u003c" decodes back to the same character. This
+    # keeps untrusted fields from closing or reopening the <pa_packet_v1> frame without changing
+    # the data or serialize_packet (queue identity).
+    body = json.dumps(
+        normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).replace("<", "\\u003c")
     stale_annotation = any(
         fact.get("label") == "event_status" and fact.get("value") == "expired"
         for fact in normalized["facts"]
@@ -203,6 +213,6 @@ def render_packet(packet: Mapping[str, Any], claim_token: str) -> str:
         "different destination.\n"
         f"<pa_packet_v1>{body}</pa_packet_v1>"
     )
-    if len(text.encode("utf-8")) > 20 * 1024:
+    if len(text.encode("utf-8")) > MAX_RENDERED_BYTES:
         raise PacketError("rendered packet is too large")
     return text
