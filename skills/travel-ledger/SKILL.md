@@ -177,7 +177,7 @@ I have the trip recorded. The open gaps are lodging address and airport ride tim
 When blocked:
 
 ```text
-Instacart timed out, but the cart checkpoint is saved. I am reopening the same Browserbase Context and continuing from the cart instead of rebuilding it.
+Instacart timed out, but the cart checkpoint is saved. I am reattaching the same Browserbase session and continuing from the cart instead of rebuilding it.
 ```
 
 ## Do Not Store

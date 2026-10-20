@@ -39,7 +39,7 @@ def _recovery(status: str, capability: str) -> str:
         return "Run one read-only list or readback before relying on account authentication."
     if status == "unverified":
         return "Use one read-only call through the existing integration, then rerun capability discovery."
-    if status in {"needs-setup", "needs_setup"}:
+    if status == "needs-setup":
         return "Complete that integration's existing profile setup, then rerun capability discovery."
     return "Enable an existing Hermes integration for this profile, then rerun capability discovery."
 
@@ -105,7 +105,7 @@ def discover(entries: Iterable[Any] | None = None,
         configured = all(present(name) for name in ("BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"))
     except Exception:
         configured = False
-    status = "available" if configured else "needs_setup"
+    status = "available" if configured else "needs-setup"
     rows.append({"id": "remote_browser", "status": status, "tools": ["pa"],
                  "reuse": "PA Browserbase live-view handoff", "authentication": "unverified",
                  "evidence": "browser_session operation; credentials present" if configured else
@@ -116,7 +116,7 @@ def discover(entries: Iterable[Any] | None = None,
         "capabilities": rows,
         "setup_skill": "personal-assistant:personal-assistant",
         "summary": {state: counts.get(state, 0) for state in
-                    ("available", "needs-setup", "needs_setup", "unverified", "unavailable")},
+                    ("available", "needs-setup", "unverified", "unavailable")},
         "authentication": "Capability discovery does not prove provider authentication.",
         "jobs_started": False,
     }

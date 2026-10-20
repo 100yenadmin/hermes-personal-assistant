@@ -31,7 +31,7 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
     if not (key and project):
         return {"status": "needs_setup", "reason": "Browserbase is not configured for this profile",
                 "next_step": "Add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID to the profile's secrets."}
-    identity = data.get("bb_session_id", "")
+    identity = str(data.get("bb_session_id") or "")
     row_id = "pa:browser-session:" + identity
     if action != "create":
         row = ledger.get("action", row_id)
@@ -71,14 +71,14 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
                     raise
                 body.pop("keepAlive")
                 result = request("/v1/sessions", body)
-            identity = result["id"]
+            identity, connect_url = result["id"], result["connectUrl"]
             if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", identity):
                 raise ValueError("invalid Browserbase session id")
             ledger.put("action", "pa:browser-session:" + identity,
                        {"bb_session_id": identity, "expires_at": result.get("expiresAt"), "created_at": now()},
                        action_type="browser_session", status="active")
             # Accepted tradeoff: model-visible URLs are short-lived session bearers and die on release.
-            return {"bb_session_id": identity, "connect_url": result["connectUrl"],
+            return {"bb_session_id": identity, "connect_url": connect_url,
                     "live_view_url": live_view(identity), "expires_at": result.get("expiresAt"),
                     "attach_hint": "agent-browser --session <name> connect <connect_url>"}
         if action == "live_view":

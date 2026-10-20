@@ -235,6 +235,8 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         supplied_id = data.pop("action_id", None)
         source_id, kind, occurrence = data.pop("source_id", None), data.pop("action_kind", None), data.pop("occurrence", None)
         identity = supplied_id or ledger.action_id(source_id, kind, occurrence)
+        if data.get("action_type") == "browser_session" or str(identity).startswith("pa:browser-session:"):
+            raise ValueError("browser_session records are lifecycle-owned")
         fields = data.pop("fields", {})
         return _call_with_supported_data(ledger.put, "action", identity, fields, data=data)
     identity = data.pop("action_id")

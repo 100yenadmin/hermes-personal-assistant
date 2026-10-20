@@ -89,11 +89,29 @@ def test_missing_raising_unknown_and_capabilities(tmp_path, monkeypatch):
         assert browser_session(ledger, {"action": action, "bb_session_id": "unknown"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
     assert not opener.calls
     monkeypatch.setenv("BROWSERBASE_API_KEY", KEY)
-    for check, status in ((lambda name: True, "available"), (lambda name: False, "needs_setup"), (raising, "needs_setup"), (None, "needs_setup")):
+    for check, status in ((lambda name: True, "available"), (lambda name: False, "needs-setup"), (raising, "needs-setup"), (None, "needs-setup")):
         rows = discover([SimpleNamespace(name="browser_open")], secret_present=check)["capabilities"]
         row = next(row for row in rows if row["id"] == "remote_browser")
         assert row["status"] == status and row["recovery_action"] and KEY not in json.dumps(row)
-    assert next(row for row in discover([])["capabilities"] if row["id"] == "remote_browser")["status"] == "needs_setup"
+    assert next(row for row in discover([])["capabilities"] if row["id"] == "remote_browser")["status"] == "needs-setup"
+
+
+def test_forged_rows_bad_ids_and_partial_replies_touch_nothing(tmp_path):
+    # R41 review: a hand-made ledger row must not let PA release a session it never created.
+    forged = [{"action_id": "pa:browser-session:FOREIGN", "action_type": "browser_session", "fields": {"bb_session_id": "FOREIGN"}},
+              {"action_id": "pa:browser-session:FOREIGN", "fields": {"bb_session_id": "FOREIGN"}},
+              {"action_id": "note-1", "action_type": "browser_session", "fields": {"bb_session_id": "FOREIGN"}}]
+    for data in forged:
+        with pytest.raises(ValueError, match="lifecycle-owned"):
+            dispatch(tmp_path, {"operation": "action_upsert", "data": data})
+    ledger, opener = Ledger(tmp_path), Opener()
+    for action in ("live_view", "release"):
+        assert browser_session(ledger, {"action": action, "bb_session_id": "FOREIGN"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
+        assert browser_session(ledger, {"action": action, "bb_session_id": 7}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
+    assert not opener.calls
+    # A create reply without a connection URL leaves no active row behind.
+    assert browser_session(ledger, {"action": "create"}, opener=Opener({"id": "bb-9"}), get_secret=SECRETS.get)["status"] == "error"
+    assert ledger.get("action", "pa:browser-session:bb-9") is None
 
 
 def test_redirect_target_never_requested(tmp_path):
