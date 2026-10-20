@@ -83,9 +83,9 @@ def test_missing_raising_unknown_and_capabilities(tmp_path, monkeypatch):
     ledger, opener = Ledger(tmp_path), Opener()
     for getter in ({}.get, raising):
         assert browser_session(ledger, {}, opener=opener, get_secret=getter) == {"configured": False}
-        for action in ("create", "live_view", "release"):
+        for action in ("create", "live_view", "connect", "release"):
             assert browser_session(ledger, {"action": action}, opener=opener, get_secret=getter)["status"] == "needs_setup"
-    for action in ("live_view", "release"):
+    for action in ("live_view", "connect", "release"):
         assert browser_session(ledger, {"action": action, "bb_session_id": "unknown"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
     assert not opener.calls
     monkeypatch.setenv("BROWSERBASE_API_KEY", KEY)
@@ -105,7 +105,7 @@ def test_forged_rows_bad_ids_and_partial_replies_touch_nothing(tmp_path):
         with pytest.raises(ValueError, match="lifecycle-owned"):
             dispatch(tmp_path, {"operation": "action_upsert", "data": data})
     ledger, opener = Ledger(tmp_path), Opener()
-    for action in ("live_view", "release"):
+    for action in ("live_view", "connect", "release"):
         assert browser_session(ledger, {"action": action, "bb_session_id": "FOREIGN"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
         assert browser_session(ledger, {"action": action, "bb_session_id": 7}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
     assert not opener.calls
@@ -142,12 +142,13 @@ def test_live_view_refresh_failures_and_ledger_failure_release(tmp_path, monkeyp
                                opener=Opener(reply), get_secret=SECRETS.get) == expected
     # Several tabs: each tab's own live view is listed so the agent can hand over the right one.
     pages = [{"title": "Cart", "url": "https://shop.example/cart", "debuggerFullscreenUrl": LIVE + "&tab=1"},
-             {"title": "Sign in", "url": "https://id.example/login", "debuggerFullscreenUrl": LIVE + "&tab=2"}]
+             {"title": "Sign in", "url": "https://id.example/callback?code=SECRETCODE#token=T", "debuggerFullscreenUrl": LIVE + "&tab=2"}]
     many = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
                            opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": pages}), get_secret=SECRETS.get)
     assert many == {"bb_session_id": "bb-1", "live_view_url": LIVE,
-                    "tabs": [{"title": "Cart", "url": "https://shop.example/cart", "live_view_url": LIVE + "&tab=1"},
-                             {"title": "Sign in", "url": "https://id.example/login", "live_view_url": LIVE + "&tab=2"}]}
+                    "tabs": [{"title": "Cart", "origin": "https://shop.example", "live_view_url": LIVE + "&tab=1"},
+                             {"title": "Sign in", "origin": "https://id.example", "live_view_url": LIVE + "&tab=2"}]}
+    assert "SECRETCODE" not in json.dumps(many)  # Page URLs can carry OAuth codes; only the origin is returned.
     one = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
                           opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": pages[:1]}), get_secret=SECRETS.get)
     assert one == {"bb_session_id": "bb-1", "live_view_url": LIVE}
@@ -176,8 +177,8 @@ def test_redirect_target_never_requested(tmp_path):
             response.msg = "Found"
             return response
     opener = build_opener(ProxyHandler({}), NoRedirect(), Redirect())
-    result = browser_session(Ledger(tmp_path), {"action": "create"}, opener=opener,
-                             get_secret={**SECRETS, "BROWSERBASE_BASE_URL": "http://fixture.invalid"}.get)
+    result = browser_session(Ledger(tmp_path), {"action": "create"}, opener=opener, get_secret=SECRETS.get,
+                             base_url="http://fixture.invalid")
     assert result == {"status": "error", "reason": "Browserbase request failed"}
     assert urls == ["http://fixture.invalid/v1/sessions"]
 
@@ -201,3 +202,30 @@ def test_no_skill_waits_for_automatic_captcha_solving():
     # Sessions are created with solveCaptchas off, so every skill hands a visible CAPTCHA to the user.
     skills = Path(__file__).resolve().parents[1] / "skills"
     assert not [p for p in skills.rglob("*.md") if "solve supported CAPTCHA" in p.read_text()]
+
+
+def test_profile_setting_cannot_move_the_endpoint(tmp_path):
+    # A BROWSERBASE_BASE_URL secret is ignored, so the key only ever goes to Browserbase.
+    opener = Opener(CREATED, {})
+    browser_session(Ledger(tmp_path), {"action": "create"}, opener=opener,
+                    get_secret={**SECRETS, "BROWSERBASE_BASE_URL": "http://attacker.invalid"}.get)
+    assert [req.full_url for req, _ in opener.calls] == ["https://api.browserbase.com/v1/sessions",
+                                                         "https://api.browserbase.com/v1/sessions/bb-1/debug"]
+
+
+def test_connect_returns_a_fresh_connection_for_a_running_owned_session(tmp_path):
+    ledger = Ledger(tmp_path)
+    browser_session(ledger, {"action": "create"}, opener=Opener(CREATED, {}), get_secret=SECRETS.get)
+    fresh = "wss://connect.browserbase.com?signingKey=fresh"
+    opener = Opener({"id": "bb-1", "status": "RUNNING", "connectUrl": fresh, "expiresAt": "2026-10-21T12:20:00Z"})
+    result = browser_session(ledger, {"action": "connect", "bb_session_id": "bb-1"}, opener=opener, get_secret=SECRETS.get)
+    assert result == {"bb_session_id": "bb-1", "connect_url": fresh, "expires_at": "2026-10-21T12:20:00Z",
+                      "attach_hint": "agent-browser --session <name> connect <connect_url>"}
+    req = opener.calls[0][0]
+    assert (req.get_method(), req.full_url, req.data) == ("GET", "https://api.browserbase.com/v1/sessions/bb-1", None)
+    raw = ledger.path.read_bytes() + json.dumps(ledger.list("action")).encode()
+    assert b"signingKey" not in raw and fresh.encode() not in raw
+    denied = HTTPError("https://api.browserbase.com", 401, "denied", Message(), io.BytesIO(KEY.encode()))
+    for reply in ({"id": "bb-1", "status": "TIMED_OUT", "connectUrl": fresh}, {"id": "bb-1", "status": "RUNNING"}, denied):
+        out = browser_session(ledger, {"action": "connect", "bb_session_id": "bb-1"}, opener=Opener(reply), get_secret=SECRETS.get)
+        assert out["status"] == "error" and fresh not in json.dumps(out) and KEY not in json.dumps(out)

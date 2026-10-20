@@ -2,9 +2,13 @@
 import json
 import re
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from .state import now
+
+API = "https://api.browserbase.com"
+ATTACH_HINT = "agent-browser --session <name> connect <connect_url>"
 
 
 def secret(name, get_secret=None):
@@ -21,9 +25,10 @@ class NoRedirect(HTTPRedirectHandler):
         raise ValueError("Browserbase redirects are refused")
 
 
-def browser_session(ledger, data, *, opener=None, get_secret=None):
+def browser_session(ledger, data, *, opener=None, get_secret=None, base_url=API):
+    # The endpoint is fixed: a profile setting must never be able to send the key elsewhere. Tests pass base_url.
     action = data.get("action", "status")
-    if action not in {"status", "create", "live_view", "release"}:
+    if action not in {"status", "create", "live_view", "connect", "release"}:
         raise ValueError("unknown browser_session action")
     key, project = (secret(name, get_secret) for name in ("BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"))
     if action == "status":
@@ -37,7 +42,7 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
         row = ledger.get("action", row_id)
         if not row or row["action_type"] != "browser_session" or row["fields"].get("bb_session_id") != identity:
             return {"status": "error", "reason": "Unknown PA Browserbase session"}
-    base = (secret("BROWSERBASE_BASE_URL", get_secret) or "https://api.browserbase.com").rstrip("/")
+    base = base_url.rstrip("/")
     transport = opener if opener is not None else build_opener(ProxyHandler({}), NoRedirect())
 
     def request(path, body=None):
@@ -90,7 +95,7 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
             # Accepted tradeoff: model-visible URLs are short-lived session bearers and die on release.
             return {"bb_session_id": identity, "connect_url": connect_url,
                     "live_view_url": live_view(identity), "expires_at": result.get("expiresAt"),
-                    "attach_hint": "agent-browser --session <name> connect <connect_url>"}
+                    "attach_hint": ATTACH_HINT}
         if action == "live_view":  # An explicit refresh reports failures instead of a null link.
             debug = request("/v1/sessions/" + identity + "/debug")
             url = debug.get("debuggerFullscreenUrl")
@@ -98,10 +103,17 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
                 raise ValueError("no live view link")
             # Each tab has its own live view; the agent sends the link of the tab holding the step.
             pages = debug.get("pages") if isinstance(debug.get("pages"), list) else []
-            tabs = [{"title": page.get("title"), "url": page.get("url"), "live_view_url": page["debuggerFullscreenUrl"]}
+            tabs = [{"title": page.get("title"), "origin": _origin(page.get("url")), "live_view_url": page["debuggerFullscreenUrl"]}
                     for page in pages if isinstance(page, dict) and isinstance(page.get("debuggerFullscreenUrl"), str)
                     and page["debuggerFullscreenUrl"]]
             return {"bb_session_id": identity, "live_view_url": url, **({"tabs": tabs} if len(tabs) > 1 else {})}
+        if action == "connect":  # Reattach after a lost agent-browser connection; only a running session.
+            result = request("/v1/sessions/" + identity)
+            connect_url = result.get("connectUrl")
+            if result.get("status") != "RUNNING" or not isinstance(connect_url, str) or not connect_url:
+                return {"status": "error", "reason": "Browserbase session is not running; create a new one"}
+            return {"bb_session_id": identity, "connect_url": connect_url, "expires_at": result.get("expiresAt"),
+                    "attach_hint": ATTACH_HINT}
         request("/v1/sessions/" + identity, {"projectId": project, "status": "REQUEST_RELEASE"})
         ledger.put("action", row_id, {}, status="released")
         return {"bb_session_id": identity, "status": "released"}
@@ -109,3 +121,12 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
         return {"status": "error", "http_status": exc.code, "reason": "Browserbase request denied"}
     except Exception:
         return {"status": "error", "reason": "Browserbase request failed"}
+
+
+def _origin(url):
+    """A tab's scheme and host only: page URLs can carry OAuth codes or signed tokens."""
+    try:
+        parts = urlsplit(url) if isinstance(url, str) else None
+    except ValueError:
+        return None
+    return f"{parts.scheme}://{parts.netloc}" if parts and parts.scheme and parts.netloc else None

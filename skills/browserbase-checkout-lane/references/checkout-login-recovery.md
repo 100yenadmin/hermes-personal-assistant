@@ -19,7 +19,7 @@ After each meaningful step, record a compact checkpoint:
 - Current total and visible required fields.
 - Whether the agent is before login, after login, before payment selection, at final confirmation, or blocked on a provider-required field.
 
-Before creating a new browser lane, reattach to the last session. If expired, create a bounded session and restore from the checkpoint. This route does not persist login Contexts; use another configured attended browser if recovery fails.
+Before creating a new browser lane, reattach to the last session: get a fresh `connect_url` with `pa(operation="browser_session", data={"action":"connect","bb_session_id":"<id>"})` and attach it with `agent-browser`. If expired, create a bounded session and restore from the checkpoint. This route does not persist login Contexts; use another configured attended browser if recovery fails.
 
 If the user's final submit reveals a required field, the task is not complete. Hand it back in the live view, update the checkpoint without sensitive values, and wait.
 
