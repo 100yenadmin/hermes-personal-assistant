@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0-rc.2 — 2026-10-21
+
 - Later setup answers keep applied/checked setup intact and flag changes for the next review; fresh checks name the cause when refused (#28).
 - Context retrieval infers trip, action or source from one unambiguous ID; guide queries still need an explicit kind.
 - Guided setup now runs only in the chat where it is active. Other chats of the same user get one short first-turn line, and `/pa setup` continues setup in the current chat, keeping its section, answers and any pending proposal. A setup bound by an earlier release is active in no chat until the next `/pa setup` (#29).
@@ -11,6 +13,12 @@
   - **Migration:** the closeout default moves from Monday 10:00 to Friday 15:00. Profiles that accepted the weekly job without saving a slot move from Monday 10:00 to Friday 15:00. To keep Monday, save `cos_weekly_day` `mon` and `cos_weekly_time` `10:00`. The week of the upgrade still gets at most one closeout.
   - Capability Lab scenario s17 covers a kickoff that reads last week's closeout. Lab only; no lab wave has run yet.
 - Browserbase works on current Hermes: the new `browser_session` operation creates, re-links and releases a session in-process (Hermes keeps the key out of shells). The checkout skills attach with `agent-browser … connect` and send the live view at card, OTP, passport or CAPTCHA steps (the link of the right tab when a step opens a new one); the final pay/book/reserve tap is the user's own. `connect` reattaches a running session after a lost connection. PA re-links, reattaches or releases only sessions it created, and the Browserbase endpoint is fixed. Recording, logging and CAPTCHA solving are off (#25).
+- **Upgrade notes.**
+  - **Weekly closeout moves to Friday 15:00.** Without a saved slot, the weekly closeout (formerly the weekly review) moves from Monday 10:00 to Friday 15:00. To keep Monday, save `cos_weekly_day` `mon` and `cos_weekly_time` `10:00`. The week of the upgrade still gets at most one closeout.
+  - **A hand-made kickoff or closeout job keeps running beside PA's.** PA never edits cron jobs it did not create. If you also accept PA's job of the same kind, keep only one.
+  - **The weekly kickoff is new and off until you choose it.** In the topic that should receive it, run `/pa setup chief-of-staff` and answer the kickoff question. Then review and apply, and accept `personal-assistant-cos-kickoff` there. Setup asks the three-schedule question again; an answer to the earlier two-schedule question is not reused.
+  - **A guided setup started on an earlier release belongs to no chat after the upgrade.** The first turn of each new session shows one line pointing to `/pa setup`. Say `/pa setup` in the chat where you want to finish; it keeps your answers and any pending proposal.
+  - **Browserbase needs the profile's Browserbase key and project id, plus `agent-browser` on the host.** Without them, PA uses the local signed-in browser, which stays the default lane.
 
 ## 0.8.0-rc.1 — 2026-10-20
 
