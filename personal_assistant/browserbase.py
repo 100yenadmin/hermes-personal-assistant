@@ -80,7 +80,7 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
             # Accepted tradeoff: model-visible URLs are short-lived session bearers and die on release.
             return {"bb_session_id": identity, "connect_url": result["connectUrl"],
                     "live_view_url": live_view(identity), "expires_at": result.get("expiresAt"),
-                    "attach_hint": "browse open <url> --cdp <connect_url>"}
+                    "attach_hint": "agent-browser --session <name> connect <connect_url>"}
         if action == "live_view":
             return {"bb_session_id": identity, "live_view_url": live_view(identity)}
         request("/v1/sessions/" + identity, {"projectId": project, "status": "REQUEST_RELEASE"})

@@ -78,6 +78,7 @@ The `pa` operation groups are:
 
 - **Guided setup:** `setup`; `/pa setup` begins on your next message.
 - **Discovery:** `status`, `capabilities`, `recipes`.
+- **Browserbase:** `browser_session` creates sessions, returns live view links for user handoff, and releases sessions.
 - **Context:** `context`, `next_action`.
 - `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
 - `trip_offer` checks and records offer outcomes; load `personal-assistant:trip-concierge`.

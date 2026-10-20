@@ -109,15 +109,14 @@ python3 ./skills/travel-ledger/scripts/travel_ledger.py action-upsert \
   --field message_preview="Short factual request..."
 ```
 
-Record a Browserbase checkpoint:
+Record a checkpoint with `bb_session_id` from `browser_session`:
 
 ```bash
 python3 ./skills/travel-ledger/scripts/travel_ledger.py browser-checkpoint \
   --action-id food-order-checkpoint \
   --provider instacart \
   --lane browserbase \
-  --session-id "$BROWSERBASE_SESSION_ID" \
-  --context-id "$BROWSERBASE_CONTEXT_ID" \
+  --session-id "<bb_session_id>" \
   --url "$CURRENT_URL" \
   --state "cart staged, address entered, awaiting final total"
 ```

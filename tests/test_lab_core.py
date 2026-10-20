@@ -765,10 +765,12 @@ def test_scrub_removes_browserbase_key_and_connect_url_keys(monkeypatch):
 
 
 def test_scrub_keeps_serialized_json_valid(tmp_path):
-    value = {'note': 'connect URL "wss://host?signingKey=secret"\nnext line kept'}
+    value = {'note': 'connect URL "wss://host?signingKey=secret"\nnext line kept',
+             'live_view': 'https://www.browserbase.com/devtools/inspector.html?sessionId=synthetic'}
     common.write(tmp_path / 'a.json', value)
     saved = json.loads((tmp_path / 'a.json').read_text())
     assert saved['note'] == 'connect URL "wss://host?signingKey=[REDACTED]"\nnext line kept'
+    assert saved['live_view'] == '[REDACTED]'
 
 
 def test_judge_sees_final_page_landmarks_first(tmp_path):

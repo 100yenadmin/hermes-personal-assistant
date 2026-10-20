@@ -46,7 +46,7 @@ def test_create_dispatch_and_private_ledger(tmp_path):
     result = dispatch(tmp_path, {"operation": "browser_session", "data": {"action": "create", "region": "us-east-1"}},
                       runtime_scope={"browserbase_opener": opener, "get_secret": SECRETS.get, "session_id": "hermes-id"})
     assert result == {"bb_session_id": "bb-1", "connect_url": CONNECT, "live_view_url": LIVE,
-                      "expires_at": CREATED["expiresAt"], "attach_hint": "browse open <url> --cdp <connect_url>"}
+                      "expires_at": CREATED["expiresAt"], "attach_hint": "agent-browser --session <name> connect <connect_url>"}
     req, timeout = opener.calls[0]
     assert (req.get_method(), req.full_url, timeout, req.get_header("X-bb-api-key")) == ("POST", "https://api.browserbase.com/v1/sessions", 60, KEY)
     assert json.loads(req.data) == {"projectId": "project", "keepAlive": True, "timeout": 1200, "region": "us-east-1",
@@ -111,3 +111,17 @@ def test_redirect_target_never_requested(tmp_path):
                              get_secret={**SECRETS, "BROWSERBASE_BASE_URL": "http://fixture.invalid"}.get)
     assert result == {"status": "error", "reason": "Browserbase request failed"}
     assert urls == ["http://fixture.invalid/v1/sessions"]
+
+
+@pytest.mark.parametrize("path", ["browserbase-checkout-lane/SKILL.md", "food-delivery-to-hotel/SKILL.md",
+                                  "browserbase-checkout-lane/references/checkout-login-recovery.md"])
+def test_skill_text_uses_browser_session_and_user_final_tap(path):
+    text = (Path(__file__).resolve().parents[1] / "skills" / path).read_text()
+    for forbidden in ("$BROWSERBASE_API_KEY", "profile environment", "browse cloud sessions", "--remote", "browse open <url> --cdp"):
+        assert forbidden not in text
+    assert "agent-browser --session <task-name> connect <connect_url>" in text
+    if path.endswith("SKILL.md"):
+        assert 'operation="browser_session"' in text
+    if path == "browserbase-checkout-lane/SKILL.md":
+        assert "final pay/book/reserve tap is the user's own, in the live view" in text
+        assert "The agent never presses the final submit" in text
