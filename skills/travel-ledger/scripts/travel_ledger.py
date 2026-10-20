@@ -306,6 +306,9 @@ def connect_at(root, path, *, timeout=None):
     path = Path(path)
     if not root.is_absolute() or not path.is_absolute():
         raise RuntimeError("profile and ledger paths must be absolute")
+    # Normalize dot segments without resolving symlinks, so a root-equivalent path
+    # gets the root rejection before any directory is created.
+    path = Path(os.path.abspath(os.fspath(path)))
     _validate_root_components(root, "profile")
     _validate_directory(root, "profile", owned=False)
     try:

@@ -167,6 +167,12 @@ class TravelLedgerTests(unittest.TestCase):
                 ):
                     operation()
 
+    def test_connect_at_rejects_root_equivalent_path_without_creating_directories(self):
+        profile = self.make_root()
+        with self.assertRaisesRegex(RuntimeError, "TRAVEL_LEDGER_DB must name a database file.*not the root itself"):
+            self.ledger.connect_at(profile, profile / "nested" / "..")
+        self.assertFalse((profile / "nested").exists())
+
     def test_symlink_file_type_and_directory_permissions_fail_closed(self):
         profile = self.make_root()
         outside = Path(self.temp.name) / "outside"
