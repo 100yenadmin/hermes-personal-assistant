@@ -7,7 +7,7 @@ from .state import legacy, now
 CORE_QUESTIONS = ("call_and_quiet", "worth_a_message", "authority", "first_trip",
                   "arrival_help", "protect", "route", "check_in_time")
 CHIEF_OF_STAFF_QUESTIONS = ("cos_priorities", "cos_radar_topics", "cos_daily_time",
-                            "cos_weekly_slot", "cos_schedules")
+                            "cos_kickoff_slot", "cos_weekly_slot", "cos_schedule_choices")
 SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS}
 FILE_TARGETS = {"user_memory", "soul_section", "manual_skill", "context_file"}
 TARGETS = FILE_TARGETS | {"pa_preferences"}  # Via pa automations preferences; no file/readback.
@@ -18,7 +18,7 @@ def _view(fields):
               "asked": [], "answers": {}, "skipped": [], "proposal": {"writes": []},
               "applied": [], "applied_session_id": None, "fresh_check": {}, "pending_changes": False,
               "offer_shown_at": None, "updated_at": None, "look_around_consent": None,
-              "active_platform": None, "active_sender_id": None, **fields}
+              "active_platform": None, "active_sender_id": None, "active_chat": None, **fields}
     review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
     questions = (tuple(q for section in SECTIONS.values() for q in section) if review
                  else SECTIONS.get(result["requested_section"], CORE_QUESTIONS))
@@ -44,25 +44,33 @@ def _section(section):
         raise ValueError("unknown setup section")
 
 
-def request(ledger, section="core"):
-    """Request setup again; keeps earlier answers for the saved-answer review."""
+def request(ledger, section="core", *, active_chat=None):
+    """Request setup again; keeps earlier answers for the saved-answer review.
+
+    `active_chat` reserves the chat /pa setup was said in; its next human turn binds."""
     if section is not None:  # None is the command's explicit review mode.
         _section(section)
     prior = state(ledger)
     status = "in_progress" if prior["status"] in {"in_progress", "proposed"} else "requested"
     return _save(ledger, status, requested_section=section,
                  requested_mode="review" if section is None else None,
-                 active_platform=None, active_sender_id=None, proposal={"writes": []})
+                 active_platform=None, active_sender_id=None, active_chat=active_chat, proposal={"writes": []})
 
 
-def start(ledger, section=None, *, active_platform=None, active_sender_id=None):
+def continue_here(ledger, active_chat=None):
+    """Move active setup to `active_chat` (or the next human turn); section, answers and proposal stay."""
+    return _save(ledger, state(ledger)["status"], active_platform=None, active_sender_id=None, active_chat=active_chat)
+
+
+def start(ledger, section=None, *, active_platform=None, active_sender_id=None, active_chat=None):
     if section is not None:
         _section(section)
     prior = state(ledger)
+    # Only the hook passes a binding; the skill's plain start keeps the chat it is in.
+    binding = ({"active_platform": active_platform, "active_sender_id": active_sender_id, "active_chat": active_chat}
+               if active_platform is not None else {})
     return _save(ledger, prior["status"] if prior["status"] == "proposed" else "in_progress",
-                 requested_section=prior["requested_section"] if section is None else section,
-                 active_platform=active_platform,
-                 active_sender_id=active_sender_id if active_platform is not None else None)
+                 requested_section=prior["requested_section"] if section is None else section, **binding)
 
 
 def record(ledger, answers=None, skipped=None, asked=None, consent=None):
@@ -87,7 +95,7 @@ def record(ledger, answers=None, skipped=None, asked=None, consent=None):
                  asked=list(dict.fromkeys(prior["asked"] + asked)), proposal={"writes": []},
                  look_around_consent=prior["look_around_consent"] if consent is None else consent)
     if completed and result["pending_changes"]:
-        result["next_step"] = ("Saved. Setup is still in place; this answer is not in your files yet. "
+        result["next_step"] = ("Saved. Setup is still in place; this setup change is not in your files yet. "
                                "Include it in the next review (/pa setup review), then propose and apply.")
     return result
 
@@ -192,7 +200,7 @@ def fresh_check(ledger, status, session_id=None):
     if current["status"] == "checked":
         raise ValueError("fresh check already passed")
     pending = current["fresh_check"].get("status") in {"pending", "failed"}
-    if current["status"] in {"requested", "in_progress", "proposed"} and pending:
+    if current["status"] in {"requested", "in_progress", "proposed"} and current["fresh_check"].get("status"):
         raise ValueError("setup was reopened (new review or proposal); propose and apply again before the fresh check")
     if current["status"] != "applied":
         raise ValueError("no fresh check is pending; apply setup first")

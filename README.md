@@ -80,21 +80,26 @@ requirements. Unknown submission outcomes remain blocked until reconciled.
 
 Chief of Staff helps turn your priorities into useful next actions. It is off
 by default. Use `/pa mode chief-of-staff on`, then `hermes gateway restart`
-and a new session. Run `/pa setup chief-of-staff` for five short questions about
+and a new session. Run `/pa setup chief-of-staff` for six short questions about
 priorities, radar topics, timing and schedules; review changes before saving.
 `/pa mode` shows the mode. `/pa mode chief-of-staff off` removes PA CoS jobs,
 dismisses pending CoS suggestions and pauses their rules. Assistant and Travel stay on.
 
-Schedules need an explicit yes, a verified current chat and separate Hermes
-suggestion acceptance. `cos_daily` defaults to 09:30 local; `cos_weekly` defaults
-to Monday 10:00 local and includes radar. Use `/suggestions` to review, then
-`/suggestions accept personal-assistant-cos-daily` and/or
+Schedules need an explicit yes for each one, a verified current chat and separate
+Hermes suggestion acceptance. `cos_daily` defaults to 09:30 local. The weekly
+kickoff, `cos_kickoff`, defaults to Monday 11:00 local and reads the last closeout.
+The weekly closeout, `cos_weekly`, defaults to Friday 15:00 local and includes radar.
+Use `/suggestions` to review, then `/suggestions accept personal-assistant-cos-daily`,
+`/suggestions accept personal-assistant-cos-kickoff` and/or
 `/suggestions accept personal-assistant-cos-weekly` for your chosen schedules.
 Enabling the mode starts no jobs. Five-minute prechecks respect quiet hours,
-pause and snooze, with one report per local day or ISO week.
+pause and snooze, with one report per local day or ISO week. A missed kickoff
+catches up only until that week's closeout.
 
 - `cos-daily`: one useful action backed by evidence, or silence.
-- `cos-weekly`: compare priorities and outcomes; propose one batch of improvements.
+- `cos-kickoff`: start the week with one focus, read from the last closeout, or silence.
+- `cos-weekly`: the weekly closeout; compare priorities and outcomes, record carry-over
+  and propose one batch of improvements.
 - `cos-scout`: research adopt versus build for a current need, on demand.
 - `cos-radar`: offer at most one benchmark a week; book a slot only after approval.
 

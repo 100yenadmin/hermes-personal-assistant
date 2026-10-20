@@ -8,8 +8,10 @@ from .state import Ledger, stable_id
 DEFAULTS = {
     "brief_time": "08:00",
     "cos_daily_time": "09:30",
-    "cos_weekly_day": "mon",
-    "cos_weekly_time": "10:00",
+    "cos_kickoff_day": "mon",
+    "cos_kickoff_time": "11:00",
+    "cos_weekly_day": "fri",  # The weekly closeout.
+    "cos_weekly_time": "15:00",
     "quiet_hours": {"start": "22:00", "end": "07:00"},
     "due_interval_minutes": 5,
     "travel_source_refresh_minutes": 15,
@@ -19,6 +21,7 @@ DEFAULTS = {
 }
 _SKILLS = {
     "cos_daily": ["personal-assistant:cos-daily"],
+    "cos_kickoff": ["personal-assistant:cos-kickoff"],
     "cos_weekly": ["personal-assistant:cos-weekly", "personal-assistant:cos-radar"],
     "daily_brief": [
         "personal-assistant:r5-brief-reminders",
@@ -31,7 +34,8 @@ _SKILLS = {
         "personal-assistant:daily-ops",
     ],
 }
-COS_JOBS = {"cos_daily": "personal-assistant-cos-daily", "cos_weekly": "personal-assistant-cos-weekly"}
+COS_JOBS = {"cos_daily": "personal-assistant-cos-daily", "cos_kickoff": "personal-assistant-cos-kickoff",
+            "cos_weekly": "personal-assistant-cos-weekly"}
 _TERMINAL_RECEIPTS = {"delivered", "suppressed", "unknown"}
 
 def _value_time(value, timezone):
@@ -259,7 +263,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
         })
     return {
         "status": "suggested" if jobs else ("missing_inputs" if missing else "no_accepted_rules"),
-        "suggestions": jobs, "jobs": jobs, "max_jobs": 4 if chief_of_staff is True else 2, "install": False,
+        "suggestions": jobs, "jobs": jobs, "max_jobs": 5 if chief_of_staff is True else 2, "install": False,
         "missing_inputs": sorted(set(missing)), "network_requests": 0,
     }
 def script_precheck(state=None, *, now=None, timezone=None, kind=None, quiet_hours=None,

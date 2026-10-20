@@ -87,7 +87,7 @@ def test_l39_live_sequence_and_review(tmp_path):
     saved = setup.record(ledger, answers, asked=list(answers))
     assert saved["status"] == "applied" and saved["pending_changes"] is True
     assert saved["answers"].items() >= answers.items()
-    assert saved["next_step"] == ("Saved. Setup is still in place; this answer is not in your files yet. "
+    assert saved["next_step"] == ("Saved. Setup is still in place; this setup change is not in your files yet. "
                                  "Include it in the next review (/pa setup review), then propose and apply.")
     assert saved["proposal"] == {"writes": []}  # Harmless: applied setup no longer reads the proposal.
     assert "Changes not yet applied." in make_pa_command(tmp_path)("status")
@@ -121,6 +121,7 @@ def test_l39_record_after_completed_setup(tmp_path, checked):
     result = setup.record(ledger, skipped=["protect"])
     assert result["status"] == ("checked" if checked else "applied")
     assert result["pending_changes"] is True and result["skipped"] == ["protect"]
+    assert "this setup change is not in your files yet" in result["next_step"]  # Skip-only change (#31 review).
     assert setup.record(ledger, skipped=["protect"])["pending_changes"] is True
 
 
@@ -419,7 +420,7 @@ def test_setup_binds_conversation_and_request_rebinds(tmp_path, sender):
             setup.propose(ledger, [{"target": "user_memory", "summary": "Synthetic"}])
         assert hook(**{**human, "platform": "desktop"}) is None
         assert hook(**{**human, "sender_id": "different"}) is None
-        assert hook(**{**human, "session_id": "compacted"})
+        assert hook(**human) and hook(**{**human, "session_id": "other"}) is None  # CLI: a session is a chat.
     setup.request(ledger)
     assert setup.state(ledger)["active_platform"] is None
     assert hook(**{**human, "platform": "desktop", "sender_id": "different"})
@@ -427,12 +428,15 @@ def test_setup_binds_conversation_and_request_rebinds(tmp_path, sender):
 
 
 @pytest.mark.parametrize("proposed", [False, True])
-def test_start_without_platform_clears_binding_and_rebinds(tmp_path, proposed):
+def test_plain_start_keeps_binding_and_pa_setup_rebinds(tmp_path, proposed):
     ledger = Ledger(tmp_path)
     setup.start(ledger, active_platform="cli", active_sender_id="synthetic")
     if proposed:
         setup.propose(ledger, [])
-    current = setup.start(ledger, active_sender_id="stale")
+    current = setup.start(ledger, active_sender_id="stale")  # The skill's plain start never moves setup.
+    assert (current["active_platform"], current["active_sender_id"]) == ("cli", "synthetic")
+    assert current["status"] == ("proposed" if proposed else "in_progress")
+    current = setup.continue_here(ledger)  # /pa setup moves it to the next human turn.
     assert current["active_platform"] is None and current["active_sender_id"] is None
     assert current["status"] == ("proposed" if proposed else "in_progress")
     assert make_pre_llm_call(tmp_path, lambda k, d: d)(
@@ -612,3 +616,183 @@ def test_setup_skill_records_consent_without_expanding():
     skill = (Path(__file__).resolve().parents[1] / "skills/pa-setup/SKILL.md").read_text()
     assert 'Save `consent: "granted"` or `"declined"` with the first `record` call' in skill
     assert len(skill.splitlines()) <= 151
+
+
+ELSEWHERE = "PA setup is in progress in another chat; say /pa setup to continue here."
+
+
+def _chat_turn(monkeypatch, hook, chat="", thread="", **kwargs):
+    module = ModuleType("gateway.session_context")
+    ids = {"HERMES_SESSION_CHAT_ID": chat, "HERMES_SESSION_THREAD_ID": thread}
+    module.get_session_env = lambda name, default="": ids.get(name, default)
+    monkeypatch.setitem(sys.modules, "gateway.session_context", module)
+    return hook(**{"user_message": "Hi", "platform": "telegram", "sender_id": "7", "session_id": "s",
+                   "is_first_turn": False, **kwargs})
+
+
+def test_setup_note_stays_in_its_topic_and_moves_with_pa_setup(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger)
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "A")["context"]
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:A"
+    assert _chat_turn(monkeypatch, hook, "-100", "B", session_id="b") is None
+    assert _chat_turn(monkeypatch, hook, "-100", "B", session_id="b", is_first_turn=True) == {"context": ELSEWHERE}
+    assert len(ELSEWHERE) <= 120
+    assert _chat_turn(monkeypatch, hook, "-100", "B", sender_id="other", is_first_turn=True) is None
+    # A topic reset keeps the chat key, so the new session still gets the interview.
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "A", session_id="a2",
+                                                  is_first_turn=True)["context"]
+    assert make_pa_command(tmp_path)("setup").startswith("Setup continues here.")  # /pa setup in topic B.
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "B", session_id="b")["context"]
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:B"
+    assert _chat_turn(monkeypatch, hook, "-100", "A", session_id="a3", is_first_turn=True) == {"context": ELSEWHERE}
+    assert _chat_turn(monkeypatch, hook, "-100", "A", session_id="a3") is None
+
+
+@pytest.mark.parametrize("active,other", [("7", "-200"), ("-200", "7")])
+def test_dm_and_group_are_separate_chats(tmp_path, monkeypatch, active, other):
+    setup.request(Ledger(tmp_path))
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, active)["context"]
+    assert _chat_turn(monkeypatch, hook, other, is_first_turn=True) == {"context": ELSEWHERE}
+    assert _chat_turn(monkeypatch, hook, other) is None
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, active)["context"]
+
+
+def test_legacy_binding_claims_no_chat_until_pa_setup(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    ledger.put("action", "pa:setup", {"status": "in_progress", "active_platform": "telegram", "active_sender_id": "7"})
+    assert setup.state(ledger)["active_chat"] is None
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    for chat, thread in (("-100", "A"), ("-100", "B"), ("7", "")):
+        assert _chat_turn(monkeypatch, hook, chat, thread, is_first_turn=True) == {"context": ELSEWHERE}
+        assert _chat_turn(monkeypatch, hook, chat, thread) is None
+    make_pa_command(tmp_path)("setup")
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "B")["context"]
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:B"
+
+
+def test_cli_chat_key_is_the_session(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger)
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, platform="cli", sender_id="", session_id="one")["context"]
+    assert setup.state(ledger)["active_chat"] == "cli:session:one"
+    assert _chat_turn(monkeypatch, hook, platform="cli", sender_id="", session_id="two") is None
+    assert _chat_turn(monkeypatch, hook, platform="cli", sender_id="", session_id="two",
+                      is_first_turn=True) == {"context": ELSEWHERE}
+
+
+def test_fresh_check_note_is_not_scoped_to_the_setup_chat(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    ledger.put("action", "pa:setup", {"status": "in_progress", "active_platform": "telegram",
+                                      "active_sender_id": "7", "active_chat": "telegram:-100:A"})
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "a")
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    note = _chat_turn(monkeypatch, hook, "-100", "B", session_id="b", is_first_turn=True)["context"]
+    assert note.startswith("Setup was saved in an earlier session.")
+
+
+COS_ON = lambda k, d=None: {"chief_of_staff": True} if k == "modes" else d
+
+
+def test_pa_setup_continues_the_pilots_cos_proposal_in_this_chat(tmp_path, monkeypatch):
+    # The live rc.1 row: a proposed Chief of Staff setup bound to platform and sender, no chat (#32 review).
+    ledger = Ledger(tmp_path)
+    writes = [{"target": "memory", "text": "Synthetic"}]
+    ledger.put("action", "pa:setup", {"status": "proposed", "requested_section": "chief_of_staff",
+                                      "proposal": {"writes": writes}, "active_platform": "telegram", "active_sender_id": "7"})
+    hook = make_pre_llm_call(tmp_path, COS_ON)
+    assert _chat_turn(monkeypatch, hook, "-100", "CoS", is_first_turn=True) == {"context": ELSEWHERE}
+    assert make_pa_command(tmp_path, get_config=COS_ON)("setup").startswith("Setup continues here.")
+    current = setup.state(ledger)
+    assert (current["status"], current["requested_section"], current["proposal"]["writes"]) == ("proposed", "chief_of_staff", writes)
+    note = _chat_turn(monkeypatch, hook, "-100", "CoS")["context"]
+    assert "wait for the user to approve or edit the review" in note
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:CoS"
+    assert _chat_turn(monkeypatch, hook, "-100", "Travel", is_first_turn=True) == {"context": ELSEWHERE}
+
+
+def test_explicit_section_still_rerequests_and_review_mode_continues(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, None)  # /pa setup review
+    hook = make_pre_llm_call(tmp_path, COS_ON)
+    _chat_turn(monkeypatch, hook, "-100", "A")
+    make_pa_command(tmp_path, get_config=COS_ON)("setup")
+    assert setup.state(ledger)["requested_mode"] == "review"  # A bare /pa setup keeps review mode.
+    make_pa_command(tmp_path, get_config=COS_ON)("setup chief-of-staff")
+    assert (setup.state(ledger)["requested_section"], setup.state(ledger)["requested_mode"]) == ("chief_of_staff", None)
+
+
+def test_cos_off_setup_note_stays_in_its_chat(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, "chief_of_staff")
+    _chat_turn(monkeypatch, make_pre_llm_call(tmp_path, COS_ON), "-100", "A")  # Bound to topic A while on.
+    hook = make_pre_llm_call(tmp_path, lambda k, d=None: d)  # Then Chief of Staff mode is turned off.
+    assert "stopped while the mode is off" in _chat_turn(monkeypatch, hook, "-100", "A")["context"]
+    assert _chat_turn(monkeypatch, hook, "-100", "B") is None
+    assert _chat_turn(monkeypatch, hook, "-100", "B", is_first_turn=True) == {"context": ELSEWHERE}
+    assert "stopped while the mode is off" in _chat_turn(monkeypatch, hook, "-100", "A")["context"]
+
+
+def test_fresh_check_after_a_checked_setup_is_reopened_names_the_reopen(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "A")
+    setup.fresh_check(ledger, "passed", "B")
+    for reopen in (lambda: setup.request(ledger, None), lambda: setup.propose(ledger, [])):
+        reopen()
+        with pytest.raises(ValueError, match="setup was reopened"):
+            setup.fresh_check(ledger, "passed", "C")
+    (tmp_path / "fresh").mkdir()
+    fresh = Ledger(tmp_path / "fresh")
+    setup.request(fresh)
+    with pytest.raises(ValueError, match="apply setup first"):
+        setup.fresh_check(fresh, "passed", "C")
+
+
+def test_skill_start_keeps_the_hook_binding(tmp_path, monkeypatch):
+    # #32 review: the pa-setup skill's plain {"action":"start"} must not unbind the chat the hook just bound.
+    ledger = Ledger(tmp_path)
+    setup.request(ledger)
+    hook = make_pre_llm_call(tmp_path, COS_ON)
+    _chat_turn(monkeypatch, hook, "-100", "A")
+    setup.start(ledger)
+    setup.start(ledger, "chief_of_staff")
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:A"
+    assert _chat_turn(monkeypatch, hook, "-100", "B", is_first_turn=True) == {"context": ELSEWHERE}
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "A")["context"]
+
+
+def _command_in(monkeypatch, root, chat, thread="", text="setup"):
+    module = ModuleType("gateway.session_context")  # Hermes binds these around plugin commands.
+    ids = {"HERMES_SESSION_PLATFORM": "telegram", "HERMES_SESSION_CHAT_ID": chat, "HERMES_SESSION_THREAD_ID": thread}
+    module.get_session_env = lambda name, default="": ids.get(name, default)
+    monkeypatch.setitem(sys.modules, "gateway.session_context", module)
+    return make_pa_command(root, get_config=COS_ON)(text)
+
+
+def test_pa_setup_reserves_the_chat_it_is_said_in(tmp_path, monkeypatch):
+    # #32 review: the old chat speaking first must not take setup back.
+    ledger = Ledger(tmp_path)
+    setup.request(ledger)
+    hook = make_pre_llm_call(tmp_path, COS_ON)
+    _chat_turn(monkeypatch, hook, "-100", "A")
+    assert _command_in(monkeypatch, tmp_path, "-100", "B").startswith("Setup continues here.")
+    current = setup.state(ledger)
+    assert (current["active_platform"], current["active_chat"]) == (None, "telegram:-100:B")
+    assert _chat_turn(monkeypatch, hook, "-100", "A", is_first_turn=True) == {"context": ELSEWHERE}
+    assert _chat_turn(monkeypatch, hook, "-100", "A") is None
+    assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "B")["context"]
+    current = setup.state(ledger)
+    assert (current["active_platform"], current["active_sender_id"], current["active_chat"]) == ("telegram", "7", "telegram:-100:B")
+    # A first /pa setup reserves its chat too; CLI and Desktop (no chat id) keep next-turn binding.
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    assert _command_in(monkeypatch, fresh, "7") == READY
+    assert setup.state(Ledger(fresh))["active_chat"] == "telegram:7:"
+    other = make_pre_llm_call(fresh, COS_ON)
+    assert _chat_turn(monkeypatch, other, "-200", is_first_turn=True) == {"context": ELSEWHERE}
+    assert "Guided setup is active" in _chat_turn(monkeypatch, other, "7")["context"]

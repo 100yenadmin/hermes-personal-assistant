@@ -27,6 +27,9 @@ def validate(s):
             ZoneInfo(s.get("timezone", ""))
         except (ZoneInfoNotFoundError, ValueError, TypeError):
             raise ValueError("timezone: expected IANA timezone") from None
+    if "preferences" in s:  # Optional per-scenario overrides of the seeded CoS slots.
+        require(cos and isinstance(s["preferences"], dict) and set(s["preferences"]) <= {
+            "cos_daily_time", "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time"}, "preferences")
     groups = [("persona", ("name", "email", "phone", "home_city", "notes"))]
     if not cos:
         groups.append(("trip", ("origin", "destination", "depart_date", "return_date", "travellers")))
@@ -54,7 +57,7 @@ def validate(s):
         require(isinstance(step, dict), prefix)
         require(step.get("type", "chat") in ("chat", "scheduled"), prefix + ".type")
         if step.get("type") == "scheduled":
-            require(cos and step.get("job") in ("cos_daily", "cos_weekly"), prefix + ".job")
+            require(cos and step.get("job") in ("cos_daily", "cos_kickoff", "cos_weekly"), prefix + ".job")
         require(isinstance(step.get("goal"), str) and bool(step["goal"].strip()), prefix + ".goal")
         require(step.get("capability") in caps, prefix + ".capability")
         require(isinstance(step.get("answers"), dict), prefix + ".answers")
@@ -65,10 +68,10 @@ def validate(s):
         if ex.get("packet_is_final"):
             require(isinstance(ex.get("packet_target"), str) and bool(ex["packet_target"]), prefix + ".expect.packet_target")
         if cos:
-            require(ex.get("cos") in ("daily", "silence", "scout", "weekly", "radar_reply"), prefix + ".expect.cos")
-            require((step.get("type") == "scheduled") == (ex["cos"] in ("daily", "silence", "weekly")), prefix + ".type")
+            require(ex.get("cos") in ("daily", "silence", "scout", "kickoff", "weekly", "radar_reply"), prefix + ".expect.cos")
+            require((step.get("type") == "scheduled") == (ex["cos"] in ("daily", "silence", "kickoff", "weekly")), prefix + ".type")
             if step.get("type") == "scheduled":
-                require(step["job"] == ("cos_weekly" if ex["cos"] == "weekly" else "cos_daily"), prefix + ".job")
+                require(step["job"] == {"kickoff": "cos_kickoff", "weekly": "cos_weekly"}.get(ex["cos"], "cos_daily"), prefix + ".job")
         require("final" in ex or ex.get("or_handoff") or "calls" in s or cos, prefix + ".expect.final")
         if "final" in ex:
             for key in ("url_any", "text_any"):

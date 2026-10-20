@@ -140,6 +140,6 @@ def test_native_inventory_and_legacy_exclusions():
     for path in (root / "openclaw.plugin.json", root / "skills/travel-action-pack-manifest/openclaw.plugin.json"):
         legacy = {Path(s).name for s in json.loads(path.read_text())["skills"]}
         assert not native & legacy
-        optional = {"cos-daily", "cos-weekly", "cos-scout", "cos-radar"}
+        optional = {"cos-daily", "cos-kickoff", "cos-weekly", "cos-scout", "cos-radar"}
         assert optional <= legacy
         assert all(inventory == legacy - optional for inventory in inventories)
