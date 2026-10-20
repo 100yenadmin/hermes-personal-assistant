@@ -39,15 +39,15 @@ def _recovery(status: str, capability: str) -> str:
         return "Run one read-only list or readback before relying on account authentication."
     if status == "unverified":
         return "Use one read-only call through the existing integration, then rerun capability discovery."
-    if status == "needs-setup":
+    if status in {"needs-setup", "needs_setup"}:
         return "Complete that integration's existing profile setup, then rerun capability discovery."
     return "Enable an existing Hermes integration for this profile, then rerun capability discovery."
 
 
 def discover(entries: Iterable[Any] | None = None,
              cached_check: Callable[[Callable[..., Any]], bool | None] | None = None,
-             profile_root=None) -> dict[str, Any]:
-    """Describe tool availability without reading config, secrets, or provider data.
+             profile_root=None, *, secret_present=None) -> dict[str, Any]:
+    """Describe tools; check only Browserbase credential presence, never their values.
 
     A registered tool with no check is available. A cached successful check is also
     available; cached failure means setup is needed. A registration whose check has
@@ -55,6 +55,7 @@ def discover(entries: Iterable[Any] | None = None,
     a provider account is authenticated.
     """
 
+    native = entries is None
     discovery_error = None
     if entries is None:
         try:
@@ -98,12 +99,24 @@ def discover(entries: Iterable[Any] | None = None,
             "authentication": "unverified",
             "recovery_action": _recovery(status, capability),
         })
+    from .browserbase import secret
+    present = secret_present or ((lambda name: bool(secret(name))) if native else (lambda name: False))
+    try:
+        configured = all(present(name) for name in ("BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"))
+    except Exception:
+        configured = False
+    status = "available" if configured else "needs_setup"
+    rows.append({"id": "remote_browser", "status": status, "tools": ["pa"],
+                 "reuse": "PA Browserbase live-view handoff", "authentication": "unverified",
+                 "evidence": "browser_session operation; credentials present" if configured else
+                 "add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID to the profile's secrets",
+                 "recovery_action": _recovery(status, "remote_browser")})
     counts = Counter(row["status"] for row in rows)
     result = {
         "capabilities": rows,
         "setup_skill": "personal-assistant:personal-assistant",
         "summary": {state: counts.get(state, 0) for state in
-                    ("available", "needs-setup", "unverified", "unavailable")},
+                    ("available", "needs-setup", "needs_setup", "unverified", "unavailable")},
         "authentication": "Capability discovery does not prove provider authentication.",
         "jobs_started": False,
     }
