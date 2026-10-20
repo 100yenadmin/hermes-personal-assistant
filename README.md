@@ -118,6 +118,15 @@ payment-readiness guidance, reservations, rides, food delivery, check-in,
 weather, and itinerary support. These are optional domain modules over the same
 PA control plane.
 
+Chief of Staff adds four optional, mode-gated skills: `cos-daily` (one useful
+recommendation or silence), `cos-weekly` (priorities and outcomes), `cos-scout`
+(adopt versus build), and `cos-radar` (one benchmark offer per week). Enable
+them with `/pa mode chief-of-staff on`; `/pa mode chief-of-staff off` turns the
+mode off. Their `pa_mode: chief_of_staff` marker gates native registration.
+The `cos_daily` and `cos_weekly` routines require separate owner acceptance;
+enabling the mode alone starts no jobs. Follow-ups use only owner-approved
+HeartBeat 2.0 `at` wakes in the same chat.
+
 ## Installation
 
 Install one reviewed full Git commit and leave it disabled while inspecting the

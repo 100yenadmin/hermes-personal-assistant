@@ -18,6 +18,9 @@
     "personal-assistant-travel",
     "addon:travel-action-pack"
   ],
+  "optional_skills": {
+    "chief_of_staff": ["cos-daily", "cos-weekly", "cos-scout", "cos-radar"]
+  },
   "required_skills": [
     "agent-wallet-payments",
     "airline-check-in",
