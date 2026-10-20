@@ -4,6 +4,7 @@ import importlib.metadata
 import json
 import os
 from pathlib import Path
+import subprocess
 
 from packaging.requirements import Requirement
 
@@ -142,6 +143,25 @@ def dependency_status(requirements):
     return sorted(present), sorted(missing)
 
 
+def checkout_state(root):
+    # Prevent git status from refreshing/writing the index during diagnostics.
+    env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            text=True, capture_output=True, env=env, timeout=10,
+        )
+        status = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+            text=True, capture_output=True, env=env, timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None, None
+    if head.returncode != 0 or status.returncode != 0:
+        return None, None
+    return head.stdout.strip() or None, bool(status.stdout.strip())
+
+
 def probe(home, hermes_home):
     chosen_kind = None
     chosen_root = None
@@ -153,13 +173,24 @@ def probe(home, hermes_home):
             chosen_kind, chosen_root, manifest_path, manifest = kind, root, path, data
             break
 
+    raw_dependencies = manifest.get("python_dependencies")
+    if raw_dependencies is None:
+        raw_dependencies = []
+    if not isinstance(raw_dependencies, list):
+        return {
+            "ok": False,
+            "installed": chosen_root is not None,
+            "install_ok": False,
+            "invalid_reason": f"python_dependencies must be a list (got {type(raw_dependencies).__name__})",
+        }
+
     rel_path, rel = release_info(chosen_root) if chosen_root else (None, {})
     metadata_path, metadata = install_metadata(hermes_home)
     enabled, config_path = enabled_state(hermes_home)
     skills = skill_presence(chosen_root, home, chosen_kind)
     missing_skills = sorted(name for name, ok in skills.items() if not ok)
     declared_dependencies = [
-        item.strip() for item in (manifest.get("python_dependencies") or [])
+        item.strip() for item in raw_dependencies
         if isinstance(item, str) and item.strip()
     ]
     dependencies_present, dependencies_missing = dependency_status(declared_dependencies)
@@ -169,12 +200,26 @@ def probe(home, hermes_home):
     source_kind = "not_installed"
     source = None
     pinned = None
+    checkout_commit = checkout_dirty = metadata_matches_checkout = None
+    source_identity_reason = None
     if chosen_kind == "native":
         if metadata and chosen_root and (chosen_root / ".git").exists():
             source_kind = "native_git"
             source = metadata.get("source")
             pinned = metadata.get("pinned") if isinstance(metadata.get("pinned"), bool) else None
             observed_commit = metadata.get("revision")
+            checkout_commit, checkout_dirty = checkout_state(chosen_root)
+            if checkout_commit:
+                metadata_matches_checkout = (
+                    isinstance(observed_commit, str)
+                    and observed_commit.lower() == checkout_commit.lower()
+                )
+            if checkout_dirty:
+                source_identity_reason = "local_edits"
+            elif metadata_matches_checkout is False:
+                source_identity_reason = "source_mismatch"
+            elif checkout_commit is None or checkout_dirty is None:
+                source_identity_reason = "checkout_unavailable"
         elif rel_path and rel_path.name == ".travel-agent-skills-release.json":
             source_kind = "native_archive"
             source = None
@@ -191,6 +236,13 @@ def probe(home, hermes_home):
     installed = chosen_root is not None
     identity_ok = observed_id == NATIVE_ID if chosen_kind == "native" else observed_id in {PACKAGE_NAME, *LEGACY_ALIASES}
     install_ok = bool(installed and observed_version and identity_ok and not missing_skills)
+    if source_identity_reason in {"local_edits", "source_mismatch"}:
+        install_ok = False
+    # Local config and state files are untracked, so only tracked edits or a moved HEAD
+    # make the checkout's identity unknown; an unreadable checkout keeps the metadata answer.
+    source_identity_known = bool(isinstance(observed_commit, str) and observed_commit)
+    if source_identity_reason in {"local_edits", "source_mismatch"}:
+        source_identity_known = False
     dependencies_ok = not dependencies_missing
     return {
         "ok": bool(install_ok and dependencies_ok),
@@ -215,7 +267,12 @@ def probe(home, hermes_home):
         "release_info_path": str(rel_path) if rel_path else None,
         "install_metadata_path": str(metadata_path),
         "install_metadata_present": bool(metadata),
-        "source_identity_known": bool(isinstance(observed_commit, str) and observed_commit),
+        "source_identity_known": source_identity_known,
+        "checkout_commit": checkout_commit,
+        "checkout_dirty": checkout_dirty,
+        "metadata_matches_checkout": metadata_matches_checkout,
+        "source_identity_reason": source_identity_reason,
+        "migration_required": source_kind == "legacy_openclaw",
         "config_path": str(config_path),
         "legacy_alias": observed_id in LEGACY_ALIASES,
         "legacy_aliases": LEGACY_ALIASES,
