@@ -98,7 +98,7 @@ def test_kickoff_reads_the_last_closeout_and_sets_one_focus():
     assert "`last_closeout_note`" in text
     assert 'pa(operation="context", data={"kind":"action","action_id":"<last_closeout_note>"})' in text
     assert "no closeout recorded" in text and "infer nothing" in text
-    assert "`cos:kickoff:<local ISO week>`" in text and "`closeout_ref`" in text
+    assert "`cos:kickoff:<week>`" in text and "`review_at` (the next closeout)" in text and "`closeout_ref`" in text
     assert "exactly one focus" in text
     assert "Radar stays in the weekly closeout" in text and "only if the last closeout recorded one" in text
     assert "`[SILENT]`" in text and "nothing new" in text
@@ -110,8 +110,8 @@ def test_kickoff_reads_the_last_closeout_and_sets_one_focus():
 def test_closeout_records_carry_over_for_the_kickoff():
     text = " ".join((ROOT / "skills/cos-weekly/SKILL.md").read_text().split())
     assert "# Chief of Staff weekly closeout" in text
-    assert "`carry_over`" in text and "`cos:weekly:<local ISO week>`" in text
+    assert "`carry_over`" in text and "`cos:weekly:<week>`" in text and "since the previous closeout" in text
     assert "personal-assistant:cos-radar" in text
     state = " ".join(STATE_REFERENCE.read_text().split())
-    assert "all five CoS skills" in state and "kickoff `cos:kickoff:<local ISO week>`" in state
+    assert "all five CoS skills" in state and "kickoff `cos:kickoff:<week of the next closeout>`" in state
     assert "cos-kickoff" in state and "`carry_over`" in state

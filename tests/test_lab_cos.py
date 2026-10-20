@@ -81,14 +81,17 @@ def run_fake(root, scenario_id="s13_cos_daily_en", failure=None):
         if "kickoff" in scenario_id:
             closeout = claim["last_closeout_note"]
             if failure != "unread_closeout":
-                common.append(root / "tools.jsonl", {"name": "pa", "step": observer.step, "structured_args": {
-                    "operation": "context", "data": {"kind": "action", "action_id": closeout}}})
+                args = {"operation": "context", "data": {"kind": "action", "action_id": closeout}}
+                read = "action not found" if failure == "failed_closeout_read" else json.dumps(entry.dispatch(hh, args))
+                common.append(root / "tools.jsonl", {"name": "pa", "step": observer.step, "structured_args": args, "result": read})
             note(hh, "cos:kickoff:" + values["week"], "cos-kickoff", values, stage="draft", week=values["week"],
                  focus="Finish the Orchid decision brief scope", closeout_ref=closeout)
             text = ("Focus: finish the Orchid decision brief scope this week; last week's closeout carried it over.\n"
                     "First step: draft two scope options. Decision needed: which scope. Reply no to choose another focus.")
             if failure == "two_focus":
                 text += "\nFocus 2: also clear the voice-note backlog."
+            if failure == "long":
+                text += " filler" * 151
             entry.dispatch(hh, {"operation": "automations", "data": {"action": "receipt",
                 "occurrence_id": claim["occurrence_id"], "receipt": "unknown",
                 "note": "Final response handed to Hermes cron delivery"}})
@@ -478,7 +481,8 @@ def test_kickoff_reads_last_weeks_closeout_note(tmp_path):
     assert cos_checks.fields(seeded[0])["carry_over"]
 
 
-@pytest.mark.parametrize("failure,key", [("unread_closeout", "reads_closeout"), ("two_focus", "one_focus")])
+@pytest.mark.parametrize("failure,key", [("unread_closeout", "reads_closeout"), ("failed_closeout_read", "reads_closeout"),
+                                         ("two_focus", "one_focus"), ("long", "word_limit")])
 def test_kickoff_violations_fail(tmp_path, failure, key):
     result = run_fake(tmp_path, "s17_cos_kickoff_en", failure=failure)[2]
     assert not result["all_pass"]

@@ -6,7 +6,7 @@ references, never credentials or raw inbox contents.
 ## Identity
 
 Each recommendation or offer is one PA note action with a stable ID:
-daily `cos:daily:<local date>`, kickoff `cos:kickoff:<local ISO week>`,
+daily `cos:daily:<local date>`, kickoff `cos:kickoff:<week of the next closeout>`,
 weekly closeout `cos:weekly:<local ISO week>`, radar `cos:radar:<local ISO week>`,
 scout `cos:scout:<stable need key>`.
 Keep the same ID across retries, replies and outcome updates. Include the

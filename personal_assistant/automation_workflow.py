@@ -10,6 +10,7 @@ from .modes import config_getter, cos_enabled
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 WEEKLY_COS = ("cos_kickoff", "cos_weekly")  # Only these kinds have a `<kind>_day` preference.
+WEEKLY_SLOT_KEYS = {"cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time"}
 
 
 def preferences(ledger, changes=None):
@@ -37,6 +38,8 @@ def preferences(ledger, changes=None):
             if value and (key in changes or "quiet_hours" in changes) and (
                     (value >= start or value < end) if start > end else start <= value < end):
                 raise ValueError(f"{key} {value} is inside quiet hours {start}-{end}, so that report would never be sent; choose a time outside quiet hours")
+        if WEEKLY_SLOT_KEYS & set(changes) and _slot(merged, "cos_kickoff") == _slot(merged, "cos_weekly"):
+            raise ValueError("the weekly kickoff and closeout cannot share a day and time; choose a kickoff slot before or after the closeout")
         prior = ledger.put("action", "pa:preferences", changes, action_type="preferences", status="configured")
     return (prior or {}).get("fields", {})
 
@@ -230,7 +233,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
                 closeout = _latest_closeout(prefs, local, zones.pop() if len(zones) == 1 and None not in zones else zone)
                 # A missed kickoff catches up within its ISO week, but never once a
                 # later closeout slot in that week has come.
-                if closeout > _week_slot(local, slot, zone):
+                if closeout >= _week_slot(local, slot, zone):
                     return {"wakeAgent": False, "reason": "after_cos_closeout"}
         elif moment_slot[1] < prefs.get(clock_key, auto.DEFAULTS[clock_key]):
             return {"wakeAgent": False, "reason": "before_cos_time"}
@@ -267,8 +270,15 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     result = {"wakeAgent": claim["claimed"], "occurrence_id": occurrence,
               "destination": next(iter(destinations)), "due_sources": check.get("due_sources", []),
               "due_action_ids": [a["action_id"] for a in due]}
-    if kind == "cos_kickoff":  # Computed here so the model never does ISO-week arithmetic.
-        result["last_closeout_note"] = "cos:weekly:%04d-W%02d" % closeout.date().isocalendar()[:2]
+    # Computed here so the model never does ISO-week arithmetic. A kickoff's week is
+    # the week of the next closeout, which reads it; a closeout's is its own week.
+    if kind == "cos_kickoff":
+        review_at = closeout + dt.timedelta(days=7)
+        result.update(last_closeout_note="cos:weekly:%04d-W%02d" % closeout.date().isocalendar()[:2],
+                      week="%04d-W%02d" % review_at.date().isocalendar()[:2], timezone=zone,
+                      review_at=review_at.isoformat())
+    elif kind == "cos_weekly":
+        result.update(week=logical, timezone=zone)
     return result
 
 

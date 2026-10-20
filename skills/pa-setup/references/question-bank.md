@@ -98,7 +98,7 @@ of the recommendation; defaults are suggestions. Skip/later/you decide still wor
 | `cos_daily_time` | “When would a daily suggestion help?” | Keep the existing preference, otherwise 09:30 in the confirmed timezone. | `cos_daily_time` (HH:MM) in PA preferences. |
 | `cos_kickoff_slot` | “When should we kick off the week?” | Keep the existing slot, otherwise Monday 11:00 in the confirmed timezone, moved later if it falls inside quiet hours. | `cos_kickoff_day` (mon..sun), `cos_kickoff_time` (HH:MM). |
 | `cos_weekly_slot` | “When should we close out the week?” | Keep the existing slot, otherwise Friday 15:00 in the confirmed timezone, moved earlier if it falls inside quiet hours. | `cos_weekly_day` (mon..sun), `cos_weekly_time` (HH:MM). |
-| `cos_schedules` | “Which would you like in this chat: the daily suggestion, the weekly kickoff, the weekly closeout, or none?” | None until wanted; explain daily may stay silent, the kickoff sets one focus from the last closeout, and the closeout includes radar. | Ask about daily, kickoff and closeout separately: each schedule needs its own explicit yes before its rule and suggestion; Hermes acceptance still enables the job. |
+| `cos_schedule_choices` | “Which would you like in this chat: the daily suggestion, the weekly kickoff, the weekly closeout, or none?” | None until wanted; explain daily may stay silent, the kickoff sets one focus from the last closeout, and the closeout includes radar. | Ask about daily, kickoff and closeout separately: each schedule needs its own explicit yes before its rule and suggestion; Hermes acceptance still enables the job. |
 
 Record these IDs through setup `record`; include both sections' saved answers
 in the same review. Times alone never approve schedules. Confirm a missing

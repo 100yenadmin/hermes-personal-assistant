@@ -26,7 +26,7 @@ follow-up protocol. Every `references/...` path is relative to this skill direct
    any radar offer it recorded. If the note is missing, say "no closeout recorded"
    and infer nothing: never rebuild a closeout from memory, chat or calendar volume.
 2. Read the user's saved priorities from USER.md and the existing operating
-   manual. Name the local week and timezone. Missing priorities stay unknown; ask
+   manual. Name the script's `week` and `timezone`. Missing priorities stay unknown; ask
    in chat rather than infer them.
 3. Read `pa(operation="next_action", data={"limit":20})` for open loops. Recover
    selected ones with
@@ -37,7 +37,7 @@ follow-up protocol. Every `references/...` path is relative to this skill direct
 
 ## Set exactly one focus
 
-Choose exactly one focus for the local ISO week: the saved priority that the
+Choose exactly one focus until the next closeout: the saved priority that the
 carry-over, open loops and this week's events most need. Give the evidence, the
 first executable step and the decision the owner still has to make. Never list
 several focuses, rank every priority or give generic planning advice.
@@ -45,10 +45,10 @@ several focuses, rank every priority or give generic planning advice.
 Radar stays in the weekly closeout. Mention a benchmark or tool proposal only if
 the last closeout recorded one, as recorded; never make a new radar offer here.
 
-Record the kickoff on the `cos:kickoff:<local ISO week>` note with every field the
+Record the kickoff on the `cos:kickoff:<week>` note (the script's `week`) with every field the
 reference lists, plus `week`, `focus` (one string) and `closeout_ref` (the closeout
-note ID, or `"none"` when no closeout was recorded). Set `review_at` to this week's
-closeout slot, `stage: "draft"` and `outcome: "unknown"`.
+note ID, or `"none"` when no closeout was recorded). Set `review_at` to the script's
+`review_at` (the next closeout), `stage: "draft"` and `outcome: "unknown"`.
 
 ## Deliver or stay silent
 

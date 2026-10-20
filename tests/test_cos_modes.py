@@ -180,8 +180,8 @@ def test_cos_false_gates(tmp_path, case, reason, kind):
 @pytest.mark.parametrize("kind", COS)
 def test_cos_occurrence_once(tmp_path, kind):
     ledger = ledger_at(tmp_path, kind)
-    preferences(ledger, {"cos_daily_time": "09:45", "cos_weekly_day": "wed", "cos_weekly_time": "10:15",
-                         "cos_kickoff_day": "wed", "cos_kickoff_time": "10:15"})
+    # Kickoff and closeout may not share a slot, so each weekly kind gets its own Wednesday slot.
+    preferences(ledger, {"cos_daily_time": "09:45"} if kind == "cos_daily" else {kind + "_day": "wed", kind + "_time": "10:15"})
     now = dt.datetime.fromisoformat("2026-12-30T10:15:00+09:00")
     before = now.replace(hour=9, minute=44) if kind == "cos_daily" else now - dt.timedelta(minutes=1)
     assert not cron_precheck(ledger, kind, enabled=True, moment=before)["wakeAgent"]
@@ -484,6 +484,33 @@ def test_kickoff_reads_a_closeout_rule_in_another_zone(tmp_path):
     preferences(ledger, {"cos_weekly_day": "fri"})
     assert cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-23T06:00:00")) == {
         "wakeAgent": False, "reason": "after_cos_closeout"}
+
+
+def test_equal_kickoff_and_closeout_slots_are_refused(tmp_path):
+    ledger = Ledger(tmp_path)
+    with pytest.raises(ValueError, match="cannot share a day and time"):
+        preferences(ledger, {"cos_kickoff_day": "fri", "cos_kickoff_time": "15:00"})  # The default closeout slot.
+    preferences(ledger, {"cos_kickoff_day": "fri", "cos_kickoff_time": "14:00"})
+
+
+@pytest.mark.parametrize("prefs,moment,week,review_at", [
+    ({}, "2026-10-19T11:00:00+09:00", "2026-W43", "2026-10-23T15:00:00+09:00"),  # Monday kickoff, Friday closeout.
+    ({"cos_kickoff_day": "sun", "cos_kickoff_time": "18:00"}, "2026-10-25T18:00:00+09:00", "2026-W44", "2026-10-30T15:00:00+09:00"),
+    ({"cos_weekly_day": "thu", "cos_weekly_time": "16:00"}, "2026-12-28T11:00:00+09:00", "2026-W53", "2026-12-31T16:00:00+09:00"),
+])
+def test_kickoff_names_the_week_of_the_next_closeout(tmp_path, prefs, moment, week, review_at):
+    # The kickoff note is keyed by the week of the closeout that reads it, so a Sunday kickoff serves the coming week.
+    ledger = ledger_at(tmp_path, "cos_kickoff")
+    if prefs:
+        preferences(ledger, prefs)
+    result = cron_precheck(ledger, "cos_kickoff", enabled=True, moment=dt.datetime.fromisoformat(moment))
+    assert result["wakeAgent"] and (result["week"], result["review_at"], result["timezone"]) == (week, review_at, "Asia/Tokyo")
+    (tmp_path / "c").mkdir()
+    other = ledger_at(tmp_path / "c", "cos_weekly")
+    if prefs:
+        preferences(other, prefs)
+    closeout = cron_precheck(other, "cos_weekly", enabled=True, moment=dt.datetime.fromisoformat(review_at))
+    assert closeout["week"] == week  # The closeout reads cos:kickoff:<its own week>.
 
 
 def test_daily_tick_needs_no_day_key(tmp_path):

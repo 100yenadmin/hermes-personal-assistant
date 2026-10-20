@@ -21,7 +21,7 @@ Every `references/...` path is relative to this skill directory.
 ## Compare intent with evidence
 
 1. Read the user's stated priorities from USER.md and the existing operating
-   manual. Name the local week and timezone. Missing priorities stay unknown;
+   manual. Name the script's `week` and `timezone`. Missing priorities stay unknown;
    ask in chat rather than infer them from calendar volume.
 2. Read `pa(operation="next_action", data={"limit":20})` for open loops.
    Recover selected actions with
@@ -30,8 +30,9 @@ Every `references/...` path is relative to this skill directory.
    Report gaps in coverage; never treat a partial read as a complete week.
 3. Retrieve CoS notes through `pa(operation="context", data={"kind":"action","limit":20,"offset":0})`.
    Follow `next_offset` and read each relevant `cos:` action in detail as the
-   reference explains. Review last week's recommendations, improvement proposals,
-   research decisions and benchmark offers, including follow-up dates now due.
+   reference explains. Review what came since the previous closeout: the daily
+   recommendations, this week's `cos:kickoff:<week>` focus, the last closeout's
+   proposal, and older proposals, research decisions or benchmark offers now due.
    Report `used`, `declined`, `ignored`, and `unknown` separately with evidence.
    A yes or a booked slot is not proof that the change helped.
 4. Compare priorities with what happened and what remains stuck. Explain one
@@ -47,7 +48,7 @@ Offer no more than one batched improvement proposal, in this exact format:
 - Evidence: the observed failure, affected priority, source and expected benefit.
 - Rollback: how to restore the old wording or process if it does not help.
 
-Record it on the `cos:weekly:<local ISO week>` note with every field the reference
+Record it on the `cos:weekly:<week>` note (the script's `week`) with every field the reference
 lists, including `benefit` and `review_at` (next week's slot), as `stage: "draft"`,
 with `outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
 wait for explicit apply approval in chat. Keep `draft`, `approved`, `applied`

@@ -9,7 +9,7 @@ import pytest
 
 
 COS = ("cos_priorities", "cos_radar_topics", "cos_daily_time", "cos_kickoff_slot", "cos_weekly_slot",
-       "cos_schedules")
+       "cos_schedule_choices")
 ANSWER = {"text": "Synthetic preference", "source": "user"}
 
 
