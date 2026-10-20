@@ -55,6 +55,11 @@ def request(ledger, section="core"):
                  active_platform=None, active_sender_id=None, active_chat=None, proposal={"writes": []})
 
 
+def continue_here(ledger):
+    """Unbind active setup so the next human turn binds it; section, answers and proposal stay."""
+    return _save(ledger, state(ledger)["status"], active_platform=None, active_sender_id=None, active_chat=None)
+
+
 def start(ledger, section=None, *, active_platform=None, active_sender_id=None, active_chat=None):
     if section is not None:
         _section(section)
@@ -193,7 +198,7 @@ def fresh_check(ledger, status, session_id=None):
     if current["status"] == "checked":
         raise ValueError("fresh check already passed")
     pending = current["fresh_check"].get("status") in {"pending", "failed"}
-    if current["status"] in {"requested", "in_progress", "proposed"} and pending:
+    if current["status"] in {"requested", "in_progress", "proposed"} and current["fresh_check"].get("status"):
         raise ValueError("setup was reopened (new review or proposal); propose and apply again before the fresh check")
     if current["status"] != "applied":
         raise ValueError("no fresh check is pending; apply setup first")

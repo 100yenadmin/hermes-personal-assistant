@@ -640,7 +640,7 @@ def test_setup_note_stays_in_its_topic_and_moves_with_pa_setup(tmp_path, monkeyp
     # A topic reset keeps the chat key, so the new session still gets the interview.
     assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "A", session_id="a2",
                                                   is_first_turn=True)["context"]
-    assert make_pa_command(tmp_path)("setup") == READY  # /pa setup in topic B.
+    assert make_pa_command(tmp_path)("setup").startswith("Setup continues here.")  # /pa setup in topic B.
     assert "Guided setup is active" in _chat_turn(monkeypatch, hook, "-100", "B", session_id="b")["context"]
     assert setup.state(ledger)["active_chat"] == "telegram:-100:B"
     assert _chat_turn(monkeypatch, hook, "-100", "A", session_id="a3", is_first_turn=True) == {"context": ELSEWHERE}
@@ -690,3 +690,61 @@ def test_fresh_check_note_is_not_scoped_to_the_setup_chat(tmp_path, monkeypatch)
     hook = make_pre_llm_call(tmp_path, lambda k, d: d)
     note = _chat_turn(monkeypatch, hook, "-100", "B", session_id="b", is_first_turn=True)["context"]
     assert note.startswith("Setup was saved in an earlier session.")
+
+
+COS_ON = lambda k, d=None: {"chief_of_staff": True} if k == "modes" else d
+
+
+def test_pa_setup_continues_the_pilots_cos_proposal_in_this_chat(tmp_path, monkeypatch):
+    # The live rc.1 row: a proposed Chief of Staff setup bound to platform and sender, no chat (#32 review).
+    ledger = Ledger(tmp_path)
+    writes = [{"target": "memory", "text": "Synthetic"}]
+    ledger.put("action", "pa:setup", {"status": "proposed", "requested_section": "chief_of_staff",
+                                      "proposal": {"writes": writes}, "active_platform": "telegram", "active_sender_id": "7"})
+    hook = make_pre_llm_call(tmp_path, COS_ON)
+    assert _chat_turn(monkeypatch, hook, "-100", "CoS", is_first_turn=True) == {"context": ELSEWHERE}
+    assert make_pa_command(tmp_path, get_config=COS_ON)("setup").startswith("Setup continues here.")
+    current = setup.state(ledger)
+    assert (current["status"], current["requested_section"], current["proposal"]["writes"]) == ("proposed", "chief_of_staff", writes)
+    note = _chat_turn(monkeypatch, hook, "-100", "CoS")["context"]
+    assert "wait for the user to approve or edit the review" in note
+    assert setup.state(ledger)["active_chat"] == "telegram:-100:CoS"
+    assert _chat_turn(monkeypatch, hook, "-100", "Travel", is_first_turn=True) == {"context": ELSEWHERE}
+
+
+def test_explicit_section_still_rerequests_and_review_mode_continues(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, None)  # /pa setup review
+    hook = make_pre_llm_call(tmp_path, COS_ON)
+    _chat_turn(monkeypatch, hook, "-100", "A")
+    make_pa_command(tmp_path, get_config=COS_ON)("setup")
+    assert setup.state(ledger)["requested_mode"] == "review"  # A bare /pa setup keeps review mode.
+    make_pa_command(tmp_path, get_config=COS_ON)("setup chief-of-staff")
+    assert (setup.state(ledger)["requested_section"], setup.state(ledger)["requested_mode"]) == ("chief_of_staff", None)
+
+
+def test_cos_off_setup_note_stays_in_its_chat(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, "chief_of_staff")
+    _chat_turn(monkeypatch, make_pre_llm_call(tmp_path, COS_ON), "-100", "A")  # Bound to topic A while on.
+    hook = make_pre_llm_call(tmp_path, lambda k, d=None: d)  # Then Chief of Staff mode is turned off.
+    assert "stopped while the mode is off" in _chat_turn(monkeypatch, hook, "-100", "A")["context"]
+    assert _chat_turn(monkeypatch, hook, "-100", "B") is None
+    assert _chat_turn(monkeypatch, hook, "-100", "B", is_first_turn=True) == {"context": ELSEWHERE}
+    assert "stopped while the mode is off" in _chat_turn(monkeypatch, hook, "-100", "A")["context"]
+
+
+def test_fresh_check_after_a_checked_setup_is_reopened_names_the_reopen(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "A")
+    setup.fresh_check(ledger, "passed", "B")
+    for reopen in (lambda: setup.request(ledger, None), lambda: setup.propose(ledger, [])):
+        reopen()
+        with pytest.raises(ValueError, match="setup was reopened"):
+            setup.fresh_check(ledger, "passed", "C")
+    (tmp_path / "fresh").mkdir()
+    fresh = Ledger(tmp_path / "fresh")
+    setup.request(fresh)
+    with pytest.raises(ValueError, match="apply setup first"):
+        setup.fresh_check(fresh, "passed", "C")
