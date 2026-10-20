@@ -152,6 +152,12 @@ def _inspect_public(selected, choices):
     projections = [list(range(len(texts)))]
     if omitted_name is not None:
         projections.append([index for index in range(len(texts)) if index != omitted_name])
+    # The prompt presents decisions and allowed facts separately from identity
+    # metadata. A display/counterpart name must not mask a split across these
+    # two substantive groups; letters WITHIN a retained fact still break chains.
+    facts = [index for index, path in enumerate(paths) if path.startswith('may_share[')]
+    decisions = [index for index, path in enumerate(paths) if path.startswith('limits.')]
+    projections.extend([facts + decisions, decisions + facts])
     restricted = set()
     for indices in projections:
         restricted.update(indices[index] for index in restricted_phone_fields(

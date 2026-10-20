@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sqlite3
 import time
+from typing import cast
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
@@ -16,7 +17,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 from .conversation_delivery.config import load_settings, require_under_home
 from .conversation_delivery.packet import serialize_packet, validate_packet
 from .conversation_delivery.store import QueueError, QueueStore
-from .phone_safety import restricted_phone_fields, restricted_phone_text
+from .phone_safety import restricted_phone_spans
 from .privacy import clean
 
 MAX_RESPONSE = 1024 * 1024
@@ -59,10 +60,47 @@ def _raw_text(value, *, limit=8000):
 
 
 def _text(value, *, limit=8000):
-    value = _raw_text(value, limit=limit)
-    if restricted_phone_text(value):
-        return '[Restricted detail omitted.]'
-    return clean(value)
+    return _sanitize_texts([_raw_text(value, limit=limit)], [[0]])[0]
+
+
+_OMITTED = '[Restricted detail omitted.]'
+_PRIVACY_MARKERS = (_OMITTED, '[Restricted detail omitted; consult the source dashboard.]',
+                    '[restricted link omitted]')
+
+
+def _redact_spans(text, spans):
+    """Union overlapping/adjacent original intervals; keep all other speech."""
+    merged = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+        else:
+            merged.append((start, end))
+    for start, end in reversed(merged):
+        text = text[:start] + _OMITTED + text[end:]
+    return text
+
+
+def _sanitize_texts(texts: list[str], projections: list[list[int]]) -> list[str]:
+    # Recheck actual sanitized projections: cleaning can remove an intervening
+    # value. Generated omission markers must not become artificial word barriers.
+    sanitized = list(texts)
+    for _ in range(8):
+        inspection = []
+        for text in sanitized:
+            for marker in _PRIVACY_MARKERS:
+                text = text.replace(marker, ' ' * len(marker))  # Offsets unchanged.
+            inspection.append(text)
+        spans = [[] for _ in sanitized]
+        for indices in projections:
+            selected = restricted_phone_spans([inspection[index] for index in indices])
+            for index, part in zip(indices, selected):
+                spans[index].extend(part)
+        filtered = [cast(str, clean(_redact_spans(text, part))) for text, part in zip(sanitized, spans)]
+        if filtered == sanitized:
+            return filtered
+        sanitized = filtered
+    raise PollError('call_evidence_privacy_limit')
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -151,26 +189,14 @@ def terminal_evidence(data, agent_id, conversation_id):
     originals = [turn['text'] for turn in transcript] + [summary]
     if sum(len(text.encode('utf-8')) for text in originals) > MAX_EVIDENCE:
         raise PollError('call_evidence_too_large')
-    # Inspect original content BEFORE cleaning/escaping/splitting, then recheck
-    # the actual sanitized projection: removing a sensitive intervening field
-    # can bring previously separated fragments together. Bound the work and fail
-    # closed rather than exporting a partially filtered adversarial chain.
-    sanitized = originals
-    for _ in range(8):
-        restricted = set()
-        # Canonical queue JSON emits summary first; provider detail presents it
-        # last. Also inspect each speaker without interleaved numeric prompts.
-        for speaker in (None, 'pa', 'them'):
-            turns = [index for index, turn in enumerate(transcript) if speaker is None or turn['who'] == speaker]
-            for indices in (turns + [len(transcript)], [len(transcript)] + turns):
-                restricted.update(indices[index] for index in restricted_phone_fields([sanitized[i] for i in indices]))
-        filtered = ['[Restricted detail omitted.]' if index in restricted else clean(text)
-                    for index, text in enumerate(sanitized)]
-        if filtered == sanitized:
-            break
-        sanitized = filtered
-    else:
-        raise PollError('call_evidence_privacy_limit')
+    # Original speech before cleaning/escaping/splitting, plus canonical queue
+    # summary-first/last and each speaker's projection (interleaved prompts must
+    # not hide a split card). All projections contribute mapped SPANS, not turns.
+    projections = []
+    for speaker in (None, 'pa', 'them'):
+        turns = [index for index, turn in enumerate(transcript) if speaker is None or turn['who'] == speaker]
+        projections.extend([turns + [len(transcript)], [len(transcript)] + turns])
+    sanitized = _sanitize_texts(originals, projections)
     for turn, text in zip(transcript, sanitized):
         turn['text'] = text
     summary = sanitized[-1]

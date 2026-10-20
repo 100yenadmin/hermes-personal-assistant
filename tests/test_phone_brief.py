@@ -140,17 +140,19 @@ def test_payment_card_values_never_reach_any_compiled_field(value, field):
         compile_brief(brief)
 
 
-def test_approved_e164_callback_is_preserved_only_in_exact_allowed_fact():
+def test_approved_e164_callback_is_preserved_as_a_fact_but_never_as_a_display_name():
     brief = card()
     callback = 'Callback number: +1234567890123'
     brief['may_share'] = [callback]
     payload = compile_brief(brief)
     assert callback in payload['dynamic_variables']['pa_allowed_facts']
     assert callback in payload['conversation_config_override']['agent']['prompt']['prompt']
-    # Do not let a label embedded in the name or another field become a bypass.
+    # A non-card callback used as a name gets the fixed generic disclosure; it
+    # cannot become a spoken name merely because its fact was owner-approved.
     brief['on_behalf_of'] = callback
-    with pytest.raises(ValueError, match='restricted'):
-        compile_brief(brief)
+    first = compile_brief(brief)['conversation_config_override']['agent']['first_message']
+    assert first == calls.disclosure('en')
+    assert callback not in first
 
 
 def test_callback_label_cannot_launder_a_card_value():

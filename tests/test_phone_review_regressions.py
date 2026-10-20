@@ -52,9 +52,9 @@ def queued_evidence(poller, identity='conv_fixture'):
     return json.loads(''.join(packet['facts'][0]['value'] for packet in saved))
 
 
-@pytest.mark.parametrize('separator', ['.', '/', ',', ':', '_', '\u2212', '\u2022', '🙂', 'x', '\t', '\u00a0'])
+@pytest.mark.parametrize('separator', ['.', '/', ',', ':', '_', '\u2212', '\u2022', '🙂', '\u200b', '\t', '\u00a0'])
 @pytest.mark.parametrize('field', ['may_share', 'on_behalf_of', 'purpose', 'counterpart', 'choices'])
-def test_all_separator_classes_refused_in_every_exported_field(separator, field):
+def test_all_nonletter_separator_classes_refused_in_every_exported_field(separator, field):
     brief = card()
     value = separator.join(['4111', '1111', '1111', '1111'])
     if field == 'may_share':
@@ -179,8 +179,8 @@ def test_invalid_typed_fact_cannot_be_exported(fact):
         compile_brief(brief)
 
 
-@pytest.mark.parametrize('separator', ['.', '/', ',', ':', '_', '\u2212', '🙂', 'x'])
-def test_queue_redacts_all_separator_classes_in_turn_and_summary(tmp_path, separator):
+@pytest.mark.parametrize('separator', ['.', '/', ',', ':', '_', '\u2212', '🙂', '\u200b'])
+def test_queue_redacts_all_nonletter_separator_classes_in_turn_and_summary(tmp_path, separator):
     value = separator.join(['4111', '1111', '1111', '1111'])
     item = detail()
     item['transcript'][0]['message'] = value
@@ -431,3 +431,146 @@ def test_ordinary_typed_callback_and_calendar_facts_compile_together():
                        'date_range': {'start': '2026-11-21', 'end': '2026-11-22'},
                        'time_range': {'start': '18:30', 'end': '20:00'}}
     assert compile_brief(brief)['type'] == 'conversation_initiation_client_data'
+
+
+@pytest.mark.parametrize('letter', ['x', 'é', '한', '界', '𝕏'])
+def test_unicode_letters_break_card_candidates_within_and_between_fields(letter):
+    assert not phone_safety.phone_card_spans(['41111111' + letter + '11111111'])[0]
+    assert not any(phone_safety.phone_card_spans(['41111111', letter, '11111111']))
+
+
+def test_mapped_spans_do_not_swallow_words_between_distinct_card_candidates():
+    first, second = '4111.1111.1111.1111', '3782/822463/10005'
+    text = f'Before {first}; book a table at 19:00, then {second}. Thank you.'
+    spans = phone_safety.phone_card_spans([text])[0]
+    assert [text[start:end] for start, end in spans] == [first, second]
+
+
+@pytest.mark.parametrize('split', [False, True])
+def test_queue_redacts_only_implicated_card_spans_and_preserves_booking_context(tmp_path, split):
+    item = detail()
+    if split:
+        messages = ['Table for three; 4111.1111', '1111.1111; dinner at 19:00.']
+        expected = ['Table for three; [Restricted detail omitted.]',
+                    '[Restricted detail omitted.]; dinner at 19:00.']
+    else:
+        messages = ['Table for three; 4111.1111.1111.1111; dinner at 19:00.']
+        expected = ['Table for three; [Restricted detail omitted.]; dinner at 19:00.']
+    item['transcript'] = [{'role': 'user', 'message': message} for message in messages]
+    item['analysis']['transcript_summary'] = 'Dinner at 19:00. Value 3782/822463/10005. Callback requested.'
+    poller = PhonePoller(tmp_path, config(tmp_path), Reader({'conv_fixture': item}))
+    assert poller.poll_once(since=1)['calls'][0]['status'] == 'queued'
+    saved = queued_evidence(poller)
+    assert [turn['text'] for turn in saved['transcript']] == expected
+    assert 'Dinner at 19:00. Value [Restricted detail omitted.]. Callback requested.' in saved['owner_summary']
+    assert 'Agreements: not independently verified' in saved['owner_summary']
+
+
+def _realistic_card(randomizer, style):
+    day, hour = randomizer.randint(1, 28), randomizer.choice([18, 19, 20])
+    minute, party = randomizer.choice([0, 15, 30, 45]), randomizer.randint(2, 6)
+    callback = '+8210' + ''.join(str(randomizer.randrange(10)) for _ in range(8))
+    brief = card()
+    brief['may_share'] = [{'type': 'name', 'value': 'Fixture Guest'}, {'type': 'callback', 'value': callback}]
+    if style == 'legacy-range':
+        brief['purpose'] = f'Book a table for {party} on 2026-11-{day:02d} at {hour}:{minute:02d}.'
+        brief['limits'] = {'party_size': party, 'time_window': f'{hour}:{minute:02d}-{hour+1}:{minute:02d}'}
+    else:
+        brief['limits'] = {'party_size': party, 'date': f'2026-11-{day:02d}',
+                           'time_range': {'start': f'{hour}:00', 'end': f'{hour+1}:30'}, 'timezone': 'Asia/Seoul'}
+        brief['purpose'] = ('Book a dinner table.' if style == 'typed' else
+                            f'Book a table for {party} on 2026-11-{day:02d}.')
+    return brief
+
+
+@pytest.mark.parametrize('style', ['legacy-range', 'typed', 'typed-with-numeric-purpose'])
+def test_seeded_realistic_card_false_positive_rate_is_at_most_one_percent(style):
+    randomizer = random.Random(7)
+    refused, total = 0, 1000
+    for _ in range(total):
+        brief = _realistic_card(randomizer, style)
+        try:
+            payload = compile_brief(brief)
+        except phone_safety.RestrictedContent:
+            refused += 1
+        else:
+            assert brief['purpose'] in payload['conversation_config_override']['agent']['prompt']['prompt']
+            assert json.loads(payload['dynamic_variables']['pa_allowed_facts']) == brief['may_share']
+    assert refused <= total // 100, (style, refused, total)
+
+
+def _realistic_call(randomizer):
+    party, day = randomizer.randint(2, 6), randomizer.randint(1, 28)
+    hour, minute = randomizer.choice([18, 19, 20]), randomizer.choice([0, 30])
+    confirmation = randomizer.randint(1000, 9999)
+    callback = f'010-{randomizer.randint(1000, 9999)}-{randomizer.randint(1000, 9999)}'
+    messages = [
+        ('agent', f'Hello, this is an AI assistant calling to book a table for {party} on November {day}.'),
+        ('user', f'Sure, we have {hour}:{minute:02d} or {hour+1}:{minute:02d} available.'),
+        ('agent', f'{hour}:{minute:02d} works. The callback number is {callback}.'),
+        ('user', f'Great, confirmation {confirmation}, table for {party} at {hour}:{minute:02d} on the {day}th.'),
+        ('agent', 'Thank you.')]
+    summary = f'Booked a table for {party} on November {day} at {hour}:{minute:02d}; confirmation {confirmation}.'
+    item = detail()
+    item['transcript'] = [{'role': role, 'message': message, 'time_in_call_secs': index}
+                          for index, (role, message) in enumerate(messages)]
+    item['analysis']['transcript_summary'] = summary
+    return item, summary
+
+
+def test_seeded_realistic_call_summary_and_turn_false_positive_rates_are_at_most_one_percent():
+    randomizer = random.Random(7)
+    summary_redacted, turns_redacted, total = 0, 0, 1000
+    for _ in range(total):
+        item, summary = _realistic_call(randomizer)
+        saved = terminal_evidence(item, 'agent_fixture', 'conv_fixture')
+        assert saved is not None
+        summary_redacted += summary not in saved['owner_summary']
+        turns_redacted += [turn['text'] for turn in saved['transcript']] != [turn['message'] for turn in item['transcript']]
+    assert summary_redacted <= total // 100, (summary_redacted, total)
+    assert turns_redacted <= total // 100, (turns_redacted, total)
+
+
+def test_realistic_booking_summary_survives_atomic_queue_and_duplicate_readback(tmp_path):
+    item, summary = _realistic_call(random.Random(7))
+    poller = PhonePoller(tmp_path, config(tmp_path), Reader({'conv_fixture': item}))
+    result = poller.poll_once(since=1)
+    assert result['coverage'] == 'complete' and result['calls'][0]['status'] == 'queued'
+    saved = queued_evidence(poller)
+    assert summary in saved['owner_summary']
+    assert [turn['text'] for turn in saved['transcript']] == [turn['message'] for turn in item['transcript']]
+    assert poller.poll_once(since=1)['calls'][0]['status'] == 'duplicate'
+    assert poller.queue is not None
+    assert poller.queue.counts() == {'pending': 1}
+
+
+def test_seeded_realistic_calls_keep_summaries_through_actual_queue_readback(tmp_path):
+    randomizer = random.Random(7)
+    items, summaries = {}, {}
+    for index in range(100):
+        item, summary = _realistic_call(randomizer)
+        identity = f'conv_booking_{index}'
+        item['conversation_id'] = identity
+        items[identity], summaries[identity] = item, summary
+    poller = PhonePoller(tmp_path, config(tmp_path), Reader(items))
+    result = poller.poll_once(since=1)
+    assert result['coverage'] == 'complete'
+    assert len(result['calls']) == len(items)
+    assert all(row['status'] == 'queued' for row in result['calls'])
+    changed = 0
+    for identity, summary in summaries.items():
+        saved = queued_evidence(poller, identity)
+        changed += summary not in saved['owner_summary']
+        assert [turn['text'] for turn in saved['transcript']] == [turn['message'] for turn in items[identity]['transcript']]
+    assert changed <= len(items) // 100, changed
+    repeated = poller.poll_once(since=1)
+    assert len(repeated['calls']) == len(items)
+    assert all(row['status'] == 'duplicate' for row in repeated['calls'])
+
+
+def test_credential_span_preserves_preamble_but_does_not_guess_a_value_ending():
+    from personal_assistant.phone_poll import _text
+    assert _text('Dinner at 19:00. password: FIXTURE_PRIVATE\nopaque continuation') == (
+        'Dinner at 19:00. [Restricted detail omitted.]')
+    assert _text('Dinner at 19:00. ｐａｓｓｗｏｒｄ: FIXTURE_PRIVATE') == (
+        'Dinner at 19:00. [Restricted detail omitted.]')

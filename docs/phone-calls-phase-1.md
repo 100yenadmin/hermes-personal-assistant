@@ -93,15 +93,23 @@ Japanese/Korean briefs also carry a local fallback phrase. A legacy nonzero
 phone numbers and extra ledger fields are not forwarded. Selected public facts
 that known privacy filters would rewrite are refused rather than silently
 changing the approved brief. A shared mapped scanner normalizes Unicode decimal
-digits, keeps digits only across **all selected free-text fields together**, and
-checks every 13–19 digit Luhn window. Original character positions map matches
-back to every implicated field. Dots, slashes, arbitrary punctuation, whitespace,
-letters and split facts therefore cannot bypass inspection by changing separators.
+digits and forms chains across **letter-free gaps**, including field/turn joins.
+A Unicode letter (category `L*`, after NFKC inspection) ends the current chain.
+Every 13–19 digit Luhn window within each chain is checked. Original character
+positions map matches back to every implicated span. Dots, slashes, arbitrary
+non-letter punctuation, symbols, whitespace and adjacent split facts do not
+bypass inspection. Words deliberately break candidates: otherwise ordinary
+party/date/time/callback values throughout a booking would falsely combine into
+card-like windows. Letters inserted between digit groups are not detected as a
+card; this is an explicit boundary, not a universal obfuscation detector.
 This happens before privacy cleaning, JSON escaping or packet splitting; approved
 facts are refused, never rewritten. Choices have one canonical order shared by
 inspection, selected facts and the decision-table serializer. The actual exported
 projection is inspected again when an invalid display name is omitted, so removed
-input cannot mask a split value that remains. Typed calendar/count values are
+input cannot mask a split value that remains. Separate facts/decisions projections
+in both orders prevent intervening identity metadata from masking a split across
+those substantive groups; letters within retained facts still break chains.
+Typed calendar/count values are
 semantically validated and **remain in the joined digit stream**. Every window
 touching any free-text digit is scanned, including a free card fragment completed
 by a typed time such as `11:11`. A sequence consisting entirely of validated typed
@@ -169,11 +177,16 @@ initiation data, caller metadata, tool inputs/results, model reasoning and raw
 provider receipts. The same mapped Luhn scanner inspects the complete original
 transcript plus summary, also projecting each speaker's turns so interleaved
 numeric agent speech cannot hide a user-split card. Both summary-first (canonical
-queue JSON) and summary-last content projections are checked. Every implicated turn/summary
-is omitted in full, not just the final group. Caller labels grant no callback
-exception. Known credential/card/passport/link patterns are also filtered. The
-actual sanitized projections are rechecked until stable: deleting a sensitive
-intervening line cannot expose a new split card. Work is capped at eight passes;
+queue JSON) and summary-last content projections are checked. Only implicated
+card spans are omitted, in every affected turn/summary; surrounding booking
+context, times and follow-up text remain. Distinct candidates do not swallow
+the words between them. Caller labels grant no callback exception. Known
+credential/passport/link patterns are also filtered; an unstructured credential
+label conservatively removes its tail because its value has no trusted ending.
+Existing general privacy filters can still omit sensitive lines/links.
+The actual sanitized projections are rechecked until stable: deleting a sensitive
+intervening value cannot expose a new split card. Omission markers are neutral
+gaps for inspection, not artificial word barriers. Work is capped at eight passes;
 nonconvergence yields a sanitized per-call error, never partly filtered evidence.
 Filtering is deliberately conservative, **not universal PII detection**: selected
 call evidence remains private, destination-bound owner data. Do not publish it or
@@ -241,6 +254,10 @@ facts/ranges, the absent tool, pure compilation, simulator compatibility, fixed
 GET/cursor behavior, processing/failed statuses, pagination/partial coverage,
 privacy/identity failures, quote-heavy multibyte packet bounds, atomic rollback,
 concurrent/restarted dedup, route fencing and the default-preview CLI.
+Seeded realistic card-free booking generators exercise numeric purposes, legacy
+and typed ranges, callbacks, confirmations, transcripts and owner summaries with
+a maximum 1% false-positive budget. Span/Unicode-letter and actual queued-summary
+readbacks accompany the previous separator/split/projection/name-binding tests.
 Run focused checks only; the full package/archive/release/native-host matrices
 belong to GitHub-hosted CI.
 

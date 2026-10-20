@@ -1,8 +1,9 @@
 """Mapped, joined-field card inspection, not universal PII detection.
 
-Inspection keeps only normalized decimal digits, irrespective of punctuation,
-words or field boundaries. Every 13–19 digit window is checked, then mapped
-back to original spans. Validated numeric facts remain in the digit stream,
+Inspection chains normalized decimal digits across letter-free gaps, including
+field boundaries. A Unicode letter ends a chain. Every 13–19 digit window in
+each chain is checked, then mapped back to original spans. Validated numeric
+facts remain in the digit stream,
 so typed data cannot hide a mixed free-text/card window. Numeric-only typed
 choices are interpreted by their validated semantics, not as payment values.
 """
@@ -55,13 +56,14 @@ def valid_callback(value):
 
 
 def phone_card_spans(texts, *, callbacks=(), typed_numeric=()):
-    """Return implicated original spans for one joined digit stream, in O(n).
+    """Return implicated original spans for letter-bounded digit chains, in O(n).
 
     Two parity prefix sums give each bounded Luhn window a constant-time check.
     Difference marks union overlapping windows without retaining every match.
     Character positions survive Unicode normalization and cross-field joins.
     """
-    digits, positions = [], []
+    digits, positions, chain_starts = [], [], []
+    chain_start = 0
     safe_callbacks = {index for index in callbacks if valid_callback(texts[index])}
     numeric_fields = set(typed_numeric) | safe_callbacks
     for field, text in enumerate(texts):
@@ -70,6 +72,9 @@ def phone_card_spans(texts, *, callbacks=(), typed_numeric=()):
                 if normalized.isdecimal():
                     digits.append(unicodedata.decimal(normalized))
                     positions.append((field, offset))
+                    chain_starts.append(chain_start)
+                elif unicodedata.category(normalized).startswith('L'):
+                    chain_start = len(digits)
     prefixes = ([0], [0])
     free_digits = [0]
     for index, digit in enumerate(digits):
@@ -82,6 +87,8 @@ def phone_card_spans(texts, *, callbacks=(), typed_numeric=()):
     for length in range(13, 20):
         for start in range(len(digits) - length + 1):
             end = start + length
+            if start < chain_starts[end - 1]:
+                continue  # Words, not punctuation/whitespace/field joins, break chains.
             prefix = prefixes[end % 2]
             if (prefix[end] - prefix[start]) % 10:
                 continue
@@ -93,21 +100,42 @@ def phone_card_spans(texts, *, callbacks=(), typed_numeric=()):
             marks[start] += 1
             marks[end] -= 1
     spans = [[] for _ in texts]
-    active = 0
+    active, previous = 0, None
     for index, (field, offset) in enumerate(positions):
         active += marks[index]
         if active:
-            if spans[field]:
+            if previous == (field, chain_starts[index]):
                 spans[field][-1] = (spans[field][-1][0], offset + 1)
             else:
                 spans[field].append((offset, offset + 1))
+            previous = (field, chain_starts[index])
+        else:
+            previous = None
+    return spans
+
+
+def restricted_phone_spans(texts, *, callbacks=(), typed_numeric=()):
+    """Card spans plus conservative credential tails, with original offsets.
+
+    Unstructured credentials have no trustworthy value terminator: preserve the
+    preceding speech, but omit the matched label and everything after it.
+    """
+    spans = phone_card_spans(texts, callbacks=callbacks, typed_numeric=typed_numeric)
+    for index, text in enumerate(texts):
+        normalized, offsets = [], []
+        for offset, char in enumerate(text):
+            part = unicodedata.normalize('NFKC', char)
+            normalized.extend(part)
+            offsets.extend([offset] * len(part))
+        match = _CREDENTIAL.search(''.join(normalized))
+        if match:
+            spans[index].append((offsets[match.start()], len(text)))
     return spans
 
 
 def restricted_phone_fields(texts, *, callbacks=(), typed_numeric=()):
-    spans = phone_card_spans(texts, callbacks=callbacks, typed_numeric=typed_numeric)
-    return {index for index, text in enumerate(texts)
-            if spans[index] or _CREDENTIAL.search(unicodedata.normalize('NFKC', text))}
+    spans = restricted_phone_spans(texts, callbacks=callbacks, typed_numeric=typed_numeric)
+    return {index for index, part in enumerate(spans) if part}
 
 
 def restricted_phone_text(text):
