@@ -87,7 +87,7 @@ def test_l39_live_sequence_and_review(tmp_path):
     saved = setup.record(ledger, answers, asked=list(answers))
     assert saved["status"] == "applied" and saved["pending_changes"] is True
     assert saved["answers"].items() >= answers.items()
-    assert saved["next_step"] == ("Saved. Setup is still in place; this answer is not in your files yet. "
+    assert saved["next_step"] == ("Saved. Setup is still in place; this setup change is not in your files yet. "
                                  "Include it in the next review (/pa setup review), then propose and apply.")
     assert saved["proposal"] == {"writes": []}  # Harmless: applied setup no longer reads the proposal.
     assert "Changes not yet applied." in make_pa_command(tmp_path)("status")
@@ -121,6 +121,7 @@ def test_l39_record_after_completed_setup(tmp_path, checked):
     result = setup.record(ledger, skipped=["protect"])
     assert result["status"] == ("checked" if checked else "applied")
     assert result["pending_changes"] is True and result["skipped"] == ["protect"]
+    assert "this setup change is not in your files yet" in result["next_step"]  # Skip-only change (#31 review).
     assert setup.record(ledger, skipped=["protect"])["pending_changes"] is True
 
 

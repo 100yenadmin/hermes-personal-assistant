@@ -88,7 +88,7 @@ def record(ledger, answers=None, skipped=None, asked=None, consent=None):
                  asked=list(dict.fromkeys(prior["asked"] + asked)), proposal={"writes": []},
                  look_around_consent=prior["look_around_consent"] if consent is None else consent)
     if completed and result["pending_changes"]:
-        result["next_step"] = ("Saved. Setup is still in place; this answer is not in your files yet. "
+        result["next_step"] = ("Saved. Setup is still in place; this setup change is not in your files yet. "
                                "Include it in the next review (/pa setup review), then propose and apply.")
     return result
 
