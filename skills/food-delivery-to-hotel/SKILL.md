@@ -49,7 +49,7 @@ Stop at a required user login or at checkout with the `travel-approval-packet`, 
 - When a handoff is likely or the local browser is blocked, check `pa(operation="capabilities")` → `remote_browser`; create with `pa(operation="browser_session", data={"action":"create"})` and attach with `agent-browser --session <task-name> connect <connect_url>`.
 - Work the cart via `browserbase-checkout-lane`. Keep `bb_session_id` for cleanup; never persist connection or live view URLs. Release when done or abandoned with `pa(operation="browser_session", data={"action":"release","bb_session_id":"<id>"})`.
 - A login modal is not automatically a CAPTCHA. Use saved sessions, continue through visible provider steps, and retry the click/Enter/login path before reporting a blocker.
-- At card, OTP, passport, CAPTCHA, or passkey entry, send `live_view_url`: "Open this link, complete that step, and tell me when done." Wait; do not snapshot or read back payment fields afterwards. Refresh a missing/stale link with `browser_session` action `live_view` and `bb_session_id`.
+- At card, OTP, passport, CAPTCHA, or passkey entry, send `live_view_url`: "Open this link, complete that step, and tell me when done." Wait; do not snapshot or read back payment fields afterwards. Refresh a missing/stale link with `browser_session` action `live_view` and `bb_session_id`; for a step in another tab, send that tab's link from `tabs`.
 - Keep the user-facing tone action-first: "I have the cart staged. I'm at provider verification now, then I'll bring you the total and final order confirmation."
 
 ## Must Not

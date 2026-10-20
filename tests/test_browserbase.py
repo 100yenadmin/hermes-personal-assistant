@@ -114,9 +114,21 @@ def test_forged_rows_bad_ids_and_partial_replies_touch_nothing(tmp_path):
     numeric = Opener()
     assert browser_session(ledger, {"action": "release", "bb_session_id": 7}, opener=numeric, get_secret=SECRETS.get)["status"] == "error"
     assert not numeric.calls
-    # A create reply without a connection URL leaves no active row behind.
-    assert browser_session(ledger, {"action": "create"}, opener=Opener({"id": "bb-9"}), get_secret=SECRETS.get)["status"] == "error"
+    # A create reply without a connection URL leaves no active row behind and ends the paid session.
+    partial = Opener({"id": "bb-9"}, {})
+    assert browser_session(ledger, {"action": "create"}, opener=partial, get_secret=SECRETS.get)["status"] == "error"
     assert ledger.get("action", "pa:browser-session:bb-9") is None
+    assert partial.calls[1][0].full_url.endswith("/v1/sessions/bb-9")
+    assert json.loads(partial.calls[1][0].data) == {"projectId": "project", "status": "REQUEST_RELEASE"}
+    # No action mutation may take over a PA session row; release must still find it.
+    dispatch(tmp_path, {"operation": "browser_session", "data": {"action": "create"}},
+             runtime_scope={"browserbase_opener": Opener(CREATED, {}), "get_secret": SECRETS.get})
+    for op, extra in (("action_prepare", {"summary": {"provider": "x"}}), ("action_confirm", {"summary": {}, "confirmation": "yes"}),
+                      ("action_claim", {"summary": {}}), ("action_result", {"outcome": "succeeded", "proof": {}}), ("action_cancel", {})):
+        with pytest.raises(ValueError, match="lifecycle-owned"):
+            dispatch(tmp_path, {"operation": op, "data": {"action_id": "pa:browser-session:bb-1", **extra}})
+    row = Ledger(tmp_path).get("action", "pa:browser-session:bb-1")
+    assert row["action_type"] == "browser_session" and row["status"] == "active"
 
 
 def test_live_view_refresh_failures_and_ledger_failure_release(tmp_path, monkeypatch):
@@ -128,6 +140,17 @@ def test_live_view_refresh_failures_and_ledger_failure_release(tmp_path, monkeyp
                             ({}, {"status": "error", "reason": "Browserbase request failed"})):
         assert browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
                                opener=Opener(reply), get_secret=SECRETS.get) == expected
+    # Several tabs: each tab's own live view is listed so the agent can hand over the right one.
+    pages = [{"title": "Cart", "url": "https://shop.example/cart", "debuggerFullscreenUrl": LIVE + "&tab=1"},
+             {"title": "Sign in", "url": "https://id.example/login", "debuggerFullscreenUrl": LIVE + "&tab=2"}]
+    many = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                           opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": pages}), get_secret=SECRETS.get)
+    assert many == {"bb_session_id": "bb-1", "live_view_url": LIVE,
+                    "tabs": [{"title": "Cart", "url": "https://shop.example/cart", "live_view_url": LIVE + "&tab=1"},
+                             {"title": "Sign in", "url": "https://id.example/login", "live_view_url": LIVE + "&tab=2"}]}
+    one = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                          opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": pages[:1]}), get_secret=SECRETS.get)
+    assert one == {"bb_session_id": "bb-1", "live_view_url": LIVE}
     def locked(*args, **kwargs):
         raise RuntimeError("database is locked")
     monkeypatch.setattr(ledger, "put", locked)
@@ -161,8 +184,15 @@ def test_skill_text_uses_browser_session_and_user_final_tap(path):
     for forbidden in ("$BROWSERBASE_API_KEY", "profile environment", "browse cloud sessions", "--remote", "browse open <url> --cdp"):
         assert forbidden not in text
     assert "agent-browser --session <task-name> connect <connect_url>" in text
+    assert "solve supported CAPTCHA" not in text
     if path.endswith("SKILL.md"):
         assert 'operation="browser_session"' in text
     if path == "browserbase-checkout-lane/SKILL.md":
         assert "final pay/book/reserve tap is the user's own, in the live view" in text
         assert "The agent never presses the final submit" in text
+
+
+def test_no_skill_waits_for_automatic_captcha_solving():
+    # Sessions are created with solveCaptchas off, so every skill hands a visible CAPTCHA to the user.
+    skills = Path(__file__).resolve().parents[1] / "skills"
+    assert not [p for p in skills.rglob("*.md") if "solve supported CAPTCHA" in p.read_text()]

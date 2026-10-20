@@ -4,7 +4,7 @@
 
 - Later setup answers keep applied/checked setup intact and flag changes for the next review; fresh checks name the cause when refused (#28).
 - Context retrieval infers trip, action or source from one unambiguous ID; guide queries still need an explicit kind.
-- Browserbase works on current Hermes: the new `browser_session` operation creates, re-links and releases a session in-process (Hermes keeps the key out of shells). The checkout skills attach with `agent-browser … connect` and send the live view at card, OTP, passport or CAPTCHA steps; the final pay/book/reserve tap is the user's own. Recording, logging and CAPTCHA solving are off (#25).
+- Browserbase works on current Hermes: the new `browser_session` operation creates, re-links and releases a session in-process (Hermes keeps the key out of shells). The checkout skills attach with `agent-browser … connect` and send the live view at card, OTP, passport or CAPTCHA steps (the link of the right tab when a step opens a new one); the final pay/book/reserve tap is the user's own. Recording, logging and CAPTCHA solving are off (#25).
 
 ## 0.8.0-rc.1 — 2026-10-20
 

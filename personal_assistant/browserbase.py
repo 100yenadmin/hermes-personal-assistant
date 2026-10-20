@@ -71,14 +71,17 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
                     raise
                 body.pop("keepAlive")
                 result = request("/v1/sessions", body)
-            identity, connect_url = result["id"], result["connectUrl"]
+            identity = result.get("id")
             if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", identity):
                 raise ValueError("invalid Browserbase session id")
             try:
+                connect_url = result.get("connectUrl")
+                if not isinstance(connect_url, str) or not connect_url:
+                    raise ValueError("no connection URL")
                 ledger.put("action", "pa:browser-session:" + identity,
                            {"bb_session_id": identity, "expires_at": result.get("expiresAt"), "created_at": now()},
                            action_type="browser_session", status="active")
-            except Exception:  # Without a row PA could never release it; end the paid session now.
+            except Exception:  # Without a usable row PA could never release it; end the paid session now.
                 try:
                     request("/v1/sessions/" + identity, {"projectId": project, "status": "REQUEST_RELEASE"})
                 except Exception:
@@ -89,10 +92,15 @@ def browser_session(ledger, data, *, opener=None, get_secret=None):
                     "live_view_url": live_view(identity), "expires_at": result.get("expiresAt"),
                     "attach_hint": "agent-browser --session <name> connect <connect_url>"}
         if action == "live_view":  # An explicit refresh reports failures instead of a null link.
-            url = request("/v1/sessions/" + identity + "/debug").get("debuggerFullscreenUrl")
+            debug = request("/v1/sessions/" + identity + "/debug")
+            url = debug.get("debuggerFullscreenUrl")
             if not isinstance(url, str) or not url:
                 raise ValueError("no live view link")
-            return {"bb_session_id": identity, "live_view_url": url}
+            # Each tab has its own live view; the agent sends the link of the tab holding the step.
+            pages = debug.get("pages") if isinstance(debug.get("pages"), list) else []
+            tabs = [{"title": page.get("title"), "url": page.get("url"), "live_view_url": page["debuggerFullscreenUrl"]}
+                    for page in pages if isinstance(page, dict) and isinstance(page.get("debuggerFullscreenUrl"), str)]
+            return {"bb_session_id": identity, "live_view_url": url, **({"tabs": tabs} if len(tabs) > 1 else {})}
         request("/v1/sessions/" + identity, {"projectId": project, "status": "REQUEST_RELEASE"})
         ledger.put("action", row_id, {}, status="released")
         return {"bb_session_id": identity, "status": "released"}

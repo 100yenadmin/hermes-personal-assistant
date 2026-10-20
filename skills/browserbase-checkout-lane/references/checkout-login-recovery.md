@@ -6,7 +6,7 @@ Use this reference when a provider checkout is stuck on login, CAPTCHA, address 
 
 - Create through `pa(operation="browser_session", data={"action":"create"})`; attach with `agent-browser --session <task-name> connect <connect_url>`; `browse open --cdp` cannot attach to Browserbase.
 - Use `agent-browser --session <task-name> press Enter` when clicking a provider login button does not progress.
-- Recover a fresh handoff link with `pa(operation="browser_session", data={"action":"live_view","bb_session_id":"<id>"})`; release when done or abandoned with `pa(operation="browser_session", data={"action":"release","bb_session_id":"<id>"})`.
+- Recover a fresh handoff link with `pa(operation="browser_session", data={"action":"live_view","bb_session_id":"<id>"})` (a step in another tab uses that tab's link from `tabs`); release when done or abandoned with `pa(operation="browser_session", data={"action":"release","bb_session_id":"<id>"})`.
 - Send the live view link for card, OTP, passport, or CAPTCHA entry and wait for the user. Do not snapshot or read back payment fields after handoff; the user's final tap completes checkout.
 - Timeout budget: hosted sessions cap at 20 minutes. Page open is 120 seconds. Poll active shopping at 60-second intervals; checkpoint non-sensitive cart/address/session details before expiry. Recording, logging, and CAPTCHA solving are disabled.
 
