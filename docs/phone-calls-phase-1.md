@@ -92,7 +92,10 @@ checks every 13–19 digit Luhn window. Original character positions map matches
 back to every implicated field. Dots, slashes, arbitrary punctuation, whitespace,
 letters and split facts therefore cannot bypass inspection by changing separators.
 This happens before privacy cleaning, JSON escaping or packet splitting; approved
-facts are refused, never rewritten. Typed calendar/count values are semantically
+facts are refused, never rewritten. Choices have one canonical order shared by
+inspection, selected facts and the decision-table serializer. The actual exported
+projection is inspected again when an invalid display name is omitted, so removed
+input cannot mask a split value that remains. Typed calendar/count values are semantically
 validated, not treated as free-text payment values. Validated callbacks have only
 a field-scoped exception; any 13–19 digit checksum-valid window **within** a
 callback still refuses it, and cross-field windows are never exempt. Ambiguous
@@ -155,9 +158,13 @@ start/duration, provider status and a labelled provider-reported summary. It dro
 initiation data, caller metadata, tool inputs/results, model reasoning and raw
 provider receipts. The same mapped Luhn scanner inspects the complete original
 transcript plus summary, also projecting each speaker's turns so interleaved
-numeric agent speech cannot hide a user-split card. Every implicated turn/summary
+numeric agent speech cannot hide a user-split card. Both summary-first (canonical
+queue JSON) and summary-last content projections are checked. Every implicated turn/summary
 is omitted in full, not just the final group. Caller labels grant no callback
-exception. Known credential/card/passport/link patterns are also filtered.
+exception. Known credential/card/passport/link patterns are also filtered. The
+actual sanitized projections are rechecked until stable: deleting a sensitive
+intervening line cannot expose a new split card. Work is capped at eight passes;
+nonconvergence yields a sanitized per-call error, never partly filtered evidence.
 Filtering is deliberately conservative, **not universal PII detection**: selected
 call evidence remains private, destination-bound owner data. Do not publish it or
 commit real-call fixtures. Limits are 400 raw turn entries, 8,000 characters per

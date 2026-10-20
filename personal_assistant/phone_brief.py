@@ -73,6 +73,7 @@ def _calendar_choice(value):
 def _inspect_public(selected, choices):
     """Validate typed facts, then scan all remaining selected values together."""
     paths, texts, callbacks = [], [], []
+    omitted_name = None
 
     def add(path, value, callback=False):
         paths.append(path)
@@ -109,20 +110,31 @@ def _inspect_public(selected, choices):
             _time(value)
         # party_size was bounded by the schema and has no free text.
     if 'on_behalf_of' in selected:
+        if display_name(selected['on_behalf_of']) is None:
+            omitted_name = len(texts)
         add('on_behalf_of', selected['on_behalf_of'])
     add('to.name', selected['to']['name'])
     for key, value in choices.items():
         if key in {'date', 'time'}:
             {'date': _date, 'time': _time}[key](value)
         elif key in {'date_range', 'time_range'}:
-            parse = _date if key == 'date_range' else _time
-            if parse(value['start']) > parse(value['end']):
+            ordered = (_date(value['start']) <= _date(value['end']) if key == 'date_range'
+                       else _time(value['start']) <= _time(value['end']))
+            if not ordered:
                 raise ValueError('calendar range must be ordered')
         elif key == 'timezone':
             _timezone(value)
         elif isinstance(value, str) and not (key in {'preferred_time', 'time_window'} and _calendar_choice(value)):
             add('limits.' + key, value)
-    restricted = restricted_phone_fields(texts, callbacks=callbacks)
+    # Check the selected input AND the actual exported projection. Removing an
+    # invalid display name must not conceal a split card in the remaining facts.
+    projections = [list(range(len(texts)))]
+    if omitted_name is not None:
+        projections.append([index for index in range(len(texts)) if index != omitted_name])
+    restricted = set()
+    for indices in projections:
+        restricted.update(indices[index] for index in restricted_phone_fields(
+            [texts[i] for i in indices], callbacks=[index for index, i in enumerate(indices) if i in callbacks]))
     restricted.update(index for index, text in enumerate(texts) if clean(text) != text)
     if restricted:
         raise RestrictedContent([paths[index] for index in restricted])
@@ -158,16 +170,18 @@ def compile_brief(card):
     if safe_name:
         public['on_behalf_of'] = safe_name
     public['counterpart'] = selected['to']['name']
-    public['choices'] = {key: limits[key] for key in (
+    # One canonical order for inspection, selected facts AND decision-table JSON.
+    # Never let a serializer silently introduce a different digit projection.
+    public['choices'] = {key: limits[key] for key in sorted((
         'party_size', 'party_size_range', 'date', 'time', 'date_range', 'time_range', 'timezone',
-        'preferred_time', 'time_window', 'flexibility', 'other') if key in limits}
+        'preferred_time', 'time_window', 'flexibility', 'other')) if key in limits}
     _inspect_public(selected, public['choices'])
     encoded = json.dumps(public, ensure_ascii=False)
     language = selected['language']
     inbound = selected.get('direction', 'outbound') == 'inbound'
     first = INBOUND_DISCLOSURES[language] if inbound else disclosure(language, safe_name)
     allowed = json.dumps(selected['may_share'], ensure_ascii=False)
-    decisions = json.dumps(public['choices'], ensure_ascii=False, sort_keys=True)
+    decisions = json.dumps(public['choices'], ensure_ascii=False)
     prompt = (
         'You are an AI phone assistant, not the human owner. Speak briefly, calmly and politely '
         f'in {language}. Start with this exact AI disclosure: {first}\n'

@@ -289,3 +289,61 @@ def test_callback_cannot_hide_a_shorter_checksum_valid_card_window():
         brief['may_share'] = [{'type': 'callback', 'value': '+' + prefix + '4222222222222' + suffix}]
         with pytest.raises(ValueError, match='restricted'):
             compile_brief(brief)
+
+
+def test_native_sorted_decision_projection_cannot_reorder_split_card_into_payload(tmp_path):
+    number = '4' + '2' * 12
+    brief = card()
+    brief['limits'] = {'preferred_time': number[6:], 'flexibility': number[:6]}
+    assert not phone_safety.restricted_phone_fields([number[6:], number[:6]])
+    assert phone_safety.restricted_phone_fields([number[:6], number[6:]])
+    prepared = calls.dispatch(tmp_path, dict(action='prepare', **brief))
+    result = calls.dispatch(tmp_path, {'action': 'compile', 'call_id': prepared['call_id']})
+    assert result['status'] == 'restricted_content'
+    assert result['fields'] == ['limits.flexibility', 'limits.preferred_time']
+
+
+def test_omitted_invalid_name_cannot_mask_card_in_actual_exported_projection(tmp_path):
+    number = '4' + '2' * 12
+    brief = card()
+    brief.update(may_share=[number[:6]], on_behalf_of='0', to={'name': number[6:]})
+    assert not phone_safety.restricted_phone_fields([number[:6], '0', number[6:]])
+    prepared = calls.dispatch(tmp_path, dict(action='prepare', **brief))
+    result = calls.dispatch(tmp_path, {'action': 'compile', 'call_id': prepared['call_id']})
+    assert result['status'] == 'restricted_content'
+    assert result['fields'] == ['may_share[0]', 'to.name']
+
+
+def test_queue_summary_first_projection_cannot_reorder_split_card(tmp_path):
+    number = '4' + '2' * 12
+    item = detail()
+    item['analysis']['transcript_summary'] = number[:6]
+    item['transcript'][0]['message'] = number[6:]
+    poller = PhonePoller(tmp_path, config(tmp_path), Reader({'conv_fixture': item}))
+    assert poller.poll_once(since=1)['calls'][0]['status'] == 'queued'
+    saved = queued_evidence(poller)
+    assert saved['transcript'][0]['text'] == '[Restricted detail omitted.]'
+    assert '[Restricted detail omitted.]' in saved['owner_summary']
+
+
+def test_queue_sanitizing_an_intervening_field_cannot_expose_a_split_card(tmp_path):
+    number = '4' + '2' * 12
+    item = detail()
+    item['transcript'] = [{'role': 'user', 'message': text} for text in [number[:6], 'secret: 0', number[6:]]]
+    poller = PhonePoller(tmp_path, config(tmp_path), Reader({'conv_fixture': item}))
+    assert poller.poll_once(since=1)['calls'][0]['status'] == 'queued'
+    saved = queued_evidence(poller)
+    assert all(turn['text'] == '[Restricted detail omitted.]' for turn in saved['transcript'])
+
+
+def test_nonconvergent_sanitizing_is_bounded_and_does_not_abort_valid_peer(tmp_path, monkeypatch):
+    from personal_assistant import phone_poll
+    original = phone_poll.clean
+    monkeypatch.setattr(phone_poll, 'clean', lambda text: text + 'x' if text.startswith('unstable') else original(text))
+    bad, good = detail(), detail('conv_good')
+    bad['transcript'][0]['message'] = 'unstable'
+    poller = PhonePoller(tmp_path, config(tmp_path), Reader({'conv_fixture': bad, 'conv_good': good}))
+    result = poller.poll_once(since=1)
+    assert result['coverage'] == 'partial'
+    assert [call['status'] for call in result['calls']] == ['error', 'queued']
+    assert 'unstable' not in json.dumps(result)

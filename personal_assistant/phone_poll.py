@@ -151,18 +151,26 @@ def terminal_evidence(data, agent_id, conversation_id):
     originals = [turn['text'] for turn in transcript] + [summary]
     if sum(len(text.encode('utf-8')) for text in originals) > MAX_EVIDENCE:
         raise PollError('call_evidence_too_large')
-    # One scan BEFORE cleaning, escaping or splitting. It spans adjacent user
-    # turns, interleaved agent turns and the provider summary. No caller label
-    # can grant the typed, owner-approved compiler callback exception.
-    restricted = restricted_phone_fields(originals)
-    # An agent may repeat a number or insert numeric prompts between user
-    # fragments. Also inspect each speaker's stream so that interleaving cannot
-    # hide the caller's card. The summary joins each projection as well.
-    for speaker in ('pa', 'them'):
-        indices = [index for index, turn in enumerate(transcript) if turn['who'] == speaker] + [len(transcript)]
-        restricted.update(indices[index] for index in restricted_phone_fields([originals[i] for i in indices]))
-    sanitized = ['[Restricted detail omitted.]' if index in restricted else clean(text)
-                 for index, text in enumerate(originals)]
+    # Inspect original content BEFORE cleaning/escaping/splitting, then recheck
+    # the actual sanitized projection: removing a sensitive intervening field
+    # can bring previously separated fragments together. Bound the work and fail
+    # closed rather than exporting a partially filtered adversarial chain.
+    sanitized = originals
+    for _ in range(8):
+        restricted = set()
+        # Canonical queue JSON emits summary first; provider detail presents it
+        # last. Also inspect each speaker without interleaved numeric prompts.
+        for speaker in (None, 'pa', 'them'):
+            turns = [index for index, turn in enumerate(transcript) if speaker is None or turn['who'] == speaker]
+            for indices in (turns + [len(transcript)], [len(transcript)] + turns):
+                restricted.update(indices[index] for index in restricted_phone_fields([sanitized[i] for i in indices]))
+        filtered = ['[Restricted detail omitted.]' if index in restricted else clean(text)
+                    for index, text in enumerate(sanitized)]
+        if filtered == sanitized:
+            break
+        sanitized = filtered
+    else:
+        raise PollError('call_evidence_privacy_limit')
     for turn, text in zip(transcript, sanitized):
         turn['text'] = text
     summary = sanitized[-1]
