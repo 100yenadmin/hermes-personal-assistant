@@ -109,7 +109,8 @@ def register(ctx):
                          args_hint="setup | setup review | status | mode | help")
     get_config = getattr(ctx, "get_config", None)
     ctx.register_hook("pre_llm_call", make_pre_llm_call(
-        root, lambda key, default: get_config(key, default) if callable(get_config) else default))
+        root, lambda key, default: get_config(key, default) if callable(get_config) else default,
+        chief_of_staff=chief_of_staff))
     register_if_enabled(ctx)
     for path in sorted((Path(__file__).parent / "skills").rglob("SKILL.md")):
         frontmatter, description = _skill_metadata(path)

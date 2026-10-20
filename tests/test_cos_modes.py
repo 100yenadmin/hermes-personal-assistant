@@ -277,3 +277,71 @@ def test_bad_config_is_off(tmp_path, raw):
     from personal_assistant.modes import cos_enabled, config_getter
     (tmp_path / "config.yaml").write_text(raw)
     assert not cos_enabled(config_getter(tmp_path))
+
+
+@pytest.mark.parametrize("startup_on", [True, False])
+def test_registered_cos_skills_are_gated_after_mode_off(tmp_path, monkeypatch, startup_on):
+    native(monkeypatch, tmp_path)
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    spec = importlib.util.spec_from_file_location("l31b_fixture_plugin", ROOT / "__init__.py",
+        submodule_search_locations=[str(ROOT)])
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    settings = {"modes": {"chief_of_staff": startup_on}, "setup_offer": False}
+    hooks, commands, skills = {}, {}, []
+    ctx = SimpleNamespace(get_config=settings.get, set_config=lambda k, v: settings.update({k: v}),
+        register_tool=Mock(), register_skill=lambda name, *a, **kw: skills.append(name),
+        register_command=lambda name, handler, **kw: commands.update({name: handler}),
+        register_hook=lambda name, handler: hooks.update({name: handler}))
+    module.register(ctx)
+    assert ("cos-daily" in skills) is startup_on
+    reply = commands["pa"]("mode chief-of-staff off")
+    expected = {"context": "Chief of Staff mode is off: do not load or run personal-assistant:cos-* skills; if asked, say it is off and how to turn it on."}
+    for message in ("Hello", "Please run cos-daily", "And now?"):
+        assert hooks["pre_llm_call"](user_message=message, platform="telegram") == (expected if startup_on else None)
+    assert "CoS schedules and follow-ups have stopped now" in reply
+    assert "CoS skills disappear after hermes gateway restart and a new session" in reply
+    assert hooks["pre_llm_call"](user_message="Machine tick", platform="cron") is None
+    wake = ("⟦pulse o:o_fixture a:1⟧ [HeartBeat 2.0 · wake w_fixture · fixture · armed by the owner 1m ago]\n"
+            "Load personal-assistant:cos-daily")
+    assert "cancel this wake" in hooks["pre_llm_call"](user_message=wake)["context"]
+    commands["pa"]("mode chief-of-staff on")
+    assert hooks["pre_llm_call"](user_message="Hello again", platform="telegram") is None
+
+
+@pytest.mark.parametrize("kind", COS)
+@pytest.mark.parametrize("timezone", ["UTC", None])
+def test_cos_precheck_uses_rule_timezone_or_preference(tmp_path, kind, timezone):
+    ledger = ledger_at(tmp_path, kind)
+    rule(ledger, kind, timezone=timezone)
+    zone = timezone or "Asia/Tokyo"
+    now = dt.datetime.fromisoformat("2026-10-19T10:00:00" + ("+00:00" if timezone else "+09:00"))
+    before = now.replace(hour=9, minute=29 if kind == "cos_daily" else 59)
+    assert cron_precheck(ledger, kind, enabled=True, moment=before) == {
+        "wakeAgent": False, "reason": "before_cos_time"}
+    assert prepare_suggestions(ledger)["jobs"][0]["timezone"] == zone
+    # Tokyo is already in quiet hours and on the next date; UTC is still Monday afternoon.
+    if timezone:
+        now = now.replace(hour=15)
+    result = cron_precheck(ledger, kind, enabled=True, moment=now)
+    logical = "2026-10-19" if kind == "cos_daily" else "2026-W43"
+    assert result["wakeAgent"]
+    assert result["occurrence_id"] == auto.notification_occurrence_id(kind, logical)
+
+
+@pytest.mark.parametrize("kind", COS)
+def test_paused_cos_rules_require_reacceptance_for_suggestions(tmp_path, monkeypatch, kind):
+    ledger = ledger_at(tmp_path, kind)
+    for other in ("daily_brief", "due_source_check"):
+        rule(ledger, other, paused=True)
+    native(monkeypatch, tmp_path)
+    settings = {"modes": {"chief_of_staff": True}}
+    command = make_pa_command(tmp_path, settings.get, lambda k, v: settings.update({k: v}))
+    assert kind in {j["kind"] for j in prepare_suggestions(ledger)["jobs"]}
+    command("mode chief-of-staff off")
+    command("mode chief-of-staff on")
+    remaining = {"daily_brief", "due_source_check"}
+    assert {j["kind"] for j in prepare_suggestions(ledger)["jobs"]} == remaining
+    rule(ledger, kind, paused=False)
+    assert {j["kind"] for j in prepare_suggestions(ledger)["jobs"]} == remaining | {kind}

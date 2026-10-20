@@ -155,6 +155,8 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     destinations = {r.get("destination") for r in rules}
     if len(destinations) != 1 or not next(iter(destinations)):
         return {"wakeAgent": False, "reason": "destination_conflict"}
+    if cos:
+        zone = rules[0].get("timezone") or zone
     if any(r.get("snooze_until") and auto._value_time(r["snooze_until"], zone) > current for r in rules):
         return {"wakeAgent": False, "reason": "routine_snoozed"}
     local = current.astimezone(ZoneInfo(zone))
@@ -183,7 +185,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
                 or ((kind == "cos_daily" or local.weekday() == day)
                     and local.strftime("%H:%M") < prefs.get(clock_key, auto.DEFAULTS[clock_key]))):
             return {"wakeAgent": False, "reason": "before_cos_time"}
-        state.update(actions=[{"due": True}], chief_of_staff=True)
+        state.update(actions=[{"due": True}], chief_of_staff=True, timezone=zone)
         logical = local.date().isoformat() if kind == "cos_daily" else "%04d-W%02d" % local.isocalendar()[:2]
     elif kind == "daily_brief":
         if local.strftime("%H:%M") < prefs.get("brief_time", "08:00"):

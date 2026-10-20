@@ -31,7 +31,9 @@ def make_pa_command(root, get_config=None, set_config=None):
                 if parts[2] == "off":
                     stopped = stop_cos(ledger)
                     return (f"Chief of Staff: off. Paused and removed {stopped['jobs']} CoS jobs; "
-                            f"dismissed {stopped['suggestions']} pending suggestions; paused {stopped['rules']} rules.")
+                            f"dismissed {stopped['suggestions']} pending suggestions; paused {stopped['rules']} rules. "
+                            "CoS schedules and follow-ups have stopped now. "
+                            "The CoS skills disappear after hermes gateway restart and a new session.")
                 return "Chief of Staff: on. Run hermes gateway restart to reload plugins, then start a new session for the CoS skills."
             if parts == ["status"]:
                 current = setup.state(Ledger(root))
