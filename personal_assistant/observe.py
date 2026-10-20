@@ -119,7 +119,7 @@ def flight_changes(watch, facts, state, settings, now, is_quiet):
             if delta >= threshold and (key == "out" or now >= instant(segment["scheduled_departure"])) and (not is_quiet or urgent):
                 signals.append(f'{label} {key} {local(baseline, segment.get(zone))}→{local(current, segment.get(zone))}')
                 if key == "out":
-                    leave, wording = _airport_timing({**watch, "airport_transfer_minutes": watch.get("airport_transfer_minutes") if not watch.get("airport_transfer_origin") or watch["airport_transfer_origin"] == segment.get("origin") else None}, segment[scheduled], segment[zone],
+                    leave, wording = _airport_timing({**watch, "airport_transfer_minutes": trip_math.transfer_for(watch, segment)}, segment[scheduled], segment[zone],
                                               estimated=current, severity=trip_math.recent_severity(state.get("weather", {}), now),
                                               included_minutes=watch.get("weather_included_minutes") or 0)
                     extra = leave["weather_extra_minutes"]
@@ -157,7 +157,8 @@ def probe(ledger, watch_id, watch, settings, deadline, started):
     result, error, usage = None, None, {}
     coords = dict(initial.get("weather", {}).get("coords") or {})
     if weather_due:
-        leave = departure - dt.timedelta(minutes=float(watch.get("airport_lead_minutes", 180)) + (watch.get("airport_transfer_minutes") or 60))
+        transfer = watch.get("airport_transfer_minutes")
+        leave = departure - dt.timedelta(minutes=float(watch.get("airport_lead_minutes", 180)) + (60 if transfer is None else transfer))
         try:
             result = sources.weather(settings, watch.get("origin", {}), coords,
                                      leave.timestamp(), departure.timestamp(), deadline, usage)

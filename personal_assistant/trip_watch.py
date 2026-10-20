@@ -130,9 +130,9 @@ def _resolve(ledger, event_id, moment, outcome, proof):
             raise
 
 
-def status(ledger, trip_id, at=None):
+def status(ledger, trip_id, at=None, *, unplanned_ok=False):
     from .trip_facts import facts
-    if not _plan_row(ledger, trip_id):
+    if unplanned_ok and not _plan_row(ledger, trip_id):
         hint = offer_hint(ledger, trip_id, at)
         return {"planned": False, "trip_id": trip_id, **({"next_step": hint} if hint else {})}
     event = StateLoop(ledger).get_event(_event_id(trip_id))
@@ -154,7 +154,7 @@ def status(ledger, trip_id, at=None):
     try:  # Timing is advisory; it must never break the status every trip-watch operation returns.
         timing = _timing(ledger, trip_id, payload, flight_facts, _time(at or now()))
     except (KeyError, TypeError, ValueError):
-        timing = {"at_airport_by": None, "leave_by": None, "moments": payload["moments"], "notices": [], "timing_error": True}
+        timing = {"at_airport_by": None, "leave_by": None, "moments": _moments(payload), "notices": [], "timing_error": True}
     argv = payload["inputs"].get("watch_argv")
     return {"status": "planned", "event_id": event["event_id"], "revision": revision, "inputs": payload["inputs"], "arms": arms,
             **timing,
@@ -168,9 +168,10 @@ def offer_hint(ledger, trip_id, at=None):
     from .trip_facts import facts
     current = _time(at or now())
     events = (ledger.get("trip", trip_id) or {}).get("fields", {}).get("events", [])
-    future = any(_time(s["scheduled_departure"]) > current for s in facts(ledger, trip_id).get("segments", []))
+    future = any(_time(s["scheduled_departure"]) > current for s in facts(ledger, trip_id).get("segments", [])
+                 if s.get("status") != "cancelled")
     future |= any(not e.get("all_day") and not e.get("source_missing") and e.get("start") and len(e["start"]) > 10
-                  and _time(e["start"]) > current for e in events)
+                  and str(e.get("status", "")).lower() != "cancelled" and _time(e["start"]) > current for e in events)
     if not future or any(ledger.get("action", f"pa:offer:{key}:trip_watch") for key in (trip_id, "*")):
         return None
     if _plan_row(ledger, trip_id):
@@ -180,8 +181,24 @@ def offer_hint(ledger, trip_id, at=None):
             "then": "On yes call pa trip_watch_plan with trip_id; on no record trip_offer offer_type=trip_watch outcome=declined."}
 
 
+def read_status(ledger, trip_id, at=None):
+    """The status action: a trip with no plan yet reads as planned: false, not an error."""
+    return status(ledger, trip_id, at, unplanned_ok=True)
+
+
+def _moments(payload):
+    """Moments as returned to callers. A plan stored before derivation 4 kept the at-airport time
+    under leave_by ("Leave for the airport."); show it as at_airport_by. The stored payload is unchanged."""
+    moments = [dict(m) for m in payload["moments"]]
+    if payload.get("derivation", 0) <= 3:
+        for m in moments:
+            if m.get("key") == "leave_by":
+                m.update(key="at_airport_by", note="Be at the airport.")
+    return moments
+
+
 def _transfer(inputs, first):
-    return inputs.get("airport_transfer_minutes") if not inputs.get("airport_transfer_origin") or inputs["airport_transfer_origin"] == first.get("origin") else None
+    return trip_math.transfer_for(inputs, first)
 
 
 def _timing(ledger, trip_id, payload, facts, current):
@@ -198,7 +215,7 @@ def _timing(ledger, trip_id, payload, facts, current):
                                included_minutes=inputs.get("weather_included_minutes", 0)) if departure and origin and "airport_lead_minutes" in inputs else None
     leave = trip_math.leave_by(departure, inputs["airport_lead_minutes"], origin, transfer,
         estimated=first.get("estimated_departure"), severity=airport["severity"], included_minutes=inputs.get("weather_included_minutes", 0)) if airport and transfer is not None else None
-    moments = [dict(m) for m in payload["moments"]]
+    moments = _moments(payload)
     for moment in moments:
         if moment["key"] == "first_commitment" and arrival:
             moment["feasibility"] = trip_math.feasibility(arrival, moment["at"], destination or str(_time(arrival).tzinfo),
@@ -439,8 +456,12 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
               "arm_epoch": _arm_epoch if _arm_epoch is not None else saved.get("arm_epoch", 0)}
     if airport_transfer_minutes is not None:
         inputs["airport_transfer_minutes"] = airport_transfer_minutes
-        if facts_mode or saved.get("airport_transfer_origin") and departure.isoformat() == saved.get("departure_at"):
-            inputs["airport_transfer_origin"] = live[0]["origin"] if facts_mode else saved["airport_transfer_origin"]
+        given = next((seg for seg in (flight or {}).get("segments", []) if seg.get("status") != "cancelled"
+                      and abs(_time(seg["scheduled_departure"]) - departure) <= dt.timedelta(minutes=45)), None)
+        if facts_mode or given:  # Bind to the departure airport so the transfer never reaches another leg.
+            inputs["airport_transfer_origin"] = live[0]["origin"] if facts_mode else given["origin"]
+        elif saved.get("airport_transfer_origin") and departure.isoformat() == saved.get("departure_at"):
+            inputs["airport_transfer_origin"] = saved["airport_transfer_origin"]
     if "watch" in arm:
         if len(trip_id.encode()) > 80:
             raise ValueError("trip_id must be at most 80 bytes to arm a watch")
@@ -466,9 +487,11 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         end = dt.datetime.combine(local.date(), dt.time.fromisoformat(w["end"]), z)
         check_in = end if end > local else end + dt.timedelta(days=1)
     add("check_in_window", check_in, origin, "Check airline check-in availability.")
-    add("at_airport_by", departure - dt.timedelta(minutes=airport_lead_minutes), origin, "Be at the airport.")
+    add("at_airport_by", _time(trip_math.at_airport_by(departure.isoformat(), airport_lead_minutes, str(origin))["at"]), origin, "Be at the airport.")
+    leave_at = None
     if airport_transfer_minutes is not None:
-        add("leave_by", _time(trip_math.leave_by(departure.isoformat(), airport_lead_minutes, str(origin), airport_transfer_minutes)["at"]), origin, "Leave for the airport.")
+        leave_at = _time(trip_math.leave_by(departure.isoformat(), airport_lead_minutes, str(origin), airport_transfer_minutes)["at"])
+        add("leave_by", leave_at, origin, "Leave for the airport.")
     logistics = (departure - dt.timedelta(minutes=max(check_in_lead_minutes, airport_lead_minutes))).astimezone(origin)
     for _ in range(6):
         quiet = next(((w, z) for w, z in windows if _quiet(logistics.astimezone(z), w)), None)
@@ -499,7 +522,7 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         pulse = _pulse(payload, m, ledger.root, at=current.isoformat())
         instant = _time(pulse["trigger"].get("at", departure.isoformat()))
         reason = "moment_past" if instant < current else "too_far" if m != "watch" and instant - current > dt.timedelta(days=365) else None
-        if m == "check_in_window" and (check_in >= departure - dt.timedelta(minutes=airport_lead_minutes) or any(_quiet(check_in.astimezone(z), w) for w, z in windows)):
+        if m == "check_in_window" and (check_in >= (leave_at or departure - dt.timedelta(minutes=airport_lead_minutes)) or any(_quiet(check_in.astimezone(z), w) for w, z in windows)):
             reason = "quiet_hours"
         if m == "arrival_logistics" and any(_quiet(logistics.astimezone(z), w) for w, z in windows):
             reason = "quiet_hours"
@@ -613,11 +636,12 @@ def dispatch(ledger, data):
     if action == "record_facts":
         if "segments" not in data and any(k in data for k in SCHEDULE):
             data["segments"] = {k: data.pop(k) for k in flat_keys if k in data}
+            data.setdefault("source", "user")
         if isinstance(data.get("segments"), str):
             data["segments"] = json.loads(data["segments"])
         if isinstance(data.get("segments"), dict):
             data["segments"] = [data["segments"]]
-    actions = {"plan": plan, "record_wake": record_wake, "record_cancel": record_cancel, "record_skip": record_skip, "verify": verify, "record_facts": record_facts, "status": status}
+    actions = {"plan": plan, "record_wake": record_wake, "record_cancel": record_cancel, "record_skip": record_skip, "verify": verify, "record_facts": record_facts, "status": read_status}
     if action not in actions:
         raise ValueError("unknown trip watch action")
     result = _call_with_supported_data(actions[action], ledger, data=data)

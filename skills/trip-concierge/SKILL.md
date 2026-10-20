@@ -19,7 +19,9 @@ Arming works only in a messaging chat, such as a Telegram DM.
 On Desktop or TUI, say you will set it up from their phone chat.
 On no, record `trip_offer offer_type=trip_watch outcome=declined`.
 On yes, gather departure and arrival times with offsets; use itinerary-intake if needed.
-Save flight facts for the watch: use flat `trip_watch_plan action=record_facts`, one flight per call.
+Save flight facts for the watch: flat `trip_watch_plan action=record_facts` with trip_id, `source` ("user"), carrier, number,
+origin, destination, origin_timezone, destination_timezone, scheduled_departure and scheduled_arrival; one flight per call.
+While arming after a yes, ignore any `next_step` it returns; the question is already answered.
 Send one `pa` entry per `tool_call` (local tools cannot be batched); pass `calls` as a native array, never a string.
 If a tool_call error says "'calls' is not valid JSON", PA was not reached: resend the single call; never say the ledger or PA rejected it.
 If it still fails, say plainly that the flight couldn't be saved for live tracking yet.

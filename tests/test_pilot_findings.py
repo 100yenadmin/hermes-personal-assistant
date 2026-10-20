@@ -85,3 +85,79 @@ def test_offer_hint_suppression_is_read_only(tmp_path, kind):
     before = ledger.list('action')
     assert tw.offer_hint(Ledger(tmp_path, read_only=True), 'synthetic', at='2026-11-19T00:00:00Z') is None
     assert ledger.list('action') == before
+
+
+RETURN = {**SEG, 'origin': 'CDG', 'destination': 'HND', 'origin_timezone': 'Europe/Paris', 'destination_timezone': 'Asia/Tokyo',
+          'scheduled_departure': '2026-11-20T12:00:00+01:00', 'scheduled_arrival': '2026-11-21T08:00:00+09:00'}
+
+
+def test_explicit_times_transfer_never_reaches_the_return_leg(tmp_path):
+    from personal_assistant import trip_math
+    from personal_assistant.trip_facts import record_facts
+    ledger = Ledger(tmp_path)
+    record_facts(ledger, 'synthetic', [SEG, RETURN], 'user')
+    plan = tw.plan(ledger, trip_id='synthetic', departure_at=SEG['scheduled_departure'], arrival_at=SEG['scheduled_arrival'],
+                   airport_transfer_minutes=75, at='2026-11-09T00:00:00Z')
+    assert plan['inputs']['airport_transfer_origin'] == 'HND' and plan['leave_by']['local_time'] == '07:45'
+    later = tw.status(ledger, 'synthetic', at='2026-11-19T00:00:00Z')
+    assert later['leave_by'] is None and later['needs_airport_transfer']
+    # An unbound transfer (no facts when given) applies only to the departure it was given for.
+    unbound = {'airport_transfer_minutes': 75, 'departure_at': SEG['scheduled_departure']}
+    assert trip_math.transfer_for(unbound, SEG) == 75 and trip_math.transfer_for(unbound, RETURN) is None
+    assert trip_math.transfer_for(unbound, {}) == 75 and trip_math.transfer_for({**unbound, 'airport_transfer_minutes': 0}, SEG) == 0
+
+
+def test_legacy_plan_moment_reads_as_airport_time(tmp_path):
+    from personal_assistant.state_loop import StateLoop
+    ledger = Ledger(tmp_path)
+    tw.plan(ledger, **BASE)
+    with ledger.connect() as conn:  # Rewrite the stored payload as a derivation-3 plan would have stored it.
+        row = conn.execute("select payload_json from pa_events where event_id=?", (tw._event_id('synthetic'),)).fetchone()
+        payload = json.loads(row['payload_json'])
+        payload['derivation'] = 3
+        payload['moments'] = [{**m, 'key': 'leave_by', 'note': 'Leave for the airport.'} if m['key'] == 'at_airport_by' else m
+                              for m in payload['moments']]
+        conn.execute("update pa_events set payload_json=? where event_id=?", (json.dumps(payload), tw._event_id('synthetic')))
+    moments = {m['key']: m for m in tw.status(ledger, 'synthetic', at=BASE['at'])['moments']}
+    assert 'leave_by' not in moments and moments['at_airport_by']['note'] == 'Be at the airport.'
+    stored = json.loads(StateLoop(ledger).get_event(tw._event_id('synthetic'))['payload_json']
+                        if 'payload_json' in StateLoop(ledger).get_event(tw._event_id('synthetic'))
+                        else json.dumps(StateLoop(ledger).get_event(tw._event_id('synthetic'))['payload']))
+    assert any(m['key'] == 'leave_by' for m in stored['moments'])  # The stored payload is unchanged.
+
+
+def test_only_the_status_read_accepts_an_unplanned_trip(tmp_path):
+    ledger = Ledger(tmp_path)
+    with pytest.raises(ValueError, match='unknown event_id'):
+        tw.dispatch(ledger, {'action': 'verify', 'trip_id': 'missing', 'wakes': [{'id': 'w_x', 'status': 'active'}]})
+    assert ledger.list('action') == []  # verify reads the plan before it writes anything.
+    with pytest.raises(ValueError, match='unknown event_id'):
+        tw.dispatch(ledger, {'action': 'record_cancel', 'trip_id': 'missing', 'wake_id': 'w_x'})
+
+
+def test_flat_flight_without_source_and_cancelled_offer(tmp_path):
+    flat = {k: v for k, v in SEG.items()}
+    saved = dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {'action': 'record_facts', 'trip_id': 'flat', **flat}})
+    assert saved['segments'] and saved['next_step']['offer_trip_watch']
+    cancelled = dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {
+        'action': 'record_facts', 'trip_id': 'gone', 'source': 'user', **{**SEG, 'status': 'cancelled'}}})
+    assert 'next_step' not in cancelled
+
+
+def test_check_in_wake_never_after_the_leave_time(tmp_path):
+    ledger = Ledger(tmp_path)
+    # 12:00 departure, 4 h check-in window (08:00), 180 min lead (09:00 at the airport), 120 min transfer (leave 07:00).
+    without = tw.plan(ledger, **BASE, check_in_window_hours=4, arm=['check_in_window'])
+    assert without['arm'][0]['state'] != 'not_applicable'
+    plan = tw.plan(ledger, **BASE, check_in_window_hours=4, airport_transfer_minutes=120, arm=['check_in_window'])
+    moments = {m['key']: m['at'] for m in plan['moments']}
+    assert tw._time(moments['leave_by']) < tw._time(moments['check_in_window'])
+    assert plan['arm'][0]['state'] == 'not_applicable'  # A check-in wake after the leave time is useless.
+
+
+def test_segments_schema_accepts_the_parsed_forms():
+    import jsonschema
+    from personal_assistant.entry import SCHEMA
+    seg_schema = SCHEMA['parameters']['properties']['data']['properties']['segments']
+    for value in ([SEG], SEG, json.dumps([SEG])):
+        jsonschema.validate(value, seg_schema)

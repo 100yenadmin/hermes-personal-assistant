@@ -39,6 +39,23 @@ def at_airport_by(departure, lead_minutes, origin_tz, *, estimated=None, severit
             "assumed": ["weather_extra_minutes"] if extra else []}
 
 
+def transfer_for(record, segment) -> int | None:
+    """Transfer minutes that apply to this departure, or None.
+
+    A transfer belongs to the departure it was given for: its origin airport when bound, otherwise
+    the recorded departure_at within 45 minutes. It never carries to another leg."""
+    minutes = record.get("airport_transfer_minutes")
+    if minutes is None:
+        return None
+    segment = segment or {}
+    if record.get("airport_transfer_origin"):
+        return minutes if record["airport_transfer_origin"] == segment.get("origin") else None
+    leg, given = segment.get("scheduled_departure"), record.get("departure_at")
+    if not leg:
+        return minutes
+    return minutes if given and abs(_time(leg) - _time(given)) <= dt.timedelta(minutes=45) else None
+
+
 def leave_by(departure, lead_minutes, origin_tz, transfer_minutes, **kwargs) -> dict:
     airport = at_airport_by(departure, lead_minutes, origin_tz, **kwargs)
     local = (_time(airport["at"]) - dt.timedelta(minutes=_minutes(transfer_minutes))).astimezone(_zone(origin_tz))
