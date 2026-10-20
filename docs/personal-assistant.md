@@ -191,6 +191,25 @@ provider completion, or readback.
 
 See [the gateway contract](workflow-authorization-gateway.md).
 
+## Optional Chief of Staff skills
+
+`cos-daily`, `cos-weekly`, `cos-scout`, and `cos-radar` are optional skills gated
+by `pa_mode: chief_of_staff` metadata. Native registration includes them only
+when `modes.chief_of_staff` is the boolean `true`. Use
+`/pa mode chief-of-staff on` to opt in, or `/pa mode chief-of-staff off` to opt out.
+The separately accepted `cos_daily` and `cos_weekly` jobs provide the daily and
+weekly reports; scout runs on demand and radar joins weekly or on-demand work.
+No job starts merely because the mode is enabled.
+
+Daily offers at most one evidence-backed action, or records justified silence.
+Weekly compares priorities with events, open loops and recommendation outcomes,
+then proposes at most one batched improvement. Scout weighs adopt versus build
+for a current need. Radar offers at most one benchmark a week and books an
+owner-approved slot through the existing bound calendar path. None installs
+software or silently edits the profile. Recommendations and their outcomes use
+the existing state loop with retrievable note projections. Follow-ups require
+an owner-approved HeartBeat 2.0 `at` wake naming the skill in the same chat.
+
 ## Optional Daily Ops
 
 Daily Ops is a read-only composition over accepted calendar, mail, trip, and

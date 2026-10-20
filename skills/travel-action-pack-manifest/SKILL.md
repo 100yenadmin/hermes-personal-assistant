@@ -13,6 +13,12 @@ metadata:
 
 This directory carries the v0.1 customer-pilot bundle manifests for OpenClaw and Codex/Hermes-compatible skill installers.
 
+Optional Chief of Staff skills: `cos-daily`, `cos-weekly`, `cos-scout`, and
+`cos-radar`. Their `pa_mode: chief_of_staff` metadata gates native registration;
+use them only when Chief of Staff mode is on (`/pa mode chief-of-staff on`).
+They are not baseline required skills. Mode enablement starts no jobs; scheduled
+reports and HB2 `at` follow-ups require the owner's approval.
+
 Use the package only for enrolled pilot customers until the canary matrix passes:
 
 - trip ledger pass
