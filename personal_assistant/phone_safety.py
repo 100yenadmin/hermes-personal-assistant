@@ -2,8 +2,9 @@
 
 Inspection keeps only normalized decimal digits, irrespective of punctuation,
 words or field boundaries. Every 13–19 digit window is checked, then mapped
-back to original spans. Only a separately validated typed callback can exempt
-a window wholly inside that one field; labels alone grant no exception.
+back to original spans. Validated numeric facts remain in the digit stream,
+so typed data cannot hide a mixed free-text/card window. Numeric-only typed
+choices are interpreted by their validated semantics, not as payment values.
 """
 import re
 import unicodedata
@@ -53,7 +54,7 @@ def valid_callback(value):
                    for length in range(13, 20) for start in range(len(digits) - length + 1))
 
 
-def phone_card_spans(texts, *, callbacks=()):
+def phone_card_spans(texts, *, callbacks=(), typed_numeric=()):
     """Return implicated original spans for one joined digit stream, in O(n).
 
     Two parity prefix sums give each bounded Luhn window a constant-time check.
@@ -62,6 +63,7 @@ def phone_card_spans(texts, *, callbacks=()):
     """
     digits, positions = [], []
     safe_callbacks = {index for index in callbacks if valid_callback(texts[index])}
+    numeric_fields = set(typed_numeric) | safe_callbacks
     for field, text in enumerate(texts):
         for offset, char in enumerate(text):
             for normalized in unicodedata.normalize('NFKC', char):
@@ -69,7 +71,9 @@ def phone_card_spans(texts, *, callbacks=()):
                     digits.append(unicodedata.decimal(normalized))
                     positions.append((field, offset))
     prefixes = ([0], [0])
+    free_digits = [0]
     for index, digit in enumerate(digits):
+        free_digits.append(free_digits[-1] + (positions[index][0] not in numeric_fields))
         doubled = digit * 2
         doubled -= 9 if doubled > 9 else 0
         for parity in (0, 1):
@@ -81,8 +85,10 @@ def phone_card_spans(texts, *, callbacks=()):
             prefix = prefixes[end % 2]
             if (prefix[end] - prefix[start]) % 10:
                 continue
-            first_field, last_field = positions[start][0], positions[end - 1][0]
-            if first_field == last_field and first_field in safe_callbacks:
+            # The caller validates typed dates/times/counts; callbacks also get
+            # their own intrinsic Luhn-window check. Never REMOVE their digits:
+            # a window touching ANY free-text digit must still be inspected.
+            if free_digits[end] == free_digits[start]:
                 continue
             marks[start] += 1
             marks[end] -= 1
@@ -98,8 +104,8 @@ def phone_card_spans(texts, *, callbacks=()):
     return spans
 
 
-def restricted_phone_fields(texts, *, callbacks=()):
-    spans = phone_card_spans(texts, callbacks=callbacks)
+def restricted_phone_fields(texts, *, callbacks=(), typed_numeric=()):
+    spans = phone_card_spans(texts, callbacks=callbacks, typed_numeric=typed_numeric)
     return {index for index, text in enumerate(texts)
             if spans[index] or _CREDENTIAL.search(unicodedata.normalize('NFKC', text))}
 

@@ -101,13 +101,17 @@ This happens before privacy cleaning, JSON escaping or packet splitting; approve
 facts are refused, never rewritten. Choices have one canonical order shared by
 inspection, selected facts and the decision-table serializer. The actual exported
 projection is inspected again when an invalid display name is omitted, so removed
-input cannot mask a split value that remains. Typed calendar/count values are semantically
-validated, not treated as free-text payment values. Validated callbacks have only
-a field-scoped exception; any 13–19 digit checksum-valid window **within** a
-callback still refuses it, and cross-field windows are never exempt. Ambiguous
+input cannot mask a split value that remains. Typed calendar/count values are
+semantically validated and **remain in the joined digit stream**. Every window
+touching any free-text digit is scanned, including a free card fragment completed
+by a typed time such as `11:11`. A sequence consisting entirely of validated typed
+numeric values is interpreted by its date/time/count/callback semantics, not as
+an untyped payment value; this preserves ordinary multi-field calendar ranges
+even when their digits pass Luhn by chance. Callback typing stays field-scoped;
+any checksum-valid window **within** a callback still refuses it. Ambiguous
 phone/card values need owner review rather than disclosure.
 
-Native `compile` returns `restricted_content` with safe field paths, e.g.
+Native `compile` returns `restricted_content` with safe field paths, e.g.,
 `fields: ["may_share[0]"]`, and instructions to redact/prepare a new card. It does
 not echo the sensitive value or hide the refusal behind `invalid_request`.
 This is conservative payment-value filtering, **not universal PII detection**:

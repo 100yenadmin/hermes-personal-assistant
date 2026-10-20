@@ -72,14 +72,16 @@ def _calendar_choice(value):
 
 def _inspect_public(selected, choices):
     """Validate typed facts, then scan all remaining selected values together."""
-    paths, texts, callbacks = [], [], []
+    paths, texts, callbacks, typed_numeric = [], [], [], []
     omitted_name = None
 
-    def add(path, value, callback=False):
+    def add(path, value, callback=False, numeric=False):
         paths.append(path)
         texts.append(value)
         if callback:
             callbacks.append(len(texts) - 1)
+        if numeric:
+            typed_numeric.append(len(texts) - 1)
 
     add('purpose', selected['purpose'])
     for index, fact in enumerate(selected['may_share']):
@@ -106,9 +108,12 @@ def _inspect_public(selected, choices):
             add(path + '.value', value)
         elif kind == 'date':
             _date(value)
+            add(path + '.value', value, numeric=True)
         elif kind == 'time':
             _time(value)
-        # party_size was bounded by the schema and has no free text.
+            add(path + '.value', value, numeric=True)
+        elif kind == 'party_size':
+            add(path + '.value', str(value), numeric=True)
     if 'on_behalf_of' in selected:
         if display_name(selected['on_behalf_of']) is None:
             omitted_name = len(texts)
@@ -117,15 +122,31 @@ def _inspect_public(selected, choices):
     for key, value in choices.items():
         if key in {'date', 'time'}:
             {'date': _date, 'time': _time}[key](value)
+            add('limits.' + key, value, numeric=True)
         elif key in {'date_range', 'time_range'}:
             ordered = (_date(value['start']) <= _date(value['end']) if key == 'date_range'
                        else _time(value['start']) <= _time(value['end']))
             if not ordered:
                 raise ValueError('calendar range must be ordered')
+            for endpoint, token in value.items():
+                add(f'limits.{key}.{endpoint}', token, numeric=True)
+        elif key == 'party_size':
+            add('limits.' + key, str(value), numeric=True)
+        elif key == 'party_size_range':
+            for endpoint, count in value.items():
+                add(f'limits.{key}.{endpoint}', str(count), numeric=True)
         elif key == 'timezone':
             _timezone(value)
-        elif isinstance(value, str) and not (key in {'preferred_time', 'time_window'} and _calendar_choice(value)):
-            add('limits.' + key, value)
+            add('limits.timezone', value, numeric=True)
+        elif isinstance(value, str):
+            add('limits.' + key, value, numeric=key in {'preferred_time', 'time_window'} and _calendar_choice(value))
+    # Refuse standalone restricted fields first, with precise useful paths,
+    # rather than reporting neighboring safe calendar values as the cause.
+    local = {index for index, text in enumerate(texts) if clean(text) != text or
+             restricted_phone_fields([text], callbacks=[0] if index in callbacks else [],
+                                     typed_numeric=[0] if index in typed_numeric else [])}
+    if local:
+        raise RestrictedContent([paths[index] for index in local])
     # Check the selected input AND the actual exported projection. Removing an
     # invalid display name must not conceal a split card in the remaining facts.
     projections = [list(range(len(texts)))]
@@ -134,7 +155,8 @@ def _inspect_public(selected, choices):
     restricted = set()
     for indices in projections:
         restricted.update(indices[index] for index in restricted_phone_fields(
-            [texts[i] for i in indices], callbacks=[index for index, i in enumerate(indices) if i in callbacks]))
+            [texts[i] for i in indices], callbacks=[index for index, i in enumerate(indices) if i in callbacks],
+            typed_numeric=[index for index, i in enumerate(indices) if i in typed_numeric]))
     restricted.update(index for index, text in enumerate(texts) if clean(text) != text)
     if restricted:
         raise RestrictedContent([paths[index] for index in restricted])

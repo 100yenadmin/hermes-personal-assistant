@@ -404,3 +404,30 @@ def test_internal_validation_markers_cannot_grant_a_display_name_or_echo_untrust
     with pytest.raises(ValueError, match='invalid prepared call card') as error:
         compile_brief(brief)
     assert 'UNTRUSTED_PATH_OR_VALUE' not in str(error.value)
+
+
+@pytest.mark.parametrize('projection', ['legacy-choice', 'typed-fact', 'typed-choice'])
+def test_typed_calendar_cannot_complete_a_free_text_card_fragment(tmp_path, projection):
+    brief = card()
+    fragment = '411111111111'
+    if projection == 'legacy-choice':
+        brief['limits'] = {'flexibility': fragment, 'preferred_time': '11:11'}
+    elif projection == 'typed-choice':
+        brief['limits'] = {'flexibility': fragment, 'time': '11:11'}
+    else:
+        brief['may_share'] = [fragment, {'type': 'time', 'value': '11:11'}]
+    prepared = calls.dispatch(tmp_path, dict(action='prepare', **brief))
+    result = calls.dispatch(tmp_path, {'action': 'compile', 'call_id': prepared['call_id']})
+    assert result['status'] == 'restricted_content'
+
+
+def test_ordinary_typed_callback_and_calendar_facts_compile_together():
+    brief = card()
+    brief['may_share'] = [{'type': 'callback', 'value': '+15555550100'},
+                           {'type': 'date', 'value': '2026-11-21'},
+                           {'type': 'time', 'value': '19:00'}, {'type': 'party_size', 'value': 2}]
+    brief['limits'] = {'preferred_time': '2026-11-21 19:00 Asia/Seoul',
+                       'time_window': '2026-11-21 - 2026-11-22',
+                       'date_range': {'start': '2026-11-21', 'end': '2026-11-22'},
+                       'time_range': {'start': '18:30', 'end': '20:00'}}
+    assert compile_brief(brief)['type'] == 'conversation_initiation_client_data'
