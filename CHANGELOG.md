@@ -18,6 +18,12 @@
 - **Reports go to the chat or Telegram topic where you accept them (#22).** Setup records the destination as `origin`, and Hermes binds it when `/suggestions accept` runs. Accept daily and weekly in different topics to keep them apart; accepting from the CLI or Desktop falls back to a configured home channel, and without one nothing is delivered.
 - **CoS setup section.** `/pa setup chief-of-staff` asks five questions (priorities, radar topics, daily time, weekly slot, which schedules), with its own progress, through the same reviewed-write flow as core setup. Schedules need an explicit yes for each one.
 - **Daily Ops scheduled jobs reach the user (#21).** The morning brief and evening due-source jobs used local delivery plus an agent send tool that Hermes v0.22.2 does not have, so they could never reach the user. They now deliver the run's final response to the verified chat, the same way as CoS.
+- **Trip concierge fixes from the live pilot (#23).**
+  - **Be at the airport vs leave by.** The time shown as "leave by" was really the time to be at the airport. PA now shows "be at the airport by" and gives a leave-by time only once the transfer from where you're staying is known. The agent asks for it once, and it is tied to the departure airport. Daily Ops and alerts never say "LEAVE NOW" without it. Armed wakes carry over unchanged.
+  - **Saving flight facts.** A flat single-flight `record_facts` form, tolerant parsing of string input, and skill guidance to send one `pa` call per tool call. A wrapper parse error is no longer reported as the ledger rejecting the flight.
+  - **Offer after import.** A trip import or flight-facts save returns a read-only hint to offer the trip watch once, and the import skills point to it.
+  - **Night alerts.** With night alerts on, PA recommends HeartBeat's `quiet_hours_urgent` setting (profile-wide, off by default) and explains it. PA never changes it.
+  - **Trip-watch status before a plan exists** returns "not planned" instead of an error.
 - **Capability Lab.** CoS scenarios s13–s16 cover a daily report, justified silence, a Korean scout and a weekly review with a benchmark yes. They use Hermes's own cron prompt builder and silence matcher. Lab only; not shipped behaviour.
 - **Evidence.** CoS wave 2 at `296644e` on `gpt-6.1-sol`, 3 runs per scenario: 12/12 runs pass the deterministic checks and 11/12 pass the judge.
   - Daily report 3/3 and justified silence 3/3, with top judge scores in every run.
