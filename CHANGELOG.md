@@ -31,6 +31,7 @@
   - Weekly review: 3/3 checks after two lab checks were corrected to accept equivalent wording (#22); the first score was 1/3, and the product text is unchanged.
   - 0 installs, 0 profile-file writes, 0 unapproved wakes, 0 message-tool calls.
   - Wave 2 predates the #19 quiet-hours and destination-conflict guards. The CoS skills and scheduled job prompts are unchanged since then.
+  - Confirmation wave 3 at the release code (`e628aea`), 1 run per scenario: 4/4 runs pass the deterministic checks and 4/4 pass the judge, with 0 installs, 0 profile-file writes, 0 unapproved wakes and 0 message-tool calls.
 - **Unchanged.** Install stays inert; no job exists until the user accepts it in Hermes; no software is installed and no profile file is edited without review.
 
 ## 0.7.0-rc.1 — 2026-10-19
