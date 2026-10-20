@@ -69,3 +69,13 @@ def test_scheduled_delivery_reference_is_final_response_handoff():
     assert "Final response handed to Hermes cron delivery" in text
     assert "Never use a message tool in a scheduled run" in text
     assert "Send one useful message with the existing message tool" not in text
+
+
+def test_ignored_requires_evidence_the_offer_reached_owner():
+    for path in (STATE_REFERENCE, ROOT / "skills/cos-daily/SKILL.md"):
+        text = " ".join(path.read_text().split())
+        assert "explicit skip" in text and "no owner reply by `review_at`" in text
+        assert "known to have reached the owner" in text
+        assert "a chat reply" in text and "visible in this chat's history" in text
+        assert "only the `unknown` hand-off receipt" in text
+        assert "stays `unknown`" in text

@@ -142,6 +142,7 @@ def evaluate(root, scenario):
         new_radar = [r for r in cos_checks.notes(ledger, "cos:radar:") if r.get("action_id") not in seed_ids]
         overall["one_radar_offer"] = len(new_radar) <= 1
         overall["no_profile_write_attempt"] = not lines(root / "profile-tripwire.jsonl")
+        overall["no_unapproved_wake"] = not lines(root / "wake-tripwire.jsonl")
         visible = [m["message"] for m in attempts if m.get("accepted")]
         visible += [m["content"] for m in assistants if not m.get("scheduled")]
         silence = all(st["expect"]["cos"] == "silence" for st in scenario["steps"])

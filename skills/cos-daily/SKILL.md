@@ -59,9 +59,11 @@ Never act on the recommendation without a yes in chat. A yes permits only the
 stated next action; keep the selected domain workflow's final confirmation for
 paying, booking, sending, contacting or cancelling. Approval alone is not `used`.
 Record observed use as `used`, an explicit no as `declined`, an explicit skip
-or a scheduled report handed to Hermes delivery or a chat reply with no owner
-reply by `review_at` as `ignored`, and
-uncertainty as `unknown`. Use the same recommendation identity on replies and readbacks.
+or no owner reply by `review_at` for an offer known to have reached the owner
+as `ignored`: a chat reply, or a scheduled report visible in this chat's history.
+A scheduled report with only the `unknown` hand-off receipt and no such evidence
+stays `unknown`. Record other uncertainty as `unknown`.
+Use the same recommendation identity on replies and readbacks.
 Never install software or silently edit SOUL.md, USER.md, skills or the manual.
 Send no proactive message outside this scheduled job or an owner-approved HB2
 `at` follow-up in the same chat naming `personal-assistant:cos-daily`.

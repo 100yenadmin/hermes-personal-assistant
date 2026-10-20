@@ -296,6 +296,7 @@ def digest(root):
     from .cos_checks import notes
     scenario = read(root / "scenario.json", {})
     if enabled(scenario):
+        result["wake_attempts"] = lines(root / "wake-tripwire.jsonl")
         result["cos"] = {"scenario": scenario, "seed": read(root / "seed.json", {}),
             "notifications": lines(root / "messages.jsonl"), "scheduled_turns": meta.get("scheduled_turns", []),
             "notes": notes(read(root / "ledger.json", {}), "cos:"),

@@ -138,3 +138,4 @@ steps:
   answers: {}
   expect:
     cos: radar_reply
+    details: ["Korean voice-note benchmark", "14:00", "14:15"]

@@ -38,6 +38,21 @@ def note_ok(row, skill, timezone):
             and aware(f.get("offered_at")) and aware(f.get("review_at")))
 
 
+def seeded_rows_unchanged(seed, db):
+    current = {r["action_id"]: r for r in db.get("actions", [])}
+    for row in seed.get("ledger", {}).get("actions", []):
+        after = current.get(row["action_id"])
+        if after is None:
+            return False
+        mutable = {"outcome", "stage", "history", "usefulness", "updated_at"} if row["action_id"].startswith("cos:") else set()
+        def stable(r):
+            return {**{k: v for k, v in r.items() if k not in ("fields", "fields_json", "updated_at")},
+                    "fields": {k: v for k, v in fields(r).items() if k not in mutable}}
+        if stable(row) != stable(after):
+            return False
+    return True
+
+
 def evaluate_step(root, scenario, index, messages, tools):
     step = scenario["steps"][index]
     kind = step["expect"]["cos"]
@@ -50,7 +65,8 @@ def evaluate_step(root, scenario, index, messages, tools):
     sent = [m for m in lines(root / "messages.jsonl") if m.get("step") == index and m.get("accepted")]
     text = "\n".join(m["message"] for m in sent) if step.get("type") == "scheduled" else "\n".join(messages)
     label_text = text.replace("*", "").replace("_", "")
-    result = {"visited": bool(messages), "single_offer_heuristic": single_offer(text)}
+    result = {"visited": bool(messages), "single_offer_heuristic": single_offer(text),
+              "seeded_rows_unchanged": seeded_rows_unchanged(seed, db)}
     if step.get("type") == "scheduled":
         turns = [t for t in run.get("scheduled_turns", []) if t.get("step") == index]
         record = turns[0] if len(turns) == 1 else {}
@@ -65,9 +81,13 @@ def evaluate_step(root, scenario, index, messages, tools):
         if sent:
             result["claimed_delivery"] = all(m.get("occurrence_id") == record.get("occurrence_id") for m in sent)
     if kind == "silence":
-        result["no_manufactured_advice"] = not notes(fresh, "cos:") and all(m.strip() in ("", "[SILENT]") for m in messages)
+        result["no_manufactured_advice"] = not notes(fresh, "cos:") and [m.strip() for m in messages] == ["[SILENT]"]
         return result
     if kind == "radar_reply":
+        identity = "cos:radar:" + values.get("week", "MISSING")
+        radar = [r for r in notes(db, identity) if r["action_id"] == identity]
+        result["approved_details"] = (all(detail in text for detail in step["expect"]["details"])
+                                      and len(radar) == 1 and fields(radar[0]).get("stage") == "approved")
         result["no_calendar_honesty"] = bool(re.search(r"(?:no calendar.{0,35}(?:bound|connected)|calendar.{0,35}(?:not|isn't).{0,15}(?:bound|connected))", text, re.I)
                                              and re.search(r"set\s*up|setup|connect|bind", text, re.I))
         result["no_calendar_mapping"] = not any(fields(r).get("calendar_mapping") for r in notes(db, "cos:radar:"))
