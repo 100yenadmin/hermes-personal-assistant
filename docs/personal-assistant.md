@@ -96,22 +96,6 @@ call before relying on it.
 
 ## Domain workflows
 
-Chief of Staff defaults off. Set `chief_of_staff: true` in the dict at
-`plugins.entries.personal-assistant.settings.modes`, or use
-`/pa mode chief-of-staff on`; `hermes gateway restart` and a new session apply
-the skill registration. `/pa mode` and both status paths show the mode;
-`/pa mode chief-of-staff off` removes PA CoS jobs, dismisses pending suggestions
-and pauses CoS rules. Mode changes are refused in cron children or across profiles.
-
-The existing `pa automations suggest` path offers accepted CoS rules only while
-the mode is on: `cos_daily` loads `personal-assistant:cos-daily`, and `cos_weekly`
-loads `personal-assistant:cos-weekly` plus `personal-assistant:cos-radar`.
-Preferences `cos_daily_time` (09:30), `cos_weekly_day` (mon..sun, default mon)
-and `cos_weekly_time` (10:00) use the configured timezone. Five-minute local
-prechecks honor quiet hours, pause and snooze, and claim one daily or ISO-week
-occurrence before waking; receipts use delivered, suppressed or unknown.
-Scout stays on demand; installation enables no jobs or follow-ups.
-
 The recipe router exposes eight bounded workflow families:
 
 1. trip intake, change, and portable export;
@@ -191,24 +175,31 @@ provider completion, or readback.
 
 See [the gateway contract](workflow-authorization-gateway.md).
 
-## Optional Chief of Staff skills
+## Chief of Staff
 
-`cos-daily`, `cos-weekly`, `cos-scout`, and `cos-radar` are optional skills gated
-by `pa_mode: chief_of_staff` metadata. Native registration includes them only
-when `modes.chief_of_staff` is the boolean `true`. Use
-`/pa mode chief-of-staff on` to opt in, or `/pa mode chief-of-staff off` to opt out.
-The separately accepted `cos_daily` and `cos_weekly` jobs provide the daily and
-weekly reports; scout runs on demand and radar joins weekly or on-demand work.
-No job starts merely because the mode is enabled.
+Chief of Staff helps turn your priorities into useful next actions. It is off
+by default. Use `/pa mode chief-of-staff on`, then `hermes gateway restart`
+and a new session. Run `/pa setup chief-of-staff` for five short questions about
+priorities, radar topics, timing and schedules; review changes before saving.
+`/pa mode` shows the mode. `/pa mode chief-of-staff off` removes PA CoS jobs,
+dismisses pending CoS suggestions and pauses their rules. Assistant and Travel stay on.
 
-Daily offers at most one evidence-backed action, or records justified silence.
-Weekly compares priorities with events, open loops and recommendation outcomes,
-then proposes at most one batched improvement. Scout weighs adopt versus build
-for a current need. Radar offers at most one benchmark a week and books an
-owner-approved slot through the existing bound calendar path. None installs
-software or silently edits the profile. Recommendations and their outcomes use
-the existing state loop with retrievable note projections. Follow-ups require
-an owner-approved HeartBeat 2.0 `at` wake naming the skill in the same chat.
+Schedules need an explicit yes, a verified current chat and separate Hermes
+suggestion acceptance. `cos_daily` defaults to 09:30 local; `cos_weekly` defaults
+to Monday 10:00 local and includes radar. Use `/suggestions` to review, then
+`/suggestions accept personal-assistant-cos-daily` and/or
+`/suggestions accept personal-assistant-cos-weekly` for your chosen schedules.
+Enabling the mode starts no jobs. Five-minute prechecks respect quiet hours,
+pause and snooze, with one report per local day or ISO week.
+
+- `cos-daily`: one useful action backed by evidence, or silence.
+- `cos-weekly`: compare priorities and outcomes; propose one batch of improvements.
+- `cos-scout`: research adopt versus build for a current need, on demand.
+- `cos-radar`: offer at most one benchmark a week; book a slot only after approval.
+
+These skills never install software, silently edit SOUL.md, USER.md or skills,
+or send unapproved messages. Follow-ups use only owner-approved HeartBeat 2.0
+`at` wakes in the same chat.
 
 ## Optional Daily Ops
 

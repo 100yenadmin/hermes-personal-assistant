@@ -25,8 +25,7 @@ or review PA. Resume from saved progress; do not restart a completed interview.
 - “Skip”, “later”, and “you decide” always work. Skip leaves an answer unknown;
   later pauses; you decide accepts the stated recommendation, not extra authority.
 - Help with an off-topic request first, then resume at the unanswered question.
-- Record every core answer immediately, including corrections and delegated choices.
-  Record skipped core IDs too. Do not pretend an unasked question was asked.
+- Record every section answer immediately, including corrections and delegated choices. Record skipped IDs too. Do not pretend an unasked question was asked.
 - Never write SOUL.md, USER.md, the manual, context files, or automation preferences
   before explicit apply. Setup progress and proposals are the only interview writes.
 - On “pause”, call setup `pause` and stop the interview. On refusal, use `decline`.
@@ -53,9 +52,10 @@ Progress lives in the `pa:setup` record, never a state-loop event.
 Answer sources are `user` or `discovered`. File targets are `user_memory`,
 `soul_section`, `manual_skill`, and `context_file`; `pa_preferences` is proposal-only.
 Read `status`, `requested_mode`, `next_question`, `answers`, `skipped`, `asked`,
-`proposal`, `proposal_draft`, `applied`, and `fresh_check`. Omit `section`: only `core` is supported.
-Only the eight core IDs may appear in `record` answers, skipped or asked.
-Use `start` for a requested start, never to reset a fresh-session check.
+`proposal`, `proposal_draft`, `applied`, and `fresh_check`, plus `requested_section`. Omitting `section` on `start` preserves the requested section; `/pa setup` requests core. Only IDs in the two question-bank sections may appear in `record` answers, skipped or asked. Use `start` for a requested start, never to reset a fresh-session check.
+## Chief of Staff section
+`/pa setup chief-of-staff`: first check mode; if off, explain `/pa mode chief-of-staff on`, restart and a new session, then stop.
+Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow in `references/question-bank.md` and the reviewed destinations in `references/where-answers-go.md`.
 
 ## Flow
 
@@ -87,7 +87,7 @@ Use `start` for a requested start, never to reset a fresh-session check.
    arrival_help, check-in lead → check_in_time. Ask a partly known ID, known parts recommended.
    For each existing brief or alert job, show keep / adapt / replace with a reason.
    Resolve one job per question; one publisher per brief or alert. Review job changes.
-5. Read `references/question-bank.md`. Follow the eight core IDs in order, skipping
+5. Read `references/question-bank.md`. For core, follow the eight core IDs in order, skipping
    known answers and respecting skipped IDs. Record `asked` IDs and each core answer
    using setup `record`. Deeper answers go into the review, then manual/USER.md/
    SOUL.md only; never pass deeper section names or IDs to setup `start` or `record`.

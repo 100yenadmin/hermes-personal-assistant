@@ -56,6 +56,8 @@ def make_pre_llm_call(root, get_config):
             current = setup.state(ledger)
             status = current["status"]
             if status in {"requested", "in_progress", "proposed"}:
+                if current["requested_section"] == "chief_of_staff" and not cos_enabled(get_config):
+                    return {"context": "Chief of Staff setup is stopped while the mode is off. Explain /pa mode chief-of-staff on, then hermes gateway restart and a new session. Do not record answers, create rules or suggest jobs."}
                 platform, sender = kwargs.get("platform") or "", kwargs.get("sender_id") or ""
                 if current["active_platform"] is None:
                     setup.start(Ledger(root, timeout=0.1), active_platform=platform, active_sender_id=sender)
@@ -67,6 +69,8 @@ def make_pre_llm_call(root, get_config):
                                    if current["look_around_consent"] == "declined"
                                    else "give the intro and consent ask if not done yet; then show what discovery found, "
                                         "or ask call_and_quiet if consent was declined or nothing was found")
+                if current["requested_section"] == "chief_of_staff":
+                    interview_start = "follow the Chief of Staff section's intro and consent flow, then ask only its next question"
                 next_step = ("wait for the user to approve or edit the review"
                              if status == "proposed"
                              else "show the saved setup as one review with proposed changes, then call pa setup propose"

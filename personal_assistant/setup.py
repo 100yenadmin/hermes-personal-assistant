@@ -6,7 +6,9 @@ from .state import legacy, now
 
 CORE_QUESTIONS = ("call_and_quiet", "worth_a_message", "authority", "first_trip",
                   "arrival_help", "protect", "route", "check_in_time")
-SECTIONS = {"core": CORE_QUESTIONS}
+CHIEF_OF_STAFF_QUESTIONS = ("cos_priorities", "cos_radar_topics", "cos_daily_time",
+                            "cos_weekly_slot", "cos_schedules")
+SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS}
 FILE_TARGETS = {"user_memory", "soul_section", "manual_skill", "context_file"}
 TARGETS = FILE_TARGETS | {"pa_preferences"}  # Via pa automations preferences; no file/readback.
 
@@ -17,10 +19,12 @@ def _view(fields):
               "applied": [], "applied_session_id": None, "fresh_check": {},
               "offer_shown_at": None, "updated_at": None, "look_around_consent": None,
               "active_platform": None, "active_sender_id": None, **fields}
-    result["next_question"] = next((q for q in CORE_QUESTIONS
+    questions = SECTIONS.get(result["requested_section"], CORE_QUESTIONS)
+    result["next_question"] = next((q for q in questions
                                     if q not in result["answers"] and q not in result["skipped"]), None)
-    result["counts"] = {key: len(result[key]) for key in ("asked", "answers", "skipped")}
-    result["counts"]["total"] = len(CORE_QUESTIONS)
+    result["counts"] = {key: sum(q in questions for q in result[key])
+                        for key in ("asked", "answers", "skipped")}
+    result["counts"]["total"] = len(questions)
     return result
 
 
@@ -49,10 +53,12 @@ def request(ledger, section="core"):
                  active_platform=None, active_sender_id=None, proposal={"writes": []})
 
 
-def start(ledger, section="core", *, active_platform=None, active_sender_id=None):
-    _section(section)
+def start(ledger, section=None, *, active_platform=None, active_sender_id=None):
+    if section is not None:
+        _section(section)
     prior = state(ledger)
     return _save(ledger, prior["status"] if prior["status"] == "proposed" else "in_progress",
+                 requested_section=prior["requested_section"] if section is None else section,
                  active_platform=active_platform,
                  active_sender_id=active_sender_id if active_platform is not None else None)
 
@@ -61,9 +67,10 @@ def record(ledger, answers=None, skipped=None, asked=None, consent=None):
     if consent is not None and consent not in ("granted", "declined"):
         raise ValueError("consent must be granted or declined")
     answers, skipped, asked = answers or {}, skipped or [], asked or []
-    unknown = sorted(str(k) for k in (set(answers) | set(skipped) | set(asked)) - set(CORE_QUESTIONS))
+    questions = tuple(q for section in SECTIONS.values() for q in section)
+    unknown = sorted(str(k) for k in (set(answers) | set(skipped) | set(asked)) - set(questions))
     if unknown:  # Name the valid IDs so a model can re-record every discovered fact in one retry.
-        raise ValueError(f"unknown setup question {', '.join(unknown)[:120]}; use only: {', '.join(CORE_QUESTIONS)}")
+        raise ValueError(f"unknown setup question {', '.join(unknown)[:120]}; use only: {', '.join(questions)}")
     normalized = {}
     for qid, answer in answers.items():
         if not isinstance(answer, dict) or answer.get("source") not in {"user", "discovered"} or not isinstance(answer.get("text"), str):

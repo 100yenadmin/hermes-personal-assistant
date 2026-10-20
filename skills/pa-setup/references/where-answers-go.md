@@ -73,7 +73,8 @@ is pending; do not claim archive protection until the command succeeds.
 Read `pa(operation="automations", data={"action":"status"})` first. After apply,
 use `pa(operation="automations", data={"action":"preferences","changes":{...}})`.
 Preserve existing preferences when forming `changes`; use supported keys only:
-`timezone`, `brief_time`, `quiet_hours`, `paused`, `snooze_until`.
+`timezone`, `brief_time`, `quiet_hours`, `paused`, `snooze_until`,
+`cos_daily_time`, `cos_weekly_day`, `cos_weekly_time`.
 Quiet hours use `{"start":"22:00","end":"07:00"}`; use an IANA timezone.
 Read status again to verify saved values. A travel-local policy in prose does not
 prove a scheduler follows it; verify its effective zone before promising a time.
@@ -102,6 +103,56 @@ resolve missing settings before planning. Recheck in the delivery chat if setup
 was elsewhere. Never claim PA and HB2 are aligned until the user confirms.
 Do not register, replace or enable jobs without the reviewed job decision and
 explicit approval. Keep one publisher per brief or alert; never a second morning brief.
+
+## Chief of Staff schedules
+
+Read `pa(operation="status")`; stop if `modes.chief_of_staff` is not true.
+Explain `/pa mode chief-of-staff on`, then `hermes gateway restart` and a new
+session. Never create rules while off. Save `cos_priorities` and
+`cos_radar_topics` through the reviewed USER.md/manual path above. Apply
+`cos_daily_time`, `cos_weekly_day` and `cos_weekly_time` through preferences
+(defaults 09:30, mon, 10:00 in the confirmed IANA timezone).
+
+Only an explicit yes in a human turn to daily, weekly, or both permits those
+schedules. “You decide”, skipped timing or a general apply is not a schedule yes.
+Read automation status and Hermes jobs first; reuse an existing selected rule
+and publisher instead of making duplicates. Show the proposed rules in review.
+If the current surface has no verified push destination, stop schedule setup and
+ask the user to continue in the intended delivery chat; never guess a chat ID.
+
+Reuse the existing PA automation rule/receipt lifecycle used by Daily Ops
+(`personal_assistant/daily_ops/doctor.py`, `_delivery_receipt`): bind the exact
+current chat destination, profile, account, IANA timezone, rule ID and revision.
+An existing proof must match all of these; a mutable `destination_verified`
+flag alone is insufficient. If verification is missing, ask for a destination
+verification message before sending it. Claim a distinct verification occurrence
+through `pa(operation="automations", data={"action":"claim","occurrence_id":"<verification occurrence>","rule_id":"<rule id>","payload":{"profile_id":"<profile>","account":"<account>","timezone":"<IANA zone>","destination":"<current chat>","rule_id":"<rule id>","rule_revision":"<revision>"}})`.
+Send only that approved verification message through the existing message tool
+if `claimed` is true, then record its actual provider evidence through
+`pa(operation="automations", data={"action":"receipt","occurrence_id":"<verification occurrence>","receipt":"delivered","proof":{"provider":"<provider>","receipt_reference":"<actual receipt>","observed_at":"<aware timestamp>"}})`.
+Uncertain delivery is `unknown`: do not resend or mark it verified. Check the
+stored notification with `pa(operation="context", data={"kind":"action","action_id":"<returned notification action_id>"})`.
+
+After apply and successful verification, use the existing
+`pa(operation="automations", data={"action":"rule","rule_id":"<stable rule id>","rule":{"kind":"cos_daily","accepted":true,"destination":"<verified current chat>","destination_verified":true,"timezone":"<IANA zone>","profile_id":"<profile>","account":"<account>","rule_revision":"<revision>","accepted_at":"<aware acceptance timestamp>","verified_at":"<aware verification timestamp>"}})`.
+Use `cos_weekly` and its own stable rule ID/proof for weekly; create only the
+selected kinds. Keep `accepted_at <= verified_at <= proof.observed_at`, the
+payload and receipt matched exactly as Daily Ops checks; never invent proof.
+Rules store intent and create no jobs. Read automation status back, then call
+`pa(operation="automations", data={"action":"suggest","native":true})`.
+Check that the chosen suggestions actually exist; do not claim they are enabled.
+
+Tell the user: “Run `/suggestions` in Hermes to review pending automations.
+Accept daily with `/suggestions accept personal-assistant-cos-daily` and weekly
+with `/suggestions accept personal-assistant-cos-weekly`, only for the schedules
+you chose.” Hermes v0.22.2 accepts an exact title or ID, or the current pending
+number (`/suggestions accept N`); re-list after each numbered acceptance because
+numbers shift. This is the CLI and gateway chat command, not a shell
+`hermes cron` subcommand. Acceptance creates the native job; verify Hermes's
+scheduled response and jobs list. Five-minute prechecks use the saved daily or
+weekly slot, quiet hours, pause and snooze, with one report per local day/week.
+Follow-ups still require a separate owner-approved HeartBeat 2.0 `at` wake in
+the same chat; setup creates none.
 
 ## Context file and readbacks
 
