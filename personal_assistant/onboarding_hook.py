@@ -59,6 +59,8 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
             current = setup.state(ledger)
             status = current["status"]
             if status in {"requested", "in_progress", "proposed"}:
+                if current["requested_section"] == "chief_of_staff" and not cos_enabled(get_config):
+                    return {"context": "Chief of Staff setup is stopped while the mode is off. Explain /pa mode chief-of-staff on, then hermes gateway restart and a new session. Do not record answers, create rules or suggest jobs."}
                 platform, sender = kwargs.get("platform") or "", kwargs.get("sender_id") or ""
                 if current["active_platform"] is None:
                     setup.start(Ledger(root, timeout=0.1), active_platform=platform, active_sender_id=sender)
@@ -70,15 +72,17 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                                    if current["look_around_consent"] == "declined"
                                    else "give the intro and consent ask if not done yet; then show what discovery found, "
                                         "or ask call_and_quiet if consent was declined or nothing was found")
+                if current["requested_section"] == "chief_of_staff":
+                    interview_start = "follow the Chief of Staff section's intro and consent flow, then ask only its next question"
                 next_step = ("wait for the user to approve or edit the review"
                              if status == "proposed"
                              else "show the saved setup as one review with proposed changes, then call pa setup propose"
                              if current["requested_mode"] == "review"
                              else "show the saved answers as one review and call pa setup propose; wait for the user's apply"
                              if current["next_question"] is None
-                             # A fresh interview starts with the intro, consent and look-around, not a question.
+                             # A fresh section starts with the intro, consent and look-around, not a question.
                              else interview_start
-                             if not (current["asked"] or current["answers"] or current["skipped"])
+                             if not any(current["counts"][key] for key in ("asked", "answers", "skipped"))
                              else f"ask only the next question ({current['next_question']})")
                 text = ("Guided setup is active. Load skill personal-assistant:pa-setup and continue: "
                         f"help with this message first if it is about something else, then {next_step}.")

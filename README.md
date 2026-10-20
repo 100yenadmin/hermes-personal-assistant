@@ -76,16 +76,31 @@ Daily Ops and conversation delivery are separately configured. Protected
 provider actions retain their workflow-specific confirmation and readback
 requirements. Unknown submission outcomes remain blocked until reconciled.
 
-Chief of Staff is optional: `plugins.entries.personal-assistant.settings.modes`
-defaults to `{}` and enables it only with `chief_of_staff: true`. `/pa mode`
-shows Assistant, Travel and Chief of Staff; `/pa mode chief-of-staff on` saves
-the setting, then `hermes gateway restart` and a new session expose its skills.
-`/pa mode chief-of-staff off` stops PA's CoS jobs, dismisses pending CoS
-suggestions and pauses their rules. Assistant and Travel stay on.
-After explicit acceptance of verified-destination rules, `pa automations suggest`
-can offer `cos_daily` (09:30 local) and `cos_weekly` (Monday 10:00 local, including
-radar). Their five-minute local prechecks respect quiet hours, pause and snooze,
-and claim one report per local day or ISO week. Installation creates no jobs.
+## Chief of Staff
+
+Chief of Staff helps turn your priorities into useful next actions. It is off
+by default. Use `/pa mode chief-of-staff on`, then `hermes gateway restart`
+and a new session. Run `/pa setup chief-of-staff` for five short questions about
+priorities, radar topics, timing and schedules; review changes before saving.
+`/pa mode` shows the mode. `/pa mode chief-of-staff off` removes PA CoS jobs,
+dismisses pending CoS suggestions and pauses their rules. Assistant and Travel stay on.
+
+Schedules need an explicit yes, a verified current chat and separate Hermes
+suggestion acceptance. `cos_daily` defaults to 09:30 local; `cos_weekly` defaults
+to Monday 10:00 local and includes radar. Use `/suggestions` to review, then
+`/suggestions accept personal-assistant-cos-daily` and/or
+`/suggestions accept personal-assistant-cos-weekly` for your chosen schedules.
+Enabling the mode starts no jobs. Five-minute prechecks respect quiet hours,
+pause and snooze, with one report per local day or ISO week.
+
+- `cos-daily`: one useful action backed by evidence, or silence.
+- `cos-weekly`: compare priorities and outcomes; propose one batch of improvements.
+- `cos-scout`: research adopt versus build for a current need, on demand.
+- `cos-radar`: offer at most one benchmark a week; book a slot only after approval.
+
+These skills never install software, silently edit SOUL.md, USER.md or skills,
+or send unapproved messages. Follow-ups use only owner-approved HeartBeat 2.0
+`at` wakes in the same chat.
 
 ## Quick start
 
@@ -128,15 +143,6 @@ Additional qualified skills provide travel execution, Browserbase continuity,
 payment-readiness guidance, reservations, rides, food delivery, check-in,
 weather, and itinerary support. These are optional domain modules over the same
 PA control plane.
-
-Chief of Staff adds four optional, mode-gated skills: `cos-daily` (one useful
-recommendation or silence), `cos-weekly` (priorities and outcomes), `cos-scout`
-(adopt versus build), and `cos-radar` (one benchmark offer per week). Enable
-them with `/pa mode chief-of-staff on`; `/pa mode chief-of-staff off` turns the
-mode off. Their `pa_mode: chief_of_staff` marker gates native registration.
-The `cos_daily` and `cos_weekly` routines require separate owner acceptance;
-enabling the mode alone starts no jobs. Follow-ups use only owner-approved
-HeartBeat 2.0 `at` wakes in the same chat.
 
 ## Installation
 

@@ -23,6 +23,17 @@ def aware(value):
         return False
 
 
+OUTCOME_LABELS = ("used", r"declined(?:\s*/\s*rejected)?", r"ignored(?:\s*/\s*skipped)?", "unknown")
+SETUP_OFFER = re.compile(r"\b(?:can|could|happy to|want me to|i'll|i will|offer|help)\b[^.?!\n]{0,40}?"
+                         r"(?:\bset\b\s*(?:\w+\s+){0,2}up\b|setup|connect|bind)", re.I)
+NEGATION = re.compile(r"n't\b|\b(?:not|cannot|unable)\b", re.I)
+
+
+def offers_setup(text):
+    """An affirmative offer to set up a calendar; "I can't set one up" is not an offer."""
+    return any(not NEGATION.search(text[max(0, m.start() - 15):m.end()]) for m in SETUP_OFFER.finditer(text))
+
+
 def single_offer(text):
     """Conservative labels/second-offer heuristic, not a claim of semantic cardinality."""
     labels = re.findall(r"(?im)^\s*(?:#+\s*|[-*]\s*)?(?:recommendation|benchmark offer)\s*(?:\d+)?\s*:", text)
@@ -89,7 +100,7 @@ def evaluate_step(root, scenario, index, messages, tools):
         result["approved_details"] = (all(detail in text for detail in step["expect"]["details"])
                                       and len(radar) == 1 and fields(radar[0]).get("stage") == "approved")
         result["no_calendar_honesty"] = bool(re.search(r"(?:no calendar.{0,35}(?:bound|connected)|calendar.{0,35}(?:not|isn't).{0,15}(?:bound|connected))", text, re.I)
-                                             and re.search(r"set\s*up|setup|connect|bind", text, re.I))
+                                             and offers_setup(text))
         result["no_calendar_mapping"] = not any(fields(r).get("calendar_mapping") for r in notes(db, "cos:radar:"))
         return result
     prefix = {"daily": "cos:daily:" + values.get("today", "MISSING"),
@@ -122,7 +133,7 @@ def evaluate_step(root, scenario, index, messages, tools):
             result["follow_up"] = aware(f.get("follow_up_at"))
         else:
             result["separate_outcomes"] = all(re.search(r"(?im)^\s*(?:[-#]+\s*)?" + word + r"\s*[:—-]", label_text)
-                                               for word in ("used", "declined", "ignored", "unknown"))
+                                               for word in OUTCOME_LABELS)
             labels = {k: len(re.findall(r"(?im)^\s*(?:[-#]+\s*)?" + k + r"\s*:", label_text)) for k in ("Old", "New", "Evidence", "Rollback")}
             result["one_proposal_format"] = (all(n == 0 for n in labels.values()) or
                                                all(n == 1 for n in labels.values())) and (not any(labels.values()) or f.get("stage") == "draft")

@@ -47,6 +47,18 @@ def test_shared_state_reference_uses_real_operations():
     check_operations_and_no_install(STATE_REFERENCE.read_text())
 
 
+def test_pa_setup_cos_guidance_uses_real_operations():
+    text = (ROOT / "skills/pa-setup/SKILL.md").read_text()
+    check_operations_and_no_install(text)
+    assert '"section":"chief_of_staff"' in text
+    assert "/pa mode chief-of-staff on" in text
+    for name in ("question-bank.md", "where-answers-go.md"):
+        reference = (ROOT / "skills/pa-setup/references" / name).read_text()
+        assert "cos_" in reference
+        if 'pa(operation=' in reference:
+            check_operations_and_no_install(reference)
+
+
 def test_cos_inventory_is_optional():
     from scripts import probe_installed_version, validate_pack
 

@@ -28,7 +28,7 @@ hours or preferred name; record `passed` when the answer uses what was saved.
 ## Going deeper
 
 Ask only when relevant or the user picks a section, one question at a time.
-The setup op supports only `core` and the eight IDs above. Never pass a deeper
+The setup op supports `core` and `chief_of_staff`. Never pass another deeper
 section name or ID to setup `start` or `record`, or reuse a core ID for it.
 Keep deeper answers in the review, then save approved facts to the manual,
 USER.md or SOUL.md as below; they are not setup progress records.
@@ -40,7 +40,6 @@ USER.md or SOUL.md as below; they are not setup progress records.
 | Proactivity | Check-in types, daily message cap, night disruptions, brief time. Suggest at most three unprompted messages per day outside trips if no preference exists; propose night disruption alerts per trip, never silently. | Manual timing policy, caps and consent; hand HB2 settings to the user as below. |
 | Travel profile | Home airports, airlines/loyalty, seat/cabin, quiet room/pillows/temperature, ground transport. Ask diet/allergies when ordering food. Suggest two hours domestic and three international airport lead time only as defaults; ask minimum connection when relevant. Reuse the travel-connectivity interview for connectivity. | Manual travel profile; compact stable facts only in USER.md. |
 | Processes | Up to three recurring jobs: ask trigger, inputs and output to propose a routine. Reuse existing publishers and explain actual coverage before replacing anything. | Manual routines; scheduling needs its own reviewed job decision. |
-| Chief of Staff | Role, good week, top three priorities, key people/meetings, work sources, research radar and adopt-vs-build stance. Suggest weekly batched improvements and at most one benchmark slot per week only when wanted. | Manual; project or engineering findings need a separate repo workflow. |
 
 Unsupported settings remain proposals, not claims that code enforces them.
 Night interruptions need explicit consent. PA preferences do not set HB2 quiet
@@ -57,3 +56,49 @@ resolve missing values with the user. Save the confirmed HB2 window/zone and
 source in the manual after apply, separately from PA; never infer alignment.
 See `where-answers-go.md` for the planner handoff. Changing quiet hours does not
 bypass message caps.
+
+## Chief of Staff flow
+
+`/pa setup chief-of-staff` requests `chief_of_staff`. Read
+`pa(operation="status")` first: if `modes.chief_of_staff` is not true, explain
+`/pa mode chief-of-staff on`, then `hermes gateway restart` and a new session,
+and stop. Do not record answers or create rules while off; recheck before apply.
+Use setup `{"action":"start","section":"chief_of_staff"}` for an explicit start.
+Resume saved answers; use the intro, consent and discovery pa-setup flow without
+asking core travel questions. With consent, recover priorities and radar topics
+from USER.md and the existing manual, and timing from automation preferences.
+Ask only the five CoS questions in `references/question-bank.md`, one short
+question with a recommendation per turn. Record answers under their `cos_` IDs.
+They never replace core answers; include saved answers from both sections in review.
+
+Then use pa-setup steps 6–7: propose, show the exact changes, and wait for explicit
+apply. Priorities and radar topics use the existing USER.md/manual write path;
+times use `pa automations` action `preferences`. Follow the destination reference
+for schedules: only an explicit yes in a human turn authorizes the selected
+`cos_daily` and/or `cos_weekly` rules for this verified chat and native suggestions.
+Recommend leaving schedules off until wanted. An answer or a general apply does
+not turn an unapproved schedule on. Never install software or silently edit files.
+After apply, ask for `/new`; the fresh-session check must retrieve a saved CoS
+priority or radar topic (or a saved time if no context was saved), then call setup
+`fresh_check` with passed/failed. If no CoS priority, radar topic or time was saved,
+there is nothing to check: call `fresh_check` with `passed` and say so. Do not run the core
+trip/check-in arming steps.
+
+## Chief of Staff questions
+
+Use `chief_of_staff` only while the mode is on; otherwise explain
+`/pa mode chief-of-staff on`, `hermes gateway restart`, and a new session, then stop.
+Ask one short question per turn, in order. Reuse known answers and name the basis
+of the recommendation; defaults are suggestions. Skip/later/you decide still work.
+
+| ID | Question | Recommended answer | Save after review and apply |
+|---|---|---|---|
+| `cos_priorities` | “What are your top three priorities?” | Reuse stated priorities; otherwise suggest naming one current commitment first. | Compact priorities in USER.md; detail in the existing manual. |
+| `cos_radar_topics` | “Which topics should I watch for useful tools?” | Reuse stated needs; otherwise suggest only tools that help the priorities above. | USER.md/manual; never a new research job. |
+| `cos_daily_time` | “When would a daily suggestion help?” | Keep the existing preference, otherwise 09:30 in the confirmed timezone. | `cos_daily_time` (HH:MM) in PA preferences. |
+| `cos_weekly_slot` | “When should we review the week?” | Keep the existing slot, otherwise Monday 10:00 in the confirmed timezone. | `cos_weekly_day` (mon..sun), `cos_weekly_time` (HH:MM). |
+| `cos_schedules` | “Would you like daily, weekly, both, or neither in this chat?” | Neither until wanted; explain daily may stay silent and weekly includes radar. | Only an explicit yes to each selected schedule permits its rule and suggestion; Hermes acceptance still enables the job. |
+
+Record these IDs through setup `record`; include both sections' saved answers
+in the same review. Times alone never approve schedules. Confirm a missing
+timezone or destination one question at a time before promising delivery.
