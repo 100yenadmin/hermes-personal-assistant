@@ -76,6 +76,81 @@ def test_applied_requires_current_proposal(tmp_path):
     assert setup.state(ledger)["status"] == "not_started"
 
 
+def test_l39_live_sequence_and_review(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, "chief_of_staff")
+    setup.start(ledger, active_platform="telegram", active_sender_id="fixture-owner")
+    setup.record(ledger, {q: {"text": "Synthetic CoS", "source": "user"} for q in setup.CHIEF_OF_STAFF_QUESTIONS})
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "A")
+    answers = {q: {"text": "Synthetic core", "source": "user"} for q in setup.CORE_QUESTIONS[:3]}
+    saved = setup.record(ledger, answers, asked=list(answers))
+    assert saved["status"] == "applied" and saved["pending_changes"] is True
+    assert saved["answers"].items() >= answers.items()
+    assert saved["next_step"] == "Saved. Setup stays applied; this answer is not in your files yet. Include it in the next review (/pa setup review), then propose and apply."
+    assert saved["proposal"] == {"writes": []}  # Harmless: applied setup no longer reads the proposal.
+    assert "Changes not yet applied." in make_pa_command(tmp_path)("status")
+    assert setup.fresh_check(ledger, "passed", "B")["status"] == "checked"
+    make_pa_command(tmp_path)("setup review")
+    assert setup.state(ledger)["pending_changes"] is True
+    setup.propose(ledger, [])
+    reapplied = setup.applied(ledger, [], "C")
+    assert reapplied["pending_changes"] is False and reapplied["fresh_check"] == {"status": "pending"}
+    assert setup.fresh_check(ledger, "passed", "D")["status"] == "checked"
+
+
+def test_l39_record_after_applied_does_not_inject_interview(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.start(ledger, active_platform="telegram", active_sender_id="fixture-owner")
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "A")
+    setup.record(ledger, skipped=["protect"])
+    hook = make_pre_llm_call(tmp_path, lambda k, d: d)
+    assert hook(platform="telegram", sender_id="fixture-owner", user_message="Later topic",
+                session_id="B", is_first_turn=False) is None
+
+
+@pytest.mark.parametrize("checked", [False, True])
+def test_l39_record_after_completed_setup(tmp_path, checked):
+    ledger = Ledger(tmp_path)
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "A")
+    if checked:
+        setup.fresh_check(ledger, "passed", "B")
+    result = setup.record(ledger, skipped=["protect"])
+    assert result["status"] == ("checked" if checked else "applied")
+    assert result["pending_changes"] is True and result["skipped"] == ["protect"]
+    assert setup.record(ledger, skipped=["protect"])["pending_changes"] is True
+
+
+def test_l39_noop_record_after_applied(tmp_path):
+    ledger = Ledger(tmp_path)
+    answers = {"authority": {"text": "Ask first", "source": "user"}}
+    setup.record(ledger, answers, skipped=["protect"])
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "A")
+    result = setup.record(ledger, answers, skipped=["protect"], asked=["authority"], consent="granted")
+    assert result["status"] == "applied" and result["pending_changes"] is False
+    assert result["asked"] == ["authority"] and result["look_around_consent"] == "granted"
+
+
+@pytest.mark.parametrize("status,fresh,session,message", [
+    ("checked", "passed", "A", "fresh check already passed"),
+    *[(status, fresh, "A", "setup was reopened (new review or proposal); propose and apply again before the fresh check")
+      for status in ("requested", "in_progress", "proposed") for fresh in ("pending", "failed")],
+    ("not_started", "pending", "B", "no fresh check is pending; apply setup first"),
+    ("applied", "passed", "A", "no fresh check is pending"),
+    *[("applied", "pending", session, "the fresh check must run in a new session (/new), not the session that applied setup")
+      for session in (None, "A")],
+])
+def test_l39_fresh_check_errors(tmp_path, status, fresh, session, message):
+    ledger = Ledger(tmp_path)
+    ledger.put("action", "pa:setup", {"status": status, "fresh_check": {"status": fresh}, "applied_session_id": "A"})
+    with pytest.raises(ValueError) as exc:
+        setup.fresh_check(ledger, "passed", session)
+    assert str(exc.value) == message
+
+
 @pytest.mark.parametrize("reset", [setup.record, setup.request])
 def test_record_and_request_invalidate_old_proposal(tmp_path, reset, setup_files):
     ledger = Ledger(tmp_path)

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Later setup answers keep applied/checked setup intact and flag changes for the next review; fresh checks name the cause when refused (#28).
+- Context retrieval infers trip, action or source from one unambiguous ID; guide queries still need an explicit kind.
+
 ## 0.8.0-rc.1 — 2026-10-20
 
 - **Chief of Staff mode (opt-in).** `/pa mode chief-of-staff on|off` turns it on per profile; it is off by default. Turning it off removes the CoS cron jobs and blocks later prechecks at once. Follow-up wakes already armed in HeartBeat 2.0 stay armed, but when one arrives the agent is told to cancel it and stay silent. The CoS skills are hidden after the next gateway restart and new session. While they are still loaded, the agent is told not to use them.
