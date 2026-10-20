@@ -104,6 +104,7 @@ def evaluate_step(root, scenario, index, messages, tools):
         result["no_calendar_mapping"] = not any(fields(r).get("calendar_mapping") for r in notes(db, "cos:radar:"))
         return result
     prefix = {"daily": "cos:daily:" + values.get("today", "MISSING"),
+              "kickoff": "cos:kickoff:" + values.get("week", "MISSING"),
               "weekly": "cos:weekly:" + values.get("week", "MISSING"), "scout": "cos:scout:"}[kind]
     rows = notes(fresh, prefix)
     exact = kind == "scout" or (len(rows) == 1 and rows[0]["action_id"] == prefix)
@@ -124,6 +125,18 @@ def evaluate_step(root, scenario, index, messages, tools):
                 for token in (r["action_id"], fields(r).get("title")) if token)
             and bool(said & set(re.findall(r"\w{5,}", str(fields(r).get("title") or "").lower())))
             for r in seeded)
+    if kind == "kickoff":
+        closeout = record.get("last_closeout_note") or "MISSING"
+        result["reads_closeout"] = any(
+            t.get("step") == index and t.get("name") == "pa" and "context" in json.dumps(t.get("structured_args", t.get("args", {})))
+            and closeout in json.dumps(t.get("structured_args", t.get("args", {})))
+            and closeout in str(t.get("result", "")) and "not found" not in str(t.get("result", "")) for t in tools)
+        recorded = bool(notes(seed.get("ledger", {}), closeout))
+        result["closeout_ref"] = f.get("closeout_ref") == (closeout if recorded else "none")
+        focus = len(re.findall(r"(?im)^\s*(?:[-#]+\s*)?focus\s*(?:\d+)?\s*:", label_text))
+        result["one_focus"] = isinstance(f.get("focus"), str) and bool(f["focus"].strip()) and focus <= 1
+        result["no_new_radar"] = not notes(fresh, "cos:radar:")  # Radar stays in the closeout.
+        result["word_limit"] = 0 < len(text.split()) <= 150  # The cos-kickoff skill's cap.
     if kind in ("scout", "weekly"):
         relevant = [t for t in tools if t.get("step") == index and t.get("name", "").startswith(("web_", "browser_")) and t.get("result")]
         if kind == "scout":

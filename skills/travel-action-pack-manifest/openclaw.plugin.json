@@ -12,6 +12,7 @@
     "../airline-check-in",
     "../browserbase-checkout-lane",
     "../cos-daily",
+    "../cos-kickoff",
     "../cos-weekly",
     "../cos-scout",
     "../cos-radar",

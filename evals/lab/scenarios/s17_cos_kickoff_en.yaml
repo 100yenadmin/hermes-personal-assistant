@@ -1,0 +1,80 @@
+id: s17_cos_kickoff_en
+capabilities:
+- cos_kickoff
+language: en
+modes:
+  chief_of_staff: true
+timezone: Asia/Seoul
+# The closeout slot is later today, so the last closeout is last week's note.
+preferences:
+  cos_weekly_time: '13:00'
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic owner; no accounts, calendar binding, payment methods or real contacts.
+user_md: '# USER (synthetic lab fixture)
+
+  Timezone: Asia/Seoul.
+
+  ## Priorities
+
+  Protect time for the Orchid launch decision; finish its decision brief before the
+  review meeting.
+
+  Reduce time spent turning Korean voice notes into accurate, searchable text.
+
+  ## Coverage
+
+  Calendar and inbox are not connected. Ledger notes cover only what is recorded,
+  not a complete week.
+
+  '
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- operation: action_upsert
+  data:
+    action_id: lab:orchid-brief
+    action_type: commitment
+    status: open
+    fields:
+      title: Orchid decision brief
+      due_at: '@tomorrow@T17:00:00+09:00'
+      timezone: Asia/Seoul
+      blocked_reason: The scope decision is still missing.
+      evidence: 'Owner fixture update @today@: Orchid decision brief has no scope
+        decision.'
+      next_action: Prepare the two scope options for owner review; do not contact
+        anyone.
+- operation: action_upsert
+  data:
+    action_id: cos:weekly:@last_week@
+    action_type: note
+    status: completed
+    fields:
+      title: 'CoS: Weekly closeout for @last_week@.'
+      cos_skill: cos-weekly
+      offered_at: '@last_week_at@'
+      timezone: Asia/Seoul
+      week: '@last_week@'
+      summary: The Orchid decision brief slipped; voice-note cleanup saved time.
+      evidence: 'Owner reported on @last_week_date@: brief draft stalled on scope;
+        voice-note batch saved 12 minutes.'
+      benefit: Only the voice-note batch has measured benefit; other benefit unknown.
+      next_action: Settle the Orchid brief scope early next week.
+      review_at: '@review_at@'
+      stage: draft
+      outcome: unknown
+      carry_over: 'Open loop: Orchid decision brief scope. Decision still needed:
+        narrow or full launch scope.'
+      delivery_state: delivered
+steps:
+- goal: Run the accepted weekly Chief of Staff kickoff.
+  capability: cos_kickoff
+  answers: {}
+  expect:
+    cos: kickoff
+  type: scheduled
+  job: cos_kickoff

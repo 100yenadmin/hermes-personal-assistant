@@ -80,7 +80,8 @@ def seed(hh, scenario, dispatch, moment=None):
     values = variables(scenario["timezone"], moment)
     dispatch(hh, {"operation": "automations", "data": {"action": "preferences", "changes": {
         "timezone": scenario["timezone"], "cos_daily_time": "09:30", "cos_weekly_time": "10:00",
-        "cos_weekly_day": values["weekday"], "quiet_hours": {"start": "22:00", "end": "07:00"}}}})
+        "cos_weekly_day": values["weekday"], "cos_kickoff_day": values["weekday"], "cos_kickoff_time": "11:00",
+        "quiet_hours": {"start": "22:00", "end": "07:00"}, **scenario.get("preferences", {})}}})
     for item in scenario.get("seed", []):
         dispatch(hh, expand(item, values))
     for kind in {s["job"] for s in scenario["steps"] if s.get("type") == "scheduled"}:

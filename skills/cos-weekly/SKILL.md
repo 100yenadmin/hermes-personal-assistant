@@ -1,18 +1,18 @@
 ---
 name: cos-weekly
-description: Compare priorities with the week's evidence and recommendation outcomes, then propose at most one batched improvement in Chief of Staff mode.
+description: Close out the week in Chief of Staff mode by comparing priorities with the week's evidence and recommendation outcomes, then propose at most one batched improvement.
 metadata:
   openclaw:
     skillKey: cos-weekly
   hermes:
     category: productivity
-    tags: ["personal-assistant", "chief-of-staff", "weekly", "outcomes"]
+    tags: ["personal-assistant", "chief-of-staff", "weekly", "closeout", "outcomes"]
     pa_mode: chief_of_staff
 ---
 
-# Chief of Staff weekly
+# Chief of Staff weekly closeout
 
-Run from the accepted `cos_weekly` job. Use the user's language. Require Chief
+Run from the accepted `cos_weekly` job, the weekly closeout. Use the user's language. Require Chief
 of Staff mode; if off, explain `/pa mode chief-of-staff on` in a human turn.
 Read `references/recommendation-state.md` for the shared event, retrieval,
 delivery and owner-approved follow-up protocol.
@@ -21,7 +21,7 @@ Every `references/...` path is relative to this skill directory.
 ## Compare intent with evidence
 
 1. Read the user's stated priorities from USER.md and the existing operating
-   manual. Name the local week and timezone. Missing priorities stay unknown;
+   manual. Name the script's `week` and `timezone`. Missing priorities stay unknown;
    ask in chat rather than infer them from calendar volume.
 2. Read `pa(operation="next_action", data={"limit":20})` for open loops.
    Recover selected actions with
@@ -30,8 +30,9 @@ Every `references/...` path is relative to this skill directory.
    Report gaps in coverage; never treat a partial read as a complete week.
 3. Retrieve CoS notes through `pa(operation="context", data={"kind":"action","limit":20,"offset":0})`.
    Follow `next_offset` and read each relevant `cos:` action in detail as the
-   reference explains. Review last week's recommendations, improvement proposals,
-   research decisions and benchmark offers, including follow-up dates now due.
+   reference explains. Review what came since the previous closeout: the daily
+   recommendations, this week's `cos:kickoff:<week>` focus, the last closeout's
+   proposal, and older proposals, research decisions or benchmark offers now due.
    Report `used`, `declined`, `ignored`, and `unknown` separately with evidence.
    A yes or a booked slot is not proof that the change helped.
 4. Compare priorities with what happened and what remains stuck. Explain one
@@ -47,13 +48,17 @@ Offer no more than one batched improvement proposal, in this exact format:
 - Evidence: the observed failure, affected priority, source and expected benefit.
 - Rollback: how to restore the old wording or process if it does not help.
 
-Record it on the `cos:weekly:<local ISO week>` note with every field the reference
+Record it on the `cos:weekly:<week>` note (the script's `week`) with every field the reference
 lists, including `benefit` and `review_at` (next week's slot), as `stage: "draft"`,
 with `outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
 wait for explicit apply approval in chat. Keep `draft`, `approved`, `applied`
 and `verified` distinct in `stage`. Applied requires actual readback;
 verified requires evidence of the promised result. Never silently edit
 SOUL.md, USER.md, skills or the manual. Never install software.
+
+On the same note, record `carry_over`: the open loops and decisions still needed,
+each with its source, or `"none"`. The next weekly kickoff reads it; never set
+next week's focus here.
 
 For a consequential skill or process change, propose one cheap check: freeze
 two sanitized tool-output cases (the motivating failure and an ordinary case),
@@ -66,7 +71,7 @@ Check the manual's byte size. Above about 8 KB, flag it in this same batch and
 propose distilling or replacing text, never appending a second manual. Keep
 engineering lessons in their own project context. Do not edit to meet the budget.
 
-## Close the weekly report
+## Close the week
 
 Then load `personal-assistant:cos-radar` for this week's single benchmark offer,
 if any. Include it in the single final response; Hermes delivers that owner message

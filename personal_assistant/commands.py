@@ -53,7 +53,7 @@ def make_pa_command(root, get_config=None, set_config=None):
                     return "Chief of Staff is off. Use /pa mode chief-of-staff on, then hermes gateway restart and a new session; run /pa setup chief-of-staff there."
                 setup.request(Ledger(root), None if section == "review" else section, active_chat=here)
                 if section == "chief_of_staff":
-                    return "Chief of Staff setup is ready. Send me any message and I'll start — one question at a time, 5 in all. Say pause any time."
+                    return f"Chief of Staff setup is ready. Send me any message and I'll start — one question at a time, {len(setup.CHIEF_OF_STAFF_QUESTIONS)} in all. Say pause any time."
                 return READY
             return USAGE
         except ValueError as exc:
