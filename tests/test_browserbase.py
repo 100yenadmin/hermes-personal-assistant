@@ -1,0 +1,275 @@
+import io
+import json
+import os
+import socket
+import sqlite3
+import subprocess
+import sys
+from email.message import Message
+from pathlib import Path
+from types import SimpleNamespace
+from urllib.error import HTTPError
+from urllib.request import HTTPHandler, ProxyHandler, build_opener
+from urllib.response import addinfourl
+
+import pytest
+from personal_assistant.browserbase import NoRedirect, _origin, browser_session
+from personal_assistant.capabilities import discover
+from personal_assistant.entry import dispatch
+from personal_assistant.state import Ledger
+
+KEY = "synthetic-bb-key"
+CONNECT = "wss://connect.browserbase.com?signingKey=synthetic"
+LIVE = "https://www.browserbase.com/devtools/inspector.html?synthetic"
+CREATED = {"id": "bb-1", "connectUrl": CONNECT, "expiresAt": "2026-10-21T12:00:00Z"}
+SECRETS = {"BROWSERBASE_API_KEY": KEY, "BROWSERBASE_PROJECT_ID": "project"}
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    def deny(*args, **kwargs):
+        pytest.fail("real network is forbidden")
+    monkeypatch.setattr(socket.socket, "connect", deny)
+    monkeypatch.setattr(socket, "create_connection", deny)
+
+
+class Opener:
+    def __init__(self, *replies):
+        self.replies, self.calls = list(replies), []
+
+    def open(self, req, timeout):
+        self.calls.append((req, timeout))
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return io.BytesIO(json.dumps(reply).encode())
+
+
+def test_create_dispatch_and_private_ledger(tmp_path):
+    opener = Opener(CREATED, {"debuggerFullscreenUrl": LIVE})
+    result = dispatch(tmp_path, {"operation": "browser_session", "data": {"action": "create", "region": "us-east-1"}},
+                      runtime_scope={"browserbase_opener": opener, "get_secret": SECRETS.get, "session_id": "hermes-id"})
+    assert result == {"bb_session_id": "bb-1", "connect_url": CONNECT, "live_view_url": LIVE,
+                      "expires_at": CREATED["expiresAt"], "attach_hint": "agent-browser --session <name> connect <connect_url>"}
+    req, timeout = opener.calls[0]
+    assert (req.get_method(), req.full_url, timeout, req.get_header("X-bb-api-key")) == ("POST", "https://api.browserbase.com/v1/sessions", 60, KEY)
+    assert json.loads(req.data) == {"projectId": "project", "keepAlive": True, "timeout": 1200, "region": "us-east-1",
+                                   "browserSettings": {"recordSession": False, "logSession": False, "solveCaptchas": False}}
+    assert opener.calls[1][0].get_method() == "GET" and opener.calls[1][0].full_url.endswith("/bb-1/debug")
+    ledger = Ledger(tmp_path)
+    raw = ledger.path.read_bytes() + json.dumps(ledger.list("action")).encode()
+    assert all(value.encode() not in raw for value in (KEY, "connect_url", "signingKey", LIVE, CONNECT))
+    assert KEY not in json.dumps(result)
+    release = Opener({"debuggerFullscreenUrl": LIVE}, {})
+    assert browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"}, opener=release, get_secret=SECRETS.get)["live_view_url"] == LIVE
+    assert browser_session(ledger, {"action": "release", "bb_session_id": "bb-1"}, opener=release, get_secret=SECRETS.get)["status"] == "released"
+    assert json.loads(release.calls[1][0].data) == {"projectId": "project", "status": "REQUEST_RELEASE"}
+    assert release.calls[1][0].get_method() == "POST" and release.calls[1][0].full_url.endswith("/bb-1")
+    assert ledger.get("action", "pa:browser-session:bb-1")["status"] == "released"
+
+
+@pytest.mark.parametrize("code", [401, 403, 402])
+def test_errors_retry_and_debug_failure(tmp_path, code):
+    error = HTTPError("https://api.browserbase.com", code, KEY, {}, io.BytesIO(KEY.encode()))
+    opener = Opener(error, CREATED, error) if code == 402 else Opener(error)
+    result = browser_session(Ledger(tmp_path), {"action": "create"}, opener=opener, get_secret=SECRETS.get)
+    assert KEY not in json.dumps(result)
+    assert len(opener.calls) == (3 if code == 402 else 1)
+    if code == 402:
+        assert "keepAlive" not in json.loads(opener.calls[1][0].data) and result["live_view_url"] is None
+    else:
+        assert result == {"status": "error", "http_status": code, "reason": "Browserbase request denied"}
+
+
+def test_missing_raising_unknown_and_capabilities(tmp_path, monkeypatch):
+    def raising(name):
+        raise RuntimeError(KEY)
+    ledger, opener = Ledger(tmp_path), Opener()
+    for getter in ({}.get, raising):
+        assert browser_session(ledger, {}, opener=opener, get_secret=getter) == {"configured": False}
+        for action in ("create", "live_view", "connect", "release"):
+            assert browser_session(ledger, {"action": action}, opener=opener, get_secret=getter)["status"] == "needs_setup"
+    for action in ("live_view", "connect", "release"):
+        assert browser_session(ledger, {"action": action, "bb_session_id": "unknown"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
+    assert not opener.calls
+    monkeypatch.setenv("BROWSERBASE_API_KEY", KEY)
+    for check, status in ((lambda name: True, "available"), (lambda name: False, "needs-setup"), (raising, "needs-setup"), (None, "needs-setup")):
+        rows = discover([SimpleNamespace(name="browser_open")], secret_present=check)["capabilities"]
+        row = next(row for row in rows if row["id"] == "remote_browser")
+        assert row["status"] == status and row["recovery_action"] and KEY not in json.dumps(row)
+    assert next(row for row in discover([])["capabilities"] if row["id"] == "remote_browser")["status"] == "needs-setup"
+
+
+def test_forged_rows_bad_ids_and_partial_replies_touch_nothing(tmp_path):
+    # R41 review: a hand-made ledger row must not let PA release a session it never created.
+    forged = [{"action_id": "pa:browser-session:FOREIGN", "action_type": "browser_session", "fields": {"bb_session_id": "FOREIGN"}},
+              {"action_id": "pa:browser-session:FOREIGN", "fields": {"bb_session_id": "FOREIGN"}},
+              {"action_id": "note-1", "action_type": "browser_session", "fields": {"bb_session_id": "FOREIGN"}}]
+    for data in forged:
+        with pytest.raises(ValueError, match="lifecycle-owned"):
+            dispatch(tmp_path, {"operation": "action_upsert", "data": data})
+    ledger, opener = Ledger(tmp_path), Opener()
+    for action in ("live_view", "connect", "release"):
+        assert browser_session(ledger, {"action": action, "bb_session_id": "FOREIGN"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
+        assert browser_session(ledger, {"action": action, "bb_session_id": 7}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
+    assert not opener.calls
+    # R43: a number never matches a PA session id, even one PA created as "7".
+    browser_session(ledger, {"action": "create"}, opener=Opener({**CREATED, "id": "7"}, {}), get_secret=SECRETS.get)
+    numeric = Opener()
+    assert browser_session(ledger, {"action": "release", "bb_session_id": 7}, opener=numeric, get_secret=SECRETS.get)["status"] == "error"
+    assert not numeric.calls
+    # A create reply without a connection URL leaves no active row behind and ends the paid session.
+    partial = Opener({"id": "bb-9"}, {})
+    assert browser_session(ledger, {"action": "create"}, opener=partial, get_secret=SECRETS.get)["status"] == "error"
+    assert ledger.get("action", "pa:browser-session:bb-9") is None
+    assert partial.calls[1][0].full_url.endswith("/v1/sessions/bb-9")
+    assert json.loads(partial.calls[1][0].data) == {"projectId": "project", "status": "REQUEST_RELEASE"}
+    # No action mutation may take over a PA session row; release must still find it.
+    dispatch(tmp_path, {"operation": "browser_session", "data": {"action": "create"}},
+             runtime_scope={"browserbase_opener": Opener(CREATED, {}), "get_secret": SECRETS.get})
+    for op, extra in (("action_prepare", {"summary": {"provider": "x"}}), ("action_confirm", {"summary": {}, "confirmation": "yes"}),
+                      ("action_claim", {"summary": {}}), ("action_result", {"outcome": "succeeded", "proof": {}}), ("action_cancel", {})):
+        with pytest.raises(ValueError, match="lifecycle-owned"):
+            dispatch(tmp_path, {"operation": op, "data": {"action_id": "pa:browser-session:bb-1", **extra}})
+    row = Ledger(tmp_path).get("action", "pa:browser-session:bb-1")
+    assert row["action_type"] == "browser_session" and row["status"] == "active"
+
+
+def test_live_view_refresh_failures_and_ledger_failure_release(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    dispatch(tmp_path, {"operation": "browser_session", "data": {"action": "create"}},
+             runtime_scope={"browserbase_opener": Opener(CREATED, {}), "get_secret": SECRETS.get})
+    denied = HTTPError("https://api.browserbase.com", 401, "denied", Message(), io.BytesIO(KEY.encode()))
+    for reply, expected in ((denied, {"status": "error", "http_status": 401, "reason": "Browserbase request denied"}),
+                            ({}, {"status": "error", "reason": "Browserbase request failed"})):
+        assert browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                               opener=Opener(reply), get_secret=SECRETS.get) == expected
+    # Several tabs: each tab's own live view is listed so the agent can hand over the right one.
+    pages = [{"title": "Cart", "url": "https://shop.example/cart", "debuggerFullscreenUrl": LIVE + "&tab=1"},
+             {"title": "Sign in", "url": "https://id.example/callback?code=SECRETCODE#token=T", "debuggerFullscreenUrl": LIVE + "&tab=2"}]
+    many = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                           opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": pages}), get_secret=SECRETS.get)
+    assert many == {"bb_session_id": "bb-1", "live_view_url": LIVE,
+                    "tabs": [{"title": "Cart", "origin": "https://shop.example", "live_view_url": LIVE + "&tab=1"},
+                             {"title": "Sign in", "origin": "https://id.example", "live_view_url": LIVE + "&tab=2"}]}
+    assert "SECRETCODE" not in json.dumps(many)  # Page URLs can carry OAuth codes; only the origin is returned.
+    one = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                          opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": pages[:1]}), get_secret=SECRETS.get)
+    assert one == {"bb_session_id": "bb-1", "live_view_url": LIVE}
+    # R45: a tab with an empty link is not a handoff target and does not count toward the tab list.
+    blank = browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                            opener=Opener({"debuggerFullscreenUrl": LIVE, "pages": [pages[0], {"title": "Verify", "debuggerFullscreenUrl": ""}]}),
+                            get_secret=SECRETS.get)
+    assert blank == {"bb_session_id": "bb-1", "live_view_url": LIVE}
+    def locked(*args, **kwargs):
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(ledger, "put", locked)
+    opener = Opener({**CREATED, "id": "bb-2"}, {})
+    assert browser_session(ledger, {"action": "create"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
+    assert opener.calls[1][0].full_url.endswith("/v1/sessions/bb-2")
+    assert json.loads(opener.calls[1][0].data) == {"projectId": "project", "status": "REQUEST_RELEASE"}
+
+
+def test_redirect_target_never_requested(tmp_path):
+    urls = []
+    class Redirect(HTTPHandler):
+        def http_open(self, req):
+            urls.append(req.full_url)
+            headers = Message()
+            headers["Location"] = "http://redirect.invalid/steal"
+            response = addinfourl(io.BytesIO(b""), headers, req.full_url, 302)
+            response.msg = "Found"
+            return response
+    opener = build_opener(ProxyHandler({}), NoRedirect(), Redirect())
+    result = browser_session(Ledger(tmp_path), {"action": "create"}, opener=opener, get_secret=SECRETS.get,
+                             base_url="http://fixture.invalid")
+    assert result == {"status": "error", "reason": "Browserbase request failed"}
+    assert urls == ["http://fixture.invalid/v1/sessions"]
+
+
+@pytest.mark.parametrize("path", ["browserbase-checkout-lane/SKILL.md", "food-delivery-to-hotel/SKILL.md",
+                                  "browserbase-checkout-lane/references/checkout-login-recovery.md"])
+def test_skill_text_uses_browser_session_and_user_final_tap(path):
+    text = (Path(__file__).resolve().parents[1] / "skills" / path).read_text()
+    for forbidden in ("$BROWSERBASE_API_KEY", "profile environment", "browse cloud sessions", "--remote", "browse open <url> --cdp"):
+        assert forbidden not in text
+    assert "agent-browser --session <task-name> connect <connect_url>" in text
+    assert "solve supported CAPTCHA" not in text
+    if path.endswith("SKILL.md"):
+        assert 'operation="browser_session"' in text
+    if path == "browserbase-checkout-lane/SKILL.md":
+        assert "final pay/book/reserve tap is the user's own, in the live view" in text
+        assert "The agent never presses the final submit" in text
+
+
+def test_no_skill_waits_for_automatic_captcha_solving():
+    # Sessions are created with solveCaptchas off, so every skill hands a visible CAPTCHA to the user.
+    skills = Path(__file__).resolve().parents[1] / "skills"
+    assert not [p for p in skills.rglob("*.md") if "solve supported CAPTCHA" in p.read_text()]
+
+
+def test_profile_setting_cannot_move_the_endpoint(tmp_path):
+    # A BROWSERBASE_BASE_URL secret is ignored, so the key only ever goes to Browserbase.
+    opener = Opener(CREATED, {})
+    browser_session(Ledger(tmp_path), {"action": "create"}, opener=opener,
+                    get_secret={**SECRETS, "BROWSERBASE_BASE_URL": "http://attacker.invalid"}.get)
+    assert [req.full_url for req, _ in opener.calls] == ["https://api.browserbase.com/v1/sessions",
+                                                         "https://api.browserbase.com/v1/sessions/bb-1/debug"]
+
+
+def test_connect_returns_a_fresh_connection_for_a_running_owned_session(tmp_path):
+    ledger = Ledger(tmp_path)
+    browser_session(ledger, {"action": "create"}, opener=Opener(CREATED, {}), get_secret=SECRETS.get)
+    fresh = "wss://connect.browserbase.com?signingKey=fresh"
+    opener = Opener({"id": "bb-1", "status": "RUNNING", "connectUrl": fresh, "expiresAt": "2026-10-21T12:20:00Z"})
+    result = browser_session(ledger, {"action": "connect", "bb_session_id": "bb-1"}, opener=opener, get_secret=SECRETS.get)
+    assert result == {"bb_session_id": "bb-1", "connect_url": fresh, "expires_at": "2026-10-21T12:20:00Z",
+                      "attach_hint": "agent-browser --session <name> connect <connect_url>"}
+    req = opener.calls[0][0]
+    assert (req.get_method(), req.full_url, req.data) == ("GET", "https://api.browserbase.com/v1/sessions/bb-1", None)
+    raw = ledger.path.read_bytes() + json.dumps(ledger.list("action")).encode()
+    assert b"signingKey" not in raw and fresh.encode() not in raw
+    denied = HTTPError("https://api.browserbase.com", 401, "denied", Message(), io.BytesIO(KEY.encode()))
+    for reply in ({"id": "bb-1", "status": "TIMED_OUT", "connectUrl": fresh}, {"id": "bb-1", "status": "RUNNING"}, denied):
+        out = browser_session(ledger, {"action": "connect", "bb_session_id": "bb-1"}, opener=Opener(reply), get_secret=SECRETS.get)
+        assert out["status"] == "error" and fresh not in json.dumps(out) and KEY not in json.dumps(out)
+
+
+def test_tab_origin_drops_userinfo_path_query_and_bad_values():
+    assert _origin("https://user:pass@id.example:8443/cb?code=SECRET#token=T") == "https://id.example:8443"
+    assert _origin("http://[::1]:8080/a") == "http://[::1]:8080"
+    for bad in (None, 7, "", "about:blank", "https://[::1", "https://h.example:99999/"):
+        assert _origin(bad) is None
+
+
+def test_rows_written_outside_pa_never_reach_browserbase(tmp_path):
+    # CodeRabbit (#34): the travel-ledger helper or plain sqlite can write any action row; only PA can tag one.
+    helper = Path(__file__).resolve().parents[1] / "skills/travel-ledger/scripts/travel_ledger.py"
+    env = {**os.environ, "HERMES_HOME": str(tmp_path)}
+    env.pop("TRAVEL_LEDGER_DB", None)
+    (tmp_path / "state/travel-ledger").mkdir(parents=True)
+    subprocess.run([sys.executable, str(helper), "action-upsert", "--action-id", "pa:browser-session:FOREIGN",
+                    "--type", "browser_session", "--provider", "browserbase", "--status", "active", "--field", "bb_session_id=FOREIGN",
+                    "--field", "owner_tag=guess"], check=True, env=env, capture_output=True)
+    ledger = Ledger(tmp_path)
+    assert ledger.get("action", "pa:browser-session:FOREIGN")["action_type"] == "browser_session"
+    ledger.put("action", "pa:browser-session:ODD", {"bb_session_id": "ODD", "owner_tag": "é"}, action_type="browser_session", status="active")
+    with sqlite3.connect(ledger.path) as raw:  # R47: an escaped lone surrogate decodes, but cannot be encoded again.
+        raw.execute("insert into actions (action_id, trip_id, action_type, provider, status, fields_json, created_at, updated_at) "
+                    "values (?, null, 'browser_session', 'browserbase', 'active', ?, 'x', 'x')",
+                    ("pa:browser-session:SURR", '{"bb_session_id": "SURR", "owner_tag": "\\ud800"}'))
+    ledger.put("action", "pa:browser-session:DICT", {"bb_session_id": "DICT", "owner_tag": {"x": 1}}, action_type="browser_session", status="active")
+    ledger.put("action", "pa:browser-session:a/../b", {"bb_session_id": "a/../b"}, action_type="browser_session", status="active")
+    opener = Opener()
+    for identity in ("FOREIGN", "ODD", "SURR", "DICT", "a/../b"):
+        for action in ("live_view", "connect", "release"):
+            assert browser_session(ledger, {"action": action, "bb_session_id": identity}, opener=opener,
+                                   get_secret=SECRETS.get) == {"status": "error", "reason": "Unknown PA Browserbase session"}
+    assert not opener.calls
+    # A PA-created row carries a tag that is not the key, and stops matching under another key.
+    browser_session(ledger, {"action": "create"}, opener=Opener(CREATED, {}), get_secret=SECRETS.get)
+    tag = ledger.get("action", "pa:browser-session:bb-1")["fields"]["owner_tag"]
+    assert len(tag) == 64 and KEY not in tag
+    other = {**SECRETS, "BROWSERBASE_API_KEY": "rotated-key"}.get
+    assert browser_session(ledger, {"action": "release", "bb_session_id": "bb-1"}, opener=opener, get_secret=other)["status"] == "error"
+    assert not opener.calls

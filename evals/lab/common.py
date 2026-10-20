@@ -9,14 +9,15 @@ SECRET = ""
 
 
 CONNECT_KEYS = re.compile(r"((?:signingKey|apiKey|api_key)=)[^&\s\"'\\]+")  # Stops at JSON escapes.
+DEVTOOLS_URL = re.compile(r"https?://(?:www\.)?browserbase\.com/devtools[^\s\"'\\]*")
 
 
 def scrub(value):
-    """Remove the model token, the Browserbase key, and session keys inside cloud-browser connect URLs."""
+    """Remove tokens, Browserbase keys, connect URL keys, and devtools live view URLs."""
     text = str(value)
     for secret in filter(None, (SECRET, os.environ.get("BROWSERBASE_API_KEY", ""))):
         text = text.replace(secret, "[REDACTED]")
-    return CONNECT_KEYS.sub(r"\1[REDACTED]", text)
+    return DEVTOOLS_URL.sub("[REDACTED]", CONNECT_KEYS.sub(r"\1[REDACTED]", text))
 
 
 def write(path, value):

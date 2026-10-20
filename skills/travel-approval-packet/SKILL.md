@@ -61,13 +61,13 @@ Confirm and I'll place it.
 Before asking, record the summary on the errand's action with `pa(operation="action_prepare")`, following the `personal-assistant` transaction contract:
 
 - When the final step is one exact provider tool call, prepare it governed (`enforcement_profile="exact_action"` with the full scope). After a yes, `action_confirm`, then call that tool; never claim a governed action manually.
-- When the final step is a website control, use the legacy prepare: `data={"action_id": ..., "summary": {"provider", "final_action", ...the fields above}}`. After a yes, `action_confirm` and `action_claim` with the same summary right before the one click.
+- When the final step is a website control, use the legacy prepare: `data={"action_id": ..., "summary": {"provider", "final_action", ...the fields above}}`. After a yes, `action_confirm` and `action_claim` with the same summary right before the one click (in a Browserbase session, the user's tap in the live view).
 
 Either way the packet is stored with its material summary; read it back with `context`. A change or cancellation of an existing booking gets its own packet under a new action_id such as `<booking action_id>-cancel`, because a completed booking cannot be prepared again; put the original booking's action_id in the material summary as `booking_action_id`, so the packet names the booking it changes. Do not record a packet as a completed note, and do not confirm before the user says yes.
 
 ## After Confirmation
 
-Before acting, compare the live page against the summary. If amount, dates, traveler, refund terms, payment method, provider, merchant, or final action changed, refresh the summary and ask again. If it still matches, submit/send/request immediately and verify provider-visible proof.
+Before acting, compare the live page against the summary. If amount, dates, traveler, refund terms, payment method, provider, merchant, or final action changed, refresh the summary and ask again. If it still matches, submit/send/request immediately and verify provider-visible proof. In a Browserbase session the final pay/book/reserve tap is the user's, in the live view: send the link instead of clicking, wait, then verify.
 
 ## Denial Or Timeout
 

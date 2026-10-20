@@ -42,13 +42,12 @@ create a second login merely because this optional route is absent. Never ask
 for passwords in chat or inspect secret file contents for notes. Secure Access
 owns temporary-file cleanup.
 
-Use opaque source, session, and context references.  A callback may return
-`owner_id` and `context_id` so the helper can verify exact identity, but those
-values are removed from returned metadata.  Handoff checkpoints retain only
-the context handle, fingerprints, status, lease expiry, and capability flags.
-`live_view_url`, `connect_url`, and `debug_url` are never included in a
-checkpoint.  A transient Live View URL belongs to the owner-controlled UI
-handoff and must not be persisted or returned by the helper.
+Use opaque source, session, and context references. AccessManager checks callback
+`owner_id` and `context_id`, then removes them from returned metadata. Its
+checkpoints retain handles, fingerprints, status, expiry, and capability flags,
+never `live_view_url`, `connect_url`, or `debug_url`.
+Separately, `pa(operation="browser_session")` actions `create` and `live_view` return a link
+for user handoff steps; never persist that link or the connection URL.
 
 `acquire(..., cached_session=...)` makes cache use explicit.  A denied,
 revoked, expired, or identity-mismatched Secure Access result raises and never
@@ -56,7 +55,7 @@ falls back.  If the source is unavailable, an explicitly supplied cache may be
 returned with `fallback_used: true` and `fallback_reason` so the caller can
 surface that fact.
 
-The managed Browserbase route exposes create/release only.  Its capabilities
+AccessManager's managed Browserbase route exposes create/release only. Its flags
 explicitly report `context`, `durable_context`, `live_view`, and `debug` as
 false.  Local Browserbase handoff capabilities are callback-configured and
 `verified: false` until a separate product smoke proves the actual route.

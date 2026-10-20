@@ -32,7 +32,7 @@ Help the user eat after arrival. Prepare the order, then ask before final order 
 5. Verify items, quantities, substitutions, address, delivery instructions, fees, taxes, tip, total, payment descriptor, cancellation/refund terms, and final button.
 6. Store a checkout checkpoint in `travel-ledger` with session/Context, cart, address, total, payment descriptor, missing fields, and last user intent.
 7. Build a final confirmation summary with kind `food`, risk flags `final-order-submit` and `delivery-address`, plus a configured-payment flag when relevant.
-8. After confirmation, re-check cart and submit immediately only if details match.
+8. In a Browserbase session, send the live view for the user to check details and make the final tap; never press final submit there. In the local browser, after confirmation re-check the cart and submit only if details match.
 9. Verify order confirmation, ETA, restaurant, and delivery status. Record order id/receipt/status proof in `travel-ledger` before reporting.
 
 If you stop earlier, at a login, the user's app, no availability or a blocked site, record that stop in `travel-ledger` before replying: the stopping URL, what is prepared, what is missing and the next step.
@@ -46,10 +46,10 @@ Stop at a required user login or at checkout with the `travel-approval-packet`, 
 ## Browser Friction
 
 - Instacart, Uber Eats, DoorDash, Grubhub, and grocery stores may present reCAPTCHA, 401s, phone verification, passkeys, or address-validation modals. Treat these as workflow steps, not dead ends.
-- First use the official Browse CLI lane: `browse doctor --json`, `browse open <provider-url> --remote`, `browse snapshot`, then continue from the live page.
-- For Instacart/grocery checkout that is already showing login/CAPTCHA/provider friction, use the Browserbase session path from `browserbase-checkout-lane`: `browse cloud sessions create --proxies --solve-captchas --keep-alive --timeout 1200`, add `--context-id <provider-context-id> --persist` when available, then attach with `browse open <provider-url> --cdp <connectUrl>`.
+- When a handoff is likely or the local browser is blocked, check `pa(operation="capabilities")` → `remote_browser`; create with `pa(operation="browser_session", data={"action":"create"})` and attach with `agent-browser --session <task-name> connect <connect_url>`.
+- Work the cart via `browserbase-checkout-lane`. Keep `bb_session_id` for cleanup; never persist connection or live view URLs. Release when done or abandoned with `pa(operation="browser_session", data={"action":"release","bb_session_id":"<id>"})`.
 - A login modal is not automatically a CAPTCHA. Use saved sessions, continue through visible provider steps, and retry the click/Enter/login path before reporting a blocker.
-- Verification that remains after the browser lane's automatic handling (a CAPTCHA it cannot clear, a phone or email code, a passkey) belongs to the user. Keep the cart staged, share the Browserbase live view or the provider page, say exactly what the provider is asking for, and continue once they finish. The staged cart means nothing has to be rebuilt.
+- At card, OTP, passport, CAPTCHA, or passkey entry, send `live_view_url`: "Open this link, complete that step, and tell me when done." Wait; do not snapshot or read back payment fields afterwards. Refresh a missing/stale link with `browser_session` action `live_view` and `bb_session_id`; for a step in another tab, send that tab's link from `tabs`.
 - Keep the user-facing tone action-first: "I have the cart staged. I'm at provider verification now, then I'll bring you the total and final order confirmation."
 
 ## Must Not

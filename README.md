@@ -127,6 +127,7 @@ After an approved installation and activation:
 The `pa` tool exposes `setup` for guided setup progress and generic state-loop operations:
 `event_upsert`, `projection_claim`, `projection_result`, `reconcile`, and
 `freshness`. See [the state-loop contract](docs/state-loop.md).
+`browser_session` creates Browserbase sessions, returns live view links for user handoff, and releases sessions.
 
 `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
 `trip_offer` checks and records offer outcomes; load `personal-assistant:trip-concierge`.
