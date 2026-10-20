@@ -26,6 +26,7 @@ SCHEMA = {
             "arrival_timezone": {"type": "string"},
             "commitments": {"type": "array", "items": {"type": "object", "properties": {"title": {"type": "string"}, "at": {"type": "string"}}, "required": ["title", "at"]}},
             "airport_lead_minutes": {"type": "integer", "minimum": 0},
+            "airport_transfer_minutes": {"type": "integer", "minimum": 0, "maximum": 600},
             "weather_included_minutes": {"type": "integer", "minimum": 0, "description": "weather buffer already inside airport_lead_minutes; set from trip_offer next"},
             "check_in_lead_minutes": {"type": "integer", "minimum": 0},
             "hb2_quiet_hours": {"type": "string", "description": "HH:MM-HH:MM; default 22:00-08:00; empty disables the HB2 window."},
@@ -79,7 +80,7 @@ SCHEMA = {
             "kind": {"type": "string", "enum": ["trip", "action", "source", "guide"], "description": "Required for bounded context retrieval."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 20},
             "offset": {"type": "integer", "minimum": 0}
-        }, "description": "Operation arguments. trip_watch_plan: plan (default), status, record_wake, record_cancel, record_skip, verify or record_facts with trip_id; plan arms check_in_window/arrival_logistics/watch; receipts take moment/wake_id, verify takes wakes, record_facts takes segments/source. trip_offer: action check or record with trip_id/offer_type and outcome for record; occurrence comes from an observer notice; record example: data={\"action\":\"record\",\"trip_id\":…,\"offer_type\":…,\"outcome\":\"accepted\",\"occurrence\":\"n_…\"} (occurrence at the top level of data, not in fields); check reserves by default (reserve false skips reservation); opted_out requires an explicit never request. setup actions: status (default), start, record, propose, applied, fresh_check, pause, decline; record accepts consent granted/declined for the look-around. propose with draft true saves deeper-answer summaries and keeps the interview in progress. applied takes readbacks with target plus skill/path as needed; PA reads back the files and computes hashes. capabilities takes no data and never proves authentication. context: kind plus trip_id/action_id/source_id/query and optional limit/offset. recipes: optional recipe_id R1-R8; trip_import: trip_id, ics_path, optional guide_path/timezone/title/source_url/complete; export: trip_id/output_dir and optional guarded overwrite for same-profile PA files; action_upsert: optional action_id/source_id/action_kind/occurrence, fields. Transaction prepare/confirm/claim require action_id and summary; confirm also requires confirmation. action_prepare with enforcement_profile exact_action automatically registers a server-bound pending scope; action_cancel cancels that governed action. Action result requires action_id, outcome and proof. authorization_prepare records a generic exact-action envelope and hashes complete tool_args without retaining them; authorization_confirm requires action_id and explicit confirmation; authorization_status reads one action. event_upsert requires source_type/source_id/source_revision/projections and optional payload/occurred_at; each projection may declare freshness_seconds. projection_claim requires event_id/projection_key/claimed_by and optional lease_seconds/at. projection_result requires event_id/projection_key/claim_token/outcome and optional proof/at. reconcile optionally accepts event_id. freshness requires explicit at and optionally accepts event_id."}},
+        }, "description": "Operation arguments. trip_watch_plan: plan (default), status, record_wake, record_cancel, record_skip, verify or record_facts with trip_id; plan arms check_in_window/arrival_logistics/watch; receipts take moment/wake_id, verify takes wakes, record_facts takes segments/source or flat carrier, number, origin, destination, origin_timezone, destination_timezone, scheduled_departure, scheduled_arrival, optional estimated_departure, estimated_arrival, terminal_departure, terminal_arrival, status. trip_import/record_facts may return next_step. trip_offer: action check or record with trip_id/offer_type and outcome for record; occurrence comes from an observer notice; record example: data={\"action\":\"record\",\"trip_id\":…,\"offer_type\":…,\"outcome\":\"accepted\",\"occurrence\":\"n_…\"} (occurrence at the top level of data, not in fields); check reserves by default (reserve false skips reservation); opted_out requires an explicit never request. setup actions: status (default), start, record, propose, applied, fresh_check, pause, decline; record accepts consent granted/declined for the look-around. propose with draft true saves deeper-answer summaries and keeps the interview in progress. applied takes readbacks with target plus skill/path as needed; PA reads back the files and computes hashes. capabilities takes no data and never proves authentication. context: kind plus trip_id/action_id/source_id/query and optional limit/offset. recipes: optional recipe_id R1-R8; trip_import: trip_id, ics_path, optional guide_path/timezone/title/source_url/complete; export: trip_id/output_dir and optional guarded overwrite for same-profile PA files; action_upsert: optional action_id/source_id/action_kind/occurrence, fields. Transaction prepare/confirm/claim require action_id and summary; confirm also requires confirmation. action_prepare with enforcement_profile exact_action automatically registers a server-bound pending scope; action_cancel cancels that governed action. Action result requires action_id, outcome and proof. authorization_prepare records a generic exact-action envelope and hashes complete tool_args without retaining them; authorization_confirm requires action_id and explicit confirmation; authorization_status reads one action. event_upsert requires source_type/source_id/source_revision/projections and optional payload/occurred_at; each projection may declare freshness_seconds. projection_claim requires event_id/projection_key/claimed_by and optional lease_seconds/at. projection_result requires event_id/projection_key/claim_token/outcome and optional proof/at. reconcile optionally accepts event_id. freshness requires explicit at and optionally accepts event_id."}},
         "required": ["operation"],
         "allOf": [{
             "if": {"properties": {"operation": {"const": "projection_result"}}},
@@ -121,7 +122,8 @@ def _authorization_store(profile_root, ledger, runtime_scope):
 
 
 def dispatch(profile_root, args, *, runtime_scope=None):
-    op, data = args.get("operation", "status"), dict(args.get("data") or {})
+    op, data = args.get("operation", "status"), args.get("data") or {}
+    data = dict(json.loads(data) if isinstance(data, str) else data)
     if op not in OPERATIONS:
         raise ValueError("unknown PA operation")
     if op == "recipes":
@@ -215,7 +217,10 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         guide_path = data.pop("guide_path", None)
         if guide_path:
             data["guide"] = Path(guide_path).expanduser().read_text()
-        return _call_with_supported_data(import_trip, ledger, data={**data, "ics": source.read_bytes()})
+        from .trip_watch import offer_hint
+        result = _call_with_supported_data(import_trip, ledger, data={**data, "ics": source.read_bytes()})
+        hint = offer_hint(ledger, data["trip_id"])
+        return {**result, "next_step": hint} if hint else result
     if op == "export":
         from .trips import export_trip
         return _call_with_supported_data(export_trip, ledger, data=data)

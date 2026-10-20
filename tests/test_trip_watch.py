@@ -85,17 +85,20 @@ def test_wake_id_without_action_is_rejected_not_replanned(tmp_path):
 def test_weather_included_carries_only_with_carried_lead(tmp_path):
     from personal_assistant import trip_watch
     ledger = Ledger(tmp_path)
-    first = call(tmp_path, airport_lead_minutes=225, weather_included_minutes=45, arm=["watch"])
+    first = call(tmp_path, airport_lead_minutes=225, weather_included_minutes=45, airport_transfer_minutes=60, arm=["watch"])
     trip_watch.record_wake(ledger, "synthetic", "watch", "w_weather", armed=True)
     watch_id = trip_watch._watch_id("synthetic")
     assert ledger.get("action", "pa:observe-watch:" + watch_id)["fields"]["weather_included_minutes"] == 45
     carried = trip_watch.plan(ledger, trip_id="synthetic", at=BASE["at"])
     assert carried["inputs"]["weather_included_minutes"] == 45
     assert carried["inputs"]["airport_lead_minutes"] == 225
+    assert carried['inputs']['airport_transfer_minutes'] == 60
+    assert ledger.get('action', 'pa:observe-watch:' + watch_id)['fields']['airport_transfer_minutes'] == 60
     assert carried["revision"] == first["revision"]
     explicit = call(tmp_path, arm=["watch"])  # New times without a lead: the lead resets, so does the included buffer.
     assert explicit["inputs"]["airport_lead_minutes"] == 180
     assert explicit["inputs"]["weather_included_minutes"] == 0
+    assert 'airport_transfer_minutes' not in explicit['inputs']
     reset = trip_watch.plan(ledger, trip_id="synthetic", airport_lead_minutes=210, at=BASE["at"])
     assert reset["inputs"]["weather_included_minutes"] == 0
 

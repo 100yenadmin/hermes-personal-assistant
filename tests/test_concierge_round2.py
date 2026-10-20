@@ -31,7 +31,7 @@ def test_derivation_change_with_same_inputs(tmp_path):
     planned = watch(tmp_path)
     loop = StateLoop(Ledger(tmp_path))
     payload = loop.get_event(planned["event_id"])["payload"]
-    assert payload["derivation"] == 3
+    assert payload["derivation"] == 4
     payload["moments"][0]["note"] = "Previous derivation"
     with loop.ledger.connect() as conn:
         conn.execute("update pa_events set payload_json=? where event_id=?", (json.dumps(payload), planned["event_id"]))

@@ -124,13 +124,13 @@ def run_scenario(auth, pin, scenario, dest):
                 checks["listed_alternatives"] = len(re.findall(r"(?m)^\s*(?:\d+[.)]|[-*•])\s+", text))
                 checks["at_most_three_listed_alternatives"] = checks["listed_alternatives"] <= 3
             if scenario == "weather" and (rig.root / "offer-status.json").exists():
-                leave = json.loads((rig.root / "offer-status.json").read_text())["leave_by"]
+                leave = json.loads((rig.root / "offer-status.json").read_text())["at_airport_by"]
                 expected_leave = (departure - dt.timedelta(minutes=initial_lead + leave["weather_extra_minutes"])).strftime("%H:%M")
-                checks.update(new_leave_time_present=leave["local_time"] in text,
+                checks.update(new_airport_time_present=leave["local_time"] in text,
                               weather_extra_minutes=leave["weather_extra_minutes"],
-                              status_leave_by_matches_offer=final.get("leave_by", {}).get("local_time") == expected_leave
-                              and final.get("leave_by", {}).get("weather_extra_minutes") == 0
-                              and final.get("leave_by", {}).get("severity") == leave["severity"])
+                              status_at_airport_by_matches_offer=final.get("at_airport_by", {}).get("local_time") == expected_leave
+                              and final.get("at_airport_by", {}).get("weather_extra_minutes") == 0
+                              and final.get("at_airport_by", {}).get("severity") == leave["severity"])
             expected = dict(offer_count=2 if scenario == "never-replies" else 1,
                             occurrence_recorded=2 if scenario == "never-replies" else 1,
                             ack_present=2 if scenario == "never-replies" else 1,
@@ -139,7 +139,7 @@ def run_scenario(auth, pin, scenario, dest):
                             acked_notice_emits_within_cap=True, watcher_error_streak=0)
             if scenario == "weather":
                 expected.update(accepted=True, replan_done=True, observer_lead=225,
-                                new_leave_time_present=True, weather_extra_minutes=45, status_leave_by_matches_offer=True)
+                                new_airport_time_present=True, weather_extra_minutes=45, status_at_airport_by_matches_offer=True)
             if scenario == "delay":
                 expected.update(commitment_named=True, assumed_minutes_present=True, feasibility_word_present=True,
                                 at_most_three_listed_alternatives=True)

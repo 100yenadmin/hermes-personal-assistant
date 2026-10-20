@@ -54,7 +54,7 @@ these tests before importing Hermes. No live model or provider is used.
 The delay gate checks a simulated 90-minute departure delay, per-occurrence
 `flight_change` routing, a single offer and acknowledgement, and at least three
 further scheduled polls past the observer re-emission interval. The weather gate
-uses a loopback Open-Meteo stand-in, checks `Leave by` and `+45 min for snow`,
+uses a loopback Open-Meteo stand-in, checks `Be at the airport by` (transfer unknown) and `+45 min for snow`,
 records a decline, then acknowledges a thunderstorm notice with no new message.
 The unanswered gate injects three successive delays: two offers arrive, and HB2
 stores the third occurrence as pending with `held_reason=held_unanswered`,

@@ -60,6 +60,7 @@ Capture these fields when present:
 ```
 
 After producing the record, write it to `travel-ledger` with source confidence and open gaps. If the user asks "what travel do I have coming up", answer from the ledger plus fresh evidence and label stale or uncertain entries.
+After any import, including one outside `trip_import`, when a flight is known and no watch exists, follow `personal-assistant:trip-concierge` "When to arm".
 
 ## Rules
 

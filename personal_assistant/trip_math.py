@@ -25,7 +25,7 @@ def _zone(name):
     return ZoneInfo(name)
 
 
-def leave_by(departure, lead_minutes, origin_tz, *, estimated=None, severity=None, included_minutes=0) -> dict:
+def at_airport_by(departure, lead_minutes, origin_tz, *, estimated=None, severity=None, included_minutes=0) -> dict:
     scheduled = _time(departure)
     base = _time(estimated) if estimated else scheduled
     lead = _minutes(lead_minutes)
@@ -37,6 +37,15 @@ def leave_by(departure, lead_minutes, origin_tz, *, estimated=None, severity=Non
             "basis": "estimated" if estimated else "scheduled", "lead_minutes": lead,
             "weather_extra_minutes": extra, "weather_included_minutes": included, "severity": severity or None,
             "assumed": ["weather_extra_minutes"] if extra else []}
+
+
+def leave_by(departure, lead_minutes, origin_tz, transfer_minutes, **kwargs) -> dict:
+    airport = at_airport_by(departure, lead_minutes, origin_tz, **kwargs)
+    local = (_time(airport["at"]) - dt.timedelta(minutes=_minutes(transfer_minutes))).astimezone(_zone(origin_tz))
+    local = local.replace(minute=local.minute // 5 * 5, second=0, microsecond=0)
+    return {**airport, "at": local.isoformat(), "local_time": local.strftime("%H:%M"),
+            "transfer_minutes": transfer_minutes, "transfer_source": "recorded",
+            "at_airport_by": {k: airport[k] for k in ("at", "local_time")}}
 
 
 def feasibility(arrival, commitment_at, destination_tz, *, estimated=None, status=None,

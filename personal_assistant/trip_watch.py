@@ -56,6 +56,14 @@ def _event_id(trip_id):
     return stable_id("pa-state-loop-event", "pa_trip_watch", trip_id)
 
 
+def _plan_row(ledger, trip_id):
+    if not ledger.path.exists():
+        return None
+    with ledger.connect() as conn:
+        exists = conn.execute("select 1 from sqlite_master where name='pa_events'").fetchone()
+        return conn.execute("select source_revision,payload_json from pa_events where event_id=?", (_event_id(trip_id),)).fetchone() if exists else None
+
+
 MOMENTS = ("check_in_window", "arrival_logistics", "watch")
 SKIPS = ("declined", "not_allowlisted", "max_active", "held_past_leave_by", "unsupported_chat")
 
@@ -124,6 +132,9 @@ def _resolve(ledger, event_id, moment, outcome, proof):
 
 def status(ledger, trip_id, at=None):
     from .trip_facts import facts
+    if not _plan_row(ledger, trip_id):
+        hint = offer_hint(ledger, trip_id, at)
+        return {"planned": False, "trip_id": trip_id, **({"next_step": hint} if hint else {})}
     event = StateLoop(ledger).get_event(_event_id(trip_id))
     revision, payload, wakes = event["source_revision"], event["payload"], _wakes(ledger, trip_id)
     projections = {p["projection_key"]: p for p in event["projections"]}
@@ -143,7 +154,7 @@ def status(ledger, trip_id, at=None):
     try:  # Timing is advisory; it must never break the status every trip-watch operation returns.
         timing = _timing(ledger, trip_id, payload, flight_facts, _time(at or now()))
     except (KeyError, TypeError, ValueError):
-        timing = {"leave_by": None, "moments": payload["moments"], "notices": [], "timing_error": True}
+        timing = {"at_airport_by": None, "leave_by": None, "moments": payload["moments"], "notices": [], "timing_error": True}
     argv = payload["inputs"].get("watch_argv")
     return {"status": "planned", "event_id": event["event_id"], "revision": revision, "inputs": payload["inputs"], "arms": arms,
             **timing,
@@ -151,6 +162,26 @@ def status(ledger, trip_id, at=None):
             "wake_id": arrival.get("wake_id"), "armed": arrival.get("armed", False), "stale_wakes": list(dict.fromkeys(stale)),
             "facts": flight_facts, "facts_stale": bool(flight_facts and flight_facts["digest"] != payload["inputs"].get("facts_digest")),
             "watch_allowlist_entry": observer_allowlist_entry(), "interpreter_drift": bool(argv and (argv[0] != sys.executable or not Path(argv[0]).is_file()))}
+
+
+def offer_hint(ledger, trip_id, at=None):
+    from .trip_facts import facts
+    current = _time(at or now())
+    events = (ledger.get("trip", trip_id) or {}).get("fields", {}).get("events", [])
+    future = any(_time(s["scheduled_departure"]) > current for s in facts(ledger, trip_id).get("segments", []))
+    future |= any(not e.get("all_day") and not e.get("source_missing") and e.get("start") and len(e["start"]) > 10
+                  and _time(e["start"]) > current for e in events)
+    if not future or any(ledger.get("action", f"pa:offer:{key}:trip_watch") for key in (trip_id, "*")):
+        return None
+    if _plan_row(ledger, trip_id):
+        return None
+    return {"offer_trip_watch": True, "skill": "personal-assistant:trip-concierge",
+            "question": "Want a check-in reminder, an arrival-planning wake, and a short-lived flight/weather watch?",
+            "then": "On yes call pa trip_watch_plan with trip_id; on no record trip_offer offer_type=trip_watch outcome=declined."}
+
+
+def _transfer(inputs, first):
+    return inputs.get("airport_transfer_minutes") if not inputs.get("airport_transfer_origin") or inputs["airport_transfer_origin"] == first.get("origin") else None
 
 
 def _timing(ledger, trip_id, payload, facts, current):
@@ -161,15 +192,18 @@ def _timing(ledger, trip_id, payload, facts, current):
     first, last = _journey(facts, current)
     departure, origin = first.get("scheduled_departure", inputs.get("departure_at")), first.get("origin_timezone", inputs.get("origin_timezone"))
     arrival, destination = last.get("scheduled_arrival", inputs.get("arrival_at")), last.get("destination_timezone", inputs.get("arrival_timezone"))
-    leave = trip_math.leave_by(departure, inputs["airport_lead_minutes"], origin, estimated=first.get("estimated_departure"),
+    transfer = _transfer(inputs, first)
+    airport = trip_math.at_airport_by(departure, inputs["airport_lead_minutes"], origin, estimated=first.get("estimated_departure"),
                                severity=trip_math.recent_severity(observer.get("weather", {}), current),
                                included_minutes=inputs.get("weather_included_minutes", 0)) if departure and origin and "airport_lead_minutes" in inputs else None
+    leave = trip_math.leave_by(departure, inputs["airport_lead_minutes"], origin, transfer,
+        estimated=first.get("estimated_departure"), severity=airport["severity"], included_minutes=inputs.get("weather_included_minutes", 0)) if airport and transfer is not None else None
     moments = [dict(m) for m in payload["moments"]]
     for moment in moments:
         if moment["key"] == "first_commitment" and arrival:
             moment["feasibility"] = trip_math.feasibility(arrival, moment["at"], destination or str(_time(arrival).tzinfo),
                                                         estimated=last.get("estimated_arrival"), status=last.get("status"))
-    return {"leave_by": leave, "moments": moments,
+    return {"at_airport_by": airport, "leave_by": leave, "needs_airport_transfer": transfer is None, "moments": moments,
             "notices": [{k: n[k] for k in ("id", "offer_type", "signals", "last_at")} for n in notices]}
 
 
@@ -200,13 +234,16 @@ def departures(ledger, at=None):
         first, _ = _journey(flight, current)
         if first.get("status") == "cancelled":
             continue  # No live leg: nothing to leave for.
-        leave = next(m["at"] for m in payload["moments"] if m["key"] == "leave_by")
+        legacy = payload.get("derivation", 0) <= 3
+        airport = next((m["at"] for m in payload["moments"] if m["key"] == ("leave_by" if legacy else "at_airport_by")), None)
+        leave = next((m["at"] for m in payload["moments"] if m["key"] == "leave_by"), None) if not legacy and _transfer(inputs, first) is not None else None
         try:
-            leave = (_timing(ledger, trip_id, payload, flight, current)["leave_by"] or {}).get("at", leave)
+            timing = _timing(ledger, trip_id, payload, flight, current)
+            airport, leave = (timing["at_airport_by"] or {}).get("at", airport), (timing["leave_by"] or {}).get("at", leave)
         except (KeyError, TypeError, ValueError):
             pass
         result.append({"trip_id": trip_id, "departure_at": first.get("scheduled_departure", inputs["departure_at"]),
-                       "leave_by_at": leave, "airport_lead_minutes": inputs["airport_lead_minutes"]})
+                       "at_airport_by_at": airport, **({"leave_by_at": leave} if leave else {}), "airport_lead_minutes": inputs["airport_lead_minutes"]})
     return result
 
 
@@ -260,7 +297,7 @@ def record_wake(ledger, trip_id, moment, wake_id, armed=True, expires_at=None, s
             ledger.put("action", "pa:observe-watch:" + _watch_id(trip_id), {
                 "schema": 1, "watch_id": _watch_id(trip_id), "trip_id": trip_id, "event_id": event["event_id"], "status": "active", "profile_root": str(ledger.root),
                 "checks": {"trip_change": True, "flight": True, "weather": i["weather"]},
-                **{k: i.get(k) for k in ("departure_at", "arrival_at", "airport_lead_minutes", "hb2_quiet_hours", "hb2_timezone", "night_alerts")},
+                **{k: i.get(k) for k in ("departure_at", "arrival_at", "airport_lead_minutes", "airport_transfer_minutes", "airport_transfer_origin", "hb2_quiet_hours", "hb2_timezone", "night_alerts")},
                 "weather_included_minutes": i.get("weather_included_minutes") or 0,  # Plans saved before this field have none.
                 "origin": {"iata": flight[0]["origin"] if flight else None, "tz": flight[0]["origin_timezone"] if flight else i["origin_timezone"], "label": flight[0]["origin"] if flight else "Origin"},
                 "destination": {"iata": flight[-1]["destination"] if flight else None, "tz": i.get("arrival_timezone") or str(_time(i["arrival_at"]).tzinfo), "label": flight[-1]["destination"] if flight else "Destination"},
@@ -306,13 +343,9 @@ def verify(ledger, trip_id, wakes, session_id=None, at=None):
 def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=None,
          commitments=None, airport_lead_minutes=None, at=None, check_in_lead_minutes=None,
          hb2_quiet_hours=None, hb2_timezone=None, arm=None, check_in_window_hours=None,
-         night_alerts=None, weather=None, _arm_epoch=None, weather_included_minutes=None):
+         night_alerts=None, weather=None, _arm_epoch=None, weather_included_minutes=None, airport_transfer_minutes=None):
     from .trip_facts import facts
-    prior = None
-    if ledger.path.exists():
-        with ledger.connect() as conn:
-            exists = conn.execute("select 1 from sqlite_master where name='pa_events'").fetchone()
-            prior = conn.execute("select source_revision,payload_json from pa_events where event_id=?", (_event_id(trip_id),)).fetchone() if exists else None
+    prior = _plan_row(ledger, trip_id)
     previous = json.loads(prior["payload_json"]) if prior else {}
     saved, flight = previous.get("inputs", {}), facts(ledger, trip_id)
     restored = departure_at is None and arrival_at is None
@@ -334,6 +367,10 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
     if weather_included_minutes is None:
         weather_included_minutes = defaults.get("weather_included_minutes", 0) if airport_lead_minutes is None else 0
     airport_lead_minutes = airport_lead_minutes if airport_lead_minutes is not None else defaults.get("airport_lead_minutes", 180)
+    if airport_transfer_minutes is None:
+        airport_transfer_minutes = _transfer(defaults, live[0] if facts_mode else {})
+    if airport_transfer_minutes is not None and (type(airport_transfer_minutes) is not int or not 0 <= airport_transfer_minutes <= 600):
+        raise ValueError("airport_transfer_minutes must be an integer from 0 to 600")
     check_in_lead_minutes = check_in_lead_minutes if check_in_lead_minutes is not None else defaults.get("check_in_lead_minutes", 180)
     commitments = commitments if commitments is not None else defaults.get("commitments", [])
     arm = arm if arm is not None else saved.get("arm", ["arrival_logistics"])
@@ -400,6 +437,10 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
               "hb2_timezone": str(hb2_zone) if hb2_zone else None, "arm": arm,
               "check_in_window_hours": check_in_window_hours, "night_alerts": night_alerts, "weather": weather,
               "arm_epoch": _arm_epoch if _arm_epoch is not None else saved.get("arm_epoch", 0)}
+    if airport_transfer_minutes is not None:
+        inputs["airport_transfer_minutes"] = airport_transfer_minutes
+        if facts_mode or saved.get("airport_transfer_origin") and departure.isoformat() == saved.get("departure_at"):
+            inputs["airport_transfer_origin"] = live[0]["origin"] if facts_mode else saved["airport_transfer_origin"]
     if "watch" in arm:
         if len(trip_id.encode()) > 80:
             raise ValueError("trip_id must be at most 80 bytes to arm a watch")
@@ -425,7 +466,9 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         end = dt.datetime.combine(local.date(), dt.time.fromisoformat(w["end"]), z)
         check_in = end if end > local else end + dt.timedelta(days=1)
     add("check_in_window", check_in, origin, "Check airline check-in availability.")
-    add("leave_by", departure - dt.timedelta(minutes=airport_lead_minutes), origin, "Leave for the airport.")
+    add("at_airport_by", departure - dt.timedelta(minutes=airport_lead_minutes), origin, "Be at the airport.")
+    if airport_transfer_minutes is not None:
+        add("leave_by", _time(trip_math.leave_by(departure.isoformat(), airport_lead_minutes, str(origin), airport_transfer_minutes)["at"]), origin, "Leave for the airport.")
     logistics = (departure - dt.timedelta(minutes=max(check_in_lead_minutes, airport_lead_minutes))).astimezone(origin)
     for _ in range(6):
         quiet = next(((w, z) for w, z in windows if _quiet(logistics.astimezone(z), w)), None)
@@ -444,7 +487,7 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         add("first_commitment", _time(first["at"]), destination, first["title"])
         moments[-1]["slack_minutes"] = (_time(first["at"]) - arrival).total_seconds() / 60
     late = arrival.hour >= 22 or arrival.hour < 6
-    payload = clean({"inputs": inputs, "moments": moments, "late_arrival": late, "derivation": 3})
+    payload = clean({"inputs": inputs, "moments": moments, "late_arrival": late, "derivation": 4})
     revision = prior["source_revision"] if prior and json.loads(prior["payload_json"]) == payload else hashlib.sha256(
         (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + (prior["source_revision"] if prior else "")).encode()).hexdigest()
     loop = StateLoop(ledger)
@@ -478,7 +521,7 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
             if view["state"] == "pending_confirmation":
                 item["pending_wake_id"] = view["wake_id"]
         if m == "watch":
-            item.update(human_turn_only=True, requires={"hb2_probe_command": observer_allowlist_entry(), "recommended_settings": {"max_unanswered": 4}})
+            item.update(human_turn_only=True, requires={"hb2_probe_command": observer_allowlist_entry(), "recommended_settings": {"max_unanswered": 4, **({"quiet_hours_urgent": True} if night_alerts else {})}})
         arms.append(item)
     stored = status(ledger, trip_id, at=current.isoformat())
     result = {**stored, "arm": arms, "moments": [{**m, **({"status": "past"} if _time(m["at"]) < current else {})} for m in moments], "late_arrival": late,
@@ -559,11 +602,24 @@ def snapshot_settings(ledger, settings):
 
 def dispatch(ledger, data):
     from .entry import _call_with_supported_data
-    from .trip_facts import record_facts
+    from .trip_facts import OPTIONAL, SCHEDULE, record_facts
     if "action" not in data and any(k in data for k in ("wake_id", "segments", "wakes")):
         raise ValueError("wake_id requires action record_wake or record_cancel; segments/wakes require action")
     action = data.pop("action", "plan")
+    flat_keys = set(SCHEDULE + OPTIONAL + ("status",))
+    # origin_timezone also belongs to saved plan inputs returned by status.
+    if action != "record_facts" and any(k in data for k in flat_keys - ({"origin_timezone"} if action == "plan" else set())):
+        raise ValueError("flat flight keys require action=record_facts")
+    if action == "record_facts":
+        if "segments" not in data and any(k in data for k in SCHEDULE):
+            data["segments"] = {k: data.pop(k) for k in flat_keys if k in data}
+        if isinstance(data.get("segments"), str):
+            data["segments"] = json.loads(data["segments"])
+        if isinstance(data.get("segments"), dict):
+            data["segments"] = [data["segments"]]
     actions = {"plan": plan, "record_wake": record_wake, "record_cancel": record_cancel, "record_skip": record_skip, "verify": verify, "record_facts": record_facts, "status": status}
     if action not in actions:
         raise ValueError("unknown trip watch action")
-    return _call_with_supported_data(actions[action], ledger, data=data)
+    result = _call_with_supported_data(actions[action], ledger, data=data)
+    hint = offer_hint(ledger, data["trip_id"]) if action == "record_facts" else None
+    return {**result, "next_step": hint} if hint else result

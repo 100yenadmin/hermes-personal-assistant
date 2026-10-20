@@ -262,7 +262,7 @@ def test_departure_threshold(profile, minutes, fire):
     output = run(profile)
     assert output["fire"] is fire
     if fire:
-        assert "Leave by" in output["message"] and "+09:00" in output["message"]
+        assert "Be at the airport by" in output["message"] and "+09:00" in output["message"]
         assert "offer_type=flight_change" in output["message"]
         assert not run(profile)["fire"]
 
@@ -593,9 +593,11 @@ def test_weather_cache_regeocodes_when_origin_changes(monkeypatch):
 
 
 @pytest.mark.parametrize("age,extra", [(None, 0), (179, 45), (181, 0)])
-def test_flight_leave_by_default_and_recent_weather(profile, age, extra):
+@pytest.mark.parametrize("transfer", [None, 0, 60])
+def test_flight_leave_by_default_and_recent_weather(profile, age, extra, transfer):
     from personal_assistant import trip_math
     profile.put("action", "pa:observe-watch:w1", {}, remove=["airport_lead_minutes"])
+    watch(profile, airport_transfer_minutes=transfer)
     if age is not None:
         profile.put("action", "pa:observe:w1", {"weather": {"last": {"severity": "snow", "at":
             (dt.datetime.now(UTC) - dt.timedelta(minutes=age)).isoformat()}}})
@@ -603,20 +605,22 @@ def test_flight_leave_by_default_and_recent_weather(profile, age, extra):
     estimated = shift(departure, 25)
     segment(profile, estimated_departure=estimated)
     output = run(profile)
-    expected = trip_math.leave_by(departure, 180, "Asia/Tokyo", estimated=estimated, severity="snow" if extra else None)
+    expected = trip_math.at_airport_by(departure, 180, "Asia/Tokyo", estimated=estimated, severity="snow" if extra else None)
+    if transfer is not None:
+        expected = trip_math.leave_by(departure, 180, "Asia/Tokyo", transfer, estimated=estimated, severity="snow" if extra else None)
     signals = get(profile)["notices"][-1]["signals"]
-    assert signals[-1] == f'Leave by {expected["local_time"]}' + (" (+45 min for snow)" if extra else "")
+    assert signals[-1] == f'{"Leave by" if transfer is not None else "Be at the airport by"} {expected["local_time"]}' + (" (+45 min for snow)" if extra else "")
     assert len(output["message"].encode()) <= 800 and all(len(s.encode()) <= 400 for s in signals)
 
 
 def test_weather_notice_leave_by_and_raw_last_on_no_notify(profile):
-    from personal_assistant.trip_math import leave_by
+    from personal_assistant.trip_math import at_airport_by
     with weather_server(profile, code=95) as data:
         output = run(profile)
         current = get(profile, "pa:observe-watch:w1")
-        expected = leave_by(current["departure_at"], 120, current["origin"]["tz"], severity="thunderstorm")
+        expected = at_airport_by(current["departure_at"], 120, current["origin"]["tz"], severity="thunderstorm")
         signals = get(profile)["notices"][-1]["signals"]
-        assert signals[-1] == f'Leave by {expected["local_time"]} (+30 min for thunderstorm)'
+        assert signals[-1] == f'Be at the airport by {expected["local_time"]} (+30 min for thunderstorm)'
         assert len(output["message"].encode()) <= 800 and all(len(s.encode()) <= 400 for s in signals)
         assert not run(profile)["fire"]
         assert get(profile)["weather"]["last"]["severity"] == "thunderstorm"
@@ -630,7 +634,7 @@ def test_weather_leave_by_missing_origin_is_silent_fallback(profile):
     with weather_server(profile, code=95):
         watch(profile, origin={"label": "Synthetic Airport"})
         assert run(profile)["fire"]
-        assert not any(s.startswith("Leave by") for s in get(profile)["notices"][-1]["signals"])
+        assert not any(s.startswith("Be at the airport by") for s in get(profile)["notices"][-1]["signals"])
 
 
 @pytest.mark.parametrize("suppression", [None, "already_recorded", "declined", "opted_out"])
@@ -676,7 +680,7 @@ def test_flight_leave_by_does_not_readd_notified_snow(profile):
     expected = (dt.datetime.fromisoformat(estimated) - dt.timedelta(minutes=225)).astimezone(
         ZoneInfo("Asia/Tokyo"))
     expected = expected.replace(minute=expected.minute // 5 * 5)
-    assert get(profile)["notices"][-1]["signals"][-1] == f"Leave by {expected:%H:%M}"
+    assert get(profile)["notices"][-1]["signals"][-1] == f"Be at the airport by {expected:%H:%M}"
 
 
 @pytest.mark.parametrize("included,old,extra", [(45, "clear", 0), (30, "heavy rain", 15)])
@@ -690,5 +694,5 @@ def test_weather_notice_adds_only_unincluded_minutes(profile, included, old, ext
     expected = (dt.datetime.fromisoformat(current["departure_at"]) - dt.timedelta(
         minutes=180 + included + extra)).astimezone(ZoneInfo("Asia/Tokyo"))
     expected = expected.replace(minute=expected.minute // 5 * 5)
-    assert notice["signals"][-1] == f'Leave by {expected:%H:%M} (+{extra} min for snow)'
+    assert notice["signals"][-1] == f'Be at the airport by {expected:%H:%M} (+{extra} min for snow)'
     assert notice["weather_extra_minutes"] == extra
