@@ -152,6 +152,13 @@ def dispatch(profile_root, args, *, runtime_scope=None):
             raise ValueError("unknown setup action")
         if action in {"applied", "fresh_check"}:
             data["session_id"] = (runtime_scope or {}).get("session_id")
+        if action in {"start", "record"}:
+            from .modes import config_getter, cos_enabled
+            section = data.get("section") if action == "start" else None
+            if ((section or setup.state(ledger)["requested_section"]) == "chief_of_staff"
+                    and not cos_enabled(config_getter(ledger.root))):
+                raise ValueError("Chief of Staff mode is off; use /pa mode chief-of-staff on, "
+                                 "then hermes gateway restart and a new session")
         return _call_with_supported_data(setup.state if action == "status" else getattr(setup, action), ledger, data=data)
     if op in {"authorization_prepare", "authorization_confirm", "authorization_cancel", "authorization_status"}:
         store = _authorization_store(profile_root, ledger, runtime_scope)

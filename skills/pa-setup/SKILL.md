@@ -126,8 +126,8 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
 
 ## Fresh-session check
 
-The new-session hook may load this section without the interview. First read
-`pa(operation="setup", data={"action":"status"})`; do not call `start`.
+The new-session hook may load this section without the interview. First read `pa(operation="setup", data={"action":"status"})`; do not call `start`.
+If `requested_section` is `chief_of_staff`, run the CoS check in `references/question-bank.md` instead: no flight question and no trip or check-in arming.
 If `status` is not `applied`, resume its flow; if `fresh_check.status` is already
 `passed`, do not rerun from the hook note. When `pending` or `failed`, run the check
 in a session other than the apply session: load the saved manual/USER.md through

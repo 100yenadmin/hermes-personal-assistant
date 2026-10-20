@@ -80,9 +80,9 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                              if current["requested_mode"] == "review"
                              else "show the saved answers as one review and call pa setup propose; wait for the user's apply"
                              if current["next_question"] is None
-                             # A fresh interview starts with the intro, consent and look-around, not a question.
+                             # A fresh section starts with the intro, consent and look-around, not a question.
                              else interview_start
-                             if not (current["asked"] or current["answers"] or current["skipped"])
+                             if not any(current["counts"][key] for key in ("asked", "answers", "skipped"))
                              else f"ask only the next question ({current['next_question']})")
                 text = ("Guided setup is active. Load skill personal-assistant:pa-setup and continue: "
                         f"help with this message first if it is about something else, then {next_step}.")

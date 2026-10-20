@@ -19,9 +19,11 @@ def _view(fields):
               "applied": [], "applied_session_id": None, "fresh_check": {},
               "offer_shown_at": None, "updated_at": None, "look_around_consent": None,
               "active_platform": None, "active_sender_id": None, **fields}
-    questions = SECTIONS.get(result["requested_section"], CORE_QUESTIONS)
-    result["next_question"] = next((q for q in questions
-                                    if q not in result["answers"] and q not in result["skipped"]), None)
+    review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
+    questions = (tuple(q for section in SECTIONS.values() for q in section) if review
+                 else SECTIONS.get(result["requested_section"], CORE_QUESTIONS))
+    result["next_question"] = None if review else next(
+        (q for q in questions if q not in result["answers"] and q not in result["skipped"]), None)
     result["counts"] = {key: sum(q in questions for q in result[key])
                         for key in ("asked", "answers", "skipped")}
     result["counts"]["total"] = len(questions)

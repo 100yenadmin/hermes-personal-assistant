@@ -37,7 +37,14 @@ def test_cos_questions_walk_and_sections_keep_independent_counts(tmp_path):
     assert setup.propose(ledger, [])["status"] == "proposed"
 
 
+def mode_on(root, on=True):
+    import yaml
+    (root / "config.yaml").write_text(yaml.safe_dump({"plugins": {"enabled": ["personal-assistant"],
+        "entries": {"personal-assistant": {"settings": {"modes": {"chief_of_staff": on}}}}}}))
+
+
 def test_cos_start_dispatch_and_hook_preserve_requested_section(tmp_path):
+    mode_on(tmp_path)
     ledger = Ledger(tmp_path)
     current = dispatch(tmp_path, {"operation": "setup", "data": {"action": "start", "section": "chief_of_staff"}})
     assert current["next_question"] == COS[0]
@@ -115,3 +122,49 @@ def test_cos_suggestion_withheld_when_rules_disagree_on_the_chat(tmp_path, kind)
                                                       "destination_verified": True, "timezone": "Asia/Tokyo"})
     result = auto.suggest_automation_jobs(ledger=ledger, chief_of_staff=True)
     assert result["jobs"] == [] and f"{kind}: conflicting destinations" in result["missing_inputs"]
+
+
+def test_cos_section_with_core_progress_still_gets_its_intro(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.start(ledger)
+    setup.record(ledger, {"call_and_quiet": ANSWER}, skipped=["authority"], asked=["call_and_quiet"])
+    setup.request(ledger, "chief_of_staff")
+    note = make_pre_llm_call(tmp_path, lambda k, d=None: {"chief_of_staff": True} if k == "modes" else d)(
+        user_message="Ready", platform="telegram", sender_id="synthetic")
+    assert "Chief of Staff section's intro and consent flow" in note["context"]
+    setup.record(ledger, asked=["cos_priorities"])
+    note = make_pre_llm_call(tmp_path, lambda k, d=None: {"chief_of_staff": True} if k == "modes" else d)(
+        user_message="Next", platform="telegram", sender_id="synthetic")
+    assert "ask only the next question (cos_priorities)" in note["context"]
+
+
+def test_setup_operation_refuses_cos_while_mode_is_off(tmp_path):
+    with pytest.raises(ValueError, match="mode is off"):
+        dispatch(tmp_path, {"operation": "setup", "data": {"action": "start", "section": "chief_of_staff"}})
+    setup.request(Ledger(tmp_path), "chief_of_staff")
+    for data in ({"action": "start"}, {"action": "record", "answers": {"cos_priorities": ANSWER}}):
+        with pytest.raises(ValueError, match="mode is off"):
+            dispatch(tmp_path, {"operation": "setup", "data": data})
+    assert setup.state(Ledger(tmp_path))["counts"]["answers"] == 0
+    mode_on(tmp_path)
+    assert dispatch(tmp_path, {"operation": "setup", "data": {"action": "record",
+                    "answers": {"cos_priorities": ANSWER}}})["counts"]["answers"] == 1
+    setup.request(Ledger(tmp_path))  # Core setup is never gated by the mode.
+    mode_on(tmp_path, False)
+    assert dispatch(tmp_path, {"operation": "setup", "data": {"action": "start"}})["requested_section"] == "core"
+
+
+def test_review_mode_reports_combined_progress_without_a_next_question(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, "chief_of_staff")
+    setup.record(ledger, {question: ANSWER for question in COS})
+    current = setup.request(ledger, None)
+    assert current["next_question"] is None
+    assert current["counts"] == {"asked": 0, "answers": 5, "skipped": 0, "total": 13}
+
+
+def test_fresh_session_check_branches_for_cos():
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[1] / "skills/pa-setup/SKILL.md").read_text()
+    check = text[text.index("## Fresh-session check"):]
+    assert "If `requested_section` is `chief_of_staff`" in check.split("When would you check in")[0]

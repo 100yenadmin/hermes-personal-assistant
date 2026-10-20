@@ -118,27 +118,14 @@ Only an explicit yes in a human turn to daily, weekly, or both permits those
 schedules. “You decide”, skipped timing or a general apply is not a schedule yes.
 Read automation status and Hermes jobs first; reuse an existing selected rule
 and publisher instead of making duplicates. Show the proposed rules in review.
-If the current surface has no verified push destination, stop schedule setup and
-ask the user to continue in the intended delivery chat; never guess a chat ID.
-
-Reuse the existing PA automation rule/receipt lifecycle used by Daily Ops
-(`personal_assistant/daily_ops/doctor.py`, `_delivery_receipt`): bind the exact
-current chat destination, profile, account, IANA timezone, rule ID and revision.
-An existing proof must match all of these; a mutable `destination_verified`
-flag alone is insufficient. If verification is missing, ask for a destination
-verification message before sending it. Claim a distinct verification occurrence
-through `pa(operation="automations", data={"action":"claim","occurrence_id":"<verification occurrence>","rule_id":"<rule id>","payload":{"profile_id":"<profile>","account":"<account>","timezone":"<IANA zone>","destination":"<current chat>","rule_id":"<rule id>","rule_revision":"<revision>"}})`.
-Send only that approved verification message through the existing message tool
-if `claimed` is true, then record its actual provider evidence through
-`pa(operation="automations", data={"action":"receipt","occurrence_id":"<verification occurrence>","receipt":"delivered","proof":{"provider":"<provider>","receipt_reference":"<actual receipt>","observed_at":"<aware timestamp>"}})`.
-Uncertain delivery is `unknown`: do not resend or mark it verified. Check the
-stored notification with `pa(operation="context", data={"kind":"action","action_id":"<returned notification action_id>"})`.
-
-After apply and successful verification, use the existing
-`pa(operation="automations", data={"action":"rule","rule_id":"<stable rule id>","rule":{"kind":"cos_daily","accepted":true,"destination":"<verified current chat>","destination_verified":true,"timezone":"<IANA zone>","profile_id":"<profile>","account":"<account>","rule_revision":"<revision>","accepted_at":"<aware acceptance timestamp>","verified_at":"<aware verification timestamp>"}})`.
-Use `cos_weekly` and its own stable rule ID/proof for weekly; create only the
-selected kinds. Keep `accepted_at <= verified_at <= proof.observed_at`, the
-payload and receipt matched exactly as Daily Ops checks; never invent proof.
+Set up schedules from the chat that should receive the reports. If this surface
+cannot receive pushed messages, ask the user to continue there; never guess a chat ID.
+The destination is this chat's Hermes delivery target. `destination_verified: true`
+records the owner's explicit yes in this chat; PA runs no other verification, and
+Hermes shows each suggested job before `/suggestions accept`, which is the final check.
+After apply, use the existing
+`pa(operation="automations", data={"action":"rule","rule_id":"<stable rule id>","rule":{"kind":"cos_daily","accepted":true,"destination":"<this chat's delivery target>","destination_verified":true,"timezone":"<IANA zone>","accepted_at":"<aware acceptance timestamp>"}})`.
+Use `cos_weekly` with its own stable rule ID for weekly; create only the selected kinds.
 Rules store intent and create no jobs. Read automation status back, then call
 `pa(operation="automations", data={"action":"suggest","native":true})`.
 Check that the chosen suggestions actually exist; do not claim they are enabled.
