@@ -42,4 +42,4 @@ config_schema:
   calls:
     type: dict
     default: {}
-    description: "Phone transport: none (default) returns a script; sim requires a loopback sim_url. No real phone transport."
+    description: "Phase 1: compile a per-call ElevenLabs brief and explicitly poll finished calls into the PA queue. none returns a script; sim is loopback. Never auto-starts, listens, changes an agent, or dials."

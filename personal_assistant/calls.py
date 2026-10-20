@@ -1,4 +1,4 @@
-"""Approval-gated text calls; the only connected transport is a loopback lab."""
+"""Approval-gated simulator calls and side-effect-free real-call brief compilation."""
 import datetime as dt
 import ipaddress
 import json
@@ -8,33 +8,61 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from .privacy import clean
+from .phone_safety import COMPILE_REDACTION_FIELDS, RestrictedContent, display_name
 from .state import Ledger, now
 
 OUTCOMES = ['booked', 'needs_approval', 'no_answer', 'refused', 'answered', 'message_taken', 'handoff', 'cancelled']
 DISCLOSURES = {  # (named, generic): spoken first, so no unfilled placeholders.
     'ja': ('AIアシスタントです。{name}様の代理でお電話しております。', 'AIアシスタントです。お客様の代理でお電話しております。'),
     'ko': ('{name}님을 대신해 전화드리는 AI 비서입니다.', '고객님을 대신해 전화드리는 AI 비서입니다.'),
-    'en': ('Hello, this is an AI assistant calling on behalf of {name}.', 'Hello, this is an AI assistant calling on behalf of a guest.'),
+    'en': ('Hello, this is an AI assistant calling on behalf of {name}.', 'Hello, this is an AI assistant calling on behalf of my client.'),
 }
 
 
 def disclosure(language, name=None):
     named, generic = DISCLOSURES[language]
-    return named.format(name=name.strip()) if isinstance(name, str) and name.strip() else generic
+    safe_name = display_name(name)
+    return named.format(name=safe_name) if safe_name else generic
+
+
+_PARTY = {'type': 'integer', 'minimum': 1, 'maximum': 1000}
+_DATE = {'type': 'string', 'pattern': '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}
+_TIME = {'type': 'string', 'pattern': '^[0-9]{2}:[0-9]{2}$'}
+_FACT = {'oneOf': [
+    {'type': 'object', 'properties': {'type': {'const': kind}, 'value': schema},
+     'required': ['type', 'value'], 'additionalProperties': False}
+    for kind, schema in {
+        'name': {'type': 'string', 'minLength': 1, 'maxLength': 40},
+        'callback': {'type': 'string', 'pattern': '^\\+[1-9][0-9]{7,14}$'},
+        'date': _DATE, 'time': _TIME, 'party_size': _PARTY}.items()]}
 
 PARAMS = {
-    'action': {'type': 'string', 'enum': ['prepare', 'start', 'say', 'end', 'answer', 'status']},
+    'action': {'type': 'string', 'enum': ['prepare', 'compile', 'start', 'say', 'end', 'answer', 'status']},
     'call_id': {'type': 'string', 'pattern': '^[a-f0-9]{32}$'},
     'purpose': {'type': 'string', 'minLength': 1, 'maxLength': 1000},
     'language': {'type': 'string', 'enum': list(DISCLOSURES)},
-    'to': {'type': 'object', 'properties': {'name': {'type': 'string', 'minLength': 1},
-                                         'number': {'type': 'string'}},
+    'direction': {'type': 'string', 'enum': ['outbound', 'inbound']},
+    'to': {'type': 'object', 'properties': {'name': {'type': 'string', 'minLength': 1, 'maxLength': 200},
+                                         'number': {'type': 'string', 'maxLength': 64}},
            'required': ['name'], 'additionalProperties': False},
-    'may_share': {'type': 'array', 'items': {'type': 'string'}},
+    'may_share': {'type': 'array', 'maxItems': 20, 'items': {'anyOf': [
+        {'type': 'string', 'minLength': 1, 'maxLength': 1000}, _FACT]}},
     'limits': {'type': 'object', 'properties': {
-        'party_size': {'type': 'integer', 'minimum': 1}, 'time_window': {'type': 'string'},
+        'party_size': _PARTY,
+        'party_size_range': {'type': 'object', 'properties': {
+            'min': _PARTY, 'max': _PARTY},
+            'required': ['min', 'max'], 'additionalProperties': False},
+        'date': _DATE, 'time': _TIME,
+        'date_range': {'type': 'object', 'properties': {'start': _DATE, 'end': _DATE},
+                       'required': ['start', 'end'], 'additionalProperties': False},
+        'time_range': {'type': 'object', 'properties': {'start': _TIME, 'end': _TIME},
+                       'required': ['start', 'end'], 'additionalProperties': False},
+        'timezone': {'type': 'string', 'minLength': 1, 'maxLength': 64},
+        'preferred_time': {'type': 'string', 'minLength': 1, 'maxLength': 500},
+        'time_window': {'type': 'string', 'maxLength': 500},
+        'flexibility': {'type': 'string', 'maxLength': 500},
         'max_deposit': {'type': 'number', 'minimum': 0, 'default': 0},
-        'other': {'type': 'string'}}, 'additionalProperties': False},
+        'other': {'type': 'string', 'maxLength': 1000}}, 'additionalProperties': False},
     'on_behalf_of': {'type': 'string', 'maxLength': 100,
                      'description': 'Name to say in the disclosure, only if sharing it is allowed.'},
     'trip_id': {'type': 'string'}, 'confirmed': {'type': 'boolean'},
@@ -42,14 +70,14 @@ PARAMS = {
     'outcome': {'type': 'string', 'enum': OUTCOMES},
     'summary': {'type': 'string', 'maxLength': 1000},
 }
-SCHEMA = {'name': 'pa_call', 'description': 'Prepare an approval card, then start, answer or hold a call. Load phone-calls or answering-calls. Only sim is connected; no transport returns a script.',
+SCHEMA = {'name': 'pa_call', 'description': 'Prepare a call card, compile an ElevenLabs per-conversation brief, or use the simulator. Load phone-calls or answering-calls. compile never starts a call; real phone activation is not implemented; none returns a script.',
           'parameters': {'type': 'object', 'properties': PARAMS, 'required': ['action'],
                          'additionalProperties': False, 'allOf': [
               {'if': {'properties': {'action': {'const': action}}},
                'then': {'required': required}}
               for action, required in {
                   'prepare': ['purpose', 'language', 'to', 'may_share', 'limits'],
-                  'start': ['call_id'], 'say': ['call_id', 'text'],
+                  'compile': ['call_id'], 'start': ['call_id'], 'say': ['call_id', 'text'],
                   'end': ['call_id', 'outcome', 'summary'], 'answer': ['call_id']}.items()]}}
 _LOCK = threading.RLock()
 
@@ -139,7 +167,10 @@ def dispatch(profile_root, args, *, config=None, session_id=None):
         try:
             if config is not None and not isinstance(config, dict):
                 return {'status': 'transport_error', 'note': 'calls config must be an object.'}
-            return _dispatch(Ledger(profile_root), args, config or {}, session_id)
+            return _dispatch(Ledger(profile_root, read_only=args['action'] == 'compile'), args, config or {}, session_id)
+        except RestrictedContent as error:
+            return {'status': 'restricted_content', 'fields': error.fields,
+                    'note': 'Redact the listed fields and prepare a new call card.'}
         except (ValueError, KeyError, TypeError):
             return {'status': 'invalid_request', 'note': 'Check the required fields and call state.'}
 
@@ -148,11 +179,29 @@ def _dispatch(ledger, args, config, session_id):
     action = args['action']
     if action == 'prepare':
         brief = clean({k: args[k] for k in ('purpose', 'language', 'to', 'may_share', 'limits')})
+        original_public = {key: args[key] for key in ('purpose', 'may_share', 'limits')}
+        original_public['to.name'] = args['to']['name']
+        cleaned_public = {key: brief[key] for key in ('purpose', 'may_share', 'limits')}
+        cleaned_public['to.name'] = brief['to']['name']
+        redacted = [key for key in COMPILE_REDACTION_FIELDS if original_public[key] != cleaned_public[key]]
+        if redacted:
+            # Store only safe paths, never a second/raw copy of sensitive facts.
+            # A compiler must refuse rewritten facts, not promote cleaned input.
+            brief['compile_redacted_fields'] = redacted
         if args.get('on_behalf_of'):
             brief['on_behalf_of'] = clean(args['on_behalf_of'])
+            if display_name(args['on_behalf_of']) is None:
+                # Preserve the ORIGINAL validation decision across privacy.clean
+                # (splitlines may remove a trailing newline from an invalid name).
+                brief['display_name_valid'] = False
         brief['limits'].setdefault('max_deposit', 0)
         brief['disclosure'] = disclosure(brief['language'], args.get('on_behalf_of'))
-        record = dict(schema=1, call_id=uuid.uuid4().hex, direction='outbound', status='prepared',
+        direction = args.get('direction', 'outbound')
+        brief['direction'] = direction
+        if direction == 'inbound':
+            from .phone_brief import INBOUND_DISCLOSURES
+            brief['disclosure'] = INBOUND_DISCLOSURES[brief['language']]
+        record = dict(schema=1, call_id=uuid.uuid4().hex, direction=direction, status='prepared',
                       brief=brief, transcript=[], turn_count=0, outcome=None, summary='', session_id=session_id,
                       created_at=now(), ended_at=None)
         record = _save(ledger, record, args.get('trip_id'))
@@ -164,14 +213,28 @@ def _dispatch(ledger, args, config, session_id):
     record = row['fields'] if row and row['action_type'] == 'call' else None
     if action == 'status':
         return record or {'status': 'not_found'}
+    if action == 'compile':
+        if not record or record['status'] != 'prepared':
+            return {'status': 'invalid_state'}
+        from .phone_brief import compile_brief
+        return {'status': 'compiled', 'call_id': identity,
+                'conversation_initiation_client_data': compile_brief(record['brief']),
+                'note': 'Payload only, not call permission. No service, agent change, or call started.'}
     if action == 'start':
         if not record or record['status'] != 'prepared' or args.get('confirmed') is not True:
             return {'status': 'confirmation_required', 'note': 'Show the call card and obtain an explicit yes.'}
+        if config.get('transport') == 'elevenlabs':
+            return {'status': 'not_activated',
+                    'note': 'Phase 1 only compiles briefs and polls finished calls. Real phone activation needs separate approval and integration.'}
+        if record['direction'] == 'inbound':
+            return {'status': 'not_activated', 'note': 'Real inbound activation is not implemented.'}
         if config.get('transport', 'none') == 'none':
             record.update(status='handoff', outcome='handoff')
             _save(ledger, record)
             return {'status': 'no_transport', 'script': _script(record['brief']),
                     'note': 'Call yourself with this script, or connect a phone transport (#98).'}
+    elif record and record.get('transport') == 'elevenlabs':
+        return {'status': 'not_activated', 'note': 'Legacy bridge record: reconcile separately. pa_call cannot send speech, hang up, or invent a remote outcome.'}
     elif action == 'answer':
         if record:
             return {'status': 'invalid_state'}

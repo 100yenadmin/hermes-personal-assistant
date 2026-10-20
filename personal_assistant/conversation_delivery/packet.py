@@ -15,7 +15,7 @@ except ImportError:  # direct producer/test entrypoint
 PACKET_VERSION = 1
 MAX_FACT_CHARS = 8_000
 MAX_PACKET_BYTES = 16 * 1024
-KINDS = frozenset({"morning_brief", "evening_calendar", "priority_mail"})
+KINDS = frozenset({"morning_brief", "evening_calendar", "priority_mail", "phone_call"})
 PRIORITY_FACT_LIMIT = 12
 _PRIORITY_FACT_LABELS = frozenset({
     "account_alias", "message_id", "thread_id", "sender", "subject", "snippet", "body",

@@ -152,30 +152,42 @@ class QueueStore:
         return serialize_packet(semantic)
 
     def publish(self, packet: dict) -> bool:
-        packet = validate_packet(packet, max_bytes=self.max_packet_bytes)
-        encoded = serialize_packet(packet)
+        return self.publish_many([packet]) == 1
+
+    def publish_many(self, packets: list[dict]) -> int:
+        """Atomically admit a bounded multipart event; a partial call is never visible.
+
+        The existing queue remains the only dedup/receipt authority. Validate all
+        parts before opening the transaction, and roll back the whole batch if
+        any existing identity/revision has conflicting semantic content.
+        """
+        if not isinstance(packets, list) or not 1 <= len(packets) <= 512:
+            raise QueueError('publish batch must contain between 1 and 512 packets')
+        packets = [validate_packet(packet, max_bytes=self.max_packet_bytes) for packet in packets]
         now = float(self.clock())
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute(
-                "SELECT packet_json FROM packets WHERE event_id=? AND revision=?",
-                (packet["event_id"], packet["revision"]),
-            ).fetchone()
-            if row is not None:
-                existing = json.loads(row["packet_json"])
-                if self._semantic_packet(existing) != self._semantic_packet(packet):
-                    raise QueueError("identity/revision collision contains different semantic packet data")
-                # Keep the first packet's evidence and timing; this is an unchanged quiet repeat.
-                conn.commit()
-                return False
-            conn.execute(
-                "INSERT INTO packets(event_id,revision,packet_json,expires_at,state,created_at,updated_at) "
-                "VALUES(?,?,?,?,?,?,?)",
-                (packet["event_id"], packet["revision"], encoded.decode("utf-8"), packet["expires_at"], "pending", now, now),
-            )
+            added = 0
+            for packet in packets:
+                row = conn.execute(
+                    "SELECT packet_json FROM packets WHERE event_id=? AND revision=?",
+                    (packet["event_id"], packet["revision"]),
+                ).fetchone()
+                if row is not None:
+                    existing = json.loads(row["packet_json"])
+                    if self._semantic_packet(existing) != self._semantic_packet(packet):
+                        raise QueueError("identity/revision collision contains different semantic packet data")
+                    continue  # Keep the original evidence, expiry and delivery state.
+                conn.execute(
+                    "INSERT INTO packets(event_id,revision,packet_json,expires_at,state,created_at,updated_at) "
+                    "VALUES(?,?,?,?,?,?,?)",
+                    (packet["event_id"], packet["revision"], serialize_packet(packet).decode("utf-8"),
+                     packet["expires_at"], "pending", now, now),
+                )
+                added += 1
             conn.commit()
-            return True
+            return added
         except Exception:
             conn.rollback()
             raise
