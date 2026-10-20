@@ -1,6 +1,9 @@
 import io
 import json
+import os
 import socket
+import subprocess
+import sys
 from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
@@ -236,3 +239,31 @@ def test_tab_origin_drops_userinfo_path_query_and_bad_values():
     assert _origin("http://[::1]:8080/a") == "http://[::1]:8080"
     for bad in (None, 7, "", "about:blank", "https://[::1", "https://h.example:99999/"):
         assert _origin(bad) is None
+
+
+def test_rows_written_outside_pa_never_reach_browserbase(tmp_path):
+    # CodeRabbit (#34): the travel-ledger helper or plain sqlite can write any action row; only PA can tag one.
+    helper = Path(__file__).resolve().parents[1] / "skills/travel-ledger/scripts/travel_ledger.py"
+    env = {**os.environ, "HERMES_HOME": str(tmp_path)}
+    env.pop("TRAVEL_LEDGER_DB", None)
+    (tmp_path / "state/travel-ledger").mkdir(parents=True)
+    subprocess.run([sys.executable, str(helper), "action-upsert", "--action-id", "pa:browser-session:FOREIGN",
+                    "--type", "browser_session", "--provider", "browserbase", "--status", "active", "--field", "bb_session_id=FOREIGN",
+                    "--field", "owner_tag=guess"], check=True, env=env, capture_output=True)
+    ledger = Ledger(tmp_path)
+    assert ledger.get("action", "pa:browser-session:FOREIGN")["action_type"] == "browser_session"
+    ledger.put("action", "pa:browser-session:ODD", {"bb_session_id": "ODD", "owner_tag": "é"}, action_type="browser_session", status="active")
+    ledger.put("action", "pa:browser-session:a/../b", {"bb_session_id": "a/../b"}, action_type="browser_session", status="active")
+    opener = Opener()
+    for identity in ("FOREIGN", "ODD", "a/../b"):
+        for action in ("live_view", "connect", "release"):
+            assert browser_session(ledger, {"action": action, "bb_session_id": identity}, opener=opener,
+                                   get_secret=SECRETS.get) == {"status": "error", "reason": "Unknown PA Browserbase session"}
+    assert not opener.calls
+    # A PA-created row carries a tag that is not the key, and stops matching under another key.
+    browser_session(ledger, {"action": "create"}, opener=Opener(CREATED, {}), get_secret=SECRETS.get)
+    tag = ledger.get("action", "pa:browser-session:bb-1")["fields"]["owner_tag"]
+    assert len(tag) == 64 and KEY not in tag
+    other = {**SECRETS, "BROWSERBASE_API_KEY": "rotated-key"}.get
+    assert browser_session(ledger, {"action": "release", "bb_session_id": "bb-1"}, opener=opener, get_secret=other)["status"] == "error"
+    assert not opener.calls

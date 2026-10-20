@@ -1,4 +1,6 @@
 """Profile-scoped Browserbase sessions; bearer URLs are transient, never ledger data."""
+import hashlib
+import hmac
 import json
 import re
 from urllib.error import HTTPError
@@ -9,6 +11,7 @@ from .state import now
 
 API = "https://api.browserbase.com"
 ATTACH_HINT = "agent-browser --session <name> connect <connect_url>"
+SESSION_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def secret(name, get_secret=None):
@@ -39,8 +42,10 @@ def browser_session(ledger, data, *, opener=None, get_secret=None, base_url=API)
     identity = data.get("bb_session_id") if isinstance(data.get("bb_session_id"), str) else ""
     row_id = "pa:browser-session:" + identity
     if action != "create":
-        row = ledger.get("action", row_id)
-        if not row or row["action_type"] != "browser_session" or row["fields"].get("bb_session_id") != identity:
+        row = ledger.get("action", row_id) if SESSION_ID.fullmatch(identity) else None
+        # Any shell can write the ledger, but only PA holds the key: the tag proves PA created this session.
+        if (not row or row["action_type"] != "browser_session" or row["fields"].get("bb_session_id") != identity
+                or not hmac.compare_digest(str(row["fields"].get("owner_tag", "")).encode(), _owner_tag(key, project, identity).encode())):
             return {"status": "error", "reason": "Unknown PA Browserbase session"}
     base = base_url.rstrip("/")
     transport = opener if opener is not None else build_opener(ProxyHandler({}), NoRedirect())
@@ -77,14 +82,15 @@ def browser_session(ledger, data, *, opener=None, get_secret=None, base_url=API)
                 body.pop("keepAlive")
                 result = request("/v1/sessions", body)
             identity = result.get("id")
-            if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", identity):
+            if not isinstance(identity, str) or not SESSION_ID.fullmatch(identity):
                 raise ValueError("invalid Browserbase session id")
             try:
                 connect_url = result.get("connectUrl")
                 if not isinstance(connect_url, str) or not connect_url:
                     raise ValueError("no connection URL")
                 ledger.put("action", "pa:browser-session:" + identity,
-                           {"bb_session_id": identity, "expires_at": result.get("expiresAt"), "created_at": now()},
+                           {"bb_session_id": identity, "owner_tag": _owner_tag(key, project, identity),
+                            "expires_at": result.get("expiresAt"), "created_at": now()},
                            action_type="browser_session", status="active")
             except Exception:  # Without a usable row PA could never release it; end the paid session now.
                 try:
@@ -134,3 +140,8 @@ def _origin(url):
         return None
     host = f"[{host}]" if ":" in host else host  # Never the userinfo part of netloc.
     return f"{parts.scheme}://{host}" + (f":{port}" if port else "")
+
+
+def _owner_tag(key, project, identity):
+    """HMAC of the session id under the API key; reveals nothing about the key and cannot be forged without it."""
+    return hmac.new(key.encode(), f"pa-browser-session:{project}:{identity}".encode(), hashlib.sha256).hexdigest()

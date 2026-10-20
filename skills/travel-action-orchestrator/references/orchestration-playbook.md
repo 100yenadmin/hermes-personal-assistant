@@ -15,6 +15,6 @@ One agent owns the action and verification. Use a separate research lane only wh
 
 ## Failure Posture
 
-Do not say the user must redo the whole task while a checkpoint or browser session can be recovered. Say what lane is being used next: "I am reattaching to the Browserbase session", "I am restoring from the provider Context", or "I am moving the same checkpoint into the VM browser fallback."
+Do not say the user must redo the whole task while a checkpoint or browser session can be recovered. Say what lane is being used next: "I am reattaching to the Browserbase session", "I am restoring from the saved checkpoint in a new session", or "I am moving the same checkpoint into the VM browser fallback."
 
 If payment or wallet readiness is missing, stop early and name that as the setup blocker. If a provider adds a late required field, continue from the same checkpoint after the field is supplied.
