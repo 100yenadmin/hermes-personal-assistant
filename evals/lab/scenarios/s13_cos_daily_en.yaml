@@ -1,0 +1,79 @@
+id: s13_cos_daily_en
+capabilities:
+- cos_daily
+language: en
+modes:
+  chief_of_staff: true
+timezone: Asia/Seoul
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic owner; no accounts, calendar binding, payment methods or real contacts.
+user_md: '# USER (synthetic lab fixture)
+
+  Timezone: Asia/Seoul.
+
+  ## Priorities
+
+  Protect time for the Orchid launch decision; finish its decision brief before the
+  review meeting.
+
+  Reduce time spent turning Korean voice notes into accurate, searchable text.
+
+  ## Radar topics
+
+  Korean voice-note transcription: compare the current manual transcription workflow
+  with one existing tool.
+
+  Prefer a reversible 15-minute benchmark using two synthetic Korean clips and corrected-text
+  minutes per clip.
+
+  ## Coverage
+
+  Calendar and inbox are not connected. Ledger notes cover only what is recorded,
+  not a complete week.
+
+  '
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- operation: action_upsert
+  data:
+    action_id: lab:orchid-brief
+    action_type: commitment
+    status: open
+    fields:
+      title: Orchid decision brief
+      due_at: '@yesterday@T17:00:00+09:00'
+      timezone: Asia/Seoul
+      blocked_reason: Draft has been stuck for three days because the scope decision
+        is missing.
+      evidence: 'Owner fixture update @today@: Orchid decision brief has no scope
+        decision.'
+      next_action: Prepare the two scope options for owner review; do not contact
+        anyone.
+- operation: action_upsert
+  data:
+    action_id: lab:orchid-meeting
+    action_type: note
+    status: completed
+    fields:
+      title: Orchid review meeting
+      at: '@tomorrow@T10:00:00+09:00'
+      timezone: Asia/Seoul
+      summary: Owner-supplied meeting tomorrow needs the decision brief; not a calendar
+        read.
+      evidence: Synthetic owner agenda dated @today@.
+steps:
+- goal: Run the accepted daily Chief of Staff check.
+  capability: cos_daily
+  answers: {}
+  expect:
+    cos: daily
+    cites:
+    - lab:orchid-brief
+    - lab:orchid-meeting
+  type: scheduled
+  job: cos_daily

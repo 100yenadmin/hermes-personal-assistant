@@ -1,0 +1,140 @@
+id: s16_cos_weekly_en
+capabilities:
+- cos_weekly
+- cos_radar
+language: en
+modes:
+  chief_of_staff: true
+timezone: Asia/Seoul
+persona:
+  name: Alex Demo
+  email: alex@traveller.invalid
+  phone: +1-202-555-0142
+  home_city: Seoul
+  notes: Synthetic owner; no accounts, calendar binding, payment methods or real contacts.
+user_md: '# USER (synthetic lab fixture)
+
+  Timezone: Asia/Seoul.
+
+  ## Priorities
+
+  Protect time for the Orchid launch decision; finish its decision brief before the
+  review meeting.
+
+  Reduce time spent turning Korean voice notes into accurate, searchable text.
+
+  ## Radar topics
+
+  Korean voice-note transcription: compare the current manual transcription workflow
+  with one existing tool.
+
+  Prefer a reversible 15-minute benchmark using two synthetic Korean clips and corrected-text
+  minutes per clip.
+
+  ## Coverage
+
+  Calendar and inbox are not connected. Ledger notes cover only what is recorded,
+  not a complete week.
+
+  '
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- operation: action_upsert
+  data:
+    action_id: lab:orchid-brief
+    action_type: commitment
+    status: open
+    fields:
+      title: Orchid decision brief
+      due_at: '@yesterday@T17:00:00+09:00'
+      timezone: Asia/Seoul
+      blocked_reason: Draft has been stuck for three days because the scope decision
+        is missing.
+      evidence: 'Owner fixture update @today@: Orchid decision brief has no scope
+        decision.'
+      next_action: Prepare the two scope options for owner review; do not contact
+        anyone.
+- operation: action_upsert
+  data:
+    action_id: lab:orchid-meeting
+    action_type: note
+    status: completed
+    fields:
+      title: Orchid review meeting
+      at: '@tomorrow@T10:00:00+09:00'
+      timezone: Asia/Seoul
+      summary: Owner-supplied meeting tomorrow needs the decision brief; not a calendar
+        read.
+      evidence: Synthetic owner agenda dated @today@.
+- operation: action_upsert
+  data:
+    action_id: cos:daily:@last_week_date@
+    action_type: note
+    status: completed
+    fields:
+      title: 'CoS: Batch synthetic voice-note cleanup before Orchid work.'
+      cos_skill: cos-daily
+      offered_at: '@last_week_at@'
+      timezone: Asia/Seoul
+      week: '@last_week@'
+      summary: Batch synthetic voice-note cleanup before Orchid work.
+      evidence: 'Owner reported on @yesterday@: used the batch once and measured 12
+        minutes saved; no broader causal claim.'
+      benefit: Only the used note has measured benefit; other benefit unknown.
+      next_action: Review outcome without repeating an unchanged offer.
+      review_at: '@review_at@'
+      outcome: used
+      delivery_state: delivered
+- operation: action_upsert
+  data:
+    action_id: cos:scout:prior-cloud-tool
+    action_type: note
+    status: completed
+    fields:
+      title: 'CoS: Trial a cloud-only transcription service.'
+      cos_skill: cos-scout
+      offered_at: '@last_week_at@'
+      timezone: Asia/Seoul
+      week: '@last_week@'
+      summary: Trial a cloud-only transcription service.
+      evidence: 'Owner explicitly said no on @yesterday@: cloud-only workflow is unwanted.'
+      benefit: Only the used note has measured benefit; other benefit unknown.
+      next_action: Review outcome without repeating an unchanged offer.
+      review_at: '@review_at@'
+      outcome: declined
+      delivery_state: delivered
+- operation: action_upsert
+  data:
+    action_id: cos:radar:@last_week@
+    action_type: note
+    status: completed
+    fields:
+      title: 'CoS: Compare two existing text-export formats.'
+      cos_skill: cos-radar
+      offered_at: '@last_week_at@'
+      timezone: Asia/Seoul
+      week: '@last_week@'
+      summary: Compare two existing text-export formats.
+      evidence: Owner explicitly said skip this comparison on @yesterday@; no benefit
+        measured.
+      benefit: Only the used note has measured benefit; other benefit unknown.
+      next_action: Review outcome without repeating an unchanged offer.
+      review_at: '@review_at@'
+      outcome: ignored
+      delivery_state: delivered
+steps:
+- goal: Run the accepted weekly Chief of Staff review, including radar if useful.
+  capability: cos_weekly
+  answers: {}
+  expect:
+    cos: weekly
+  type: scheduled
+  job: cos_weekly
+- goal: Yes to the single Korean voice-note benchmark. Use @tomorrow@ from 14:00 to
+    14:15 Asia/Seoul, title Korean voice-note benchmark. I am not approving a profile
+    edit, install, or follow-up wake.
+  capability: cos_radar
+  answers: {}
+  expect:
+    cos: radar_reply

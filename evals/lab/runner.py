@@ -13,7 +13,7 @@ import sys
 import time
 from pathlib import Path
 import yaml
-from . import common, checks, judge, sim_user
+from . import common, checks, judge, sim_user, cos
 from .common import MODEL, read, write, append
 from .scenario import load_catalog
 
@@ -23,8 +23,10 @@ ROOT = Path(__file__).resolve().parents[2]
 def plan(catalog, selection="all", runs=1):
     if runs < 1:
         raise ValueError("runs: must be positive")
+    selected = (catalog.values() if selection == "all" else
+                [s for s in catalog.values() if cos.enabled(s)] if selection == "cos" else [catalog[selection]])
     return [{"run_id": f"{s['id']}__r{i:03d}", "scenario": s["id"], "index": i, "budget_seconds": s["budget_seconds"]}
-            for s in (catalog.values() if selection == "all" else [catalog[selection]]) for i in range(1, runs + 1)]
+            for s in selected for i in range(1, runs + 1)]
 
 
 def skip_reason(scenario, template):
@@ -48,7 +50,8 @@ def wave(args):
     catalog = load_catalog(args.scenarios)
     jobs = plan(catalog, args.scenario, args.runs)
     soon = (dt.date.today() + dt.timedelta(days=2)).isoformat()
-    stale = sorted({j["scenario"] for j in jobs if str(catalog[j["scenario"]]["trip"]["depart_date"]) <= soon})
+    stale = sorted({j["scenario"] for j in jobs if not cos.enabled(catalog[j["scenario"]])
+                    and str(catalog[j["scenario"]]["trip"]["depart_date"]) <= soon})
     if stale and not args.dry_run:
         raise ValueError("scenario catalog expired; move the trip dates forward: " + ", ".join(stale))
     if args.workers < 1:
@@ -195,6 +198,7 @@ def one(args):
         shutil.copytree(Path(__file__).parent / "lab_plugin", hh / "plugins/pa-capability-lab", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         config["plugins"]["enabled"].append("pa-capability-lab")
         (hh / "config.yaml").write_text(yaml.safe_dump(config))
+        cos.configure(hh, s)  # Mode gate precedes plugin/skill discovery.
         from hermes_cli import plugins as plugin_api
         from hermes_cli.plugins import PluginManager
         from tools.registry import registry
@@ -213,12 +217,17 @@ def one(args):
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
         from lab_installed_pa.entry import dispatch
-        for seed in s.get("seed", []):
-            dispatch(hh, seed)
+        if not cos.enabled(s):
+            for seed in s.get("seed", []):
+                dispatch(hh, seed)
         plugin_sets = {registry.get_entry(n, scope=str(hh)).toolset for p in manager._plugins.values() if p.enabled for n in p.tools_registered}
         allowed = sorted(plugin_sets | {n for n in ("browser", "skills", "todo", "vision", "web") if n in TOOLSETS})
         names = sorted({t for n in allowed for t in resolve_toolset(n)})
         forbidden = {"terminal", "file", "code_execution", "delegation", "cronjob", "send_message"}
+        if cos.enabled(s):
+            # v0.22.2 discovers bundled A2A even in a fresh home; remote agents are outside this lab.
+            allowed = [n for n in allowed if n != "a2a"]
+            forbidden.add("a2a")
         assert not forbidden.intersection(allowed), "forbidden toolset"
         blocked = {t for n in forbidden for t in resolve_toolset(n)}
         names = sorted(set(names) - blocked)
@@ -248,10 +257,14 @@ def one(args):
             finally:
                 agent.close()
         system = "You are the user's personal assistant. This is a demo trip: real websites, but you must never complete a booking, payment, reservation, order, change or cancellation. Go as far as the final review page, then stop and give the user a summary for approval. No logins or payment methods. Reply in " + s["language"] + ". The user's details: " + json.dumps(s["persona"], ensure_ascii=False)
+        if cos.enabled(s):
+            import lab_installed_pa.automation
+            import lab_installed_pa.automation_workflow
+            transcript = cos.dialogue(hh, root, package, s, module, turn, observer, meta, ledger)
         step, message = 0, s["steps"][0]["goal"]
         if calls:
             message = calls.message(s["language"], message)
-        for number in range(s["max_user_turns"]):
+        for number in range(0 if cos.enabled(s) else s["max_user_turns"]):
             observer.step, observer.turn = step, number
             before = ledger(hh)
             transcript.append({"role": "user", "content": message, "step": step})
@@ -290,6 +303,8 @@ def one(args):
     except Exception as exc:
         meta.update(status="timeout" if isinstance(exc, TimeoutError) else "error", error=type(exc).__name__)
     finally:
+        if cos.enabled(s):
+            transcript = read(root / "transcript.json", transcript)
         if calls:
             try:
                 write(root / "calls.json", calls.request("/transcripts"))
