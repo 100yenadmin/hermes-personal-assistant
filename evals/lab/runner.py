@@ -237,11 +237,12 @@ def one(args):
         kwargs = dict(base_url="https://chatgpt.com/backend-api/codex", api_key=api_key, provider="openai-codex", model=MODEL, reasoning_config={"effort": "low"}, service_tier="", max_iterations=60, quiet_mode=True, skip_context_files=True, skip_memory=True, skip_background_review=True, save_trajectories=False)
         task_id = "pl" + hashlib.sha256(str(root).encode()).hexdigest()[:8]
 
-        def turn(message, user=False, system="", hist=None):
+        def turn(message, user=False, system="", hist=None, platform=None):
             remaining = s["budget_seconds"] - (time.time() - meta["start"])
             if remaining <= 0:
                 raise TimeoutError("dialogue budget exhausted")
-            agent = AIAgent(**kwargs, enabled_toolsets=[] if user else ["pa_lab_surface"], run_budget_seconds=remaining)
+            agent = AIAgent(**kwargs, enabled_toolsets=[] if user else ["pa_lab_surface"], run_budget_seconds=remaining,
+                            **({"platform": platform} if platform else {}))
             try:
                 if user:
                     assert not agent.valid_tool_names, "sim user has tools"

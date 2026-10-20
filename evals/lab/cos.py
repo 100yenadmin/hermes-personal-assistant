@@ -166,8 +166,8 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
                       + scenario["language"] + ". No installs, profile edits, logins or final provider effects. "
                       "Calendar and inbox are not connected; coverage is unknown. USER.md follows:\n"
                       + (hh / "memories/USER.md").read_text())
-            with cron_scope(scheduled):
-                result = turn(message, system=system, hist=history)
+            with cron_scope(scheduled):  # Hermes builds cron agents with platform="cron".
+                result = turn(message, system=system, hist=history, platform="cron" if scheduled else None)
             history = result.get("messages") or []
             reply = result.get("final_response", "")
             transcript.append({"role": "assistant", "content": reply, "step": index,

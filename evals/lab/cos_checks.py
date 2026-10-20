@@ -87,9 +87,12 @@ def evaluate_step(root, scenario, index, messages, tools):
         result["decline_path"] = bool(re.search(r"\bno\b|decline|leave it", text, re.I))
         cited = step["expect"].get("cites", [])
         seeded = [r for r in seed.get("ledger", {}).get("actions", []) if r["action_id"] in cited]
+        said = set(re.findall(r"\w{5,}", text.lower()))
         result["seed_citation"] = any(
-            any(str(token).lower() in text.lower() and str(token).lower() in str(f.get("evidence", "")).lower()
-                for token in (r["action_id"], fields(r).get("title")) if token) for r in seeded)
+            any(str(token).lower() in str(f.get("evidence", "")).lower()
+                for token in (r["action_id"], fields(r).get("title")) if token)
+            and bool(said & set(re.findall(r"\w{5,}", str(fields(r).get("title") or "").lower())))
+            for r in seeded)
     if kind in ("scout", "weekly"):
         relevant = [t for t in tools if t.get("step") == index and t.get("name", "").startswith(("web_", "browser_")) and t.get("result")]
         if kind == "scout":

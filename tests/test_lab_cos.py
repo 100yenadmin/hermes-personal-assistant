@@ -60,10 +60,10 @@ def run_fake(root, scenario_id="s13_cos_daily_en", failure=None):
     observer = SimpleNamespace(step=0, turn=0, pages=[], capture=lambda n: [])
     seen = []
 
-    def turn(message, system, hist):
+    def turn(message, system, hist, platform=None):
         from gateway.session_context import _VAR_MAP
         scheduled = _VAR_MAP["HERMES_CRON_SESSION"].get() == "1"
-        seen.append((message, system, hist, scheduled))
+        seen.append((message, system, hist, scheduled, platform))
         values = common.read(root / "seed.json")["variables"]
         if not scheduled:
             return {"final_response": "No calendar is bound. I can offer calendar setup; nothing has been booked.", "messages": []}
@@ -82,6 +82,10 @@ def run_fake(root, scenario_id="s13_cos_daily_en", failure=None):
                 + values["today"] + ". Estimated benefit: save 15 minutes. Reply yes to proceed, no to decline.")
         if failure == "long":
             text += " filler" * 201
+        if failure == "paraphrase":
+            text = text.replace("Orchid decision brief", "the Orchid brief")
+        if failure == "uncited":
+            text = "Recommendation: Draft two scope options before tomorrow's review. Reply yes to proceed, no to decline."
         if failure == "second":
             text += "\nRecommendation 2: Another recommendation: also do inbox cleanup."
         if failure == "profile":
@@ -123,9 +127,9 @@ def test_mode_and_real_seeding_precheck(tmp_path):
 def test_fake_scheduled_child(tmp_path, scenario):
     s, hh, result, seen = run_fake(tmp_path, scenario)
     assert result["all_pass"], result
-    assert seen[0][3] and not seen[0][2]
+    assert seen[0][3] and not seen[0][2] and seen[0][4] == "cron"
     if len(seen) > 1:
-        assert not seen[1][3] and seen[1][2]
+        assert not seen[1][3] and seen[1][2] and seen[1][4] is None
     turns = common.read(tmp_path / "run.json")["scheduled_turns"]
     assert turns[0]["message_sent"] == ("silence" not in scenario)
     if "weekly" in scenario:
@@ -337,3 +341,9 @@ def test_native_prompt_blocks_survive_skill_fallback(tmp_path, monkeypatch, nati
         "The following data was collected by a pre-run script. Use it as context for your analysis.", json.dumps(claim))
     assert native._CRON_HINT in prompt and block in prompt
     assert 'invoked the "personal-assistant:cos-daily" skill' in prompt
+
+
+def test_citation_accepts_plain_words_and_rejects_an_unnamed_source(tmp_path):
+    assert run_fake(tmp_path / "paraphrase", failure="paraphrase")[2]["all_pass"]
+    result = run_fake(tmp_path / "uncited", failure="uncited")[2]
+    assert result["steps"][0]["checks"]["seed_citation"] is False
