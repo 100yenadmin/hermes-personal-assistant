@@ -140,16 +140,40 @@ def test_untracked_local_config_does_not_make_checkout_dirty(tmp_path):
     assert result["source_identity_known"] is True
 
 
-def test_git_unavailable_keeps_metadata_identity(tmp_path):
+def test_untracked_package_file_outside_local_state_is_an_edit(tmp_path):
+    home, hermes, plugin, head = make_git_profile(tmp_path)
+    extra = plugin / "skills" / "extra-skill"
+    extra.mkdir(parents=True)
+    (extra / "SKILL.md").write_text("# extra\n")
+    result = probe_installed_version.probe(home, hermes)
+    assert result["checkout_dirty"] is True
+    assert result["source_identity_reason"] == "local_edits"
+    assert result["source_identity_known"] is False
+
+
+def test_checkout_probe_ignores_inherited_git_environment(tmp_path, monkeypatch):
+    home, hermes, plugin, head = make_git_profile(tmp_path)
+    other = tmp_path / "other"
+    other.mkdir()
+    subprocess.run(["git", "init", "-q", str(other)], check=True)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    result = probe_installed_version.probe(home, hermes)
+    assert result["checkout_commit"] == head
+    assert result["checkout_dirty"] is False
+
+
+def test_git_unavailable_reports_unknown_identity(tmp_path):
     home, hermes = make_native_profile(tmp_path)
     with mock.patch("subprocess.run", side_effect=FileNotFoundError):
         result = probe_installed_version.probe(home, hermes)
     assert result["checkout_commit"] is None
     assert result["checkout_dirty"] is None
     assert result["metadata_matches_checkout"] is None
-    # An unreadable checkout keeps the install-metadata answer and says why.
-    assert result["source_identity_known"] is True
+    assert result["source_identity_known"] is False
     assert result["source_identity_reason"] == "checkout_unavailable"
+    # The install itself still passes; only its source identity is unverified.
+    assert result["install_ok"] is True
 
 
 @pytest.mark.parametrize("value", ["true", "false", "42", "'private-sentinel'", "{private-sentinel: true}"])

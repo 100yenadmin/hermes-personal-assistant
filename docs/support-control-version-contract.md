@@ -38,13 +38,16 @@ without runtime evidence.
 
 For `native_git`, `observed_commit` retains the install metadata revision.
 `checkout_commit` and `checkout_dirty` report the actual Git HEAD and porcelain
-status; `metadata_matches_checkout` compares HEAD with that revision. These
+status. PA's own untracked local files (`clients.json`, `daily_ops.config.json`,
+`daily_ops.state.json`, `location.json`) do not make the checkout dirty; any
+other untracked or modified file does. `metadata_matches_checkout` compares HEAD
+with that revision. These
 fields are null when unavailable or inapplicable. A mismatch or dirty tree sets
 `install_ok` and `source_identity_known` false, with `source_identity_reason`
 of `source_mismatch` or `local_edits`. Unavailable Git sets
 `source_identity_known` false with reason `checkout_unavailable`; it does not
 itself invalidate the package's files. The release checker cannot report any
-of these states as current. Git status runs with optional index writes disabled.
+of these states as current. Git runs without inherited `GIT_*` variables and with optional index writes disabled.
 
 A present, non-list `python_dependencies` returns only `ok: false`,
 `installed`, `install_ok: false`, and `invalid_reason` naming the field and its

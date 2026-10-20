@@ -143,23 +143,38 @@ def dependency_status(requirements):
     return sorted(present), sorted(missing)
 
 
+# PA keeps these local config and state files untracked inside the installed package.
+LOCAL_STATE_FILES = frozenset({
+    "clients.json",
+    "daily_ops.config.json",
+    "daily_ops.state.json",
+    "location.json",
+})
+
+
 def checkout_state(root):
-    # Prevent git status from refreshing/writing the index during diagnostics.
-    env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+    # Ignore the caller's GIT_* variables so git reads this checkout, and keep
+    # git status from refreshing/writing the index during diagnostics.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env["GIT_OPTIONAL_LOCKS"] = "0"
     try:
         head = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"],
             text=True, capture_output=True, env=env, timeout=10,
         )
         status = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
             text=True, capture_output=True, env=env, timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None, None
     if head.returncode != 0 or status.returncode != 0:
         return None, None
-    return head.stdout.strip() or None, bool(status.stdout.strip())
+    changes = [
+        line for line in status.stdout.splitlines()
+        if line.strip() and not (line.startswith("?? ") and line[3:] in LOCAL_STATE_FILES)
+    ]
+    return head.stdout.strip() or None, bool(changes)
 
 
 def probe(home, hermes_home):
@@ -238,10 +253,8 @@ def probe(home, hermes_home):
     install_ok = bool(installed and observed_version and identity_ok and not missing_skills)
     if source_identity_reason in {"local_edits", "source_mismatch"}:
         install_ok = False
-    # Local config and state files are untracked, so only tracked edits or a moved HEAD
-    # make the checkout's identity unknown; an unreadable checkout keeps the metadata answer.
     source_identity_known = bool(isinstance(observed_commit, str) and observed_commit)
-    if source_identity_reason in {"local_edits", "source_mismatch"}:
+    if source_identity_reason in {"local_edits", "source_mismatch", "checkout_unavailable"}:
         source_identity_known = False
     dependencies_ok = not dependencies_missing
     return {
