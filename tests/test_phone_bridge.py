@@ -14,7 +14,7 @@ from personal_assistant.conversation_delivery.store import QueueStore
 from personal_assistant.state import Ledger
 from personal_assistant.phone_bridge import Bridge, BridgeError, arm, verify_signature
 from personal_assistant.phone_bridge_http import make_server, poll_once
-from personal_assistant.phone_brain import HermesBrain
+from personal_assistant.phone_brain import _run_agent
 
 AGENT = 'agent_fixture'
 CONV = 'conv_fixture'
@@ -248,18 +248,19 @@ def test_hermes_worker_is_tool_free_context_free_and_final_only(tmp_path):
             return dict(completed=True, final_response=json.dumps(dict(say='A message?', end=False, outcome='answered')))
         def close(self):
             seen['closed'] = True
-    brain = HermesBrain(model='explicit-model', provider='explicit-provider', cwd=tmp_path, factory=Agent)
-    assert brain({}, [], 'hello', 'trace_fixture')['say'] == 'A message?'
+    payload = dict(model='explicit-model', provider='explicit-provider', cwd=str(tmp_path),
+                   brief={'bridge': {'destination': 'private-owner-route'}}, history=[], text='hello', trace_id='trace_fixture')
+    assert _run_agent(payload, Agent)['say'] == 'A message?'
     assert seen['enabled_toolsets'] == [] and seen['skip_memory'] is True
     assert seen['skip_context_files'] is True and seen['load_soul_identity'] is False
     assert seen['skip_background_review'] is True and seen['fallback_model'] == []
     assert seen['save_trajectories'] is False and seen['closed'] is True
     assert seen['run']['system_message']
+    assert 'private-owner-route' not in seen['run']['system_message']
     class Unsafe(Agent):
         tools = [{'name': 'terminal'}]
-    brain = HermesBrain(model='explicit-model', provider='explicit-provider', cwd=tmp_path, factory=Unsafe)
     with pytest.raises(ValueError):
-        brain({}, [], 'hello', 'trace_fixture')
+        _run_agent(payload, Unsafe)
 
 
 def test_config_change_requires_new_card(tmp_path):
@@ -327,3 +328,42 @@ def test_queue_publish_failure_reconciles_without_replacing_terminal_snapshot(tm
     assert poll_once(b, lambda identity: pytest.fail('terminal snapshot already persisted'))['status'] == 'queued'
     b.post_call(completion('Changed later callback.'))
     assert b.record()['summary'] == 'First terminal summary.'
+
+
+def test_old_completed_turn_cannot_execute_after_newer_turn(tmp_path):
+    brain = Brain()
+    b = bridge(tmp_path, brain)
+    b.initiate(initiation())
+    first = request('First message')
+    second = request('Second message', extra={'messages': [
+        {'role': 'user', 'content': 'First message'},
+        {'role': 'assistant', 'content': 'What message should I pass along?'},
+        {'role': 'user', 'content': 'Second message'}]})
+    b.turn(first)
+    latest = b.turn(second)
+    with pytest.raises(BridgeError, match='stale_turn'):
+        b.turn(first)
+    assert b.turn(second) == latest
+    assert len(brain.seen) == 2
+
+
+def test_concurrent_retry_does_not_start_another_worker(tmp_path):
+    entered, release = threading.Event(), threading.Event()
+    seen, replies = [], []
+    def blocking(*args):
+        seen.append(1)
+        entered.set()
+        assert release.wait(timeout=2)
+        return dict(say='Message received.', end=False, outcome='answered')
+    b = bridge(tmp_path, blocking)
+    b.initiate(initiation())
+    thread = threading.Thread(target=lambda: replies.append(b.turn(request())))
+    thread.start()
+    try:
+        assert entered.wait(timeout=2)
+        with pytest.raises(BridgeError, match='turn_execution_unknown'):
+            b.turn(request())
+    finally:
+        release.set()
+        thread.join(timeout=3)
+    assert len(seen) == 1 and len(replies) == 1

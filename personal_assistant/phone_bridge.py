@@ -185,6 +185,8 @@ class Bridge:
                 raise BridgeError('call_not_active')
             if record.get('last_turn_digest') == revision:
                 return record['last_decision']
+            if revision in record.get('completed_turn_digests', []):
+                raise BridgeError('stale_turn')
             if record.get('last_decision', {}).get('end'):
                 return record['last_decision']
             if record.get('pending_turn'):
@@ -228,6 +230,7 @@ class Bridge:
                 {'who': 'pa', 'text': decision['say'], 'at': now()}])[-80:]
             record['brain_receipts'].append({'trace_id': trace, 'input_digest': revision,
                 'response_digest': digest(decision['say']), 'elapsed_ms': elapsed})
+            record.setdefault('completed_turn_digests', []).append(revision)
             return decision
         return self.change(finish)
 

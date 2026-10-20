@@ -53,11 +53,14 @@ Alternatives:
    arbitrary tools, prior provider history and URLs. It uses the bound ledger
    history and latest bounded caller message. A durable turn intent prevents
    retries of an uncertain execution; interrupted/stale generations cannot
-   overwrite a completed call.
+   overwrite a completed call. Retain bounded completed-request digests for the
+   entire call: replay the latest exact retry, reject older completed requests.
 7. Hermes is constructed with an explicit approved model/provider, no toolsets,
    no memory/context files/SOUL/background review, no trajectories, one iteration,
-   a short run budget and an empty fallback chain. Refuse an unexpected nonempty
-   tool snapshot. This is **not an OS sandbox**: use a separately provisioned,
+   a short run budget and an empty fallback chain. An outer POSIX subprocess
+   deadline covers construction and generation, killing its owned process group
+   on timeout; the native Hermes run budget alone is not a hard deadline. Refuse
+   an unexpected nonempty tool snapshot. This is **not an OS sandbox**: use a separately provisioned,
    minimal call-only Hermes home, without owner plugins or ambient private data.
 8. Only a completed final JSON decision (`say`, `end`, `outcome`) can become
    speech. No reasoning, progress or raw errors are forwarded. No tools can
@@ -141,8 +144,11 @@ assistant speech at the receiver, <1.5 seconds. Neither component marketing nor
 filler (“Let me think…”) passes it. This implementation buffers the complete
 small JSON decision, validates it and then emits standards-shaped SSE; it does
 not pretend that SSE framing alone is token-streaming or a speed improvement.
-Cold Hermes construction/provider reasoning may dominate. The three-second
-worker budget is a failure bound, **not a 1.5-second latency promise**.
+Cold Hermes process startup/construction/provider reasoning may dominate. The
+outer three-second worker deadline (plus bounded local process cleanup) is a
+failure bound, **not a 1.5-second latency promise**. Terminating local execution
+cannot prove whether a remote provider already completed a generation; retain
+the durable unknown-turn fence and never blindly retry it.
 
 Current proof: real loopback HTTP/SSE and durable-queue fixtures with a synthetic
 brain, and constructor-contract tests. These establish protocol/security/state
