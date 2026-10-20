@@ -44,6 +44,12 @@ class NativeHookRegistrationTests(unittest.TestCase):
             def register_command(self, name, handler, **kwargs):
                 self.commands = {name: handler}
 
+            def get_config(self, key, default=None):
+                return default
+
+            def set_config(self, key, value):
+                self.settings = {key: value}
+
         with tempfile.TemporaryDirectory() as profile:
             previous_home = os.environ.get("HERMES_HOME")
             os.environ["HERMES_HOME"] = profile

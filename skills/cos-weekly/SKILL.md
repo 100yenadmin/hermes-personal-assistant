@@ -1,0 +1,79 @@
+---
+name: cos-weekly
+description: Compare priorities with the week's evidence and recommendation outcomes, then propose at most one batched improvement in Chief of Staff mode.
+metadata:
+  openclaw:
+    skillKey: cos-weekly
+  hermes:
+    category: productivity
+    tags: ["personal-assistant", "chief-of-staff", "weekly", "outcomes"]
+    pa_mode: chief_of_staff
+---
+
+# Chief of Staff weekly
+
+Run from the accepted `cos_weekly` job. Use the user's language. Require Chief
+of Staff mode; if off, explain `/pa mode chief-of-staff on` in a human turn.
+Read `references/recommendation-state.md` for the shared event, retrieval,
+delivery and owner-approved follow-up protocol.
+Every `references/...` path is relative to this skill directory.
+
+## Compare intent with evidence
+
+1. Read the user's stated priorities from USER.md and the existing operating
+   manual. Name the local week and timezone. Missing priorities stay unknown;
+   ask in chat rather than infer them from calendar volume.
+2. Read `pa(operation="next_action", data={"limit":20})` for open loops.
+   Recover selected actions with
+   `pa(operation="context", data={"kind":"action","action_id":"<returned action id>"})`.
+   Read this week's events through already authorized calendar/inbox read tools.
+   Report gaps in coverage; never treat a partial read as a complete week.
+3. Retrieve CoS notes through `pa(operation="context", data={"kind":"action","limit":20,"offset":0})`.
+   Follow `next_offset` and read each relevant `cos:` action in detail as the
+   reference explains. Review last week's recommendations, improvement proposals,
+   research decisions and benchmark offers, including follow-up dates now due.
+   Report `used`, `declined`, `ignored`, and `unknown` separately with evidence.
+   A yes or a booked slot is not proof that the change helped.
+4. Compare priorities with what happened and what remains stuck. Explain one
+   useful discrepancy, not an activity score. Do not claim causation from a
+   recommendation followed by an unrelated good result.
+
+## Propose at most one batch
+
+Offer no more than one batched improvement proposal, in this exact format:
+
+- Old: the current wording or process, quoted only as far as necessary.
+- New: the smallest proposed replacement; reuse what already works.
+- Evidence: the observed failure, affected priority, source and expected benefit.
+- Rollback: how to restore the old wording or process if it does not help.
+
+Record it on the `cos:weekly:<local ISO week>` note as `stage: "draft"`, with
+`outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
+wait for explicit apply approval in chat. Keep `draft`, `approved`, `applied`
+and `verified` distinct in `stage`. Applied requires actual readback;
+verified requires evidence of the promised result. Never silently edit
+SOUL.md, USER.md, skills or the manual. Never install software.
+
+For a consequential skill or process change, propose one cheap check: freeze
+two sanitized tool-output cases (the motivating failure and an ordinary case),
+compare old and new text on both with the same model and settings, without live
+tools. Keep the change only if the failure is fixed and the ordinary case holds.
+A tie means “no regression detected”, not “improved”. Label it unchecked when
+the cases cannot be frozen cheaply. Do not run this experiment in the cron turn.
+
+Check the manual's byte size. Above about 8 KB, flag it in this same batch and
+propose distilling or replacing text, never appending a second manual. Keep
+engineering lessons in their own project context. Do not edit to meet the budget.
+
+## Close the weekly report
+
+Then load `personal-assistant:cos-radar` for this week's single benchmark offer,
+if any. Include it in the same weekly message; radar must not send a second
+notification. Record a separate recommendation identity for an actual radar
+offer, but use only this job's one delivery receipt. If neither review nor radar
+contains useful information, send nothing and record `suppressed`; use `unknown`
+for uncertain delivery and `delivered` only with provider receipt evidence.
+Never replay an already handled occurrence.
+
+Send no proactive message outside this scheduled job or an owner-approved HB2
+`at` follow-up in the same chat naming `personal-assistant:cos-weekly`.

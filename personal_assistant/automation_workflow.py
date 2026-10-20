@@ -6,28 +6,38 @@ from zoneinfo import ZoneInfo
 
 from . import automation as auto
 from .state import stable_id, legacy
+from .modes import config_getter, cos_enabled
+
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
 def preferences(ledger, changes=None):
     prior = ledger.get("action", "pa:preferences")
     if changes is not None:
-        allowed = {"timezone", "brief_time", "quiet_hours", "paused", "snooze_until"}
+        allowed = {"timezone", "brief_time", "quiet_hours", "paused", "snooze_until", "cos_daily_time", "cos_weekly_day", "cos_weekly_time"}
         if set(changes) - allowed:
             raise ValueError("unknown preference")
         if "timezone" in changes:
             ZoneInfo(changes["timezone"])
+        for key in ("cos_daily_time", "cos_weekly_time"):
+            if key in changes:
+                value = changes[key]
+                if not isinstance(value, str) or len(value) != 5 or dt.time.fromisoformat(value).strftime("%H:%M") != value:
+                    raise ValueError(f"{key} must be HH:MM")
+        if "cos_weekly_day" in changes and changes["cos_weekly_day"] not in WEEKDAYS:
+            raise ValueError("cos_weekly_day must be mon..sun")
         prior = ledger.put("action", "pa:preferences", changes, action_type="preferences", status="configured")
     return (prior or {}).get("fields", {})
 
 
 def _precheck_path(ledger, kind):
-    suffix = "brief" if kind == "daily_brief" else "due"
+    suffix = {"daily_brief": "brief", "due_source_check": "due", "cos_daily": "cos_daily", "cos_weekly": "cos_weekly"}[kind]
     return ledger.root / "scripts" / f"personal_assistant_pa_{suffix}_precheck.py"
 
 
 def _install_precheck(ledger, kind):
     """Register the existing precheck under Hermes's native script boundary."""
-    if kind not in {"daily_brief", "due_source_check"}:
+    if kind not in {"daily_brief", "due_source_check", *auto.COS_JOBS}:
         raise ValueError("unknown PA routine kind")
     target = _precheck_path(ledger, kind)
     package = Path(__file__).resolve().parents[1]
@@ -50,10 +60,17 @@ def _install_precheck(ledger, kind):
     return str(target)
 
 
-def prepare_suggestions(ledger, *, native=False):
+def prepare_suggestions(ledger, *, native=False, get_config=None):
     prefs = preferences(ledger)
-    result = auto.suggest_automation_jobs(ledger=ledger, timezone=prefs.get("timezone"))
+    result = auto.suggest_automation_jobs(ledger=ledger, timezone=prefs.get("timezone"),
+                                          chief_of_staff=cos_enabled(get_config or config_getter(ledger.root)))
     for job in result["jobs"]:
+        if job["kind"] in auto.COS_JOBS:
+            job["job_spec"] = {"name": job["name"], "schedule": "*/5 * * * *",
+                "script": str(_precheck_path(ledger, job["kind"])),
+                "skills": ["personal-assistant:personal-assistant", *job["skills"]], "deliver": "local",
+                "prompt": job["prompt"] + " Load all named job skills. Use the precheck's already claimed occurrence and verified destination; send only a useful accepted owner notification. Record delivered with provider proof, suppressed for justified silence, or unknown for uncertain delivery. Never resend an occurrence. Do not create jobs. Cron delivery is local to avoid duplicate replies."}
+            continue
         brief = job["kind"] == "daily_brief"
         collector = "personal_assistant.daily_ops.morning_brief" if brief else "personal_assistant.daily_ops.evening_register"
         due_rule = (
@@ -73,13 +90,7 @@ def prepare_suggestions(ledger, *, native=False):
             "deliver": "local",
             "prompt": job["prompt"] + f" Use the accepted daily-ops source in its configured timezone; {due_rule}. Invoke the read-only collector {collector} only after the local precheck. The evening collector is the due-source check, not a third scheduled job. The script supplies an already claimed notification occurrence and verified destination. Use the existing message tool only for a useful accepted owner notification. Record delivered with its provider receipt, suppressed if nothing useful, or unknown if delivery is uncertain using pa automations receipt. Never resend an existing occurrence. Refresh source checkpoints only after successful reads. Do not create jobs or make purchases. Cron delivery is local to avoid sending your response twice."}
     if native:
-        from gateway.session_context import get_session_env
-        if get_session_env("HERMES_CRON_SESSION"):
-            raise ValueError("scheduled children cannot change routine suggestions")
-        # Native stores are scoped by Hermes; refuse cross-profile invocation.
-        from hermes_constants import get_hermes_home
-        if Path(get_hermes_home()).resolve() != ledger.root:
-            raise ValueError("native scheduler profile differs from PA profile")
+        native_profile_guard(ledger)
         from cron.jobs import list_jobs
         from cron.suggestions import add_suggestion
         existing = {job.get("name") for job in list_jobs(include_disabled=True)}
@@ -93,12 +104,48 @@ def prepare_suggestions(ledger, *, native=False):
     return result
 
 
+def native_profile_guard(ledger):
+    from gateway.session_context import get_session_env
+    from hermes_constants import get_hermes_home
+    if get_session_env("HERMES_CRON_SESSION"):
+        raise ValueError("scheduled children cannot change routine suggestions or modes")
+    if Path(get_hermes_home()).resolve() != ledger.root:
+        raise ValueError("native scheduler profile differs from PA profile")
+
+
+def stop_cos(ledger):
+    """Stop only PA CoS automation, preserving the other optional routines."""
+    native_profile_guard(ledger)
+    from cron.jobs import list_jobs, pause_job, remove_job
+    from cron.suggestions import load_suggestions, dismiss_suggestion
+    refs = [ledger.get("action", "pa:suggestion:" + kind) for kind in auto.COS_JOBS]
+    ids = {r["fields"].get("suggestion_id") for r in refs if r}
+    counts = {"jobs": 0, "suggestions": 0, "rules": 0}
+    for job in list_jobs(include_disabled=True):
+        if job.get("name") in auto.COS_JOBS.values():
+            pause_job(job["id"], reason="Chief of Staff mode off")
+            counts["jobs"] += bool(remove_job(job["id"]))
+    for item in load_suggestions():
+        if (item.get("status") == "pending" and (item["id"] in ids
+                or (item.get("job_spec") or {}).get("name") in auto.COS_JOBS.values())):
+            counts["suggestions"] += bool(dismiss_suggestion(item["id"]))
+    for row in ledger.list("action"):
+        rule = auto._rule_data(row)
+        if row["action_type"] == "automation_rule" and rule.get("kind") in auto.COS_JOBS:
+            ledger.put("action", row["action_id"], auto.source_rule_fields({**rule, "paused": True}), status="paused")
+            counts["rules"] += 1
+    return counts
+
+
 def cron_precheck(ledger, kind, *, enabled, moment=None):
     """Return Hermes wakeAgent JSON; no network or LLM on an empty tick."""
     prefs = preferences(ledger)
     zone = prefs.get("timezone")
-    if not enabled or not zone:
+    cos = kind in auto.COS_JOBS
+    if not enabled or not (zone or cos):  # A CoS rule may carry its own zone.
         return {"wakeAgent": False, "reason": "disabled_or_timezone_missing"}
+    if cos and not cos_enabled(config_getter(ledger.root)):
+        return {"wakeAgent": False, "reason": "chief_of_staff_off"}
     current = moment or dt.datetime.now(dt.timezone.utc)
     actions = ledger.list("action")
     rules = [auto._rule_data(a) for a in actions if a["action_type"] == "automation_rule"]
@@ -108,6 +155,12 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     destinations = {r.get("destination") for r in rules}
     if len(destinations) != 1 or not next(iter(destinations)):
         return {"wakeAgent": False, "reason": "destination_conflict"}
+    if cos:  # Resolve each rule's zone as the suggestion does; never pick between zones.
+        zones = {r.get("timezone") or zone for r in rules}
+        if len(zones) != 1 or None in zones:
+            reason = "timezone_conflict" if len(zones - {None}) > 1 else "disabled_or_timezone_missing"
+            return {"wakeAgent": False, "reason": reason}
+        zone = zones.pop()
     if any(r.get("snooze_until") and auto._value_time(r["snooze_until"], zone) > current for r in rules):
         return {"wakeAgent": False, "reason": "routine_snoozed"}
     local = current.astimezone(ZoneInfo(zone))
@@ -129,14 +182,23 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             due.append(row)
     active = auto._trip_active(trips, current)
     state = {**prefs, "actions": due, "accepted_sources": rules, "active_travel": active}
-    if kind == "daily_brief":
+    if cos:
+        clock_key = kind + "_time"
+        day = WEEKDAYS.index(prefs.get("cos_weekly_day", auto.DEFAULTS["cos_weekly_day"]))
+        if ((kind == "cos_weekly" and local.weekday() < day)
+                or ((kind == "cos_daily" or local.weekday() == day)
+                    and local.strftime("%H:%M") < prefs.get(clock_key, auto.DEFAULTS[clock_key]))):
+            return {"wakeAgent": False, "reason": "before_cos_time"}
+        state.update(actions=[{"due": True}], chief_of_staff=True, timezone=zone)
+        logical = local.date().isoformat() if kind == "cos_daily" else "%04d-W%02d" % local.isocalendar()[:2]
+    elif kind == "daily_brief":
         if local.strftime("%H:%M") < prefs.get("brief_time", "08:00"):
             return {"wakeAgent": False, "reason": "before_brief_time"}
         state["actions"] = [{"due": True}]
         logical = local.date().isoformat()
     else:
         logical = stable_id([(a["action_id"], a["fields"].get("due_at")) for a in due], [(r.get("source_ref"), r.get("last_checked_at")) for r in rules])
-    check = auto.script_precheck(state, now=current)
+    check = auto.script_precheck(state, now=current, kind=kind)
     if not check["run"]:
         return {"wakeAgent": False, "reason": check["reason"]}
     # Complete accepted rules bind the existing notification action to the
@@ -153,19 +215,22 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             profile_id=profile_id, account=account, timezone=zone,
             destination=next(iter(destinations)), rule_id=rule_id, rule_revision=revision,
         )
-    occurrence = auto.notification_occurrence_id(rule_id, logical, revision if payload else None)
+    # CoS reports belong to the calendar period even if an accepted rule changes.
+    occurrence = (auto.notification_occurrence_id(kind, logical) if cos else
+                  auto.notification_occurrence_id(rule_id, logical, revision if payload else None))
     claim = auto.claim_notification(ledger, occurrence, rule_id=rule_id, payload=payload)
     return {"wakeAgent": claim["claimed"], "occurrence_id": occurrence,
             "destination": next(iter(destinations)), "due_sources": check.get("due_sources", []),
             "due_action_ids": [a["action_id"] for a in due]}
 
 
-def dispatch(ledger, data):
+def dispatch(ledger, data, *, get_config=None):
     action = data.pop("action", "status")
     if action == "status":
         return {"preferences": preferences(ledger), "rules": [a for a in ledger.list("action") if a["action_type"] == "automation_rule"], "install_enabled_jobs": 0}
     if action == "suggest":
-        return prepare_suggestions(ledger, **data)
+        data.pop("get_config", None)
+        return prepare_suggestions(ledger, get_config=get_config, **data)
     if action == "rule":
         return auto.upsert_automation_rule(ledger, **data)
     if action == "preferences":

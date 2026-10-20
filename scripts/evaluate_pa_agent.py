@@ -170,6 +170,12 @@ def _run_case(profile: Path, recipe_id: str, name: str, fixture: FixtureProvider
                 and "action_result" not in operations):
             checks.append("current_brief_receipt")
     elif recipe_id == "R5":
+        from personal_assistant.automation import suggest_automation_jobs
+        rules = [{"kind": kind, "accepted": True} for kind in ("cos_daily", "cos_weekly")]
+        off = suggest_automation_jobs(rules, timezone="UTC", destination="fixture-owner", destination_verified=True)
+        on = suggest_automation_jobs(rules, timezone="UTC", destination="fixture-owner", destination_verified=True, chief_of_staff=True)
+        assert not off["jobs"] and {j["kind"] for j in on["jobs"]} == {"cos_daily", "cos_weekly"}
+        checks.append("cos_suggestions_require_mode_and_acceptance")
         automation_status = _dispatch(profile, "automations", {"action": "status"}, operations)
         suggestion = fixture.automation()
         operations.append("fixture_automation")

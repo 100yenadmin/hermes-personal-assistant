@@ -175,7 +175,7 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         return _call_with_supported_data(getattr(loop, op), data=data)
     if op == "automations":
         from .automation_workflow import dispatch as automation_dispatch
-        return automation_dispatch(ledger, data)
+        return automation_dispatch(ledger, data, get_config=(runtime_scope or {}).get("get_config"))
     if op == "context":
         from .context import retrieve
         return retrieve(ledger, data)
@@ -194,8 +194,10 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         return ledger.put("action", "pa:calendar-binding", {}, status="disconnected", remove=["calendar_id", "expected_account"])
     if op == "status":
         from .context import status_snapshot
+        from .modes import config_getter, mode_status
         snapshot = status_snapshot(ledger, data)
         return {"plugin": "personal-assistant", "display_name": "Personal Assistant Plugin",
+                "modes": mode_status((runtime_scope or {}).get("get_config") or config_getter(profile_root)),
                 "operations": OPERATIONS, **snapshot,
                 "commitment_status": "Read linked Hermes Kanban tasks for current commitment status.",
                 "automation": "Installation enables no recurring jobs.",
