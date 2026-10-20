@@ -86,8 +86,9 @@ def record(ledger, answers=None, skipped=None, asked=None, consent=None):
                  pending_changes=prior["pending_changes"] or (completed and (merged != prior["answers"] or skipped != prior["skipped"])),
                  asked=list(dict.fromkeys(prior["asked"] + asked)), proposal={"writes": []},
                  look_around_consent=prior["look_around_consent"] if consent is None else consent)
-    if completed:
-        result["next_step"] = "Saved. Setup stays applied; this answer is not in your files yet. Include it in the next review (/pa setup review), then propose and apply."
+    if completed and result["pending_changes"]:
+        result["next_step"] = ("Saved. Setup is still in place; this answer is not in your files yet. "
+                               "Include it in the next review (/pa setup review), then propose and apply.")
     return result
 
 

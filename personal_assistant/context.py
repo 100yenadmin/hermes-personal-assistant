@@ -97,7 +97,7 @@ def status_snapshot(ledger, data: dict[str, Any] | None = None) -> dict[str, Any
 
 
 def retrieve(ledger, data: dict[str, Any]) -> dict[str, Any]:
-    kind = str(data.get("kind", "")).strip().lower()
+    kind = str(data.get("kind") or "").strip().lower()
     if not kind and not (data.get("trip_id") and "query" in data):
         inferred = [name for name in ("trip", "action", "source") if data.get(name + "_id")]
         if len(inferred) == 1:

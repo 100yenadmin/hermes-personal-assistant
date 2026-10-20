@@ -87,7 +87,8 @@ def test_l39_live_sequence_and_review(tmp_path):
     saved = setup.record(ledger, answers, asked=list(answers))
     assert saved["status"] == "applied" and saved["pending_changes"] is True
     assert saved["answers"].items() >= answers.items()
-    assert saved["next_step"] == "Saved. Setup stays applied; this answer is not in your files yet. Include it in the next review (/pa setup review), then propose and apply."
+    assert saved["next_step"] == ("Saved. Setup is still in place; this answer is not in your files yet. "
+                                 "Include it in the next review (/pa setup review), then propose and apply.")
     assert saved["proposal"] == {"writes": []}  # Harmless: applied setup no longer reads the proposal.
     assert "Changes not yet applied." in make_pa_command(tmp_path)("status")
     assert setup.fresh_check(ledger, "passed", "B")["status"] == "checked"
@@ -132,6 +133,7 @@ def test_l39_noop_record_after_applied(tmp_path):
     result = setup.record(ledger, answers, skipped=["protect"], asked=["authority"], consent="granted")
     assert result["status"] == "applied" and result["pending_changes"] is False
     assert result["asked"] == ["authority"] and result["look_around_consent"] == "granted"
+    assert "next_step" not in result  # Nothing pending: no review prompt (#31 review).
 
 
 @pytest.mark.parametrize("status,fresh,session,message", [

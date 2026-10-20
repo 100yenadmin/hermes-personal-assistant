@@ -21,7 +21,7 @@ class ContextTests(unittest.TestCase):
             import_trip(ledger, "trip-1", ICS)
             ledger.put("action", "action-1", {"source_record_id": "source-1"})
             for kind, identity in (("trip", "trip-1"), ("action", "action-1"), ("source", "source-1")):
-                for explicit in ({}, {"kind": ""}):
+                for explicit in ({}, {"kind": ""}, {"kind": None}):
                     with self.subTest(kind=kind, explicit=explicit):
                         result = retrieve(ledger, {kind + "_id": identity, **explicit})
                         self.assertEqual(result["kind"], kind)
