@@ -114,6 +114,24 @@ def test_forged_rows_bad_ids_and_partial_replies_touch_nothing(tmp_path):
     assert ledger.get("action", "pa:browser-session:bb-9") is None
 
 
+def test_live_view_refresh_failures_and_ledger_failure_release(tmp_path, monkeypatch):
+    ledger = Ledger(tmp_path)
+    dispatch(tmp_path, {"operation": "browser_session", "data": {"action": "create"}},
+             runtime_scope={"browserbase_opener": Opener(CREATED, {}), "get_secret": SECRETS.get})
+    denied = HTTPError("https://api.browserbase.com", 401, "denied", Message(), io.BytesIO(KEY.encode()))
+    for reply, expected in ((denied, {"status": "error", "http_status": 401, "reason": "Browserbase request denied"}),
+                            ({}, {"status": "error", "reason": "Browserbase request failed"})):
+        assert browser_session(ledger, {"action": "live_view", "bb_session_id": "bb-1"},
+                               opener=Opener(reply), get_secret=SECRETS.get) == expected
+    def locked(*args, **kwargs):
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(ledger, "put", locked)
+    opener = Opener({**CREATED, "id": "bb-2"}, {})
+    assert browser_session(ledger, {"action": "create"}, opener=opener, get_secret=SECRETS.get)["status"] == "error"
+    assert opener.calls[1][0].full_url.endswith("/v1/sessions/bb-2")
+    assert json.loads(opener.calls[1][0].data) == {"projectId": "project", "status": "REQUEST_RELEASE"}
+
+
 def test_redirect_target_never_requested(tmp_path):
     urls = []
     class Redirect(HTTPHandler):

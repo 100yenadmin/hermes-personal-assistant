@@ -1,6 +1,6 @@
 ---
 name: food-delivery-to-hotel
-description: Use to find and prepare hotel food delivery for the user's final tap, including hotel policy, address, ETA, allergies, fees, tip, and payment descriptor.
+description: Use to find, prepare, and submit food delivery orders to a hotel after final confirmation, including hotel delivery policy, address, ETA, allergies, fees, tip, and payment descriptor.
 metadata:
   openclaw:
     skillKey: food-delivery-to-hotel
@@ -13,7 +13,7 @@ metadata:
 
 Every `references/...` path in this skill is relative to this skill directory.
 
-Help the user eat after arrival. Prepare the order; the user makes the final order submit.
+Help the user eat after arrival. Prepare the order, then ask before final order submit.
 
 ## Read
 
@@ -32,7 +32,7 @@ Help the user eat after arrival. Prepare the order; the user makes the final ord
 5. Verify items, quantities, substitutions, address, delivery instructions, fees, taxes, tip, total, payment descriptor, cancellation/refund terms, and final button.
 6. Store a checkout checkpoint in `travel-ledger` with session/Context, cart, address, total, payment descriptor, missing fields, and last user intent.
 7. Build a final confirmation summary with kind `food`, risk flags `final-order-submit` and `delivery-address`, plus a configured-payment flag when relevant.
-8. Send the live view for the user to check details and make the final tap. Never press final submit.
+8. In a Browserbase session, send the live view for the user to check details and make the final tap; never press final submit there. In the local browser, after confirmation re-check the cart and submit only if details match.
 9. Verify order confirmation, ETA, restaurant, and delivery status. Record order id/receipt/status proof in `travel-ledger` before reporting.
 
 If you stop earlier, at a login, the user's app, no availability or a blocked site, record that stop in `travel-ledger` before replying: the stopping URL, what is prepared, what is missing and the next step.
@@ -46,7 +46,7 @@ Stop at a required user login or at checkout with the `travel-approval-packet`, 
 ## Browser Friction
 
 - Instacart, Uber Eats, DoorDash, Grubhub, and grocery stores may present reCAPTCHA, 401s, phone verification, passkeys, or address-validation modals. Treat these as workflow steps, not dead ends.
-- Check `pa(operation="capabilities")` → `remote_browser`; create with `pa(operation="browser_session", data={"action":"create"})` and attach with `agent-browser --session <task-name> connect <connect_url>`.
+- When a handoff is likely or the local browser is blocked, check `pa(operation="capabilities")` → `remote_browser`; create with `pa(operation="browser_session", data={"action":"create"})` and attach with `agent-browser --session <task-name> connect <connect_url>`.
 - Work the cart via `browserbase-checkout-lane`. Keep `bb_session_id` for cleanup; never persist connection or live view URLs. Release when done or abandoned with `pa(operation="browser_session", data={"action":"release","bb_session_id":"<id>"})`.
 - A login modal is not automatically a CAPTCHA. Use saved sessions, continue through visible provider steps, and retry the click/Enter/login path before reporting a blocker.
 - At card, OTP, passport, CAPTCHA, or passkey entry, send `live_view_url`: "Open this link, complete that step, and tell me when done." Wait; do not snapshot or read back payment fields afterwards. Refresh a missing/stale link with `browser_session` action `live_view` and `bb_session_id`.

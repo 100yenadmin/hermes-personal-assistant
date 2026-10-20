@@ -5,7 +5,7 @@ Use checkpoints so browser timeouts, provider 401s, reconnects, or fallback brow
 ## Record After Each Meaningful Step
 
 - Provider, store, route, venue, airline, hotel, or reservation platform.
-- Browserbase session id and Context id when available.
+- Browserbase `bb_session_id` when available, never connection or live view URLs.
 - Browser lane and current URL.
 - Login state: before login, after login, verification step, address step, payment step, final button, submitted, or blocked on a required field.
 - Cart, booking, ride, check-in, or reservation state.
@@ -20,7 +20,7 @@ Use checkpoints so browser timeouts, provider 401s, reconnects, or fallback brow
 On timeout, disconnect, or provider reset:
 
 1. Reattach to the existing Browserbase session.
-2. If expired, create a new 20-minute Browserbase session with the same Context.
+2. If expired, create a new 20-minute Browserbase session and restore from this checkpoint.
 3. Restore from the checkpoint and verify the provider state.
 4. Only then try another configured attended browser while preserving the same checkpoint.
 
