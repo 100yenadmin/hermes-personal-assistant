@@ -110,7 +110,8 @@ def dispatch(ledger, data):
             raise ValueError("task_id must be a slug of 3-60 characters")
         identity = "va-task:" + task_id
         if ledger.get("action", identity):
-            raise ValueError("evidence task exists; use update")
+            raise ValueError(f"evidence task exists ({identity}): for this same task use update with that identity; "
+                             "for a different task, record it with a more specific title or its own task_id")
         return _save(ledger, identity, fields, "va_task")
     if action == "update":
         _keys(data, "identity status owner_accepted correction correction_note facts due agreed_outcome title closed_on")

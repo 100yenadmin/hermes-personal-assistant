@@ -144,6 +144,11 @@ def _status_at(task, as_of):
     return "pending" if task["status"] != "pending" and closed and _date(closed[:10], "closed_at") > as_of else task["status"]
 
 
+def _at(task, as_of):
+    """The task as it stood on as_of: an outcome closed later, and the fact checks recorded with it, are not seen yet."""
+    return task if _status_at(task, as_of) == task["status"] else {**task, "status": "pending", "facts": []}
+
+
 def _real_work(tasks, as_of):
     tasks = [{**t, "status": _status_at(t, as_of)} for t in tasks]
     eligible = [t for t in tasks if _date(t["started"], "started") <= as_of
@@ -264,7 +269,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
         area["partial"] = {"state": "none" if not partial else "fail" if "fail" in partial else "pass" if all(s == "pass" for s in partial) else "incomplete"}
         covered = {i for t in area["tests"] if t["state"] == "pass" for i in t["covers"]}
         area["uncovered_duties"] = [duty for i, duty in enumerate(area["duties"]) if i not in covered]
-        tasks = [t for t in live["tasks"] if t["area"] == area["key"] and _date(t["started"], "started") <= today]
+        tasks = [_at(t, today) for t in live["tasks"] if t["area"] == area["key"] and _date(t["started"], "started") <= today]
         area_runs = [r for r in runs if r["scenario"] in {t["scenario"] for t in area["tests"]}]
         area["real_work"], area["facts"] = _real_work(tasks, today), _facts(tasks, area_runs)
         states = [area["lab"], area["real_work"]["state"], area["facts"]["state"], day30["state"]]

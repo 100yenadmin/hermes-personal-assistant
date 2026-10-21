@@ -44,8 +44,10 @@ def test_record_defaults_and_duplicate(tmp_path):
     assert row["status"] == "pending" and row["owner_accepted"] is None
     assert row["facts"] == [] and row["correction"] == "none" and row["cohort"] == "default"
     assert row["created_at"]
-    with pytest.raises(ValueError, match="evidence task exists; use update"):
+    with pytest.raises(ValueError, match="exists .*same task use update.*different task.*title or its own task_id"):
         record(tmp_path)
+    other = record(tmp_path, task_id="compare-options-second")  # A different task with the same title.
+    assert other["identity"] == "va-task:compare-options-second"
     assert AREAS == [a["key"] for a in SCORECARD_AREAS[:12]]
 
 

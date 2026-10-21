@@ -770,6 +770,19 @@ def test_completion_after_as_of_is_not_counted(tmp_path):
     assert later["tasks"] == 10 and later["passed"] == 9
 
 
+def test_fact_checks_closed_after_as_of_are_not_seen(tmp_path):
+    live = live_tasks()
+    for task in live["tasks"]:
+        task.update(closed_at="2026-10-12")
+    live["tasks"][0].update(closed_at="2026-10-20", facts=[{"item": "total", "source": "receipt", "ok": False, "facing": "money"}])
+    assert area(card(tmp_path, live, "2026-10-15"))["facts"] == {"state": "pass", "errors": []}
+    assert area(card(tmp_path, live, "2026-10-21"))["facts"]["state"] == "fail"
+    for task in live["tasks"][1:]:
+        task.update(closed_at="2026-10-20")
+    live["tasks"][0]["facts"][0]["ok"] = True
+    assert area(card(tmp_path, live, "2026-10-15"))["facts"]["state"] == "unproven"  # No check existed yet.
+
+
 @pytest.mark.parametrize("label", ["owner  0", " owner 0", "Owner 0"])
 def test_owner_labels_differing_in_inner_spacing_are_refused(tmp_path, label):
     live = live_tasks()

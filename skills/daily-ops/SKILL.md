@@ -71,7 +71,8 @@ python3 -m personal_assistant.daily_ops.clients_sync
 run from any working directory when `DAILY_OPS_CONFIG` is set. State is
 profile-bound, locked, atomic, and private.
 
-In the existing morning brief, when Chief of Staff mode is off, read `pa(operation="profile", data={"action":"list","kind":"trust"})`. Once the oldest non-retired record is 30 days old, include the day-30 review once (first read `context kind=action action_id=pa:day30-review`; skip if its `asked_at` exists; an "action not found" result means it was never asked, so continue; record the first ask using `action_upsert action_id=pa:day30-review action_type=note status=completed fields={asked_at:<ISO>}`): task types and levels, proposed level changes with evidence, and "How many minutes did this work take you last week, and which tasks do I now get right first time?" Wait for the answer before changing levels. Record it with `evidence day30` (week_ending, minutes, first_pass_task_types) for the parity rule. When CoS is on, its weekly closeout owns this review; do not duplicate it.
+In the existing morning brief, when Chief of Staff mode is off, read `pa(operation="profile", data={"action":"list","kind":"trust"})`. Once the oldest non-retired record is 30 days old, include the day-30 review once (first read `context kind=action action_id=pa:day30-review`; skip if its `asked_at` exists; an "action not found" result means it was never asked, so continue; record the first ask using `action_upsert action_id=pa:day30-review action_type=note status=completed fields={asked_at:<ISO>}`): task types and levels, and proposed level changes with evidence. Wait for the answer before changing levels. When CoS is on, its weekly closeout owns this review; do not duplicate it.
+When CoS is off, also run the day-30 time check in `personal-assistant` (Task evidence); with CoS on, cos-weekly runs it.
 
 ## Hard safety rules
 
