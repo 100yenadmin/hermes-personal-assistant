@@ -1,12 +1,55 @@
 import datetime as dt
 import tempfile
 import unittest
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
+
+import pytest
 
 from personal_assistant.automation import upsert_automation_rule, record_notification
 from personal_assistant.automation_workflow import preferences, cron_precheck, prepare_suggestions, _install_precheck
 from personal_assistant.state import Ledger
+
+
+@pytest.mark.parametrize("limit", [2, None])
+def test_native_backlog_and_brief_accept_text(tmp_path, monkeypatch, limit):
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Seoul"})
+    for kind in ("daily_brief", "due_source_check"):
+        upsert_automation_rule(ledger, kind, {"kind": kind, "accepted": True,
+            "destination": "telegram:fixture-owner", "destination_verified": True})
+    records, descriptions = [], {}
+    cap = 5 if limit is None else limit
+
+    def add_suggestion(*, title, description, source, job_spec, dedup_key):
+        descriptions[dedup_key] = description
+        if sum(r["status"] == "pending" for r in records) >= cap:
+            return None
+        record = dict(id=dedup_key, dedup_key=dedup_key, status="pending")
+        records.append(record)
+        return record
+
+    fake = SimpleNamespace(add_suggestion=add_suggestion, load_suggestions=lambda: list(records))
+    if limit is not None:
+        fake.MAX_PENDING = limit
+    monkeypatch.setitem(sys.modules, "cron.suggestions", fake)
+    monkeypatch.setitem(sys.modules, "cron.jobs", SimpleNamespace(list_jobs=lambda include_disabled=False: []))
+    with patch("personal_assistant.automation_workflow.native_profile_guard"):
+        result = prepare_suggestions(ledger, native=True)
+        assert [j.get("suggestion") for j in result["jobs"]] == ["suggested", "suggested"]
+        assert "next_step" not in result
+        base = "Optional PA routine; accepting enables it. Briefs use your configured local time."
+        assert descriptions["personal-assistant:daily_brief"] == base + (
+            " If today's slot has already passed, the first run comes within minutes of accepting.")
+        assert descriptions["personal-assistant:due_source_check"] == base
+        records[:] = [dict(id=f"foreign-{n}", dedup_key=f"foreign-{n}", status="pending") for n in range(cap)]
+        full = prepare_suggestions(ledger, native=True)
+        assert [j["suggestion"] for j in full["jobs"]] == ["backlog_full", "backlog_full"]
+        assert full["next_step"] == (
+            f"Hermes keeps at most {cap} pending suggestions and dropped 2. "
+            "Ask the user to review /suggestions (accept or dismiss older ones), then run suggest again.")
 
 
 class WorkflowTests(unittest.TestCase):

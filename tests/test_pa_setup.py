@@ -76,6 +76,34 @@ def test_applied_requires_current_proposal(tmp_path):
     assert setup.state(ledger)["status"] == "not_started"
 
 
+def test_rc1_retired_answers_hidden_but_preserved_after_record(tmp_path):
+    ledger = Ledger(tmp_path)
+    retired = {"text": "Retired weekly consent", "source": "user"}
+    current = {"text": "Ask first", "source": "user"}
+    ledger.put("action", "pa:setup", {"status": "checked", "requested_mode": "review",
+        "answers": {"cos_schedules": retired, "authority": current},
+        "asked": ["cos_schedules", "authority"], "skipped": ["cos_schedules", "protect"]},
+        action_type="setup")
+    view = dispatch(tmp_path, {"operation": "setup"})
+    assert view["answers"] == {"authority": current}
+    assert view["asked"] == ["authority"] and view["skipped"] == ["protect"]
+    assert view["counts"] == {"answers": 1, "asked": 1, "skipped": 1, "total": 14}
+    assert view["next_question"] is None
+    raw = ledger.get("action", "pa:setup")["fields"]
+    assert raw["answers"]["cos_schedules"] == retired
+    noop = setup.record(ledger)
+    assert not noop["pending_changes"]  # Filtering alone does not invent a setup change.
+    result = setup.record(ledger, {"call_and_quiet": current}, asked=["call_and_quiet"])
+    assert result["answers"] == {"authority": current, "call_and_quiet": current}
+    assert result["pending_changes"]
+    raw = ledger.get("action", "pa:setup")["fields"]
+    assert raw["answers"] == {"cos_schedules": retired, "authority": current, "call_and_quiet": current}
+    assert raw["asked"] == ["cos_schedules", "authority", "call_and_quiet"]
+    assert raw["skipped"] == ["cos_schedules", "protect"]
+    setup.request(ledger, "core")
+    assert setup.state(ledger)["next_question"] == "worth_a_message"
+
+
 def test_l39_live_sequence_and_review(tmp_path):
     ledger = Ledger(tmp_path)
     setup.request(ledger, "chief_of_staff")

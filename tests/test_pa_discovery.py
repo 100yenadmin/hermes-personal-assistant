@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from personal_assistant.capabilities import discover
 from personal_assistant.recipes import catalog
@@ -19,6 +20,58 @@ class _Entry:
 
 
 class DiscoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(patch.stopall)
+        patch("shutil.which", return_value=None).start()
+        patch.dict("os.environ", {"GOG_PATH": ""}).start()
+
+    def test_gog_path_is_presence_only_and_preserves_registration_states(self):
+        with patch.dict("os.environ", {"GOG_PATH": "/fixture/gog"}), patch("subprocess.run") as run:
+            for verdict in (False, None, True):
+                with self.subTest(verdict=verdict):
+                    rows = {r["id"]: r for r in discover([
+                        _Entry("mcp__notion__notion_calendar_list", lambda: None),
+                        _Entry("gmail_search", lambda: None)], lambda fn: verdict)["capabilities"]}
+                    for capability, tool in (("calendar", "mcp__notion__notion_calendar_list"), ("email", "gmail_search")):
+                        row = rows[capability]
+                        self.assertEqual(row["tools"], ["gog", tool])
+                        self.assertEqual(row["status"], "available" if verdict is True else "unverified")
+                        self.assertIn("gog CLI", row["evidence"])
+                        self.assertIn("account authorisation is unverified", row["evidence"])
+                        self.assertIn("gog CLI", row["reuse"])
+                        self.assertEqual(row["authentication"], "unverified")
+            run.assert_not_called()
+
+    def test_gog_lookup_and_unregistered_calendar_email(self):
+        from unittest.mock import Mock
+        lookup = Mock(side_effect=lambda name: "/fixture/gog" if name == "gog" else None)
+        rows = {r["id"]: r for r in discover([], which=lookup)["capabilities"]}
+        for capability in ("calendar", "email"):
+            self.assertEqual(rows[capability]["tools"], ["gog"])
+            self.assertEqual(rows[capability]["status"], "unverified")
+        lookup.assert_called_once_with("gog")
+        with patch("shutil.which", side_effect=lookup):
+            self.assertEqual(discover([])["capabilities"], list(rows.values()))
+        with patch.dict("os.environ", {"GOG_PATH": "/configured/gog"}):
+            lookup.reset_mock()
+            discover([], which=lookup)
+            lookup.assert_not_called()
+
+    def test_remote_browser_requires_cli_on_this_host(self):
+        from unittest.mock import Mock
+        lookup = Mock(return_value=None)
+        rows = {r["id"]: r for r in discover([], secret_present=lambda name: True, which=lookup)["capabilities"]}
+        row = rows["remote_browser"]
+        self.assertEqual(row["status"], "needs-setup")
+        self.assertEqual(row["evidence"], "Browserbase key and project present; agent-browser CLI not found on PATH")
+        self.assertEqual(row["recovery_action"], "Install agent-browser on this host, then rerun capability discovery.")
+        self.assertEqual([c.args[0] for c in lookup.call_args_list], ["gog", "agent-browser"])
+        present = lambda name: "/fixture/agent-browser" if name == "agent-browser" else None
+        row = next(r for r in discover([], secret_present=lambda name: True, which=present)["capabilities"]
+                   if r["id"] == "remote_browser")
+        self.assertEqual(row["status"], "available")
+        self.assertEqual(row["evidence"], "browser_session operation; credentials present")
+
     def test_profile_native_route_does_not_override_failed_or_uncached_tools(self):
         with tempfile.TemporaryDirectory() as root:
             check = lambda: False

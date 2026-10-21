@@ -12,7 +12,7 @@ import yaml
 
 from personal_assistant import automation as auto
 from personal_assistant.automation_workflow import (
-    _install_precheck, cron_precheck, preferences, prepare_suggestions, script_main,
+    _install_precheck, cron_precheck, preferences, prepare_suggestions, script_main, stop_cos,
 )
 from personal_assistant.commands import make_pa_command
 from personal_assistant.entry import dispatch
@@ -55,15 +55,85 @@ def native(monkeypatch, root, *, child=False, jobs=(), suggestions=()):
         remove_job=Mock(return_value=True),
     )
     pending = {s["id"]: s for s in suggestions}
+    def add_suggestion(*, title, description, source, job_spec, dedup_key):
+        if any(s.get("dedup_key") == dedup_key and s.get("status") in {"pending", "accepted", "dismissed"}
+               for s in pending.values()) or sum(s.get("status") == "pending" for s in pending.values()) >= 5:
+            return None
+        record = dict(id=dedup_key, title=title, description=description, source=source,
+                      job_spec=job_spec, dedup_key=dedup_key, status="pending")
+        pending[record["id"]] = record
+        return record
+
+    def dismiss_suggestion(ref):
+        if ref not in pending:
+            return False
+        pending[ref]["status"] = "dismissed"
+        return True
+
     suggest = SimpleNamespace(get_suggestion=lambda ref: pending.get(ref),
-        dismiss_suggestion=Mock(return_value=True), load_suggestions=lambda: list(pending.values()),
-        add_suggestion=Mock(side_effect=lambda **kw: {"id": kw["dedup_key"]}))
+        dismiss_suggestion=Mock(side_effect=dismiss_suggestion), load_suggestions=lambda: list(pending.values()),
+        add_suggestion=Mock(side_effect=add_suggestion), MAX_PENDING=5)
     monkeypatch.setitem(sys.modules, "cron.jobs", cron)
     monkeypatch.setitem(sys.modules, "cron.suggestions", suggest)
     monkeypatch.setitem(sys.modules, "gateway.session_context", SimpleNamespace(
         get_session_env=lambda key, default=None: "1" if child and key == "HERMES_CRON_SESSION" else default))
     monkeypatch.setitem(sys.modules, "hermes_constants", SimpleNamespace(get_hermes_home=lambda: root))
     return cron, suggest
+
+
+def test_native_suggestion_outcomes_respect_owner_decisions(tmp_path, monkeypatch):
+    ledger = ledger_at(tmp_path)
+    for kind in ("daily_brief", "due_source_check", "cos_kickoff", "cos_weekly"):
+        rule(ledger, kind)
+    _, suggest = native(monkeypatch, tmp_path,
+        jobs=[{"name": "personal-assistant-daily-brief"}], suggestions=[
+            {"id": kind, "dedup_key": "personal-assistant:" + kind, "status": status}
+            for kind, status in zip(COS, ("pending", "accepted", "dismissed"))])
+    jobs = prepare_suggestions(ledger, native=True)["jobs"]
+    assert {j["kind"]: j.get("suggestion") for j in jobs} == {
+        "daily_brief": "job_exists", "due_source_check": "suggested", "cos_daily": "already_pending",
+        "cos_kickoff": "already_accepted", "cos_weekly": "dismissed"}
+    assert suggest.add_suggestion.call_count == 4
+    assert not any("generation" in r["fields"] for r in ledger.list("action"))
+    assert all("suggestion" not in j for j in prepare_suggestions(ledger)["jobs"])
+
+
+@pytest.mark.parametrize("old_status", ["pending", "accepted", "dismissed"])
+def test_stop_cos_generations_reoffer_without_losing_refs(tmp_path, monkeypatch, old_status):
+    ledger = ledger_at(tmp_path)
+    ledger.put("action", "pa:suggestion:cos_daily", {"suggestion_id": "old"}, action_type="automation_reference")
+    _, suggest = native(monkeypatch, tmp_path, suggestions=[{
+        "id": "old", "dedup_key": "personal-assistant:cos_daily", "status": old_status}])
+    for generation in (1, 2):
+        old_id = ledger.get("action", "pa:suggestion:cos_daily")["fields"]["suggestion_id"]
+        stop_cos(ledger)
+        fields = ledger.get("action", "pa:suggestion:cos_daily")["fields"]
+        assert fields == {"generation": generation, "suggestion_id": old_id}
+        for kind in COS[1:]:  # A stop also creates missing reference rows.
+            assert ledger.get("action", "pa:suggestion:" + kind)["fields"] == {"generation": generation}
+        rule(ledger, "cos_daily", paused=False)
+        job = prepare_suggestions(ledger, native=True)["jobs"][0]
+        assert job["suggestion"] == "suggested"
+        assert suggest.add_suggestion.call_args.kwargs["dedup_key"] == f"personal-assistant:cos_daily:g{generation}"
+        assert ledger.get("action", "pa:suggestion:cos_daily")["fields"] == {
+            "generation": generation, "suggestion_id": f"personal-assistant:cos_daily:g{generation}"}
+        assert prepare_suggestions(ledger, native=True)["jobs"][0]["suggestion"] == "already_pending"
+
+
+def test_cos_accept_text_explains_first_run(tmp_path, monkeypatch):
+    ledger = ledger_at(tmp_path)
+    for kind in COS[1:]:
+        rule(ledger, kind)
+    _, suggest = native(monkeypatch, tmp_path)
+    prepare_suggestions(ledger, native=True)
+    assert len(suggest.add_suggestion.call_args_list) == 3
+    base = "Optional PA routine; accepting enables it. Briefs use your configured local time."
+    assert sorted(c.kwargs["dedup_key"] for c in suggest.add_suggestion.call_args_list) == [
+        "personal-assistant:" + kind for kind in COS]
+    for call in suggest.add_suggestion.call_args_list:
+        daily = call.kwargs["dedup_key"] == "personal-assistant:cos_daily"
+        assert call.kwargs["description"] == base + (
+            " If today's slot has already passed, the first run comes within minutes of accepting." if daily else "")
 
 
 @pytest.mark.parametrize("modes,expected", [(None, False), ({}, False), ("bad", False),

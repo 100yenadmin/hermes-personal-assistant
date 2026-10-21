@@ -129,15 +129,41 @@ def prepare_suggestions(ledger, *, native=False, get_config=None):
     if native:
         native_profile_guard(ledger)
         from cron.jobs import list_jobs
-        from cron.suggestions import add_suggestion
+        from cron.suggestions import add_suggestion, load_suggestions
+        try:
+            from cron.suggestions import MAX_PENDING
+        except ImportError:
+            MAX_PENDING = 5
         existing = {job.get("name") for job in list_jobs(include_disabled=True)}
         for job in result["jobs"]:
             _install_precheck(ledger, job["kind"])
             if job["name"] in existing:
+                job["suggestion"] = "job_exists"
                 continue
-            item = add_suggestion(title=job["name"], description="Optional PA routine; accepting enables it. Briefs use your configured local time.", source="integration", job_spec=job["job_spec"], dedup_key="personal-assistant:" + job["kind"])
+            ref = "pa:suggestion:" + job["kind"]
+            generation = (ledger.get("action", ref) or {}).get("fields", {}).get("generation", 0)
+            dedup_key = "personal-assistant:" + job["kind"] + (":g" + str(generation) if generation else "")
+            description = "Optional PA routine; accepting enables it. Briefs use your configured local time."
+            if job["kind"] in {"daily_brief", "cos_daily"}:  # Weekly kinds have their own catch-up limits.
+                description += " If today's slot has already passed, the first run comes within minutes of accepting."
+            item = add_suggestion(title=job["name"], description=description, source="integration", job_spec=job["job_spec"], dedup_key=dedup_key)
             if item:
-                ledger.put("action", "pa:suggestion:" + job["kind"], {"suggestion_id": item["id"]}, action_type="automation_reference", status="suggested")
+                job["suggestion"] = "suggested"
+                # Ledger.put merges fields, preserving the generation set by stop_cos.
+                ledger.put("action", ref, {"suggestion_id": item["id"]}, action_type="automation_reference", status="suggested")
+            else:
+                saved = load_suggestions()
+                prior = next((s for s in saved if s.get("dedup_key") == dedup_key
+                              and s.get("status") in {"pending", "accepted", "dismissed"}), None)
+                if prior:
+                    job["suggestion"] = {"pending": "already_pending", "accepted": "already_accepted",
+                                         "dismissed": "dismissed"}[prior["status"]]
+                elif sum(s.get("status") == "pending" for s in saved) >= MAX_PENDING:
+                    job["suggestion"] = "backlog_full"
+        dropped = sum(job.get("suggestion") == "backlog_full" for job in result["jobs"])
+        if dropped:
+            result["next_step"] = (f"Hermes keeps at most {MAX_PENDING} pending suggestions and dropped {dropped}. "
+                                   "Ask the user to review /suggestions (accept or dismiss older ones), then run suggest again.")
     return result
 
 
@@ -166,6 +192,10 @@ def stop_cos(ledger):
         if (item.get("status") == "pending" and (item["id"] in ids
                 or (item.get("job_spec") or {}).get("name") in auto.COS_JOBS.values())):
             counts["suggestions"] += bool(dismiss_suggestion(item["id"]))
+    for kind, ref in zip(auto.COS_JOBS, refs):
+        generation = (ref or {}).get("fields", {}).get("generation", 0)
+        ledger.put("action", "pa:suggestion:" + kind, {"generation": generation + 1},
+                   action_type="automation_reference", status="stopped")
     for row in ledger.list("action"):
         rule = auto._rule_data(row)
         if row["action_type"] == "automation_rule" and rule.get("kind") in auto.COS_JOBS:

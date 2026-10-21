@@ -1,9 +1,11 @@
-"""Read-only discovery of integrations already exposed by the active Hermes profile."""
+"""Read-only integration discovery using registrations, CLI and credential presence."""
 
 from __future__ import annotations
 
 from collections import Counter
+import os
 from pathlib import Path
+import shutil
 from typing import Any, Callable, Iterable
 
 
@@ -46,8 +48,8 @@ def _recovery(status: str, capability: str) -> str:
 
 def discover(entries: Iterable[Any] | None = None,
              cached_check: Callable[[Callable[..., Any]], bool | None] | None = None,
-             profile_root=None, *, secret_present=None) -> dict[str, Any]:
-    """Describe tools; check only Browserbase credential presence, never their values.
+             profile_root=None, *, secret_present=None, which=None) -> dict[str, Any]:
+    """Describe registrations and CLI/Browserbase credential presence without probing.
 
     A registered tool with no check is available. A cached successful check is also
     available; cached failure means setup is needed. A registration whose check has
@@ -64,6 +66,8 @@ def discover(entries: Iterable[Any] | None = None,
             entries, cached_check = (), None
             discovery_error = type(exc).__name__
     entries = list(entries)
+    which = which or shutil.which
+    gog = os.environ.get("GOG_PATH") or which("gog")
     rows = []
     for capability, hints, reuse in _SPECS:
         matched = [entry for entry in entries if _matches(str(getattr(entry, "name", "")), hints)]
@@ -90,6 +94,11 @@ def discover(entries: Iterable[Any] | None = None,
             else:
                 status, evidence = "needs-setup", "active registration; current cached availability check failed"
             tool_names = sorted({str(entry.name) for entry in matched})
+        if gog and capability in {"calendar", "email"}:
+            status = "available" if matched and status == "available" else "unverified"
+            tool_names = ["gog", *(name for name in tool_names if name != "gog")]
+            evidence += "; gog CLI present; account authorisation is unverified"
+            reuse += " or the gog CLI"
         rows.append({
             "id": capability,
             "status": status,
@@ -106,11 +115,16 @@ def discover(entries: Iterable[Any] | None = None,
     except Exception:
         configured = False
     status = "available" if configured else "needs-setup"
+    missing_cli = configured and which("agent-browser") is None
+    if missing_cli:
+        status = "needs-setup"
     rows.append({"id": "remote_browser", "status": status, "tools": ["pa"],
                  "reuse": "PA Browserbase live-view handoff", "authentication": "unverified",
-                 "evidence": "browser_session operation; credentials present" if configured else
+                 "evidence": "Browserbase key and project present; agent-browser CLI not found on PATH" if missing_cli else
+                 "browser_session operation; credentials present" if configured else
                  "add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID to the profile's secrets",
-                 "recovery_action": _recovery(status, "remote_browser")})
+                 "recovery_action": "Install agent-browser on this host, then rerun capability discovery." if missing_cli else
+                 _recovery(status, "remote_browser")})
     counts = Counter(row["status"] for row in rows)
     result = {
         "capabilities": rows,
