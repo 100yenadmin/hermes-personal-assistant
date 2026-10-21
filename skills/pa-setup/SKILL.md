@@ -1,6 +1,6 @@
 ---
 name: pa-setup
-description: Guide Personal Assistant setup or review through discovery, one-question turns, approved preference writes, and a fresh-session check.
+description: Guide Personal Assistant setup or review, including the "grill me" profile interview, through discovery, one-question turns, approved preference writes, and a fresh-session check.
 metadata:
   openclaw:
     skillKey: pa-setup

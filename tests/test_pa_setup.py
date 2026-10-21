@@ -8,7 +8,7 @@ import pytest
 from personal_assistant import setup
 from personal_assistant.commands import READY, USAGE, make_pa_command
 from personal_assistant.entry import SCHEMA, dispatch
-from personal_assistant.onboarding_hook import make_pre_llm_call
+from personal_assistant.onboarding_hook import GRILL_ME, make_pre_llm_call
 from personal_assistant.privacy import PRIVATE_KEYS
 from personal_assistant.state import Ledger
 
@@ -126,6 +126,32 @@ def test_profile_apply_preserves_fresh_check_and_never_prompts_new(tmp_path, pas
     assert setup.applied(ledger, [], "C")["fresh_check"] == before
     assert make_pre_llm_call(tmp_path, lambda k, d: d)(user_message="Hi", is_first_turn=True, session_id="D") is None
 
+
+
+@pytest.mark.parametrize("status", ["applied", "not_started"])
+@pytest.mark.parametrize("message", ["grill me", "Grill me on my investor pitch"])
+def test_grill_me_outside_setup_nudges_profile_interview(tmp_path, status, message):
+    if status == "applied":
+        ledger = Ledger(tmp_path)
+        setup.propose(ledger, [])
+        setup.applied(ledger, [], "A")
+    assert setup.state(Ledger(tmp_path))["status"] == status
+    note = make_pre_llm_call(tmp_path, lambda k, d: d)(user_message=message, platform="telegram", sender_id="synthetic",
+                                                       is_first_turn=True, session_id="B")
+    assert note == {"context": GRILL_ME} and '{"action":"start","section":"profile"}' in note["context"]
+    assert "challenged on a specific plan or pitch" in note["context"]
+
+
+@pytest.mark.parametrize("platform", ["cron", "subagent"])
+def test_grill_me_on_unattended_turn_adds_nothing(tmp_path, platform):
+    assert make_pre_llm_call(tmp_path, lambda k, d: d)(user_message="grill me", platform=platform) is None
+
+
+def test_grill_me_during_active_profile_setup_keeps_its_context(tmp_path):
+    dispatch(tmp_path, {"operation": "setup", "data": {"action": "start", "section": "profile"}})
+    note = make_pre_llm_call(tmp_path, lambda k, d: d)(user_message="grill me", platform="telegram", sender_id="synthetic")
+    assert "Guided setup is active" in note["context"] and "profile section's intro" in note["context"]
+    assert GRILL_ME not in note["context"] and "PA's profile interview" not in note["context"]
 
 @pytest.fixture
 def setup_files(tmp_path):
