@@ -48,6 +48,7 @@ def _live(value):
         for name in ("id", "area", "owner", "title", "started", "due", "status", "correction"):
             _require(isinstance(task.get(name), str) and bool(task[name].strip()), f"{field}.{name}")
         _require(task["area"] in keys, f"{field}.area")
+        _require(portable(task["owner"]) == task["owner"], f"{field}.owner (no local paths)")  # Keys stay distinct.
         _require((task["owner"], task["id"]) not in ids, f"{field}.id (duplicate for this owner)")
         ids.add((task["owner"], task["id"]))
         _require(task["status"] in {"pass", "fail", "pending"}, f"{field}.status")
@@ -165,7 +166,8 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             sid = scenario["id"]
             run_id = f"{lab_name}/{folder.name}"
             start, given = run.get("start"), run.get("run_id")
-            well_formed = type(start) in (int, float) and (given is None or isinstance(given, str))
+            well_formed = type(start) in (int, float) and (given is None or isinstance(given, str)) \
+                and run.get("scenario", sid) == sid  # The runner writes the scenario id into both files.
             # The runner writes run_id and start into run.json, so renamed or copied folders keep one identity.
             identity = (sid, given or folder.name, start) if well_formed else None
             if identity is not None and identity in seen:  # Only counted runs reserve an identity, so a damaged copy never hides its original.
@@ -176,7 +178,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
                 reason = f"skipped:{run.get('reason', 'unspecified')}"
             elif not well_formed:
                 reason = "malformed_run"
-            elif "end" not in run:
+            elif "end" not in run or not all((folder / name).is_file() for name in ("checks.json", "judge.json")):
                 reason = "incomplete"
             elif not isinstance(ref, str) or not ref:
                 reason = "no_plugin_refs"

@@ -402,10 +402,10 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
     assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 1, "none": 12}
-    assert "· 1 partial checks failing" in headline(c)
+    assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()
-    assert "· 0 partial checks failing" in headline(card(empty))
+    assert "· 0 areas with partial checks failing" in headline(card(empty))
     assert "%" not in headline(c)
 
 
@@ -640,13 +640,9 @@ def test_non_boolean_all_pass_never_passes(tmp_path, single_test, value):
     assert area(card(tmp_path))["tests"][0]["passed"] == 0
 
 
-def test_json_keys_are_scrubbed(tmp_path):
-    live = day30(live_tasks())
-    for task in live["tasks"]:
-        task["owner"] = "/Users/alice/private" if task["owner"] == "owner-0" else task["owner"]
-    live["baselines"]["/Users/alice/private"] = live["baselines"].pop("owner-0")
-    live["day30"]["/Users/alice/private"] = live["day30"].pop("owner-0")
-    assert "/Users" not in json.dumps(card(tmp_path, live))
+def test_json_keys_are_scrubbed():
+    from evals.scorecard._portable import portable
+    assert "/Users" not in json.dumps(portable({"/Users/alice/private": {"note": "/Users/alice/x"}}))
 
 
 @pytest.mark.parametrize("value", ["/etc/hosts", "/Library/Caches/x", "/usr/local/bin/x", "/Applications/A.app/x"])
@@ -678,3 +674,27 @@ def test_unhashable_or_mistyped_identity_is_malformed(tmp_path, single_test, fie
     run(tmp_path, **{"run.json": {"end": 10, "status": "ok", **fields}})
     c = card(tmp_path)
     assert area(c)["tests"][0]["runs"] == 0 and c["excluded"][0]["reason"] == "malformed_run"
+
+
+def test_scenario_mismatch_is_malformed(tmp_path, single_test):
+    run(tmp_path, **{"run.json": {"start": 0, "end": 1, "status": "ok", "scenario": "s99_other"}})
+    c = card(tmp_path)
+    assert area(c)["tests"][0]["runs"] == 0 and c["excluded"][0]["reason"] == "malformed_run"
+
+
+@pytest.mark.parametrize("missing", ["checks.json", "judge.json"])
+def test_copy_missing_evidence_never_hides_the_intact_run(tmp_path, single_test, missing):
+    single_test["kind"] = "full"
+    meta = {"run_id": "r", "start": 5, "end": 10, "status": "ok"}
+    run(tmp_path / "a-damaged", "r0", **{"run.json": meta, missing: None})
+    run(tmp_path / "b-intact", "r0", **{"run.json": meta})
+    c = build("V", SHA, [tmp_path / "a-damaged", tmp_path / "b-intact"], as_of="2026-10-21")
+    assert area(c)["tests"][0]["passed"] == 1
+    assert c["excluded"] == [{"run": "a-damaged/r0", "scenario": SCENARIO, "reason": "incomplete"}]
+
+
+def test_owner_label_with_path_is_rejected(tmp_path):
+    live = live_tasks()
+    live["tasks"][0]["owner"] = "/Users/alice/a"
+    with pytest.raises(ValueError, match=r"tasks\[0\]\.owner"):
+        card(tmp_path, live)

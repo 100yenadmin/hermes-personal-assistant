@@ -17,8 +17,8 @@ def _text(value):
 def headline(card):
     counts = card["counts"]["lab"]
     partial = card["counts"]["partial"]
-    return (f"Lab: {counts['pass']} pass · {partial['pass']} partial checks passing · "
-            f"{partial['fail']} partial checks failing · "
+    return (f"Lab: {counts['pass']} pass · {partial['pass']} areas with partial checks passing · "
+            f"{partial['fail']} areas with partial checks failing · "
             f"{counts['fail']} fail · {counts['unproven']} unproven · "
             f"{counts['not_exercised']} not exercised")
 
