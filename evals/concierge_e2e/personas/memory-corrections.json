@@ -7,13 +7,6 @@
     "When you write anything to my accountant, Synthetic Mina Park, always open with a formal greeting like \"Dear Ms. Park\".",
     "Correction: three lines is too short. Five lines or fewer is right."
   ],
-  "recorded": [
-    "five",
-    "Mina"
-  ],
-  "retired": [
-    "three lines"
-  ],
   "after_new": [
     {
       "ask": "Draft a short note to Mina asking for the Q3 invoice. Just show me the draft.",
@@ -29,5 +22,8 @@
         "5 lines"
       ]
     }
-  ]
+  ],
+  "person": "Mina",
+  "corrected": "five",
+  "replaced": "three lines"
 }

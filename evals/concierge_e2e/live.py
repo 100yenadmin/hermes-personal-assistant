@@ -204,12 +204,18 @@ def main():
         for text in persona["statements"]:
             owner(text)
         rows = profile_rows()
-        failures = [f"no active record matching {want!r}" for want in persona["recorded"]
-                    if not any(r["state"] in {"active", "filed"} and want.casefold() in json.dumps(r, ensure_ascii=False).casefold()
-                               for r in rows)]
-        failures += [f"superseded text still active: {old!r}" for old in persona.get("retired", [])
-                     if any(r["state"] in {"active", "filed"} and r["kind"] == "preference" and old.casefold() in r["text"].casefold()
-                            for r in rows)]
+        live = [r for r in rows if r["state"] in {"active", "filed"}]
+        person = next((r for r in live if r["kind"] == "person" and persona["person"].casefold() in r["name"].casefold()), None)
+        fixed = next((r for r in live if r["kind"] == "preference" and r.get("source") == "corrected"
+                      and persona["corrected"].casefold() in r["text"].casefold()), None)
+        old = next((r for r in rows if fixed and r["identity"] == fixed.get("supersedes")), None)
+        failures = [name for name, bad in (
+            ("no active person record with a rule", not person or not person.get("rules")),
+            ("no active corrected preference", not fixed),
+            ("correction does not supersede the replaced preference",
+             not old or old["state"] != "retired" or persona["replaced"].casefold() not in old["text"].casefold()),
+            ("replaced preference still active", any(r["kind"] == "preference" and persona["replaced"].casefold()
+                                                     in r["text"].casefold() for r in live))) if bad]
         owner("/new")
         start, checks = len(exchanges), []
         for check in persona["after_new"]:

@@ -20,7 +20,9 @@ OWNER_MEMORY = ('If this message states a lasting preference, corrects how you w
 # Phrases that often carry a lasting preference or correction; the model decides whether this one does.
 PREFERENCE = re.compile(r"\b(?:from now on|going forward|in future|always|never(?! mind)|correction|actually|i(?:'d| would)? prefer|"
                         r"i (?:don'?t |do not )?like|please (?:don'?t|do not|stop)|stop (?:doing|sending|using|calling)|"
-                        r"don'?t ever|make sure (?:you|to))\b", re.I)
+                        r"don'?t ever|make sure (?:you|to)|keep (?:your |my )?(?:replies|messages|answers|emails|notes)|"
+                        r"when (?:you )?(?:write|draft|email|message|reply|text|book|call)|use (?:a |an )?(?:formal|informal|casual|"
+                        r"short|polite)\b|(?:call|address) me)\b", re.I)
 GRILL_ME_COMPLETE = ('The owner said "grill me", but the profile is complete: say so and point to /pa setup review. '
                      'Do not start setup.')
 
@@ -111,7 +113,8 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
             current = setup.state(ledger)
             status = current["status"]
             # Setup records its own answers; elsewhere a stated preference goes to owner memory, not the memory tool.
-            remember = status not in {"requested", "in_progress", "proposed"} and bool(PREFERENCE.search(message))
+            stated = bool(PREFERENCE.search(message))
+            remember = stated and status not in {"requested", "in_progress", "proposed"}
             if status in {"requested", "in_progress", "proposed"}:
                 platform, sender, chat = kwargs.get("platform") or "", kwargs.get("sender_id") or "", _chat_key(kwargs)
                 cos_stopped = current["requested_section"] == "chief_of_staff" and not cos_enabled(get_config)
@@ -124,9 +127,11 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                 elif not unbound and (platform, sender) != (current["active_platform"], current["active_sender_id"]):
                     return mode_context
                 elif reserved or chat != current["active_chat"]:  # A legacy row (no active_chat) is active in no chat.
-                    if not kwargs.get("is_first_turn"):
+                    # Not a setup answer here: a stated preference still goes to owner memory.
+                    extra = [ELSEWHERE] * bool(kwargs.get("is_first_turn")) + [OWNER_MEMORY] * stated
+                    if not extra:
                         return mode_context
-                    return {"context": (mode_context["context"] + "\n" if mode_context else "") + ELSEWHERE}
+                    return {"context": "\n".join(([mode_context["context"]] if mode_context else []) + extra)}
                 if cos_stopped:
                     return {"context": COS_STOPPED}
                 interview_start = (f"show what discovery found as one summary, then ask only the next question ({current['next_question']})"

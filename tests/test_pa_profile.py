@@ -303,6 +303,7 @@ def test_session_note_keeps_sensitive_filed_details_out_and_fits_shorter_rows(tm
 @pytest.mark.parametrize("message,routed", [
     ("From now on, keep your replies to three lines or fewer.", True), ("Correction: five lines is right.", True),
     ("Always copy my partner on travel plans.", True), ("Please don't call me before 10.", True),
+    ("Keep your replies to three lines.", True), ("Use a formal greeting with Alex.", True),
     ("Never mind, thanks.", False), ("What is on my calendar tomorrow?", False)])
 def test_stated_preferences_are_routed_to_owner_memory(tmp_path, human_hook, message, routed):
     result = human_hook(user_message=message, is_first_turn=False, session_id="s")
@@ -314,6 +315,13 @@ def test_setup_answers_are_not_routed_to_owner_memory(tmp_path, human_hook):
     setup.request(Ledger(tmp_path), "profile")
     result = human_hook(user_message="Always copy my partner on travel plans.", is_first_turn=False, session_id="s")
     assert result and "Guided setup is active" in result["context"] and OWNER_MEMORY not in result["context"]
+
+
+def test_owner_memory_is_routed_in_a_chat_other_than_active_setup(tmp_path, human_hook):
+    from personal_assistant import setup
+    setup.request(Ledger(tmp_path), "profile", active_chat="telegram:setup-chat:")
+    result = human_hook(user_message="From now on, keep replies short.", is_first_turn=False, session_id="s")
+    assert result and OWNER_MEMORY in result["context"]
 
 
 def test_schema_limits_and_review_paths(tmp_path):
