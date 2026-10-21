@@ -38,10 +38,10 @@ first).
 
 ## One role, three stages
 
-| Stage | The job | Where PA stands (0.8.0-rc.3) |
+| Stage | The job | Where PA stands (0.9.0-rc.1) |
 |---|---|---|
 | 1. Personal assistant | The owner's travel, errands, bookings and personal admin | **Strongest area.** Trip intake, concierge offers, booking prep up to the final page on real sites. No transaction has been completed end-to-end yet. |
-| 2. Remote VA / executive assistant | The owner's office: inbox, calendar, follow-through, documents, finance admin, vendors, calls | **Partial.** Calendar reads and daily briefs work on the live pilot. The safe-action gateway has unit tests and its native hook loads, but no real provider action has gone through it yet. Inbox management, chasing open loops and office work are missing. |
+| 2. Remote VA / executive assistant | The owner's office: inbox, calendar, follow-through, documents, finance admin, vendors, calls | **Partial.** Calendar reads and daily briefs work on the live pilot. The safe-action gateway has unit tests and its native hook loads, but no real provider action has gone through it yet. Inbox management, chasing open loops and office work are missing. The owner interview and owner memory (corrections, people, SOPs, trust levels) are built; their live exit test is next. |
 | 3. Remote Chief of Staff | The owner's business and teams | **Single-owner rhythm only:** daily recommendation, weekly kickoff and closeout, scout, radar. No team model. |
 
 Each stage keeps everything below it. This is one plugin, one agent and one

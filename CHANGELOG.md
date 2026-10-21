@@ -2,7 +2,52 @@
 
 ## Unreleased
 
-- **Vision and roadmap (#5).** `VISION.md` sets the goal: a remote assistant at the level of a top-rated human VA, then a remote Chief of Staff. `docs/vision/` defines the bar for each, with an acceptance test per area. `ROADMAP.md` orders the work from self-onboarding through VA parity (1.0) to Chief of Staff (2.0). Documentation only.
+## 0.9.0-rc.1 — 2026-10-21
+
+Roadmap M1, "Knows you" (#46, #47): the agent interviews the owner, remembers what it learns, and reuses it instead of asking again.
+
+- **"Grill me": a profile interview (#46, #57, #59).** Say "grill me", or send `/pa setup grill` (or `/pa setup profile`). PA interviews you across the eight groups of the VA bar:
+  1. the business;
+  2. you;
+  3. communication;
+  4. decision rights and spending limits;
+  5. preferences and voice;
+  6. calendar rules;
+  7. history and worries;
+  8. access.
+
+  It needs neither Chief of Staff mode nor `/new`.
+  - **Short sittings.** One group per sitting, and each answer is read back. A sitting ends with the usual reviewed proposal and apply. The agent then names the next group and asks "now or later?". You can still skip a question, pause, or say "you decide".
+  - **Proof that answers were saved.** Each new sitting starts by reading two saved facts back from your files, or by saying which are missing.
+  - **Read before asking.** With your consent, PA first reads USER.md, the manual, the calendar, past itineraries and up to 20 recent sent emails (only through a read path that is already authorised). If you decline, it reads no private sources. What it finds is recorded for all eight groups at once and offered as the recommended answer, so later sittings do not ask it again.
+  - **Never re-ask.**
+    - `biz_priorities` and the Chief of Staff `cos_priorities` are one fact: answering either covers both.
+    - Three profile questions only partly overlap earlier answers: decision rights, channel and response times. For those, the agent states what it already knows and asks only for the missing part.
+  - **"Grill me" works in a fresh session.** A routing note on the owner's message starts the interview. The note tells the agent to answer normally when "grill me" means something else, such as challenging a plan or pitch. Common negations ("don't grill me") leave the note out.
+  - **A finished profile is not reopened.** "Grill me" on a complete profile says so and points to `/pa setup review`. The agent does not start another section on its own while a review is waiting; it asks you to apply or change the review first. An explicit `/pa setup <section>` command for an available section switches at once: it clears the waiting review, and your saved answers stay.
+- **Owner memory (#47, #58).** Corrections, people, SOPs and trust levels are kept in the existing PA ledger. Active preferences and people reach the agent from the next session through a short note, within its limits, with no setup review in between.
+  - **Corrections are captured on the spot.** When you correct the agent or state a lasting preference, it records it with its source (said, inferred or corrected) and replies "Noted.". A correction retires the preference it replaces. When you edit and send a draft, the differences are saved as voice preferences.
+  - **Inferences wait for your yes.** A pattern seen twice is saved as a proposed preference, and the agent asks to confirm it once, in the next brief or closeout. A confirmed preference is never asked again. An inference never changes a preference you stated, confirmed or filed: the agent asks you instead.
+  - **People.** Key contacts are saved with their relationship, preferred channel and up to five rules (for example "never call before 10"). The agent checks those rules before drafting to or about a person. Sensitive contacts are named but never quoted.
+  - **SOPs.** After a recurring task first runs, the agent drafts its SOP: trigger, steps, tools, what done looks like, and escalation. Corrections add a version and a changelog line. After two runs without a correction, the SOP becomes `owned`.
+  - **Trust levels.**
+    - Each task type starts at `shadow`: you see each output before it is used.
+    - `own` covers preparation only.
+    - `independent` is reserved for later and has no effect.
+    - No level grants approval to pay, book, send or cancel.
+  - **In force without a file write.** On the first human turn of a session, PA adds a short note when there is something to list: at most 10 rows and 1,200 characters of active preferences and people not yet written into USER.md or the manual. A rule that does not fit is left out whole, never cut, and the note says more is waiting. Proposed inferences are not in it; SOPs and trust levels are looked up with the `profile` operation. Cron, HeartBeat 2.0 wakes and subagents never get the note.
+  - **Filing happens only after a review.** At `/pa setup review` or the weekly closeout, these are proposed as normal reviewed writes. A filed fact that you later make the agent forget, or that a correction replaces, is listed for removal from the files at the same review, even if it changed after filing: PA keeps the text the files hold until the review replaces or removes it. Until then, the note marks it "FORGOTTEN, do not use" (within the note's limits). Forgetting retires a record; nothing is deleted.
+  - **Day-30 review.** Once the oldest active trust record is 30 days old, the next weekly closeout reviews task types and levels once and asks: "Is this saving you time? Roughly how much?". When Chief of Staff mode is off, the daily brief asks this once instead. Trust levels change only after your answer.
+  - **Prohibited content.** Recognised credentials (labelled keys, tokens and passwords, and common key prefixes), card numbers (by Luhn check, so ordinary phone numbers are accepted) and labelled account numbers are refused. Passport numbers are refused through the existing privacy filter. There are no fields for raw message bodies, values are length-capped, and the skill rules forbid storing raw message bodies and require safe paraphrases.
+- **Setup status per section (#57).** `/pa setup status` (or `/pa status`) shows each started section, with skipped questions counted and shown. For example: "Core 8 of 8 · Chief of Staff 6 of 6 · Profile 4 of 27 (next: you)".
+- **Two pilot faults fixed (#57).**
+  - Bare `/pa setup` after an applied setup no longer restarts the core section. With the quick check still pending, it says the setup is saved and asks for `/new` and then any message. With core complete, it shows a menu of the other sections.
+  - A pending quick check from core or Chief of Staff setup survives a later profile sitting.
+- **Vision and roadmap (#45).** `VISION.md` sets the goal: a remote assistant at the level of a top-rated human VA, then a remote Chief of Staff. `docs/vision/` defines the bar for each. `ROADMAP.md` orders the work from here to VA parity (1.0) and Chief of Staff (2.0). Documentation only.
+- **Upgrade notes.**
+  - **New operation.** There is a new `profile` operation. Nothing runs on install, and existing setup answers are kept.
+  - **Reserved action records.** Generic `action_upsert` now refuses the four profile record types (`preference`, `person`, `sop`, `trust`) and their identity prefixes (`pref:`, `person:`, `sop:`, `trust:`); transaction operations refuse those prefixes. Profile records do not appear in action status lists or the ledger summary; use the `profile` operation.
+  - **Hermes title matching.** The rc.3 note cited NousResearch/hermes-agent#142364 for Hermes matching a routine's title to an older record of the same name. That issue is closed in favour of the open upstream fix, NousResearch/hermes-agent#129597.
 
 ## 0.8.0-rc.3 — 2026-10-21
 
