@@ -273,6 +273,18 @@ def test_new_session_note_bounds_order_and_filing(tmp_path, human_hook):
     assert len(call(tmp_path, "list")) <= 50
 
 
+def test_session_note_never_cuts_a_rule_and_names_replaced_filed_text(tmp_path):
+    filed = pref(tmp_path, "Prefer short replies", slug="replies")["action_id"]
+    call(tmp_path, "mark_filed", identities=[filed])
+    pref(tmp_path, "Prefer detailed replies", slug="replies")  # Same slug: the files still hold the old text.
+    assert "Prefer detailed replies (replaces the filed text, do not use: Prefer short replies)" in session_note(Ledger(tmp_path))
+    long_rules = [pref(tmp_path, f"Rule {n} " + "x" * 280, slug=f"long-{n}")["fields"]["text"] for n in range(6)]
+    note = session_note(Ledger(tmp_path))
+    lines = [line for line in note.splitlines() if line.startswith("- ")]
+    assert len(note) <= 1200 and note.endswith("(More owner memory is waiting: call profile pending_files.)")
+    assert all(any(line.endswith(": " + text) for text in long_rules) or "replaces the filed text" in line for line in lines)
+
+
 def test_schema_limits_and_review_paths(tmp_path):
     with pytest.raises(ValidationError):
         call(tmp_path, kind="person", name="Alex", rules=["x"] * 6)
