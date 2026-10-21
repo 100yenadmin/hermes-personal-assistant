@@ -90,17 +90,30 @@ def main():
         except Exception:
             return {}
 
-    def interview():
+    def loads(value):
+        try:
+            value = json.loads(value) if isinstance(value, str) else value
+        except ValueError:
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def recorded_asks(rows):
+        """IDs in setup `record` calls' `asked`; the saved `asked` list is deduplicated and hides re-asks."""
+        asked = set()
+        for row in rows:
+            for call in (((row.get("response") or {}).get("choices") or [{}])[0].get("message") or {}).get("tool_calls") or []:
+                function = call.get("function") or {}
+                arguments = loads(function.get("arguments"))
+                data = loads(arguments.get("data"))
+                if function.get("name") == "pa" and arguments.get("operation") == "setup" and data.get("action") == "record":
+                    asked |= {q for q in data.get("asked") or [] if isinstance(q, str)}
+        return asked
+
+    def answer_until_review(since, consents=0, answered=None):
         """Answer whatever PA's setup record says is next, so skipped questions cannot misalign answers."""
-        section = persona.get("section", "core")
-        owner("/pa setup" + (" " + section if section != "core" else ""))
-        begin = setup_state()
-        sitting, asked_before = begin.get("sitting_group"), set(begin.get("asked") or [])
-        from personal_assistant.setup import PROFILE_GROUPS  # Importable once setup_state() has run.
-        owner("hi")
-        consents, kept = 0, False
+        kept = False
         for _ in range(14):
-            current, last = setup_state(), "\n".join(rig.texts()[-3:]).lower()
+            current, last = setup_state(), "\n".join(rig.texts()[since:][-3:]).lower()
             if current.get("status") == "proposed" or "apply all" in last or "apply some" in last:
                 break
             if not kept and consents and ("already know" in last or "correction" in last):
@@ -112,24 +125,67 @@ def main():
             elif current.get("next_question") is None:
                 owner("Show the review now.")
             else:
+                if answered is not None:
+                    answered.add(current["next_question"])
                 owner(persona["answers"].get(current["next_question"], "You decide."))
+        return setup_state()
+
+    def interview():
+        section = persona.get("section", "core")
+        owner("/pa setup" + (" " + section if section != "core" else ""))
+        begin = setup_state()
+        sitting, asked_before = begin.get("sitting_group"), set(begin.get("asked") or [])
+        from personal_assistant.setup import PROFILE_GROUPS  # Importable once setup_state() has run.
+        groups = dict(PROFILE_GROUPS)
+        owner("hi")
+        current = answer_until_review(0)
+        first_asked, first_answered = set(current.get("asked") or []), set(current.get("answers") or {})
+        sittings = [{"group": sitting, "asked": sorted(first_asked - asked_before),
+                     "discovered": sorted(k for k, v in (current.get("answers") or {}).items() if v.get("source") == "discovered")}]
+        failures = [name for name, bad in (
+            ("not at the review", current.get("status") != "proposed"),
+            ("sitting questions left open", not next((g["done"] for g in current.get("groups", []) if g["group"] == sitting), False)
+             if section == "profile" else current.get("next_question") is not None),
+            ("asked outside the sitting", section == "profile" and first_asked - asked_before
+             - set(groups.get(sitting, ())))) if bad]
+        if section == "profile" and persona.get("sittings", 1) == 2:
+            owner("Apply all.")
+            while setup_state().get("status") != "applied" and turns < 40 and len(rig.texts()) < 40:
+                owner("Apply all.")
+            if setup_state().get("status") != "applied":
+                failures.append("apply did not complete")
+            else:
+                owner("/new")
+                seen, start, answered = len(rig.texts()), len(exchanges), set()  # Sitting 1's review must not end sitting 2.
+                owner("grill me")
+                current = answer_until_review(seen, consents=1, answered=answered)
+                second = current.get("sitting_group")
+                second_asked = recorded_asks(exchanges[start:]) | answered
+                first_request = exchanges[start]["request"]["messages"] if len(exchanges) > start else None
+                stale = first_request is None or any(m.get("role") == "user" and "Apply all." in json.dumps(
+                    m.get("content"), ensure_ascii=False) for m in first_request if isinstance(m, dict))
+                sittings.append({"group": second, "asked": sorted(second_asked),
+                                 "discovered": sorted(k for k, v in (current.get("answers") or {}).items()
+                                                      if v.get("source") == "discovered" and k not in sittings[0]["discovered"])})
+                failures += [name for name, bad in (
+                    ("/new did not start a fresh session", stale),
+                    ("sitting 2 not at the review", current.get("status") != "proposed"),
+                    ("sitting 2 questions left open", not next((g["done"] for g in current.get("groups", []) if g["group"] == second), False)),
+                    ("re-asked across sittings", second_asked & (set(persona.get("expected_discovered", [])) | first_answered | first_asked)),
+                    ("asked outside sitting 2", second_asked - set(groups.get(second, ()))),
+                    ("sitting 2 did not move on", second == sitting)) if bad]
         current = setup_state()
         answers = current.get("answers") or {}
         discovered = sorted(k for k, v in answers.items() if v.get("source") == "discovered")
         result = {"persona": persona["name"], "status": current.get("status"), "asked": current.get("asked"),
                   "discovered": discovered, "expected_discovered": persona.get("expected_discovered", []),
-                  "asked_and_discovered": sorted(set(discovered) & set(current.get("asked") or []))}
+                  "asked_and_discovered": sorted(set(discovered) & set(current.get("asked") or [])), "sittings": sittings}
         (rig.root / "persona-result.json").write_text(json.dumps(result, indent=2))
         transcript.append("Result: " + json.dumps(result))
-        failures = [name for name, bad in (
-            ("not at the review", result["status"] != "proposed"),
-            ("sitting questions left open", not next((g["done"] for g in current.get("groups", []) if g["group"] == sitting), False)
-             if section == "profile" else current.get("next_question") is not None),
+        failures += [name for name, bad in (
             ("discovered set differs from expected", set(result["expected_discovered"]) != set(discovered)),
             ("discovered question asked", result["asked_and_discovered"]),
-            ("partly known question marked discovered", set(persona.get("must_not_discover", [])) & set(discovered)),
-            ("asked outside the sitting", section == "profile" and set(result["asked"] or []) - asked_before
-             - set(dict(PROFILE_GROUPS).get(sitting, ())))) if bad]
+            ("partly known question marked discovered", set(persona.get("must_not_discover", [])) & set(discovered))) if bad]
         if failures:  # Evidence is written first; the exit code then reports the regression.
             raise AssertionError("persona expectations failed: " + ", ".join(failures))
 

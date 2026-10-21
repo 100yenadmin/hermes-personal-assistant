@@ -1,6 +1,6 @@
 ---
 name: pa-setup
-description: Guide Personal Assistant setup or review through discovery, one-question turns, approved preference writes, and a fresh-session check.
+description: Guide Personal Assistant setup or review, including the "grill me" profile interview, through discovery, one-question turns, approved preference writes, and a fresh-session check.
 metadata:
   openclaw:
     skillKey: pa-setup
@@ -56,7 +56,7 @@ Read `status`, `requested_mode`, `next_question`, `answers`, `skipped`, `asked`,
 `/pa setup chief-of-staff`: first check mode; if off, explain `/pa mode chief-of-staff on`, restart and a new session, then stop.
 Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow in `references/question-bank.md` and the reviewed destinations in `references/where-answers-go.md`.
 ## Profile section
-For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"start","section":"profile"}` (no CoS mode gate); if it fails because a review is waiting, relay that message. Follow `references/question-bank.md`: one group per sitting (`sitting_group`), read each answer back, and end when `sitting_done`: “That covers <group>. Next is <current_group>, about N questions: now or later?” For a `related` ID, state its source answer as known (the recommendation) and ask only the missing part. Review and apply each sitting with steps 6–7. Start the next sitting by reading back two saved facts from loaded USER.md/manual files; never run `/new` or arm a trip for profile.
+For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"start","section":"profile"}` (no CoS mode gate); if it fails because a review is waiting or the profile is complete, relay that message. Follow `references/question-bank.md`: one group per sitting (`sitting_group`), read each answer back, and end when `sitting_done`: “That covers <group>. Next is <current_group>, about N questions: now or later?” For a `related` ID, state its source answer as known (the recommendation) and ask only the missing part. Review and apply each sitting with steps 6–7. Start the next sitting by reading back two saved facts from loaded USER.md/manual files; never run `/new` or arm a trip for profile.
 
 ## Flow
 1. Read setup status; `pending_changes` waits for the next `/pa setup review`, then propose and apply to save it in files. For applied core/CoS setup with a pending or failed check, use the
@@ -82,14 +82,14 @@ For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"st
    A repeated `/pa setup` keeps prior answers: show them in the review, never re-ask.
 4. Send “Here is what I already know” as its own message, with safe source summaries
    and uncertainties, ending with one ask: keep these (recommended if supported) or correct.
-   In one `record` call, save each fully known ID in the requested section as `discovered` (not in `asked`); existing equivalents stay under their source IDs. Core examples:
+   In one `record` call, save each fully known ID in the requested section as `discovered` (not in `asked`); for profile, every fully known ID in all eight groups, not only this sitting's group; existing equivalents stay under their source IDs. Core examples:
    name+quiet hours+zone → call_and_quiet, ask-before rules → authority, arrival wishes →
    arrival_help, check-in lead → check_in_time. For a partly known ID, state the known part as a fact and ask only for the unknown part. Never ask for a name, zone or rule that discovery found.
    For each existing brief or alert job, show keep / adapt / replace with a reason.
    Resolve one job per question; one publisher per brief or alert. Review job changes.
 5. Read `references/question-bank.md`. Follow the requested section's IDs, skipping answers,
    `covered` equivalents and skipped IDs; read known answers back instead of asking again.
-   Record each answer and only actually `asked` IDs. Profile stops at its sitting's group boundary.
+   Record each answer and only actually `asked` IDs. Profile asks only its sitting's group; discovered answers from any group are recorded in step 4.
    Unlisted deeper topics use `propose` and `draft: true` summaries, not invented IDs;
    a draft keeps the interview going and step 6 uses `proposal_draft`.
 6. Read `references/where-answers-go.md` and `references/manual-template.md`.
