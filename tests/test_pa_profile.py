@@ -67,6 +67,9 @@ def test_private_values_rejected_without_write(tmp_path, data):
     ("retired", "said", {}, "active"),
     ("retired", "inferred", {}, "proposed"),
     ("proposed", "inferred", {"text": "Prefer detailed replies"}, "proposed"),
+    ("proposed", "inferred", {}, "proposed"),
+    ("proposed", "said", {}, "active"),
+    ("proposed", "corrected", {}, "active"),
     ("filed-unconfirmed", "inferred", {"text": "Prefer detailed replies"}, "proposed"),
 ])
 def test_preference_remember_preserves_lifecycle(tmp_path, initial, source, change, expected):

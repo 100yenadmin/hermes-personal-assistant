@@ -99,6 +99,8 @@ def remember(ledger, data):
         content = ("text", "category") if kind == "preference" else ("name", "relationship", "channel", "rules", "sensitive")
         if old and old["fields"]["state"] != "retired" and all(fields[k] == old["fields"].get(k) for k in content):
             fields["state"] = old["fields"]["state"]
+            if fields["state"] == "proposed" and fields["source"] != "inferred":
+                fields["state"] = "active"  # The owner stated a pending inference directly; never ask it again.
         else:
             fields["state"] = ("proposed" if kind == "preference" and fields["source"] == "inferred"
                                and (not old or old["fields"]["state"] == "retired" or fields["owner_confirmed_at"] is None)
