@@ -73,7 +73,8 @@ plugin catalog.
 - PA's own Daily Ops jobs reach the user on Hermes v0.22.2 (#21).
 - Browser handoff: `agent-browser` reachable where PA runs (#39).
 - Small fixes on the current path: #17, #35, #36.
-- Shared-group setup (#37) waits until shared groups are in scope. The pilot uses a direct message.
+- Shared-group setup (#37) waits until shared groups are in scope or a pilot
+  report needs it. The pilot uses a direct message.
 
 **Exit.**
 - #1 passes on the real trip.
@@ -443,4 +444,5 @@ the evidence in either of two cases:
 - a milestone's exit test passes;
 - the order changes.
 
-Each milestone has a GitHub milestone, and its work is tracked in issues.
+Each milestone (M0 to M9) has a GitHub milestone of the same name, and its work
+is tracked in issues.
