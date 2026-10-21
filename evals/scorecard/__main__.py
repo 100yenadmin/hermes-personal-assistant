@@ -12,12 +12,12 @@ def main(argv=None):
     parser.add_argument("--version", required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--lab", required=True, action="append")
-    parser.add_argument("--live", type=Path)
+    parser.add_argument("--live", type=Path, action="append")
     parser.add_argument("--as-of")
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
-        live = json.loads(args.live.read_text(encoding="utf-8")) if args.live else None
+        live = [json.loads(path.read_text(encoding="utf-8")) for path in args.live] if args.live else None
         card = build(args.version, args.commit, args.lab, live, as_of=args.as_of)
         text = markdown(card)
         args.out.mkdir(parents=True, exist_ok=True)

@@ -332,7 +332,12 @@ def test_schema_limits_and_review_paths(tmp_path):
     root = Path(__file__).resolve().parents[1] / "skills"
     for path in ("cos-weekly/SKILL.md", "daily-ops/SKILL.md"):
         text = (root / path).read_text()
-        assert "Is this saving you time? Roughly how much?" in text and "30 days" in text
+        assert "30 days" in text and "day-30 time check" in text and "`personal-assistant`" in text
+        assert "profile remember kind=preference source=said category=work" not in text
+    text = (root / "personal-assistant/SKILL.md").read_text()
+    assert "28 or more days ago" in text and "action_id=pa:day30-evidence" in text and "`week_ending` = the date of the answer" in text
+    assert "How many minutes did the work you hand me take you in the last seven days" in text
+    assert "action_id=pa:baseline-ask" in text and text.count("add `declined: true` if the owner declines") == 2
     assert "mark_filed" in (root / "pa-setup/references/where-answers-go.md").read_text()
 
 

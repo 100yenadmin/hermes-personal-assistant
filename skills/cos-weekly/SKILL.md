@@ -52,8 +52,8 @@ Record it on the `cos:weekly:<week>` note (the script's `week`) with every field
 lists, including `benefit` and `review_at` (next week's slot), as `stage: "draft"`,
 with `outcome: "unknown"`. It is a proposal, never an edit. Show the exact diff and
 wait for explicit apply approval in chat. Keep `draft`, `approved`, `applied`
-and `verified` distinct in `stage`. Applied requires actual readback;
-verified requires evidence of the promised result. Never silently edit
+and `verified` distinct in `stage`. Applied needs readback;
+verified needs evidence of the promised result. Never silently edit
 SOUL.md, USER.md, skills or the manual. Never install software.
 
 On the same note, record `carry_over`: the open loops and decisions still needed,
@@ -74,7 +74,8 @@ engineering lessons in their own project context. Do not edit to meet the budget
 ## Close the week
 
 Add `pa(operation="profile", data={"action":"pending_files"})` rows to the reviewed USER.md/manual proposal: remove `filed_text` (text now in files) for `remove_from_files` rows, else replace it if set. After apply and readback, `mark_filed` only those.
-Read `pa(operation="profile", data={"action":"list","kind":"trust"})`. Once the oldest non-retired trust record is 30 days old, include one day-30 review paragraph: task types and levels, proposed level changes with evidence, and "Is this saving you time? Roughly how much?" Do this review once: first read `context kind=action action_id=pa:day30-review`; skip if its `asked_at` exists; an "action not found" result means it was never asked, so continue. Record the ask: `action_upsert action_id=pa:day30-review action_type=note status=completed fields={asked_at:<ISO>}`. Change levels only after the owner's answer. Record the answer with `profile remember kind=preference source=said category=work` and a safe paraphrase; it feeds the parity rule. With CoS off, the daily-ops morning brief runs this review instead.
+Read `pa(operation="profile", data={"action":"list","kind":"trust"})`. Once the oldest non-retired trust record is 30 days old, include one day-30 review paragraph: task types and levels, and proposed level changes with evidence. Do this review once: first read `context kind=action action_id=pa:day30-review`; skip if its `asked_at` exists; an "action not found" result means it was never asked, so continue. Record the ask: `action_upsert action_id=pa:day30-review action_type=note status=completed fields={asked_at:<ISO>}`. Change levels only after the owner's answer. With CoS off, the daily-ops morning brief runs this review instead.
+Then load `personal-assistant` and run its day-30 time check (Task evidence).
 
 Then load `personal-assistant:cos-radar` for this week's single benchmark offer,
 if any. Include it in the single final response; Hermes delivers that owner message
@@ -82,7 +83,7 @@ to the verified destination. Never use a message tool in a scheduled run.
 Record a separate recommendation identity for an actual radar
 offer, but use only this job's one delivery receipt. If neither review nor radar
 contains useful information, record `suppressed` with a safe note and reply exactly
-`[SILENT]` (nothing else). For a report, write and read back the note, then record
+`[SILENT]`. For a report, write and read back the note, then record
 `unknown` before the final response as the reference says. `delivered` needs a
 provider receipt the run cannot see.
 Never replay an already handled occurrence.

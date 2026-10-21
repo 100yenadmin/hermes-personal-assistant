@@ -34,7 +34,8 @@ def parse_body(body: str) -> tuple[str, str]:
         raise ValueError("PR body must contain exactly one 'Release impact: none|publish' line")
     if not LINK.search(body):
         raise ValueError("PR body must link an issue with Closes/Fixes/Resolves/Related #N")
-    notes_match = NOTES.search(body)
+    # Comments go first, so a heading inside one cannot cut the notes section short.
+    notes_match = NOTES.search(re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL))
     notes = notes_match.group(1).strip() if notes_match else ""
     return impact_matches[0].lower(), notes
 
@@ -51,6 +52,38 @@ def validate_release_files(revision: str, version: str) -> None:
         raise ValueError("release manifest identity or version does not match VERSION")
     if not isinstance(manifest.get("source_commit"), str) or not manifest["source_commit"].strip():
         raise ValueError("release manifest source_commit must be meaningful and non-null")
+    version_match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?", version)
+    if not version_match:
+        raise ValueError("release version must be major.minor.patch with an optional prerelease suffix")
+    if tuple(map(int, version_match.groups())) < (0, 10, 0):
+        return
+    scorecards = {}
+    for extension in ("json", "md"):
+        path = f"releases/{version}/scorecard.{extension}"
+        try:
+            scorecards[extension] = text_at(revision, path)
+        except ValueError as exc:
+            raise ValueError(f"release scorecard missing: {path}") from exc
+    try:
+        scorecard = json.loads(scorecards["json"])
+    except json.JSONDecodeError as exc:
+        raise ValueError("release scorecard.json is not valid JSON") from exc
+    if not isinstance(scorecard, dict):
+        raise ValueError("release scorecard.json must be a JSON object")
+    if type(scorecard.get("schema")) is not int or scorecard["schema"] != 1:
+        raise ValueError("scorecard schema must be 1")
+    if scorecard.get("version") != version:
+        raise ValueError("scorecard version does not match the release version")
+    commit = scorecard.get("commit")
+    if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", commit):
+        raise ValueError("scorecard commit must be a 40-hex string")
+    if commit.lower() != str(manifest.get("reviewed_implementation_commit", "")).lower():
+        raise ValueError("scorecard commit does not match the manifest's reviewed_implementation_commit")
+    areas = scorecard.get("areas")
+    if not isinstance(areas, (list, dict)) or len(areas) != 14:
+        raise ValueError("scorecard areas must have 14 entries")
+    if scorecards["md"].splitlines()[:1] != [f"# PA {version} VA scorecard"]:
+        raise ValueError("scorecard.md must start with the release's VA scorecard heading")
 
 
 def validate_pull_request(event: dict[str, object], *, require_merged: bool = False) -> dict[str, object]:
