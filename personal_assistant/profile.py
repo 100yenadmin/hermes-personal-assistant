@@ -23,13 +23,14 @@ SCHEMA = {"type": "object", "properties": {
     "task_type": {"type": "string", "maxLength": 60}, "level": {"enum": ["shadow", "own", "independent"]},
     "supersedes": {"type": ["string", "null"]}, "since": {"type": "string", "format": "date-time"},
     "owner_confirmed_at": {"type": ["string", "null"], "format": "date-time"},
+    "remove_from_files": {"type": "boolean"},
     "changelog": {"type": "array", "items": {"type": "object", "properties": {
         "version": {"type": "integer"}, "change": {"type": "string"}, "at": {"type": "string", "format": "date-time"}},
         "required": ["version", "change", "at"], "additionalProperties": False}},
 }, "additionalProperties": False}
 FIELDS = {
-    "preference": "text category source evidence state supersedes since owner_confirmed_at",
-    "person": "name relationship channel rules sensitive source since state",
+    "preference": "text category source evidence state supersedes since owner_confirmed_at remove_from_files",
+    "person": "name relationship channel rules sensitive source since state remove_from_files",
     "sop": "title trigger steps tools done_when escalation version changelog state",
     "trust": "task_type level since evidence state",
 }
@@ -45,19 +46,30 @@ def _private(value):
         r"|\b(?:api[ _-]?key|token|secret|authorization|cookie)\s*[:=]\s*\S+", value, re.I)))
 
 
+def _is_profile(row):
+    return bool(row) and row["action_type"] in KINDS and str(row["action_id"]).startswith(KINDS[row["action_type"]] + ":") \
+        and isinstance(row["fields"].get("state"), str)
+
+
 def _rows(ledger):
-    return [r for r in ledger.list("action") if r["action_type"] in KINDS]
+    return [r for r in ledger.list("action") if _is_profile(r)]
 
 
 def _get(ledger, identity):
     row = ledger.get("action", identity)
-    if not row or row["action_type"] not in KINDS:
+    if not _is_profile(row):
         raise ValueError("profile record not found")
     return row
 
 
+def _retire(fields):
+    """A filed record stays listed for removal until the reviewed write takes its text out of the files."""
+    return {**fields, "state": "retired", **({"remove_from_files": True} if fields.get("state") == "filed" else {})}
+
+
 def _save(ledger, identity, kind, fields):
-    return ledger.put("action", identity, fields, action_type=kind, status=fields["state"])
+    remove = () if "remove_from_files" in fields else ("remove_from_files",)  # put() merges; a cleared flag must be removed.
+    return ledger.put("action", identity, fields, action_type=kind, status=fields["state"], remove=remove)
 
 
 def remember(ledger, data):
@@ -66,9 +78,11 @@ def remember(ledger, data):
     kind = data.get("kind")
     if kind not in KINDS:
         raise ValueError("profile kind must be preference, person, sop or trust")
-    allowed = set(FIELDS[kind].split()) | {"kind", "slug", "change"}
+    allowed = set(FIELDS[kind].split()) - {"remove_from_files"} | {"kind", "slug", "change"}
     if set(data) - allowed:
         raise ValueError("unsupported profile fields (raw message bodies and credentials are prohibited)")
+    if data.get("state") == "filed":
+        raise ValueError("filed is set only by mark_filed after a reviewed write")
     label = data.get({"preference": "text", "person": "name", "sop": "title", "trust": "task_type"}[kind])
     if not isinstance(label, str) or not label.strip():
         raise ValueError("profile text, name, title or task_type is required")
@@ -77,7 +91,7 @@ def remember(ledger, data):
         raise ValueError("profile slug must contain letters or numbers")
     identity = KINDS[kind] + ":" + slug
     old = ledger.get("action", identity)
-    if old and old["action_type"] != kind:
+    if old and not _is_profile(old) or old and old["action_type"] != kind:
         raise ValueError("profile identity belongs to another action type")
     fields = {**(old["fields"] if old else {}), **{k: v for k, v in data.items() if k in FIELDS[kind].split()}}
     fields.setdefault("state", "draft" if kind == "sop" else "active")
@@ -107,6 +121,8 @@ def remember(ledger, data):
                                else "active")
         if kind == "person" and "state" in data:
             fields["state"] = data["state"]
+        if fields["state"] != "retired":
+            fields.pop("remove_from_files", None)
     if kind == "trust":
         fields.setdefault("level", "shadow")
         fields.setdefault("evidence", "")
@@ -131,11 +147,14 @@ def remember(ledger, data):
     if fields["state"] not in states[kind]:
         raise ValueError("invalid profile state")
     prior = None
-    if (kind == "preference" and fields["source"] == "corrected" and fields["supersedes"]
-            and (not old or fields["supersedes"] != old["fields"].get("supersedes"))):
+    if kind == "preference" and fields["source"] == "corrected" and fields["supersedes"]:
         prior = _get(ledger, fields["supersedes"])
-        if prior["action_type"] != "preference" or prior["fields"]["state"] != "active" or prior["action_id"] == identity:
-            raise ValueError("supersedes must name another active preference")
+        repeat = bool(old) and old["fields"].get("supersedes") == fields["supersedes"]
+        if repeat and prior["fields"]["state"] == "retired":
+            prior = None  # Already superseded by this record.
+        elif prior["action_type"] != "preference" or prior["fields"]["state"] not in {"active", "filed"} or prior["action_id"] == identity:
+            raise ValueError("supersedes must name another active or filed preference")
+    if prior:
         cursor, seen = prior, {identity}
         while cursor:
             if cursor["action_id"] in seen:
@@ -143,8 +162,8 @@ def remember(ledger, data):
             seen.add(cursor["action_id"])
             cursor = ledger.get("action", cursor["fields"].get("supersedes"))
     result = _save(ledger, identity, kind, fields)
-    if prior:
-        _save(ledger, prior["action_id"], "preference", {**prior["fields"], "state": "retired"})
+    if prior:  # A crash before this write is repaired by repeating the same remember call.
+        _save(ledger, prior["action_id"], "preference", _retire(prior["fields"]))
     return result
 
 
@@ -156,7 +175,8 @@ def dispatch(ledger, data):
     if action in {"list", "pending_files"}:
         rows = sorted(_rows(ledger), key=lambda r: (r["fields"].get("source") == "corrected", r["updated_at"]), reverse=True)
         if action == "pending_files":
-            rows = [r for r in rows if r["action_type"] in {"preference", "person"} and r["fields"]["state"] == "active"]
+            rows = [r for r in rows if r["action_type"] in {"preference", "person"}
+                    and (r["fields"]["state"] == "active" or r["fields"].get("remove_from_files"))]
         return [{"identity": r["action_id"], "kind": r["action_type"], **r["fields"]} for r in rows
                 if all(not data.get(k) or (str(data[k]).casefold() in str(r["fields"].get(k, "")).casefold()
                     if k == "name" else data[k] == (r["action_type"] if k == "kind" else r["fields"].get(k)))
@@ -171,11 +191,18 @@ def dispatch(ledger, data):
         kind, fields = row["action_type"], row["fields"]
         if action == "confirm" and (kind != "preference" or fields["state"] != "proposed"):
             raise ValueError("confirm requires a proposed preference")
-        if action == "mark_filed" and (kind not in {"preference", "person"} or fields["state"] != "active"):
-            raise ValueError("only active preferences and people can be filed after reviewed apply")
-    result = [_save(ledger, r["action_id"], r["action_type"], {**r["fields"],
-        "state": {"confirm": "active", "forget": "retired", "mark_filed": "filed"}[action],
-        **({"owner_confirmed_at": now()} if action == "confirm" else {})}) for r in rows]
+        if action == "mark_filed" and (kind not in {"preference", "person"}
+                                       or not (fields["state"] == "active" or fields.get("remove_from_files"))):
+            raise ValueError("only active or removal-pending preferences and people can be filed after reviewed apply")
+
+    def updated(fields):
+        if action == "forget":
+            return _retire(fields)
+        if action == "mark_filed" and fields.get("remove_from_files"):
+            return {k: v for k, v in fields.items() if k != "remove_from_files"}  # The text left the files.
+        return {**fields, "state": {"confirm": "active", "mark_filed": "filed"}[action],
+                **({"owner_confirmed_at": now()} if action == "confirm" else {})}
+    result = [_save(ledger, r["action_id"], r["action_type"], updated(r["fields"])) for r in rows]
     return result if action == "mark_filed" else result[0]
 
 
@@ -186,6 +213,8 @@ def session_note(ledger):
         detail = (row["text"] if row["kind"] == "preference" else
                   row["name"] + (" [sensitive: consult profile by identity]" if row["sensitive"] else
                   ": " + "; ".join([row["relationship"], row["channel"], *row["rules"]])))
+        if row.get("remove_from_files"):
+            detail = "FORGOTTEN, do not use (still in files until the next review): " + detail
         line = "\n- " + row["identity"] + ": " + detail.replace("\n", " ")
         text += line[:max(0, 1200 - len(text))]
         if len(text) >= 1200:

@@ -92,7 +92,6 @@ def test_preference_remember_preserves_lifecycle(tmp_path, initial, source, chan
     ({"name": "Synthetic Sam"}, "active"), ({"relationship": "colleague"}, "active"),
     ({"channel": "email"}, "active"), ({"rules": ["Use a formal greeting"]}, "active"),
     ({"sensitive": True}, "active"), ({"state": "active"}, "active"),
-    ({"rules": ["Use a formal greeting"], "state": "filed"}, "filed"),
 ])
 def test_person_remember_preserves_filing(tmp_path, change, expected):
     data = dict(kind="person", slug="alex", name="Synthetic Alex")
@@ -237,3 +236,46 @@ def test_identity_scope_and_supersedes_cycle(tmp_path):
         pref(tmp_path, "Short replies", source="corrected", supersedes=b["action_id"])
     assert ledger.get("action", a["action_id"])["fields"]["state"] == "retired"
     assert ledger.get("action", b["action_id"])["fields"]["state"] == "active"
+
+
+def test_filed_state_is_set_only_by_mark_filed(tmp_path):
+    with pytest.raises(ValueError, match="only by mark_filed"):
+        call(tmp_path, kind="person", name="Synthetic Alex", state="filed")
+    with pytest.raises(ValueError, match="unsupported profile fields"):
+        pref(tmp_path, remove_from_files=True)
+
+
+def test_forget_or_supersede_filed_records_lists_their_removal(tmp_path, human_hook):
+    forgotten, replaced = pref(tmp_path, "Call before 10"), pref(tmp_path, "Prefer short replies", slug="replies")
+    call(tmp_path, "mark_filed", identities=[forgotten["action_id"], replaced["action_id"]])
+    assert call(tmp_path, "forget", identity=forgotten["action_id"])["fields"]["remove_from_files"] is True
+    new = pref(tmp_path, "Prefer detailed replies", source="corrected", supersedes=replaced["action_id"])
+    old = Ledger(tmp_path).get("action", replaced["action_id"])["fields"]
+    assert old["state"] == "retired" and old["remove_from_files"] is True
+    assert {r["identity"] for r in call(tmp_path, "pending_files")} == {forgotten["action_id"], replaced["action_id"], new["action_id"]}
+    note = human_hook(user_message="Hello", is_first_turn=True, session_id="s")["context"]
+    assert "FORGOTTEN, do not use (still in files until the next review): Call before 10" in note
+    filed = call(tmp_path, "mark_filed", identities=[forgotten["action_id"], replaced["action_id"], new["action_id"]])
+    assert [r["fields"]["state"] for r in filed] == ["retired", "retired", "filed"]
+    assert all("remove_from_files" not in r["fields"] for r in filed) and call(tmp_path, "pending_files") == []
+
+
+def test_repeated_correction_finishes_an_interrupted_supersession(tmp_path):
+    old = pref(tmp_path, "Prefer short replies", slug="replies")
+    new = dict(text="Prefer detailed replies", source="corrected", supersedes=old["action_id"])
+    pref(tmp_path, **new)
+    ledger = Ledger(tmp_path)  # Simulate a crash between the two writes: the old row is still active.
+    ledger.put("action", old["action_id"], {**ledger.get("action", old["action_id"])["fields"], "state": "active"}, status="active")
+    pref(tmp_path, **new)
+    assert ledger.get("action", old["action_id"])["fields"]["state"] == "retired"
+    assert pref(tmp_path, **new)["fields"]["state"] == "active"  # A later repeat is a no-op for the retired row.
+
+
+def test_generic_actions_cannot_use_profile_records(tmp_path, human_hook):
+    for data in ({"action_type": "person", "fields": {}}, {"action_id": "pref:synthetic", "fields": {}}):
+        with pytest.raises(ValueError, match="operation profile"):
+            dispatch(tmp_path, {"operation": "action_upsert", "data": data})
+    Ledger(tmp_path).put("action", "legacy-row", {"note": "untyped"}, action_type="person")  # A pre-upgrade row.
+    pref(tmp_path)
+    assert [r["identity"] for r in call(tmp_path, "list")] == ["pref:prefer-short-replies"]
+    assert "pref:prefer-short-replies" in human_hook(user_message="Hello", is_first_turn=True, session_id="s")["context"]

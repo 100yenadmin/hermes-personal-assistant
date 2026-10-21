@@ -25,7 +25,7 @@ it uses what was saved and the saved files still hold the approved facts.
 
 ## PA profile records
 
-`pa(operation="profile", data={"action":"remember",...})` saves safe preferences with sources, people/rules, SOPs and task trust in the existing ledger; it writes no files. Active unfiled preferences and people take effect through the first human-turn note. At `/pa setup review` (or weekly closeout), read `pending_files`, include those facts in the normal reviewed USER.md/manual diff, and after explicit apply and readback call `mark_filed` with only the written identities. Proposed inferences need `confirm` first; `owner_confirmed_at` is separate from transaction confirmation. Ledger capture needs no setup review; file writes still do.
+`pa(operation="profile", data={"action":"remember",...})` saves safe preferences with sources, people/rules, SOPs and task trust in the existing ledger; it writes no files. Active unfiled preferences and people take effect through the first human-turn note. At `/pa setup review` (or weekly closeout), read `pending_files`, include those facts in the normal reviewed USER.md/manual diff, and after explicit apply and readback call `mark_filed` with only the written identities. Rows with `remove_from_files` are forgotten or superseded facts still in the files: remove their text in that reviewed write, then `mark_filed` them too. Proposed inferences need `confirm` first; `owner_confirmed_at` is separate from transaction confirmation. Ledger capture needs no setup review; file writes still do.
 
 ## USER.md
 
