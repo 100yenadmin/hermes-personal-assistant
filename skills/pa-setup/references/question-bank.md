@@ -78,7 +78,8 @@ for schedules: only an explicit yes in a human turn authorizes the selected
 `cos_daily`, `cos_kickoff` and/or `cos_weekly` rules for this verified chat and native suggestions.
 Recommend leaving schedules off until wanted. An answer or a general apply does
 not turn an unapproved schedule on. Never install software or silently edit files.
-After apply, ask for `/new`; the fresh-session check must retrieve a saved CoS
+After apply, ask the user to send `/new` and then any message (not `/pa setup`, which
+reopens setup); the fresh-session check must retrieve a saved CoS
 priority or radar topic (or a saved time if no context was saved), then call setup
 `fresh_check` with passed/failed. If no CoS priority, radar topic or time was saved,
 there is nothing to check: call `fresh_check` with `passed` and say so. Do not run the core

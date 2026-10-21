@@ -3,7 +3,8 @@
 Use for a new manual only; patch an existing PA user skill in place. Replace
 placeholders with reviewed safe facts. Keep the finished daily manual near 8 KB.
 Use one section per domain; distil rather than append. Do not copy private source
-text into this template or export a populated manual.
+text into this template or export a populated manual. Keep the `description` to
+one sentence of at most 60 characters: Hermes' skill index cuts longer ones off.
 
 ```markdown
 ---

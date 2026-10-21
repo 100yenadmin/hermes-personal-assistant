@@ -38,7 +38,7 @@ Use `phone-calls` when a phone call is needed.
 8. After confirmation, re-check details and submit immediately only if they match.
 9. Verify reservation id, confirmation email, or provider-visible status. Record proof/status in `travel-ledger` before reporting.
 
-If you stop earlier, at a login, the user's app, no availability or a blocked site, record that stop in `travel-ledger` before replying: the stopping URL, what is prepared, what is missing and the next step.
+Whenever you stop before step 8 (at the reservation form because the user said not to book yet, a login, the user's app, no availability or a blocked site), save a checkpoint (`personal-assistant`, Checkpoints) before replying, with every field: `provider`, `url` (the stopping page), `state` (what is prepared: venue, date/time, party size, seating), `total` (deposit or fee, or unknown), `missing` and `next`. A later yes, even in a new chat, resumes from it.
 
 ## Changes and cancellations
 

@@ -53,6 +53,10 @@ Installation starts no jobs. Missing optional integrations do not block local
 trip import, bounded context, portable ICS/Markdown exports, or recipe discovery.
 In these documents `pa.status` means `pa(operation="status")`; there are no
 separate tools named `pa.status` or `pa.action_prepare`.
+When `pa` is reached through `tool_call`, send one `pa` entry per `tool_call`,
+with `calls` as a native array and `arguments` as an object, never a JSON string.
+An error saying "'calls' is not valid JSON" means PA was not reached: resend the
+same single call that way, and never report that PA or the ledger rejected it.
 Use `setup` for durable guided setup progress; `/pa setup` begins on the next human message.
 
 Recover only the needed trip, action, source or guide with `pa.context`. Recover
