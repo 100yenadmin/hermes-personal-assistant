@@ -1,0 +1,20 @@
+{
+  "package": "travel-agent-skills",
+  "native_id": "personal-assistant",
+  "display_name": "Personal Assistant Plugin",
+  "version": "0.8.0-rc.3",
+  "channel": "pilot",
+  "status": "release-selection",
+  "published": false,
+  "source_commit": "resolved at build from the exact release PR main merge commit",
+  "reviewed_implementation_commit": "72ea3b30fef9779a50dbb0c53b8c51118a9ba808",
+  "source_identity_location": "external manifest source_sha and packaged .travel-agent-skills-release.json source_commit",
+  "artifact": {
+    "name": "travel-agent-skills-0.8.0-rc.3.tgz",
+    "sha256": null
+  },
+  "rollout": {
+    "scope": "private prerelease; isolated Hermes qualification only",
+    "fleet_approved": false
+  }
+}

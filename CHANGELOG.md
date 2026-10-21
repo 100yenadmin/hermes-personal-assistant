@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 0.8.0-rc.3 — 2026-10-21
+
+- **Phone calls, phase 1 (#27, tracked in #30).** Nothing dials yet: a live ElevenLabs `start` returns `not_activated`, and `check_with_owner` is not available. Details: `docs/phone-calls-phase-1.md`.
+  - `pa_call` can compile a prepared call card into a brief for ElevenLabs' hosted voice agent. The brief has a fixed AI-disclosure first line, the facts PA may share, and the allowed party-size and time ranges. It also has hard stops for payment, deposits, cards, cancellations and personal data ("I'll confirm and call you back"). Compiling reads the card and changes nothing.
+  - A poller you run yourself, `python -m personal_assistant.phone_poll`, collects finished ElevenLabs conversations into the owner's PA queue as `phone_call` packets: the transcript plus the provider's outcome summary, with recognised card numbers (13–19-digit card patterns) removed; the doc lists what it does not catch. It previews by default and writes only with `--enqueue`.
+- **Delivered packets can no longer forge their frame (#41).** A `<` inside untrusted mail, speech or fact text is escaped in packets that reach the conversation, so text such as `</pa_packet_v1>` cannot close or fake the frame.
+- **Guidance from the live pilot (#42):**
+  - Calls through Hermes' `tool_call` send `calls` as a native array. A "'calls' is not valid JSON" error now reads as "PA was not reached", not as a ledger failure.
+  - A restaurant stop, including a form the user said not to book yet, saves a checkpoint, so a later yes resumes from it.
+  - In Korea, CATCHTABLE Global comes first for users without a Korean phone.
+  - After setup, the agent asks for `/new` and then any message, never `/pa setup`.
+  - The manual's description stays within 60 characters.
+- **Routine suggestions say what really happened (#43).** `pa automations suggest` now marks each routine from your accepted schedules as suggested, already running, already pending, accepted or dismissed earlier, or dropped because Hermes' backlog of pending suggestions is full (5). If it is full, the agent asks you to accept or dismiss some in `/suggestions` and run suggest again; before, the routine silently went missing. Each suggested routine comes with an exact accept command, `/suggestions accept <id>`. Hermes can match a title to an older record of the same name (NousResearch/hermes-agent#142364). After Chief of Staff is turned off and on and its schedules are set up again (`/pa setup chief-of-staff`), its routines are offered again. A routine you dismissed, or accepted and then deleted, is offered again when you say you want it. Daily routines say that, if today's slot has already passed, the first run comes within minutes of accepting.
+- **`pa capabilities` sees the `gog` CLI (#43).** When `gog` is on PATH (or `GOG_PATH` names an executable), mail and calendar list it first, with account access still to be checked by one read-only call; PA never runs it during discovery. With Browserbase keys set but no `agent-browser` on PATH, the remote browser reports `needs-setup` and says what to install (#39).
+- **Setup reviews no longer show retired answers (#43, #38).** The old two-schedule Chief of Staff answer from rc.1 is kept in storage but no longer shown as if it were current consent.
+- **Upgrade notes.**
+  - **A full suggestion backlog is now reported.** If `/suggestions` already holds Hermes' maximum of 5 pending items, `suggest` names what it could not add. Accept or dismiss some, then run it again.
+  - **Routines dismissed by an earlier off-and-on.** If you turned Chief of Staff off and on before rc.3, run `/pa setup chief-of-staff` again (turning it off paused its rules). When the agent reports a routine as dismissed, tell it you want it, and it re-offers the routine with an accept-by-ID command.
+  - **Phone phase 1 is opt-in.** It needs the profile's ElevenLabs agent and key (see the doc). Nothing runs on install.
+
 ## 0.8.0-rc.2 — 2026-10-21
 
 - Later setup answers keep applied/checked setup intact and flag changes for the next review; fresh checks name the cause when refused (#28).
