@@ -10,10 +10,12 @@ UNATTENDED_SOURCES = frozenset({"subagent", "cron", "oneshot", "webhook", "kanba
 ELSEWHERE = "PA setup is in progress in another chat; say /pa setup to continue here."
 COS_STOPPED = ("Chief of Staff setup is stopped while the mode is off. Explain /pa mode chief-of-staff on, then hermes gateway "
                "restart and a new session. Do not record answers, create rules or suggest jobs.")
-GRILL_ME = ('The owner said "grill me": that is PA\'s profile interview. Load personal-assistant:pa-setup and start setup '
-            'with {"action":"start","section":"profile"}. If every profile group is done, say the profile is complete '
-            'and point to /pa setup review. Only if the owner clearly asks to be challenged on a specific plan or pitch '
-            'is it not setup.')
+GRILL_ME = ('If the owner is asking you to interview them ("grill me") so you can assist them, that is PA\'s profile interview: '
+            'load personal-assistant:pa-setup and start setup with {"action":"start","section":"profile"}; if the profile is '
+            'already complete, say so and point to /pa setup review. If "grill me" is negated, quoted, asked about, or about '
+            'challenging a specific plan or pitch, answer normally.')
+GRILL_ME_COMPLETE = ('The owner said "grill me", but the profile is complete: say so and point to /pa setup review. '
+                     'Do not start setup.')
 
 
 def _chat_key(kwargs):
@@ -136,8 +138,9 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                         f"help with this message first if it is about something else, then {next_step}.")
                 if current["requested_section"] == "profile":
                     text += " Follow the profile sitting boundary: review and apply when its group finishes before offering another group."
-            elif re.search(r"\bgrill me\b", message, re.I):  # A fresh session sees no core routing line (M1c).
-                text = GRILL_ME
+            elif (re.search(r"\bgrill me\b", message, re.I)  # A fresh session sees no core routing line (M1c).
+                  and not re.search(r"\b(?:don'?t|do not|never|stop|no need to)\b[^.!?\n]{0,20}\bgrill me\b", message, re.I)):
+                text = GRILL_ME_COMPLETE if all(g["done"] for g in current["groups"]) else GRILL_ME
             elif (status == "applied" and current["fresh_check"].get("status") in {"pending", "failed"}
                   and (current["fresh_check"].get("section") or current["requested_section"]) != "profile"
                   and kwargs.get("is_first_turn") and kwargs.get("session_id") != current["applied_session_id"]

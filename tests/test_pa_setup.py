@@ -8,7 +8,7 @@ import pytest
 from personal_assistant import setup
 from personal_assistant.commands import READY, USAGE, make_pa_command
 from personal_assistant.entry import SCHEMA, dispatch
-from personal_assistant.onboarding_hook import GRILL_ME, make_pre_llm_call
+from personal_assistant.onboarding_hook import GRILL_ME, GRILL_ME_COMPLETE, make_pre_llm_call
 from personal_assistant.privacy import PRIVATE_KEYS
 from personal_assistant.state import Ledger
 
@@ -139,7 +139,7 @@ def test_grill_me_outside_setup_nudges_profile_interview(tmp_path, status, messa
     note = make_pre_llm_call(tmp_path, lambda k, d: d)(user_message=message, platform="telegram", sender_id="synthetic",
                                                        is_first_turn=True, session_id="B")
     assert note == {"context": GRILL_ME} and '{"action":"start","section":"profile"}' in note["context"]
-    assert "challenged on a specific plan or pitch" in note["context"]
+    assert "challenging a specific plan or pitch" in note["context"]
 
 
 @pytest.mark.parametrize("platform", ["cron", "subagent"])
@@ -152,6 +152,31 @@ def test_grill_me_during_active_profile_setup_keeps_its_context(tmp_path):
     note = make_pre_llm_call(tmp_path, lambda k, d: d)(user_message="grill me", platform="telegram", sender_id="synthetic")
     assert "Guided setup is active" in note["context"] and "profile section's intro" in note["context"]
     assert GRILL_ME not in note["context"] and "PA's profile interview" not in note["context"]
+
+
+@pytest.mark.parametrize("message", ["Don't grill me, just summarise this", "Please do not grill me today."])
+def test_negated_grill_me_is_not_routed(tmp_path, message):
+    note = make_pre_llm_call(tmp_path, lambda k, d: d)(user_message=message, platform="telegram", sender_id="synthetic")
+    assert not note or ("profile interview" not in note["context"] and "profile is complete" not in note["context"])
+
+
+def test_grill_me_on_complete_profile_says_complete(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.record(ledger, skipped=list(setup.PROFILE_QUESTIONS))
+    setup.pause(ledger)
+    note = make_pre_llm_call(tmp_path, lambda k, d: d)(user_message="grill me", platform="telegram", sender_id="synthetic")
+    assert note == {"context": GRILL_ME_COMPLETE} and "Do not start setup" in note["context"]
+
+
+def test_start_profile_on_complete_profile_raises_without_change(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.record(ledger, skipped=list(setup.PROFILE_QUESTIONS))
+    setup.pause(ledger)
+    prior = setup.state(ledger)
+    with pytest.raises(ValueError, match="^Your profile is complete. Use /pa setup review to change an answer.$"):
+        setup.start(ledger, "profile")
+    assert setup.state(ledger) == prior
+    assert setup.request(ledger, None)["requested_mode"] == "review"  # /pa setup review still opens the review.
 
 @pytest.fixture
 def setup_files(tmp_path):

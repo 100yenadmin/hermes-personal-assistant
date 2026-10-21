@@ -90,7 +90,26 @@ def main():
         except Exception:
             return {}
 
-    def answer_until_review(since, consents=0):
+    def loads(value):
+        try:
+            value = json.loads(value) if isinstance(value, str) else value
+        except ValueError:
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def recorded_asks(rows):
+        """IDs in setup `record` calls' `asked`; the saved `asked` list is deduplicated and hides re-asks."""
+        asked = set()
+        for row in rows:
+            for call in (((row.get("response") or {}).get("choices") or [{}])[0].get("message") or {}).get("tool_calls") or []:
+                function = call.get("function") or {}
+                arguments = loads(function.get("arguments"))
+                data = loads(arguments.get("data"))
+                if function.get("name") == "pa" and arguments.get("operation") == "setup" and data.get("action") == "record":
+                    asked |= {q for q in data.get("asked") or [] if isinstance(q, str)}
+        return asked
+
+    def answer_until_review(since, consents=0, answered=None):
         """Answer whatever PA's setup record says is next, so skipped questions cannot misalign answers."""
         kept = False
         for _ in range(14):
@@ -106,6 +125,8 @@ def main():
             elif current.get("next_question") is None:
                 owner("Show the review now.")
             else:
+                if answered is not None:
+                    answered.add(current["next_question"])
                 owner(persona["answers"].get(current["next_question"], "You decide."))
         return setup_state()
 
@@ -135,17 +156,22 @@ def main():
                 failures.append("apply did not complete")
             else:
                 owner("/new")
-                seen = len(rig.texts())  # Sitting 1's review text must not end sitting 2.
+                seen, start, answered = len(rig.texts()), len(exchanges), set()  # Sitting 1's review must not end sitting 2.
                 owner("grill me")
-                current = answer_until_review(seen, consents=1)
+                current = answer_until_review(seen, consents=1, answered=answered)
                 second = current.get("sitting_group")
-                second_asked = set(current.get("asked") or []) - first_asked
+                second_asked = recorded_asks(exchanges[start:]) | answered
+                first_request = exchanges[start]["request"]["messages"] if len(exchanges) > start else None
+                stale = first_request is None or any(m.get("role") == "user" and "Apply all." in json.dumps(
+                    m.get("content"), ensure_ascii=False) for m in first_request if isinstance(m, dict))
                 sittings.append({"group": second, "asked": sorted(second_asked),
                                  "discovered": sorted(k for k, v in (current.get("answers") or {}).items()
                                                       if v.get("source") == "discovered" and k not in sittings[0]["discovered"])})
                 failures += [name for name, bad in (
+                    ("/new did not start a fresh session", stale),
                     ("sitting 2 not at the review", current.get("status") != "proposed"),
-                    ("re-asked across sittings", second_asked & (set(persona.get("expected_discovered", [])) | first_answered)),
+                    ("sitting 2 questions left open", not next((g["done"] for g in current.get("groups", []) if g["group"] == second), False)),
+                    ("re-asked across sittings", second_asked & (set(persona.get("expected_discovered", [])) | first_answered | first_asked)),
                     ("asked outside sitting 2", second_asked - set(groups.get(second, ()))),
                     ("sitting 2 did not move on", second == sitting)) if bad]
         current = setup_state()
