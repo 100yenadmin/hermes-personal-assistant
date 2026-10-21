@@ -1,4 +1,5 @@
 """Build a scorecard from immutable lab artifacts and optional live evidence."""
+import hashlib
 import json
 import math
 import re
@@ -7,6 +8,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from evals.lab.checks import submit_events
+from ._portable import portable
 from .areas import AREAS, PARITY
 
 
@@ -48,7 +50,9 @@ def _live(value):
             _require(isinstance(task.get(name), str) and bool(task[name]), f"{field}.{name}")
         _require(task["area"] in keys, f"{field}.area")
         _require(task["status"] in {"pass", "fail", "pending"}, f"{field}.status")
-        _require(type(task.get("owner_accepted")) is bool, f"{field}.owner_accepted")
+        _require(task["correction"] in {"none", "minor", "material"}, f"{field}.correction")
+        _require(task.get("owner_accepted") is None or type(task["owner_accepted"]) is bool,
+                 f"{field}.owner_accepted")
         _require(_date(task["due"], f"{field}.due") >= _date(task["started"], f"{field}.started"), f"{field}.due")
         _require(isinstance(task.get("facts"), list), f"{field}.facts")
         for j, fact in enumerate(task["facts"]):
@@ -56,6 +60,7 @@ def _live(value):
             _require(isinstance(fact, dict), ff)
             for name in ("item", "facing"):
                 _require(isinstance(fact.get(name), str), f"{ff}.{name}")
+            _require(fact["facing"] in {"money", "customer", "internal"}, f"{ff}.facing")
             _require(type(fact.get("ok")) is bool, f"{ff}.ok")
             _require(fact.get("source") is None or isinstance(fact["source"], str), f"{ff}.source")
     for name in ("baselines", "day30"):
@@ -81,7 +86,7 @@ def _day30(live):
             results[owner] = {"state": "unproven"}
             continue
         saving = 1 - end["minutes"] / base["total_minutes"]
-        types = len(set(end["first_pass_task_types"]))
+        types = len({t.strip().casefold() for t in end["first_pass_task_types"] if t.strip()})
         passed = saving >= PARITY["DAY30_MIN_SAVING"] - 1e-12 and types >= PARITY["DAY30_MIN_TYPES"]
         results[owner] = {"state": "pass" if passed else "fail", "saving": saving, "types": types}
     state = "unproven" if not owners or any(r["state"] == "unproven" for r in results.values()) else (
@@ -90,13 +95,14 @@ def _day30(live):
 
 
 def _real_work(tasks, as_of):
-    eligible = [t for t in tasks if t["status"] in {"pass", "fail"} or _date(t["due"], "due") < as_of]
+    eligible = [t for t in tasks if _date(t["started"], "started") <= as_of
+                and (t["status"] in {"pass", "fail"} or _date(t["due"], "due") < as_of)]
     passed = sum(t["status"] == "pass" and t["owner_accepted"] is True
                  and t["correction"] != "material" for t in eligible)
     owners = len({t["owner"] for t in eligible})
-    # The export has no completion timestamp: due is the last task date.
-    days = ((max(_date(t["due"], "due") for t in eligible)
-             - min(_date(t["started"], "started") for t in eligible)).days + 1) if eligible else 0
+    # The export has no completion timestamp; never count beyond as_of.
+    end = min(max(_date(t["due"], "due") for t in eligible), as_of) if eligible else as_of
+    days = max(0, (end - min(_date(t["started"], "started") for t in eligible)).days + 1) if eligible else 0
     rate = passed / len(eligible) if eligible else 0
     enough = len(eligible) >= PARITY["REAL_MIN_TASKS"] and owners >= PARITY["REAL_MIN_OWNERS"] and days >= PARITY["REAL_MIN_DAYS"]
     return {"state": ("pass" if rate >= PARITY["REAL_PASS_RATE"] else "fail") if enough else "unproven",
@@ -124,16 +130,21 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
     for directory in lab_dirs:
         root = Path(directory)
         _require(root.is_dir(), "lab_dirs")
-        roots.append(str(root))
+        lab_name = root.name if root.name not in {"", ".", ".."} else root.resolve().name
+        roots.append(lab_name)
         for path in sorted(root.glob("*/run.json")):
-            if path.resolve() in seen:
-                continue
-            seen.add(path.resolve())
             folder, run = path.parent, _read(path)
             scenario = _read(folder / "scenario.json", {})
             _require(isinstance(run, dict), f"{folder.name}.run")
             _require(isinstance(scenario, dict) and isinstance(scenario.get("id"), str), f"{folder.name}.scenario.id")
             sid = scenario["id"]
+            run_id = f"{lab_name}/{folder.name}"
+            identity = (folder.name, sid, run["start"] if "start" in run
+                        else hashlib.sha256(path.read_bytes()).hexdigest())
+            if identity in seen:
+                excluded.append({"run": run_id, "scenario": sid, "reason": "duplicate"})
+                continue
+            seen.add(identity)
             refs = _read(folder / "plugin-refs.json", {})
             plugins = refs.get("plugins", []) if isinstance(refs, dict) else []
             ref = plugins[0].get("ref") if isinstance(plugins, list) and plugins and isinstance(plugins[0], dict) else None
@@ -150,7 +161,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             else:
                 reason = None
             if reason:
-                excluded.append({"run": folder.name, "scenario": sid, "reason": reason})
+                excluded.append({"run": run_id, "scenario": sid, "reason": reason})
                 continue
             checks, judge = _read(folder / "checks.json", {}), _read(folder / "judge.json", {})
             _require(isinstance(checks, dict), f"{folder.name}.checks")
@@ -160,9 +171,10 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             hits = len(submit_events(folder))
             safe = "end" in run and run.get("status") == "ok" and not hits and all(overall.values())
             passed = bool(safe and checks.get("all_pass", False) and judge.get("pass") is True)
-            runs.append({"run": folder.name, "scenario": sid, "passed": passed, "checks": checks})
+            runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks})
     for area in catalogue:
         for test in area["tests"]:
+            test.setdefault("covers", [])
             selected = [r for r in runs if r["scenario"] == test["scenario"]]
             n, passed = len(selected), sum(r["passed"] for r in selected)
             state = "not_run" if not n else "fail" if passed < n else "insufficient_runs" if n < PARITY["LAB_RUNS"] else "pass"
@@ -171,6 +183,8 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
         partial = [t["state"] for t in area["tests"] if t["kind"] == "partial"]
         area["lab"] = "not_exercised" if not area["tests"] else "fail" if "fail" in full else "pass" if full and all(s == "pass" for s in full) else "unproven"
         area["partial"] = {"state": "none" if not partial else "fail" if "fail" in partial else "pass" if all(s == "pass" for s in partial) else "incomplete"}
+        covered = {i for t in area["tests"] if t["state"] == "pass" for i in t["covers"]}
+        area["uncovered_duties"] = [duty for i, duty in enumerate(area["duties"]) if i not in covered]
         tasks = [t for t in live["tasks"] if t["area"] == area["key"]]
         area_runs = [r for r in runs if r["scenario"] in {t["scenario"] for t in area["tests"]}]
         area["real_work"], area["facts"] = _real_work(tasks, today), _facts(tasks, area_runs)
@@ -178,6 +192,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
         area["parity"] = "fail" if "fail" in states else "pass" if all(s == "pass" for s in states) else "unproven"
         area["notes"] = []
     counts = {"lab": {s: sum(a["lab"] == s for a in catalogue) for s in ("pass", "fail", "unproven", "not_exercised")},
+              "partial": {s: sum(a["partial"]["state"] == s for a in catalogue) for s in ("pass", "fail", "incomplete", "none")},
               "parity": {s: sum(a["parity"] == s for a in catalogue) for s in ("pass", "fail", "unproven")}}
-    return {"version": version, "commit": commit, "as_of": today.isoformat(), "areas": catalogue,
-            "day30": day30, "excluded": excluded, "counts": counts, "lab_dirs": roots, "schema": 1}
+    return portable({"version": version, "commit": commit, "as_of": today.isoformat(), "areas": catalogue,
+                     "day30": day30, "excluded": excluded, "counts": counts, "lab_dirs": roots, "schema": 1})

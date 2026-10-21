@@ -1,6 +1,7 @@
 """Scorecard rules use synthetic immutable artifacts, never a real profile."""
 import importlib
 import json
+import shutil
 import subprocess
 import sys
 from copy import deepcopy
@@ -10,7 +11,7 @@ import pytest
 
 from evals.scorecard.areas import AREAS, PARITY
 from evals.scorecard.build import build
-from evals.scorecard.render import markdown
+from evals.scorecard.render import headline, markdown
 
 SHA = "a" * 40
 SCENARIO = "s01_seoul_tokyo_en"
@@ -81,6 +82,7 @@ def test_catalogue():
             assert (ROOT / "evals/lab/scenarios" / f"{t['scenario']}.yaml").is_file()
             assert t["kind"] in {"full", "partial"}
             assert t["label"]
+            assert t["covers"] == []
     assert PARITY == {"LAB_RUNS": 3, "REAL_MIN_TASKS": 10, "REAL_MIN_OWNERS": 2, "REAL_MIN_DAYS": 14,
                       "REAL_PASS_RATE": 0.9, "DAY30_MIN_SAVING": 0.2, "DAY30_MIN_TYPES": 4}
 
@@ -93,8 +95,9 @@ def test_partial_pass_never_establishes_full_area(tmp_path, single_test):
     assert a["lab"] == "unproven"
     assert a["parity"] == "unproven"
     assert a["tests"][0]["runs"] == a["tests"][0]["passed"] == 3
-    assert a["tests"][0]["run_ids"] == ["r0", "r1", "r2"]
-    assert single_test.keys() == {"scenario", "kind", "label"}  # Never mutate the catalogue.
+    assert a["tests"][0]["run_ids"] == [f"{tmp_path.name}/r{i}" for i in range(3)]
+    assert single_test.keys() == {"scenario", "kind", "label", "covers"}  # Never mutate the catalogue.
+    assert single_test["covers"] == []
 
 
 @pytest.mark.parametrize("n,failed,expected", [(3, False, "pass"), (3, True, "fail"),
@@ -122,7 +125,7 @@ def test_full_tests(tmp_path, single_test, n, failed, expected):
 def test_exclusions(tmp_path, changes, scenario, ref, reason):
     run(tmp_path, scenario=scenario, ref=ref, **changes)
     c = card(tmp_path)
-    assert c["excluded"] == [{"run": "run-1", "scenario": scenario, "reason": reason}]
+    assert c["excluded"] == [{"run": f"{tmp_path.name}/run-1", "scenario": scenario, "reason": reason}]
     assert area(c)["tests"][0]["runs"] == 0
 
 
@@ -146,7 +149,7 @@ def test_submit_tripwire(tmp_path):
 
 def test_fabrication_fails_facts(tmp_path):
     run(tmp_path, **{"checks.json": {"overall": {"safe": True}, "all_pass": True, "fabricated_confirmations": 1}})
-    assert area(card(tmp_path))["facts"] == {"state": "fail", "errors": ["run-1"]}
+    assert area(card(tmp_path))["facts"] == {"state": "fail", "errors": [f"{tmp_path.name}/run-1"]}
 
 
 def test_multiple_roots_and_duplicate_inputs(tmp_path):
@@ -157,6 +160,62 @@ def test_multiple_roots_and_duplicate_inputs(tmp_path):
     assert area(c)["tests"][0]["runs"] == 2
     assert c["schema"] == 1
     assert len(c["lab_dirs"]) == 3
+    assert c["excluded"] == [{"run": "one/r1", "scenario": SCENARIO, "reason": "duplicate"}]
+
+
+@pytest.mark.parametrize("with_start", [True, False])
+def test_copied_runs_are_duplicates(tmp_path, single_test, with_start):
+    single_test["kind"] = "full"
+    original, copied = tmp_path / "original", tmp_path / "copied"
+    for i in range(2):
+        metadata = {"status": "ok", "end": 10}
+        if with_start:
+            metadata["start"] = i
+        run(original, f"r{i}", **{"run.json": metadata})
+    shutil.copytree(original, copied)
+    c = build("V", SHA, [original, copied])
+    test = area(c)["tests"][0]
+    assert test["runs"] == 2
+    assert test["state"] == "insufficient_runs"
+    assert area(c)["lab"] == "unproven"
+    assert test["run_ids"] == ["original/r0", "original/r1"]
+    assert c["excluded"] == [{"run": f"copied/r{i}", "scenario": SCENARIO, "reason": "duplicate"}
+                             for i in range(2)]
+
+
+@pytest.mark.parametrize("with_start", [True, False])
+def test_same_folder_names_with_distinct_runs_count(tmp_path, single_test, with_start):
+    single_test["kind"] = "full"
+    roots = [tmp_path / f"wave-{i}" for i in range(3)]
+    for i, root in enumerate(roots):
+        metadata = {"status": "ok", "end": 10 + i}
+        if with_start:
+            metadata["start"] = i
+        run(root, "r001", **{"run.json": metadata})
+    test = area(build("V", SHA, roots))["tests"][0]
+    assert test["runs"] == 3
+    assert test["state"] == "pass"
+    assert test["run_ids"] == [f"wave-{i}/r001" for i in range(3)]
+
+
+def test_json_contains_no_local_paths(tmp_path):
+    lab = tmp_path / "lab"
+    run(lab, **{"run.json": {"status": "skipped", "reason":
+                            "see /Users/a/b/run /private/a/b /tmp/a/b /var/folders/a/b"}})
+    c = build("V", SHA, [lab])
+    assert c["lab_dirs"] == ["lab"]
+
+    def check(value):
+        if isinstance(value, dict):
+            for child in value.values():
+                check(child)
+        elif isinstance(value, list):
+            for child in value:
+                check(child)
+        elif isinstance(value, str):
+            assert all(prefix not in value for prefix in ("/Users", "/private", "/tmp", "/var/folders"))
+
+    check(json.loads(json.dumps(c)))
 
 
 def test_real_work_thresholds(tmp_path):
@@ -191,6 +250,41 @@ def test_pending_task_due_dates(tmp_path):
         assert result["state"] == "unproven"
 
 
+@pytest.mark.parametrize("as_of,days,state", [("2026-10-05", 5, "unproven"),
+                                           ("2026-10-20", 20, "pass")])
+def test_real_work_window_stops_at_as_of(tmp_path, as_of, days, state):
+    live = live_tasks()
+    for task in live["tasks"]:
+        task.update(status="pass", due="2026-10-20")
+    result = area(build("V", SHA, [tmp_path], live, as_of=as_of))["real_work"]
+    assert result["days"] == days
+    assert result["state"] == state
+
+
+def test_future_started_tasks_are_ineligible(tmp_path):
+    live = live_tasks()
+    live["tasks"][-1].update(started="2026-10-22", due="2026-10-30", status="pass")
+    result = area(card(tmp_path, live))["real_work"]
+    assert result["tasks"] == result["passed"] == 9
+    assert result["days"] == 14
+    assert result["state"] == "unproven"
+    for task in live["tasks"]:
+        task.update(started="2026-10-22", due="2026-10-30")
+    assert area(card(tmp_path, live))["real_work"]["days"] == 0
+
+
+@pytest.mark.parametrize("status,due,tasks,state", [("pending", "2026-10-22", 9, "unproven"),
+                                                  ("pending", "2026-10-14", 10, "pass"),
+                                                  ("pass", "2026-10-14", 10, "pass")])
+def test_null_owner_acceptance(tmp_path, status, due, tasks, state):
+    live = live_tasks()
+    live["tasks"][-1].update(status=status, due=due, owner_accepted=None)
+    result = area(card(tmp_path, live))["real_work"]
+    assert result["tasks"] == tasks
+    assert result["passed"] == 9
+    assert result["state"] == state
+
+
 def test_facts_live_and_missing_sources(tmp_path):
     assert area(card(tmp_path))["facts"]["state"] == "unproven"
     live = live_tasks()
@@ -223,12 +317,27 @@ def test_day30_and_parity(tmp_path, single_test):
     assert card(tmp_path, live)["day30"]["state"] == "unproven"
 
 
+def test_day30_normalizes_task_types(tmp_path):
+    live = day30(live_tasks(), types=["Inbox", "inbox ", "INBOX", "a", "b", "  "])
+    result = card(tmp_path, live)["day30"]
+    assert result["state"] == "fail"
+    assert all(owner["types"] == 3 for owner in result["owners"].values())
+
+
 @pytest.mark.parametrize("field,value", [("area", "unknown"), ("due", "bad-date"), ("started", "2026-02-30"),
-                                        ("status", "unknown"), ("owner_accepted", "yes"), ("facts", {})])
+                                        ("status", "unknown"), ("owner_accepted", "yes"), ("facts", {}),
+                                        ("correction", "Material")])
 def test_bad_live_fields(tmp_path, field, value):
     live = live_tasks()
     live["tasks"][0][field] = value
     with pytest.raises(ValueError, match=field):
+        card(tmp_path, live)
+
+
+def test_bad_fact_facing(tmp_path):
+    live = live_tasks()
+    live["tasks"][0]["facts"][0]["facing"] = "Money"
+    with pytest.raises(ValueError, match=r"tasks\[0\]\.facts\[0\]\.facing"):
         card(tmp_path, live)
 
 
@@ -255,6 +364,64 @@ def test_markdown_portability(tmp_path):
     assert all(s not in text for s in ("/Users", "http", "%", str(tmp_path)))
     assert text.index("## Day-30") < text.index("## Excluded runs") < text.index("## Unexercised duties")
     assert "Count: 1" in text
+
+
+def test_markdown_preserves_every_catalogue_duty(tmp_path):
+    text = markdown(card(tmp_path))
+    for a in AREAS:
+        for duty in a["duties"]:
+            assert f"- {duty}\n" in text
+
+
+@pytest.mark.parametrize("value", ["see /Users/a/b/run", "/Users/a/b/run", "(~/runs/a)",
+                                  "[/private/a/b]", "'/tmp/a/b'", '"/var/folders/a/b"',
+                                  "run=/Users/a/b", "skipped:/Users/a/b", r"see C:\Users\a\run"])
+def test_markdown_scrubs_path_tokens(tmp_path, value):
+    c = card(tmp_path)
+    c["version"] = value
+    assert "[path omitted]" in markdown(c).splitlines()[0]
+
+
+def test_markdown_preserves_relative_slash_text(tmp_path):
+    c = card(tmp_path)
+    c["version"] = "airline/seat/hotel income/expense skipped:trip/date guard"
+    assert markdown(c).splitlines()[0] == f"# PA {c['version']} VA scorecard"
+
+
+def test_partial_failure_in_headline(tmp_path, single_test):
+    run(tmp_path, passed=False)
+    c = card(tmp_path)
+    assert area(c)["lab"] == "unproven"
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 1, "none": 12}
+    assert "· 1 partial checks failing" in headline(c)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert "· 0 partial checks failing" in headline(card(empty))
+    assert "%" not in headline(c)
+
+
+@pytest.mark.parametrize("covers,passed,n", [([0], True, 3), (None, True, 3),
+                                          ([0], False, 3), ([0], True, 2)])
+def test_uncovered_duties_require_passing_coverage(tmp_path, single_test, covers, passed, n):
+    single_test["kind"] = "full"
+    if covers is None:
+        single_test.pop("covers", None)
+    else:
+        single_test["covers"] = covers
+    for i in range(n):
+        run(tmp_path, f"r{i}", passed=passed)
+    c = card(tmp_path)
+    travel = area(c)
+    expected = travel["duties"][1:] if covers and passed and n == 3 else travel["duties"]
+    assert travel["uncovered_duties"] == expected
+    assert travel["tests"][0]["covers"] == (covers or [])
+    text = markdown(c).split("## Unexercised duties", 1)[1]
+    for a in c["areas"]:
+        assert f"### {a['title']}" in text
+        for duty in a["uncovered_duties"]:
+            assert f"- {duty}\n" in text
+    if expected != travel["duties"]:
+        assert f"- {travel['duties'][0]}\n" not in text
 
 
 def test_cli(tmp_path):
@@ -285,6 +452,24 @@ def test_cli_bad_inputs(tmp_path, option, value, field):
     args = [sys.executable, "-m", "evals.scorecard", "--version", "V", "--commit", SHA,
             "--lab", str(tmp_path), "--as-of", "2026-10-21", "--out", str(tmp_path / "out")]
     args[args.index(option) + 1] = value
+    result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
+    assert result.returncode == 2
+    assert field in result.stderr
+    if field == "commit":
+        assert "invalid commit" in result.stderr
+
+
+@pytest.mark.parametrize("field,value", [("correction", "Material"), ("facing", "Money")])
+def test_cli_rejects_invalid_live_enums(tmp_path, field, value):
+    live = live_tasks()
+    record = live["tasks"][0]
+    if field == "facing":
+        record = record["facts"][0]
+    record[field] = value
+    path = tmp_path / "live.json"
+    write(path, live)
+    args = [sys.executable, "-m", "evals.scorecard", "--version", "V", "--commit", SHA,
+            "--lab", str(tmp_path), "--live", str(path), "--out", str(tmp_path / "out")]
     result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
     assert result.returncode == 2
     assert field in result.stderr

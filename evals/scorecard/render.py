@@ -1,18 +1,21 @@
 """Portable Markdown scorecards without local paths or external links."""
 import re
 
+from ._portable import scrub_paths
+
 
 def _text(value):
     text = str(value)
     text = re.sub(r"(?:[A-Za-z][A-Za-z0-9+.-]*://|www\.)\S+", "[URL omitted]", text, flags=re.I)
-    text = re.sub(r"(?:[A-Za-z]:[\\/]|~?/)\S+", "[path omitted]", text)
+    text = scrub_paths(text)
     return text.replace("|", "&#124;").replace("\n", " ").replace("\r", " ")
 
 
 def headline(card):
     counts = card["counts"]["lab"]
-    partial = sum(a["partial"]["state"] == "pass" for a in card["areas"])
-    return (f"Lab: {counts['pass']} pass · {partial} partial checks passing · "
+    partial = card["counts"]["partial"]
+    return (f"Lab: {counts['pass']} pass · {partial['pass']} partial checks passing · "
+            f"{partial['fail']} partial checks failing · "
             f"{counts['fail']} fail · {counts['unproven']} unproven · "
             f"{counts['not_exercised']} not exercised")
 
@@ -36,7 +39,6 @@ def markdown(card):
         lines.append(f"- {_text(run['run'])} ({_text(run['scenario'])}): {_text(run['reason'])}")
     lines += ["", "## Unexercised duties"]
     for area in card["areas"]:
-        if area["lab"] == "not_exercised" or not any(t["kind"] == "full" for t in area["tests"]):
-            lines += ["", f"### {_text(area['title'])}", ""]
-            lines += [f"- {_text(duty)}" for duty in area["duties"]]
+        lines += ["", f"### {_text(area['title'])}", ""]
+        lines += [f"- {_text(duty)}" for duty in area["uncovered_duties"]]
     return "\n".join(lines) + "\n"
