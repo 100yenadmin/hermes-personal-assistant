@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Vision and roadmap (#5).** `VISION.md` sets the goal: a remote assistant at the level of a top-rated human VA, then a remote Chief of Staff. `docs/vision/` defines the bar for each, with an acceptance test per area. `ROADMAP.md` orders the work from self-onboarding through VA parity (1.0) to Chief of Staff (2.0). Documentation only.
+
 ## 0.8.0-rc.3 — 2026-10-21
 
 - **Phone calls, phase 1 (#27, tracked in #30).** Nothing dials yet: a live ElevenLabs `start` returns `not_activated`, and `check_with_owner` is not available. Details: `docs/phone-calls-phase-1.md`.
