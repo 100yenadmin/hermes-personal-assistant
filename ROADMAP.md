@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.8.0-rc.3, 21 October 2026)
+## Where we are (0.9.0-rc.1, 21 October 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -20,6 +20,11 @@ That pilot has shown:
 - guided setup, both the core and the Chief of Staff sections;
 - two Chief of Staff daily reports delivered;
 - a restaurant search that stopped correctly before booking.
+
+**Built, live exit pending (M1).** 0.9.0-rc.1 adds the eight-group "grill me"
+interview (27 questions), owner memory (corrections, people, SOPs and trust
+levels) and the day-30 review. The persona rig passes for zero re-asked facts
+across two sittings. The M1 exit test on the pilot agent is next.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
@@ -34,8 +39,7 @@ That pilot has shown:
 - chasing open loops;
 - office work: documents, data and finance admin;
 - messaging contacts for the owner;
-- completed transactions and real phone calls;
-- learning from corrections between setups.
+- completed transactions and real phone calls.
 
 **Missing against the Chief of Staff bar:** everything that involves the team.
 That is the roster, reading team systems, delegation across people, a decision
@@ -45,8 +49,8 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 
 | VA bar area | Today | Closed in |
 |---|---|---|
-| Onboarding interview ("grill me") | partial: 8 core and 6 Chief of Staff questions, weighted to travel | M1 |
-| Preference and voice learning | missing | M1, plus the voice test in M6 |
+| Onboarding interview ("grill me") | built in 0.9.0-rc.1: 8 core, 6 Chief of Staff and 27 profile questions across the eight groups; live exit pending | M1 |
+| Preference and voice learning | built in 0.9.0-rc.1: corrections, confirmed inferences, people and SOPs; live exit pending; voice not yet tested | M1, plus the voice test in M6 |
 | Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2 (check), M3 (daily and weekly), M6 (monthly, quarterly, licences and contracts) |
 | Research | partial: adopt-or-build research only | M2 |
 | Travel | partial: prep up to the final page, nothing completed | M0 (real trip), M5 (completion) |

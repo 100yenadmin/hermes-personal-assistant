@@ -1,7 +1,7 @@
 {
   "id": "travel-agent-skills",
   "name": "Personal Assistant Plugin",
-  "version": "0.8.0-rc.3",
+  "version": "0.9.0-rc.1",
   "description": "Executability-first travel skills for personal assistant and executive assistant agents, with trip memory, action ledgers, Browserbase checkout recovery, payment readiness, final-state confirmations, and proof capture.",
   "family": "bundle-plugin",
   "activation": {
