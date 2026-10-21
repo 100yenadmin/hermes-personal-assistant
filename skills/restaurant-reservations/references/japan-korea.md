@@ -20,9 +20,11 @@ Use these public-page dining routes to prepare a reservation or waitlist entry; 
 | --- | --- | --- | --- | --- | --- |
 | Naver Place / Booking (visitor verification route) | https://help.naver.com/service/5640/contents/25235?lang=ko&osType=COMMONOS | Restaurant listings and participating bookings | app-only | login; card/deposit (venue-dependent) | Naver Map passport/camera verification can replace Korean phone verification; user completes it. |
 | CATCHTABLE Global | https://www.catchtable.net/ | Reservations and supported waitlists | web | login; card/deposit (reservations, venue-dependent) | Global edition accepts overseas cards; Korean phone unnecessary; some waits are on-site only. |
+| CATCHTABLE (Korean edition) | https://app.catchtable.co.kr/ | More venues than Global | web | login with Korean phone SMS and real-name verification; card/deposit (venue-dependent) | Use only when the user has a Korean phone; otherwise hand off or call. |
 | Tabling | https://info.tabling.co.kr/policy/service.html | Remote restaurant waitlists | app-only | login; card/deposit (venue-dependent); unverified (local phone/SMS) | Korean app; check number eligibility and queue deposit before promising remote entry. |
 
 `web` means a documented browser booking route, not a tested checkout in this lane. `app-only` describes the selected route; Naver's visitor identity check needs the user's device, not every Naver booking.
+For a user without a Korean phone number, check CATCHTABLE Global first; it lists fewer venues than the Korean edition. If the venue is only on the Korean edition, offer a call (`phone-calls`) or a handoff; never create an account.
 For small places with phone-only booking, use `phone-calls` and prepare a polite Japanese/Korean call brief before seeking call approval.
 For app/login/phone handoffs, preserve venue, branch, party size, local date/time, seating and terms. Give the exact visible path to the selected slot and review screen; the user handles identity verification. Queue entry can notify the restaurant, so obtain approval before joining.
 
