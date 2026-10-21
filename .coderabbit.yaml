@@ -1,0 +1,4 @@
+# Keep CodeRabbit's summary in its walkthrough comment. PR bodies stay as written:
+# a release PR's body carries the published release notes.
+reviews:
+  high_level_summary_in_walkthrough: true
