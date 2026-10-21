@@ -192,7 +192,7 @@ The weekly closeout, `cos_weekly`, defaults to Friday 15:00 local and includes r
 Use `/suggestions` to review, then `/suggestions accept personal-assistant-cos-daily`,
 `/suggestions accept personal-assistant-cos-kickoff` and/or
 `/suggestions accept personal-assistant-cos-weekly` for your chosen schedules.
-If Chief of Staff was turned off and on before, accept with the ID command the assistant gives (`/suggestions accept <id>`); the title can match an older record.
+The assistant also gives each routine's exact command, `/suggestions accept <id>`. Use it whenever a routine was offered before, for example after Chief of Staff was turned off and on or after you asked for a removed routine again: the title can match the older record.
 Enabling the mode starts no jobs. Five-minute prechecks respect quiet hours,
 pause and snooze, with one report per local day or ISO week. A missed kickoff
 catches up only until that week's closeout.
