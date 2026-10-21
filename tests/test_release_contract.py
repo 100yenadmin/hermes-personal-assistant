@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 import subprocess
 from unittest import mock
@@ -86,3 +87,115 @@ def test_publish_intent_without_version_change_is_rejected(tmp_path):
     with mock.patch.object(release_contract, "ROOT", repo):
         with pytest.raises(ValueError, match="VERSION did not change"):
             release_contract.validate_pull_request(event(base, head, body))
+
+
+@pytest.fixture
+def release_files():
+    version = "0.10.0-rc.1"
+    files = {
+        "plugin.yaml": f"name: personal-assistant\nversion: {version}\n",
+        f"releases/{version}/manifest.json": json.dumps({
+            "version": version, "native_id": "personal-assistant", "source_commit": "release-merge",
+            "reviewed_implementation_commit": "a" * 40,
+        }),
+        f"releases/{version}/scorecard.json": json.dumps({
+            "schema": 1, "version": version, "commit": "a" * 40,
+            "areas": {f"area-{index}": {} for index in range(14)},
+        }),
+        f"releases/{version}/scorecard.md": f"# PA {version} VA scorecard\n",
+    }
+
+    def read(_revision, path):
+        if path not in files:
+            raise ValueError("git show failed")
+        return files[path]
+
+    with mock.patch.object(release_contract, "text_at", side_effect=read):
+        yield files
+
+
+@pytest.mark.parametrize("extension", ["json", "md"])
+def test_release_requires_both_scorecard_files(release_files, extension):
+    path = f"releases/0.10.0-rc.1/scorecard.{extension}"
+    del release_files[path]
+    with pytest.raises(ValueError, match="release scorecard missing: " + re.escape(path)):
+        release_contract.validate_release_files("candidate", "0.10.0-rc.1")
+
+
+@pytest.mark.parametrize(("field", "value", "message"), [
+    ("schema", 2, "scorecard schema must be 1"),
+    ("schema", True, "scorecard schema must be 1"),
+    ("version", "0.9.0-rc.3", "scorecard version does not match"),
+    ("commit", "b" * 40, "scorecard commit does not match the manifest"),
+    ("commit", "not-a-commit", "scorecard commit must be a 40-hex string"),
+    ("areas", [{}] * 13, "scorecard areas must have 14 entries"),
+    ("areas", "x" * 14, "scorecard areas must have 14 entries"),
+])
+def test_invalid_scorecard_fields_are_rejected(release_files, field, value, message):
+    path = "releases/0.10.0-rc.1/scorecard.json"
+    scorecard = json.loads(release_files[path])
+    scorecard[field] = value
+    release_files[path] = json.dumps(scorecard)
+    with pytest.raises(ValueError, match=message):
+        release_contract.validate_release_files("candidate", "0.10.0-rc.1")
+
+
+@pytest.mark.parametrize(("content", "message"), [
+    ("{", "not valid JSON"),
+    ("[]", "must be a JSON object"),
+])
+def test_invalid_scorecard_json_is_rejected(release_files, content, message):
+    release_files["releases/0.10.0-rc.1/scorecard.json"] = content
+    with pytest.raises(ValueError, match=message):
+        release_contract.validate_release_files("candidate", "0.10.0-rc.1")
+
+
+def test_scorecard_markdown_requires_versioned_heading(release_files):
+    release_files["releases/0.10.0-rc.1/scorecard.md"] = "# PA 0.9.0 VA scorecard"
+    with pytest.raises(ValueError, match="scorecard.md must start"):
+        release_contract.validate_release_files("candidate", "0.10.0-rc.1")
+
+
+def test_correct_scorecard_passes(release_files):
+    release_contract.validate_release_files("candidate", "0.10.0-rc.1")
+
+
+@pytest.mark.parametrize(("version", "required"), [
+    ("0.9.0-rc.3", False), ("0.9.9", False), ("0.10.0", True), ("1.0.0-rc.1", True),
+])
+def test_scorecard_version_threshold(version, required):
+    files = {
+        "plugin.yaml": f"name: personal-assistant\nversion: {version}\n",
+        f"releases/{version}/manifest.json": json.dumps({
+            "version": version, "native_id": "personal-assistant", "source_commit": "historical",
+        }),
+    }
+
+    def read(_revision, path):
+        if path not in files:
+            raise ValueError("git show failed")
+        return files[path]
+
+    with mock.patch.object(release_contract, "text_at", side_effect=read):
+        if required:
+            with pytest.raises(ValueError, match="release scorecard missing"):
+                release_contract.validate_release_files("candidate", version)
+        else:
+            release_contract.validate_release_files("candidate", version)
+
+
+def test_release_notes_strip_multiline_comments_before_bot_summary():
+    body = (
+        "Related #48\nRelease impact: publish\n## Release notes\n"
+        "Ships the release scorecard.\n<!-- a\nmultiline -->\n<!-- b -->\n## Summary by Bot\nBot text."
+    )
+    assert release_contract.parse_body(body) == ("publish", "Ships the release scorecard.")
+
+
+def test_comment_only_notes_are_not_substantive():
+    body = "Related #48\nRelease impact: publish\n## Release notes\n<!-- only\ncomment -->\n"
+    base, head = "a" * 40, "b" * 40
+    with mock.patch.object(release_contract, "text_at", side_effect=["0.9.0", "0.10.0"]):
+        with mock.patch.object(release_contract, "git", return_value="VERSION\nCHANGELOG.md"):
+            with pytest.raises(ValueError, match="substantive release notes"):
+                release_contract.validate_pull_request(event(base, head, body))

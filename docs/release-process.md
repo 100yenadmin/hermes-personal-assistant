@@ -11,6 +11,9 @@ not publish a tag or asset. A release pull request deliberately changes
 `VERSION`, adds matching release notes, and declares `Release impact: publish`.
 Only the merge of that reviewed release pull request to `main` may publish.
 
+Releases from `0.10.0` (including prereleases) require `scorecard.json` and `scorecard.md` in `releases/<version>/`, with schema 1, the matching version and reviewed implementation commit, 14 areas, and the `# PA <version> VA scorecard` Markdown heading.
+HTML comments are removed from extracted release notes before publication, and the remaining notes must be substantive.
+
 ## Candidate validation
 
 Every pull request runs the required `validate` check. It aggregates package
