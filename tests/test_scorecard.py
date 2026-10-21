@@ -40,8 +40,11 @@ def area(card, key="travel"):
     return next(a for a in card["areas"] if a["key"] == key)
 
 
-def card(root, live=None, **kwargs):
-    return build("0.9.0-rc.2", SHA, [root], live, as_of="2026-10-21", **kwargs)
+DAY30_AS_OF = "2026-11-01"  # Late enough for a day-30 week ending 2026-10-31 after tasks starting 2026-10-01.
+
+
+def card(root, live=None, as_of="2026-10-21", **kwargs):
+    return build("0.9.0-rc.2", SHA, [root], live, as_of=as_of, **kwargs)
 
 
 @pytest.fixture
@@ -61,10 +64,11 @@ def live_tasks(n=10):
                       for i in range(n)], "baselines": {}, "day30": {}}
 
 
-def day30(live, minutes=75, types=None):
+def day30(live, minutes=75, types=None, week_ending="2026-10-31"):
     for owner in {t["owner"] for t in live["tasks"]}:
         live["baselines"][owner] = {"total_minutes": 100}
-        live["day30"][owner] = {"minutes": minutes, "first_pass_task_types": types or ["inbox", "travel", "research", "calendar"]}
+        live["day30"][owner] = {"week_ending": week_ending, "minutes": minutes,
+                                "first_pass_task_types": types or ["inbox", "travel", "research", "calendar"]}
     return live
 
 
@@ -84,7 +88,8 @@ def test_catalogue():
             assert t["label"]
             assert t["covers"] == []
     assert PARITY == {"LAB_RUNS": 3, "REAL_MIN_TASKS": 10, "REAL_MIN_OWNERS": 2, "REAL_MIN_DAYS": 14,
-                      "REAL_PASS_RATE": 0.9, "DAY30_MIN_SAVING": 0.2, "DAY30_MIN_TYPES": 4}
+                      "REAL_PASS_RATE": 0.9, "DAY30_MIN_SAVING": 0.2, "DAY30_MIN_TYPES": 4,
+                      "DAY30_MIN_DAYS": 28}
 
 
 def test_partial_pass_never_establishes_full_area(tmp_path, single_test):
@@ -308,21 +313,21 @@ def test_day30_and_parity(tmp_path, single_test):
     for i in range(3):
         run(tmp_path, f"r{i}")
     live = live_tasks()
-    assert card(tmp_path, live)["day30"]["state"] == "unproven"
-    c = card(tmp_path, day30(live))
+    assert card(tmp_path, live, DAY30_AS_OF)["day30"]["state"] == "unproven"
+    c = card(tmp_path, day30(live), DAY30_AS_OF)
     assert c["day30"]["state"] == area(c)["parity"] == "pass"
     assert c["counts"]["lab"]["pass"] == 1
     assert c["counts"]["parity"]["pass"] == 1
-    assert area(card(tmp_path, day30(live, 90)))["parity"] == "fail"
-    assert card(tmp_path, day30(live, 80))["day30"]["state"] == "pass"
-    assert card(tmp_path, day30(live, types=["travel"] * 4))["day30"]["state"] == "fail"
+    assert area(card(tmp_path, day30(live, 90), DAY30_AS_OF))["parity"] == "fail"
+    assert card(tmp_path, day30(live, 80), DAY30_AS_OF)["day30"]["state"] == "pass"
+    assert card(tmp_path, day30(live, types=["travel"] * 4), DAY30_AS_OF)["day30"]["state"] == "fail"
     live["day30"].pop("owner-1")
-    assert card(tmp_path, live)["day30"]["state"] == "unproven"
+    assert card(tmp_path, live, DAY30_AS_OF)["day30"]["state"] == "unproven"
 
 
 def test_day30_normalizes_task_types(tmp_path):
     live = day30(live_tasks(), types=["Inbox", "inbox ", "INBOX", "a", "b", "  "])
-    result = card(tmp_path, live)["day30"]
+    result = card(tmp_path, live, DAY30_AS_OF)["day30"]
     assert result["state"] == "fail"
     assert all(owner["types"] == 3 for owner in result["owners"].values())
 
@@ -346,7 +351,8 @@ def test_bad_fact_facing(tmp_path):
 
 @pytest.mark.parametrize("record,field,value", [("baselines", "total_minutes", 0),
                                               ("day30", "minutes", -1),
-                                              ("day30", "first_pass_task_types", "travel")])
+                                              ("day30", "first_pass_task_types", "travel"),
+                                              ("day30", "week_ending", None), ("day30", "week_ending", "Oct 31")])
 def test_bad_day30_fields(tmp_path, record, field, value):
     live = day30(live_tasks())
     live[record]["owner-0"][field] = value
@@ -512,7 +518,7 @@ def test_uncovered_duties_keep_parity_unproven(tmp_path, single_test):
     single_test["kind"], single_test["covers"] = "full", [0]
     for i in range(3):
         run(tmp_path, f"r{i}")
-    c = card(tmp_path, day30(live_tasks()))
+    c = card(tmp_path, day30(live_tasks()), DAY30_AS_OF)
     travel = area(c)
     assert travel["lab"] == travel["real_work"]["state"] == travel["facts"]["state"] == c["day30"]["state"] == "pass"
     assert travel["parity"] == "unproven" and travel["uncovered_duties"] and travel["notes"]
@@ -617,8 +623,8 @@ def test_whitespace_owner_is_rejected(tmp_path, owner):
 
 def test_future_owner_does_not_change_day30(tmp_path):
     live = day30(live_tasks())
-    live["tasks"].append(dict(live["tasks"][0], id="later", owner="newcomer", started="2026-10-25", due="2026-10-30"))
-    assert card(tmp_path, live)["day30"]["state"] == "pass"
+    live["tasks"].append(dict(live["tasks"][0], id="later", owner="newcomer", started="2026-11-05", due="2026-11-10"))
+    assert card(tmp_path, live, DAY30_AS_OF)["day30"]["state"] == "pass"
 
 
 def test_internal_fact_without_source_is_unproven(tmp_path):
@@ -656,3 +662,19 @@ def test_markdown_link_syntax_is_inert(tmp_path, value):
     c["version"] = value
     line = markdown(c).splitlines()[0]
     assert "](" not in line and "//example.invalid" not in line
+
+
+@pytest.mark.parametrize("week_ending,as_of,state", [("2026-10-21", "2026-10-21", "unproven"),  # 20 days in.
+                                                     ("2026-10-31", "2026-10-21", "unproven"),  # Not ended yet.
+                                                     ("2026-10-28", DAY30_AS_OF, "unproven"),   # 27 days after start.
+                                                     ("2026-10-29", DAY30_AS_OF, "pass")])      # 28 days after start.
+def test_day30_needs_a_reached_milestone(tmp_path, week_ending, as_of, state):
+    assert card(tmp_path, day30(live_tasks(), week_ending=week_ending), as_of)["day30"]["state"] == state
+
+
+@pytest.mark.parametrize("fields", [{"start": []}, {"start": {}}, {"start": "0"}, {"start": True},
+                                    {"start": 0, "run_id": []}, {"start": 0, "run_id": 7}])
+def test_unhashable_or_mistyped_identity_is_malformed(tmp_path, single_test, fields):
+    run(tmp_path, **{"run.json": {"end": 10, "status": "ok", **fields}})
+    c = card(tmp_path)
+    assert area(c)["tests"][0]["runs"] == 0 and c["excluded"][0]["reason"] == "malformed_run"

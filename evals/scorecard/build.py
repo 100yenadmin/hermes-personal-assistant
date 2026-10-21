@@ -3,7 +3,7 @@ import json
 import math
 import re
 from copy import deepcopy
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from evals.lab.checks import submit_events
@@ -72,18 +72,23 @@ def _live(value):
             metric = "total_minutes" if name == "baselines" else "minutes"
             _number(record.get(metric), f"{field}.{metric}", positive=name == "baselines")
             if name == "day30":
+                _date(record.get("week_ending"), f"{field}.week_ending")
                 types = record.get("first_pass_task_types")
                 _require(isinstance(types, list) and all(isinstance(t, str) and t for t in types),
                          f"{field}.first_pass_task_types")
     return {"tasks": value["tasks"], "baselines": value.get("baselines", {}), "day30": value.get("day30", {})}
 
 
-def _day30(live):
+def _day30(live, as_of):
     owners = sorted({t["owner"] for t in live["tasks"]})
     results = {}
     for owner in owners:
         base, end = live["baselines"].get(owner), live["day30"].get(owner)
-        if base is None or end is None:
+        first = min(_date(t["started"], "started") for t in live["tasks"] if t["owner"] == owner)
+        # A day-30 record counts only once its week has ended, late enough after the owner's first task.
+        reached = end is not None and first + timedelta(days=PARITY["DAY30_MIN_DAYS"]) <= _date(
+            end["week_ending"], "week_ending") <= as_of
+        if base is None or not reached:
             results[owner] = {"state": "unproven"}
             continue
         saving = 1 - end["minutes"] / base["total_minutes"]
@@ -143,7 +148,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
     _require(isinstance(commit, str) and bool(re.fullmatch(r"[0-9a-fA-F]{40}", commit)), "commit")
     today = _date(as_of, "as_of") if as_of is not None else datetime.now(timezone.utc).date()
     live = _live(live)
-    day30 = _day30({**live, "tasks": [t for t in live["tasks"] if _date(t["started"], "started") <= today]})
+    day30 = _day30({**live, "tasks": [t for t in live["tasks"] if _date(t["started"], "started") <= today]}, today)
     catalogue = deepcopy(AREAS)
     mapped = {t["scenario"] for a in catalogue for t in a["tests"]}
     runs, excluded, roots, seen = [], [], [], set()
@@ -159,15 +164,17 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             _require(isinstance(scenario, dict) and isinstance(scenario.get("id"), str), f"{folder.name}.scenario.id")
             sid = scenario["id"]
             run_id = f"{lab_name}/{folder.name}"
+            start, given = run.get("start"), run.get("run_id")
+            well_formed = type(start) in (int, float) and (given is None or isinstance(given, str))
             # The runner writes run_id and start into run.json, so renamed or copied folders keep one identity.
-            identity = (sid, run.get("run_id") or folder.name, run.get("start"))
-            if identity in seen:  # Only counted runs reserve an identity, so a damaged copy never hides its original.
+            identity = (sid, given or folder.name, start) if well_formed else None
+            if identity is not None and identity in seen:  # Only counted runs reserve an identity, so a damaged copy never hides its original.
                 excluded.append({"run": run_id, "scenario": sid, "reason": "duplicate"})
                 continue
             ref = _pa_ref(_read(folder / "plugin-refs.json", {}))
             if run.get("status") == "skipped":
                 reason = f"skipped:{run.get('reason', 'unspecified')}"
-            elif "start" not in run:
+            elif not well_formed:
                 reason = "malformed_run"
             elif "end" not in run:
                 reason = "incomplete"
