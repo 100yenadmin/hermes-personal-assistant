@@ -66,6 +66,8 @@ def _live(value):
         _require(task.get("owner_accepted") is None or type(task["owner_accepted"]) is bool,
                  f"{field}.owner_accepted")
         _require(_date(task["due"], f"{field}.due") >= _date(task["started"], f"{field}.started"), f"{field}.due")
+        _require(task.get("closed_at") is None or (isinstance(task["closed_at"], str)
+                 and bool(re.match(r"\d{4}-\d{2}-\d{2}", task["closed_at"]))), f"{field}.closed_at")
         _require(isinstance(task.get("facts"), list), f"{field}.facts")
         for j, fact in enumerate(task["facts"]):
             ff = f"{field}.facts[{j}]"
@@ -109,7 +111,8 @@ def _day30(live):
 def _real_work(tasks, as_of):
     eligible = [t for t in tasks if _date(t["started"], "started") <= as_of
                 and (t["status"] in {"pass", "fail"} or _date(t["due"], "due") < as_of)]
-    passed = sum(t["status"] == "pass" and t["owner_accepted"] is True
+    # A pass closed after its due date is late, so it is not a pass by the agreed date.
+    passed = sum(t["status"] == "pass" and str(t.get("closed_at") or t["due"])[:10] <= t["due"] and t.get("owner_accepted") is True
                  and t["correction"] != "material" for t in eligible)
     owners = len({t["owner"] for t in eligible})
     # The export has no completion timestamp; never count beyond as_of.

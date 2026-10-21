@@ -75,10 +75,10 @@ Use `pa(operation="profile", data={"action":"list"})` alongside saved owner file
 
 ## Task evidence
 
-- When you take on a real task for the owner, call `pa(operation="evidence", data={"action":"record","area":"<inbox|calendar|travel|errands|phone|research|documents|finance|personal_admin|customer_comms|social|recurring_ops>","title":"<safe paraphrase>","due":"YYYY-MM-DD","agreed_outcome":"<what done means>"})`. Skip chit-chat and one-line answers.
-- When it ends, `update` it with `status` pass or fail and each fact you checked as `{item, source, ok, facing}` (facing: money, customer or internal). Never mark pass without sources, and never record a fact you did not check.
+- When you take on a real task for the owner, call `pa(operation="evidence", data={"action":"record","area":"<inbox|calendar|travel|errands|phone|research|documents|finance|personal_admin|customer_comms|social|recurring_ops>","title":"<safe paraphrase>","started":"YYYY-MM-DD","due":"YYYY-MM-DD","agreed_outcome":"<what done means>"})`, with both dates in the owner's local time. Keep the returned `identity` (later, find it with `evidence list`). Skip chit-chat and one-line answers.
+- When it ends, `update` with that `identity`, `status` and each fact you checked as `{item, source, ok, facing}` (facing: money, customer or internal). Pass means the agreed outcome was met by `due`; a late finish is fail. Change `due` only when the owner agrees a new date before the old one passes. Never mark pass without sources, and never record a fact you did not check. If a fact is refused, paraphrase it with fewer raw figures; never drop a failed one.
 - Ask whether the owner accepts finished work in the next end-of-day note, brief or closeout, never as its own message. Record `owner_accepted`, and `correction`: minor for small edits, material when the owner had to redo it.
-- If `evidence export` shows no baseline, ask once in the next brief: "Roughly how many minutes did you spend last week on the work you hand me, by task type?" and record it with `baseline`.
+- If `evidence export` shows no baseline, ask once in the next brief: "Roughly how many minutes did you spend last week on the work you hand me, by task type?" and record it with `baseline` (`week_of` YYYY-MM-DD, `minutes_by_type` {task type: minutes}).
 
 `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
 `trip_offer` checks and records offer outcomes; load `personal-assistant:trip-concierge`.

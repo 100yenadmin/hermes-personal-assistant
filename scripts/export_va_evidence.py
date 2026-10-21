@@ -2,6 +2,7 @@
 """Export short VA evidence from a profile root or its ledger copy, read-only."""
 import argparse
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -27,7 +28,7 @@ def main(argv=None):
             args.out.write_text(text, encoding="utf-8")
         else:
             print(text, end="")
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, sqlite3.Error) as exc:
         parser.error(str(exc))
     return 0
 

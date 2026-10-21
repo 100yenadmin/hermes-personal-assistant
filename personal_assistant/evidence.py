@@ -1,4 +1,5 @@
 """Short, private task evidence in the existing profile ledger."""
+import hashlib
 import re
 from datetime import date, datetime, timezone
 
@@ -46,6 +47,17 @@ def _keys(data, allowed):
         raise ValueError("unsupported evidence fields")
 
 
+def _refused(data):
+    """Credentials, card/account numbers and raw bodies stay out. Free text must survive clean() unchanged; source URLs
+    and task-type names need only be free of credential and card patterns, because clean() also rewrites login paths and
+    drops words such as "passport" that are ordinary in evidence."""
+    facts = data.get("facts") if isinstance(data.get("facts"), list) else []
+    free = {k: data[k] for k in ("title", "agreed_outcome", "correction_note") if isinstance(data.get(k), str)}
+    free["items"] = [f["item"] for f in facts if isinstance(f, dict) and isinstance(f.get("item"), str)]
+    keys = list(data["minutes_by_type"]) if isinstance(data.get("minutes_by_type"), dict) else []
+    return clean(free) != free or _private(data) or _private(keys)
+
+
 def _tasks(ledger):
     rows = [r for r in ledger.list("action")
             if r["action_type"] == "va_task" and r["action_id"].startswith("va-task:")]
@@ -61,7 +73,7 @@ def _save(ledger, identity, fields, row_type):
 
 
 def dispatch(ledger, data):
-    if clean(data) != data or _private(data):
+    if _refused(data):
         raise ValueError("evidence records prohibit credentials, card/account/passport numbers and raw message bodies")
     action = data.get("action")
     if action == "record":
@@ -70,14 +82,17 @@ def dispatch(ledger, data):
                   "title": _text(data.get("title"), "title", 120),
                   "due": _date(data.get("due"), "due"),
                   "agreed_outcome": _text(data.get("agreed_outcome"), "agreed_outcome", 200),
-                  "started": _date(data.get("started", datetime.now(timezone.utc).date().isoformat()), "started"),
+                  # Without an explicit owner-local start, never start after the due date (UTC runs ahead of the Americas).
+                  "started": _date(data["started"], "started") if "started" in data
+                  else min(datetime.now(timezone.utc).date().isoformat(), _date(data.get("due"), "due")),
                   "cohort": _text(data.get("cohort", "default"), "cohort", 40),
                   "status": "pending", "owner_accepted": None, "correction": "none",
                   "facts": [], "created_at": now()}
         if fields["due"] < fields["started"]:
             raise ValueError("due must not be before started")  # The scorecard rejects such tasks.
         slug = re.sub(r"[^a-z0-9]+", "-", fields["title"].lower()).strip("-")
-        task_id = data.get("task_id", (slug[:49].rstrip("-") or "task") + "-" + fields["started"])
+        digest = hashlib.sha1(fields["title"].encode()).hexdigest()[:6]  # Titles in any script stay distinct.
+        task_id = data.get("task_id", (slug[:40].rstrip("-") or "task") + "-" + digest + "-" + fields["started"])
         if not isinstance(task_id, str) or not re.fullmatch(r"[a-z0-9-]{3,60}", task_id):
             raise ValueError("task_id must be a slug of 3-60 characters")
         identity = "va-task:" + task_id
@@ -160,8 +175,9 @@ def dispatch(ledger, data):
         _keys(data, "owner")
         owner = _text(data.get("owner", "owner"), "owner", 40)
         keys = "area title started due status owner_accepted correction facts".split()
-        result = {"tasks": [{"id": r["identity"][len("va-task:"):], "owner": owner,
-                             **{k: r[k] for k in keys}} for r in _tasks(ledger)], "baselines": {}, "day30": {}}
+        result = {"tasks": [{"id": r["identity"][len("va-task:"):], "owner": owner, **{k: r[k] for k in keys},
+                             **({"closed_at": r["closed_at"]} if r.get("closed_at") else {})} for r in _tasks(ledger)],
+                  "baselines": {}, "day30": {}}
         for name, prefix, keys in (("baselines", "va-baseline:", "week_of minutes_by_type total_minutes"),
                                    ("day30", "va-day30:", "week_ending minutes first_pass_task_types")):
             row = ledger.get("action", prefix + "owner")

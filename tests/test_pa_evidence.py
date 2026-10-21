@@ -1,5 +1,6 @@
 """Synthetic evidence recording, isolation and read-only export."""
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -39,7 +40,7 @@ def time_records(root):
 def test_record_defaults_and_duplicate(tmp_path):
     row = record(tmp_path)
     assert row["started"] == datetime.now(timezone.utc).date().isoformat()
-    assert row["identity"] == "va-task:compare-options-" + row["started"]
+    assert re.fullmatch(r"va-task:compare-options-[0-9a-f]{6}-" + row["started"], row["identity"])
     assert row["status"] == "pending" and row["owner_accepted"] is None
     assert row["facts"] == [] and row["correction"] == "none" and row["cohort"] == "default"
     assert row["created_at"]
@@ -213,3 +214,58 @@ def test_dates_and_baseline_stay_scoreable(tmp_path):
         call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={"inbox": 0})
     with pytest.raises(ValueError, match="at least one delegated task type"):
         call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={})
+
+
+def test_titles_in_any_script_get_distinct_ids(tmp_path):
+    ids = {record(tmp_path, title=title, started="2026-10-21")["identity"]
+           for title in ("給与計算サービスの比較", "大阪のホテル予約", "받은편지함 정리",
+                         "Compare payroll providers for a twelve person team, option A",
+                         "Compare payroll providers for a twelve person team, option B")}
+    assert len(ids) == 5 and all(re.fullmatch(r"va-task:[a-z0-9-]{3,60}", i) for i in ids)
+
+
+@pytest.mark.parametrize("minutes", [{"4111 1111 1111 1111": 30}, {"token=abcdef123456": 30}])
+def test_private_baseline_keys_are_refused(tmp_path, minutes):
+    with pytest.raises(ValueError, match="evidence records prohibit"):
+        call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type=minutes)
+    assert not Ledger(tmp_path).list("action")
+
+
+def test_ordinary_sources_and_task_types_are_accepted(tmp_path):
+    call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={"passport renewal": 30, "wifi setup": 15})
+    task = record(tmp_path)
+    facts = [{"item": "Gusto price", "source": "https://help.gusto.com/login/pricing", "ok": True, "facing": "money"},
+             {"item": "Demo video", "source": "https://www.youtube.com/watch?v=abc&t=42s", "ok": True, "facing": "internal"}]
+    assert call(tmp_path, "update", identity=task["identity"], facts=facts)["facts"] == facts
+    with pytest.raises(ValueError, match="evidence records prohibit"):
+        call(tmp_path, "update", identity=task["identity"],
+             facts=[{"item": "x", "source": "https://x.example/?token=abcdef123456", "ok": True, "facing": "money"}])
+
+
+def test_started_defaults_never_after_due(tmp_path):
+    past = "2001-01-02"
+    row = call(tmp_path, "record", area="research", title="Old due", due=past, agreed_outcome="done")
+    assert row["started"] == past
+
+
+def test_late_pass_is_not_a_pass_by_the_due_date(tmp_path):
+    task = record(tmp_path, started="2026-10-01", due="2026-10-05")
+    call(tmp_path, "update", identity=task["identity"], status="pass", owner_accepted=True)
+    exported = call(tmp_path, "export", owner="A")["tasks"][0]
+    assert exported["closed_at"][:10] > "2026-10-05"
+    tasks = [dict(exported, id=f"t{i}", owner=f"o{i % 2}") for i in range(10)]
+    real = next(a for a in build("0.9", "a" * 40, [], {"tasks": tasks, "baselines": {}, "day30": {}},
+                                 as_of="2026-10-30")["areas"] if a["key"] == "research")["real_work"]
+    assert real["passed"] == 0
+    on_time = [dict(t, closed_at="2026-10-04T10:00:00Z") for t in tasks]
+    real = next(a for a in build("0.9", "a" * 40, [], {"tasks": on_time, "baselines": {}, "day30": {}},
+                                 as_of="2026-10-30")["areas"] if a["key"] == "research")["real_work"]
+    assert real["passed"] == 10
+
+
+def test_export_script_without_a_ledger_is_a_usage_error(tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    result = subprocess.run([sys.executable, str(ROOT / "scripts/export_va_evidence.py"), str(empty), "--owner", "A"],
+                            capture_output=True, text=True)
+    assert result.returncode in (0, 2) and "Traceback" not in result.stderr
