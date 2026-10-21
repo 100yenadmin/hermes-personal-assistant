@@ -133,8 +133,10 @@ def dispatch(ledger, data):
             fields["status"] = _enum(data["status"], "status", _STATUSES)
             fields.pop("closed_at", None)
             if fields["status"] != "pending":
-                # The owner-local close date when given (like started and due); UTC runs a day ahead west of it.
-                fields["closed_at"] = _date(data["closed_on"], "closed_on") if "closed_on" in data else now()
+                # The owner-local close date, like started and due: a UTC date runs a day off either side of it.
+                if "closed_on" not in data:
+                    raise ValueError("closed_on (the owner's local date) is required to close a task")
+                fields["closed_at"] = _date(data["closed_on"], "closed_on")
                 if fields["closed_at"][:10] < fields["started"]:
                     raise ValueError("closed_on must not be before started")
         if "owner_accepted" in data:

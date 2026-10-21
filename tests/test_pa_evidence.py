@@ -67,7 +67,7 @@ def test_update_lifecycle_and_export(tmp_path):
     row = record(tmp_path)
     identity = row["identity"]
     facts = [{"item": "Published price", "source": "https://example.org/pricing", "ok": True, "facing": "money"}]
-    updated = call(tmp_path, "update", identity=identity, status="pass", facts=facts,
+    updated = call(tmp_path, "update", identity=identity, status="pass", facts=facts, closed_on=row["started"],
                    owner_accepted=True, correction="minor", correction_note="Clarified wording")
     assert updated["closed_at"] and updated["facts"] == facts
     assert call(tmp_path, "update", identity=identity, correction_note="")["correction_note"] == ""
@@ -75,7 +75,10 @@ def test_update_lifecycle_and_export(tmp_path):
     assert call(tmp_path, "export")["tasks"][0]["owner_accepted"] is True
     assert "closed_at" not in call(tmp_path, "update", identity=identity, status="pending", owner_accepted=None)
     assert "closed_at" not in Ledger(tmp_path).get("action", identity)["fields"]
-    assert call(tmp_path, "update", identity=identity, status="fail")["closed_at"]
+    with pytest.raises(ValueError, match="closed_on .* is required to close a task"):
+        call(tmp_path, "update", identity=identity, status="fail")  # A UTC date can pass a late task east of UTC.
+    assert "closed_at" not in Ledger(tmp_path).get("action", identity)["fields"]
+    assert call(tmp_path, "update", identity=identity, status="fail", closed_on=row["started"])["closed_at"] == row["started"]
     call(tmp_path, "update", identity=identity, title="Revised title", due="2026-11-02", agreed_outcome="Revised result")
     export = call(tmp_path, "export")
     assert set(export) == {"tasks", "baselines", "day30", "profile"}
@@ -103,7 +106,7 @@ def test_list_filters_cap_and_export_uncapped(tmp_path):
     for i in range(52):
         row = record(tmp_path, task_id=f"task-{i}", area="inbox" if i == 0 else "research")
         if i == 0:
-            call(tmp_path, "update", identity=row["identity"], status="pass")
+            call(tmp_path, "update", identity=row["identity"], status="pass", closed_on=row["started"])
     rows = call(tmp_path, "list")
     assert len(rows) == 50 and rows[0]["identity"] == "va-task:task-51"
     assert len(call(tmp_path, "list", area="inbox", status="pass")) == 1
@@ -146,8 +149,8 @@ def test_two_owner_scorecard(tmp_path):
         root = tmp_path / owner
         root.mkdir()
         for i in range(10):
-            row = record(root, task_id=f"task-{i}", started=START, due=DUE)  # Closed today, before the due date.
-            call(root, "update", identity=row["identity"], status="pass", owner_accepted=True,
+            row = record(root, task_id=f"task-{i}", started=START, due=DUE)  # Closed on the start date, before the due date.
+            call(root, "update", identity=row["identity"], status="pass", owner_accepted=True, closed_on=START,
                  correction="material" if owner == "B" and i == 9 else "none",
                  facts=[{"item": "Provider comparison", "source": "https://example.org", "ok": True, "facing": "customer"}])
         time_records(root, week_ending=today.isoformat())
@@ -257,7 +260,7 @@ def test_started_defaults_never_after_due(tmp_path):
 
 def test_late_pass_is_not_a_pass_by_the_due_date(tmp_path):
     task = record(tmp_path, started="2026-10-01", due="2026-10-05")
-    call(tmp_path, "update", identity=task["identity"], status="pass", owner_accepted=True)
+    call(tmp_path, "update", identity=task["identity"], status="pass", owner_accepted=True, closed_on="2026-10-06")
     exported = call(tmp_path, "export", owner="A")["tasks"][0]
     assert exported["closed_at"][:10] > "2026-10-05"
     tasks = [dict(exported, id=f"t{i}", owner=f"o{i % 2}") for i in range(10)]
@@ -282,7 +285,7 @@ def test_export_script_without_a_ledger_is_a_usage_error(tmp_path):
 def test_source_the_ledger_would_redact_is_refused(tmp_path, source):
     row = record(tmp_path)
     with pytest.raises(ValueError, match=r"stored redacted \(facts\)"):
-        call(tmp_path, "update", identity=row["identity"], status="pass",
+        call(tmp_path, "update", identity=row["identity"], status="pass", closed_on=row["started"],
              facts=[{"item": "Price", "source": source, "ok": True, "facing": "money"}])
     assert Ledger(tmp_path).get("action", row["identity"])["fields"]["status"] == "pending"  # Nothing was written.
 
