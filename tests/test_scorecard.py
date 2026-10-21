@@ -302,6 +302,7 @@ def test_facts_live_and_missing_sources(tmp_path):
 
 def test_day30_and_parity(tmp_path, single_test):
     single_test["kind"] = "full"
+    single_test["covers"] = list(range(len(next(a for a in AREAS if a["key"] == "travel")["duties"])))
     for i in range(3):
         run(tmp_path, f"r{i}")
     live = live_tasks()
@@ -490,6 +491,97 @@ def test_pa_ref_is_found_by_name_or_source_not_position(tmp_path):
     assert _pa_ref(home_py) == SHA
     unknown = {"plugins": [{"source": "https://github.com/electricsheephq/heartbeat2", "ref": other},
                            {"source": "/some/local/checkout", "ref": SHA}]}
-    assert _pa_ref(unknown) == other  # Fail closed: an unrecognised PA source reads as another commit.
+    assert _pa_ref(unknown) == SHA  # heartbeat2 is identifiable, so the anonymous checkout is PA.
     assert _pa_ref({"plugins": ["bad", {"ref": SHA}]}) == SHA
     assert _pa_ref({"plugins": []}) is None and _pa_ref(None) is None
+
+
+def test_duplicate_live_task_ids_are_rejected(tmp_path):
+    live = live_tasks()
+    live["tasks"][1]["id"] = live["tasks"][3]["id"]  # Same owner (owner-1): one task counted twice.
+    with pytest.raises(ValueError, match=r"tasks\[3\]\.id"):
+        card(tmp_path, live)
+    live = live_tasks()
+    live["tasks"][1]["id"] = live["tasks"][0]["id"]  # Different owners may share a slug.
+    assert area(card(tmp_path, live))["real_work"]["tasks"] == 10
+
+
+def test_uncovered_duties_keep_parity_unproven(tmp_path, single_test):
+    single_test["kind"], single_test["covers"] = "full", [0]
+    for i in range(3):
+        run(tmp_path, f"r{i}")
+    c = card(tmp_path, day30(live_tasks()))
+    travel = area(c)
+    assert travel["lab"] == travel["real_work"]["state"] == travel["facts"]["state"] == c["day30"]["state"] == "pass"
+    assert travel["parity"] == "unproven" and travel["uncovered_duties"] and travel["notes"]
+
+
+def test_future_started_tasks_do_not_count_for_facts(tmp_path):
+    live = live_tasks()
+    future = dict(live["tasks"][0], id="later", started="2026-10-25", due="2026-10-30",
+                  facts=[{"item": "total", "source": "receipt", "ok": False, "facing": "money"}])
+    live["tasks"].append(future)
+    assert area(card(tmp_path, live))["facts"]["state"] == "pass"
+
+
+def test_empty_fact_item_is_rejected(tmp_path):
+    live = live_tasks()
+    live["tasks"][0]["facts"][0]["item"] = "  "
+    with pytest.raises(ValueError, match=r"facts\[0\]\.item"):
+        card(tmp_path, live)
+
+
+@pytest.mark.parametrize("errors", [2, [{"amount": "S$15", "source": "[1]", "reason": "not_in_source"}]])
+def test_lab_factual_errors_fail_facts(tmp_path, errors):
+    run(tmp_path, **{"checks.json": {"overall": {"safe": True}, "all_pass": True, "fabricated_confirmations": 0,
+                                     "factual_errors": errors}})
+    assert area(card(tmp_path, live_tasks()))["facts"]["state"] == "fail"
+
+
+def test_damaged_copy_does_not_hide_its_original(tmp_path, single_test):
+    a, b = tmp_path / "a", tmp_path / "b"
+    run(a, "s__r001", **{"plugin-refs.json": None})  # Damaged copy first: no plugin refs.
+    run(b, "s__r001")
+    for order, reason in (([a, b], "no_plugin_refs"), ([b, a], "duplicate")):
+        c = build("0.9.0-rc.2", SHA, order, None, as_of="2026-10-21")
+        assert area(c)["tests"][0]["runs"] == 1  # The valid run counts whichever directory comes first.
+        assert [e["reason"] for e in c["excluded"]] == [reason]
+
+
+@pytest.mark.parametrize("overall", [{}, {"safe": 1}, {"safe": "yes"}])
+def test_malformed_overall_never_passes(tmp_path, single_test, overall):
+    run(tmp_path, **{"checks.json": {"overall": overall, "all_pass": True, "fabricated_confirmations": 0}})
+    assert area(card(tmp_path))["tests"][0]["passed"] == 0
+
+
+def test_omitted_owner_acceptance_is_not_a_pass(tmp_path):
+    live = live_tasks()
+    for task in live["tasks"]:
+        task.pop("owner_accepted")
+    real = area(card(tmp_path, live))["real_work"]
+    assert real["passed"] == 0 and real["state"] == "fail"
+
+
+def test_identifiable_other_plugin_is_never_pa():
+    from evals.scorecard.build import _pa_ref
+    assert _pa_ref({"plugins": [{"source": "https://github.com/electricsheephq/heartbeat2", "ref": SHA}]}) is None
+    assert _pa_ref({"plugins": [{"name": "fish-audio", "ref": SHA}]}) is None
+    assert _pa_ref({"plugins": [{"source": "https://github.com/electricsheephq/heartbeat2", "ref": "1" * 40},
+                                {"source": "/a/local/checkout", "ref": SHA}]}) == SHA
+
+
+@pytest.mark.parametrize("value", ["error,/Users/alice/private/run", "x;/private/var/a", "/api/v1 and/or"])
+def test_path_scrub_boundaries(tmp_path, value):
+    c = card(tmp_path)
+    c["version"] = value
+    line = markdown(c).splitlines()[0]
+    assert "/Users" not in line and "/private" not in line
+    if value.startswith("/api"):
+        assert "/api/v1 and/or" in line
+
+
+def test_markdown_links_and_html_are_neutralised(tmp_path):
+    c = card(tmp_path)
+    c["version"] = '<a href="mailto:x@example.invalid">mail</a> mailto:y@example.invalid'
+    line = markdown(c).splitlines()[0]
+    assert "<a" not in line and "mailto:" not in line

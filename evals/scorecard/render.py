@@ -6,7 +6,8 @@ from ._portable import scrub_paths
 
 def _text(value):
     text = str(value)
-    text = re.sub(r"(?:[A-Za-z][A-Za-z0-9+.-]*://|www\.)\S+", "[URL omitted]", text, flags=re.I)
+    text = re.sub(r"(?:[A-Za-z][A-Za-z0-9+.-]*://|www\.|(?:mailto|tel|javascript|data):)\S+", "[URL omitted]", text, flags=re.I)
+    text = text.replace("<", "&lt;").replace(">", "&gt;")  # Untrusted reasons and titles never become HTML.
     text = scrub_paths(text)
     return text.replace("|", "&#124;").replace("\n", " ").replace("\r", " ")
 

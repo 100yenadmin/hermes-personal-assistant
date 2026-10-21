@@ -3,7 +3,9 @@ import re
 
 
 def scrub_paths(text):
-    return re.sub(r"""(?<![^\s(\["'=:])(?:~/\S+|/[^/\s]+/\S+|[A-Za-z]:[\\/]\S+)""",
+    # Local roots anywhere (also after punctuation), home-relative and drive paths; ordinary text such as
+    # /api/v1 or and/or stays readable.
+    return re.sub(r"""(?<![\w.~])(?:/(?:Users|home|private|var|tmp|Volumes|opt|root|mnt|srv)/\S*|~/\S+|[A-Za-z]:[\\/]\S+)""",
                   "[path omitted]", text)
 
 
