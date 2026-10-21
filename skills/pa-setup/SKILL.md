@@ -51,12 +51,12 @@ Progress lives in the `pa:setup` record, never a state-loop event.
 Answer sources are `user` or `discovered`. File targets are `user_memory`,
 `soul_section`, `manual_skill`, and `context_file`; `pa_preferences` is proposal-only.
 Read `status`, `requested_mode`, `next_question`, `answers`, `skipped`, `asked`,
-`proposal`, `proposal_draft`, `applied`, `fresh_check`, `requested_section`, `covered`, `sections`, and profile `groups`/`current_group`/`next_group`. Omitting `section` on `start` preserves the section; bare `/pa setup` continues active setup, offers the saved check, or shows the menu when core is complete. Only question-bank IDs may appear in `record`. Use `start` for a requested start, never to reset a fresh-session check.
+`proposal`, `proposal_draft`, `applied`, `fresh_check`, `requested_section`, `covered`, `related`, `sections`, and profile `groups`/`current_group`/`sitting_group`/`sitting_done`. Omitting `section` on `start` preserves the section; bare `/pa setup` continues active setup, offers the saved check, or shows the menu when core is complete. Only question-bank IDs may appear in `record`. Use `start` for a requested start, never to reset a fresh-session check.
 ## Chief of Staff section
 `/pa setup chief-of-staff`: first check mode; if off, explain `/pa mode chief-of-staff on`, restart and a new session, then stop.
 Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow in `references/question-bank.md` and the reviewed destinations in `references/where-answers-go.md`.
 ## Profile section
-For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"start","section":"profile"}` (no CoS mode gate). Follow `references/question-bank.md`: one group per sitting, read each answer back, and end when that group is done: “That covers <group>. Next is <next_group>, about N questions: now or later?” Review and apply each sitting with steps 6–7. Start the next sitting by reading back two saved facts from loaded USER.md/manual files; never run `/new` or arm a trip for profile.
+For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"start","section":"profile"}` (no CoS mode gate); if it fails because a review is waiting, relay that message. Follow `references/question-bank.md`: one group per sitting (`sitting_group`), read each answer back, and end when `sitting_done`: “That covers <group>. Next is <current_group>, about N questions: now or later?” For a `related` ID, state its source answer as known (the recommendation) and ask only the missing part. Review and apply each sitting with steps 6–7. Start the next sitting by reading back two saved facts from loaded USER.md/manual files; never run `/new` or arm a trip for profile.
 
 ## Flow
 1. Read setup status; `pending_changes` waits for the next `/pa setup review`, then propose and apply to save it in files. For applied core/CoS setup with a pending or failed check, use the
@@ -127,7 +127,7 @@ For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"st
 
 The new-session hook may load this section without the interview. First read `pa(operation="setup", data={"action":"status"})`; do not call `start`.
 For `profile`, use the next sitting's two-fact saved-file readback instead; no `/new` check.
-If `requested_section` is `chief_of_staff`, run the CoS check in `references/question-bank.md` instead: no flight question and no trip or check-in arming.
+Pick the check by `fresh_check.section`, else `requested_section`: `chief_of_staff` runs the CoS check in `references/question-bank.md` (no flight question, no trip or check-in arming); anything else runs the core check below.
 Later recorded answers leave the fresh check unaffected. If `status` is not `applied`, resume its flow; if `fresh_check.status` is already
 `passed`, do not rerun from the hook note. When `pending` or `failed`, run the check
 in a session other than the apply session: load the saved manual/USER.md through

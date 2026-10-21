@@ -112,11 +112,13 @@ USER.md, the existing manual, calendar and past itineraries; with consent and on
 through an already authorized read path, read up to 20 recent sent emails for
 sign-off, tone and key contacts. Store no raw mail text. Unsupported guesses are labelled defaults.
 Record fully known IDs as discovered; for partly known IDs state the known facts and ask only what is missing.
-Equivalents are `biz_priorities` ↔ `cos_priorities`, `rights_ask` ↔ `authority`,
-`comm_channel` ↔ `route`, `comm_rhythm` ↔ `worth_a_message`: read answered core/CoS IDs back, never ask them again or copy their answers into equivalent IDs.
-At sitting start, remember `current_group`; ask only its open IDs and read each answer back.
-When it is done (covered or skipped), stop before the next group's question, review and apply
-with steps 6–7, then offer “That covers <group>. Next is <next_group>, about N questions: now or later?”
+The only exact equivalents are `biz_priorities` ↔ `cos_priorities` (`covered`): read the answered ID back, never ask it again or copy its answer.
+Related IDs answer only part: `rights_ask` ← `authority`, `comm_channel` ← `route`, `comm_rhythm` ← `worth_a_message`.
+For an ID in `related`, use the source answer as the recommended answer, state it as known, and ask only the missing part
+(for example, response times for `comm_rhythm`); never ask the known part again.
+Each sitting is `sitting_group`; ask only its open IDs and read each answer back.
+When `sitting_done` (covered or skipped), stop before the next group's question, review and apply
+with steps 6–7, then offer “That covers <group>. Next is <current_group>, about N questions: now or later?”
 Use the next unfinished group's total minus answered/skipped for N; if none remains, say the profile is complete.
 At the next sitting, load USER.md or the manual and read back two saved facts to prove persistence;
 if fewer are saved, state the gap. No `/new` check or trip/check-in arming.

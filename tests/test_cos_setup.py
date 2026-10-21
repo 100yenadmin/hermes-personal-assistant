@@ -172,7 +172,8 @@ def test_fresh_session_check_branches_for_cos():
     from pathlib import Path
     text = (Path(__file__).resolve().parents[1] / "skills/pa-setup/SKILL.md").read_text()
     check = text[text.index("## Fresh-session check"):]
-    assert "If `requested_section` is `chief_of_staff`" in check.split("When would you check in")[0]
+    branch = check.split("When would you check in")[0]
+    assert "Pick the check by `fresh_check.section`, else `requested_section`: `chief_of_staff` runs the CoS check" in branch
 
 
 def test_cos_count_reply_follows_the_question_tuple(tmp_path, monkeypatch):

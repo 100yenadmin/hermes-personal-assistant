@@ -42,9 +42,10 @@ def make_pa_command(root, get_config=None, set_config=None):
                 progress = []
                 for section, counts in current["sections"].items():
                     if section == current["requested_section"] or any(counts[k] for k in ("asked", "answers", "skipped", "covered")):
-                        suffix = f" (next: {setup._view({**current, 'requested_section': 'profile'})['current_group'] or 'none'})" if section == "profile" else ""
+                        suffix = f" (next: {current['current_group'] or 'none'})" if section == "profile" else ""
+                        skipped = f" ({counts['skipped']} skipped)" if counts["skipped"] else ""
                         label = "Chief of Staff" if section == "chief_of_staff" else section.title()
-                        progress.append(f"{label} {counts['answers'] + counts['covered']} of {counts['total']}{suffix}")
+                        progress.append(f"{label} {counts['answers'] + counts['covered'] + counts['skipped']} of {counts['total']}{skipped}{suffix}")
                 return f"Setup: {current['status']}. " + " · ".join(progress) + ". " + modes_text() + (" Changes not yet applied." if current['pending_changes'] else "")
             if parts and parts[0] == "setup":
                 from .onboarding_hook import command_chat_key
@@ -56,7 +57,7 @@ def make_pa_command(root, get_config=None, set_config=None):
                     return "Setup continues here. Send me any message and I'll pick up where we left off."
                 if current["status"] == "applied" and current["fresh_check"].get("status") in {"pending", "failed"}:
                     setup.continue_here(Ledger(root), active_chat=here)
-                    return "Setup is saved. Send me any message here and I'll run the quick check."
+                    return "Setup is saved. Send /new and then any message, and I'll run the quick check."
                 if all(q in current["answers"] or q in current["covered"] or q in current["skipped"] for q in setup.CORE_QUESTIONS):
                     return MENU
             if parts and parts[0] == "setup" and len(parts) <= 2:
@@ -67,10 +68,12 @@ def make_pa_command(root, get_config=None, set_config=None):
                     return "Unknown setup section. " + USAGE
                 if section == "chief_of_staff" and not cos_enabled(get_config):
                     return "Chief of Staff is off. Use /pa mode chief-of-staff on, then hermes gateway restart and a new session; run /pa setup chief-of-staff there."
+                if section == "profile" and setup.state(Ledger(root))["current_group"] is None:
+                    return "Your profile is complete. Use /pa setup review to change an answer."
                 current = setup.request(Ledger(root), None if section == "review" else section, active_chat=here)
                 if section == "profile":
-                    group = next((g for g in current["groups"] if not g["done"]), None)
-                    return PROFILE_READY.format(group=group["group"].replace("_", " "), total=group["total"] - group["answered"] - group["skipped"]) if group else "Profile is saved. Use /pa setup review."
+                    group = next(g for g in current["groups"] if g["group"] == current["sitting_group"])
+                    return PROFILE_READY.format(group=group["group"].replace("_", " "), total=group["total"] - group["answered"] - group["skipped"])
                 if section == "chief_of_staff":
                     return f"Chief of Staff setup is ready. Send me any message and I'll start — one question at a time, {len(setup.CHIEF_OF_STAFF_QUESTIONS)} in all. Say pause any time."
                 return READY
