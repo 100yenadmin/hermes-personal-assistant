@@ -756,3 +756,34 @@ def test_duplicate_lab_basenames_are_rejected(tmp_path):
         run(tmp_path / parent / "wave", "r0")
     with pytest.raises(ValueError, match="two directories named 'wave'"):
         build("V", SHA, [tmp_path / "a" / "wave", tmp_path / "b" / "wave"], as_of="2026-10-21")
+
+
+def test_completion_after_as_of_is_not_counted(tmp_path):
+    live = live_tasks()
+    for task in live["tasks"]:
+        task.update(due="2026-10-14", closed_at="2026-10-12")
+    live["tasks"][0].update(due="2026-10-20", closed_at="2026-10-18")  # On time, but after the as-of date below.
+    early = area(card(tmp_path, live, "2026-10-15"))["real_work"]
+    assert early["tasks"] == 9 and early["passed"] == 8  # Still open and not yet due on 10-15: not counted at all.
+    live["tasks"][0].update(due="2026-10-14", closed_at="2026-10-14")
+    later = area(card(tmp_path, live, "2026-10-15"))["real_work"]
+    assert later["tasks"] == 10 and later["passed"] == 9
+
+
+@pytest.mark.parametrize("label", ["owner  0", " owner 0", "Owner 0"])
+def test_owner_labels_differing_in_inner_spacing_are_refused(tmp_path, label):
+    live = live_tasks()
+    for task in live["tasks"]:
+        task["owner"] = "owner 0" if task["owner"] == "owner-0" else task["owner"]
+    live["tasks"][2]["owner"] = label
+    with pytest.raises(ValueError, match="differ only in case or spacing"):
+        card(tmp_path, live)
+
+
+@pytest.mark.parametrize("fields", [{"start": float("nan"), "end": 1}, {"start": 0, "end": float("inf")},
+                                    {"start": 0, "end": float("nan")}])
+def test_non_finite_run_times_are_malformed(tmp_path, single_test, fields):
+    folder = run(tmp_path)
+    (folder / "run.json").write_text(json.dumps({"status": "ok", **fields}))  # json.dumps writes NaN/Infinity.
+    c = card(tmp_path)
+    assert area(c)["tests"][0]["runs"] == 0 and c["excluded"][0]["reason"] == "malformed_run"

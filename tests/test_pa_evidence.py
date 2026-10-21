@@ -76,7 +76,7 @@ def test_update_lifecycle_and_export(tmp_path):
     assert call(tmp_path, "update", identity=identity, status="fail")["closed_at"]
     call(tmp_path, "update", identity=identity, title="Revised title", due="2026-11-02", agreed_outcome="Revised result")
     export = call(tmp_path, "export")
-    assert set(export) == {"tasks", "baselines", "day30"}
+    assert set(export) == {"tasks", "baselines", "day30", "profile"}
     keys = set("id area owner title started due status owner_accepted correction facts".split())
     assert set(export["tasks"][0]) - {"closed_at"} == keys  # closed_at appears once a task is closed.
     build("test", "a" * 40, [], export, as_of="2026-11-02")
@@ -237,10 +237,10 @@ def test_private_baseline_keys_are_refused(tmp_path, minutes):
 
 
 def test_ordinary_sources_and_task_types_are_accepted(tmp_path):
-    call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={"passport renewal": 30, "wifi setup": 15})
+    assert call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={"travel documents": 30, "network setup": 15})["total_minutes"] == 45
     task = record(tmp_path)
-    facts = [{"item": "Gusto price", "source": "https://help.gusto.com/login/pricing", "ok": True, "facing": "money"},
-             {"item": "Demo video", "source": "https://www.youtube.com/watch?v=abc&t=42s", "ok": True, "facing": "internal"}]
+    facts = [{"item": "Gusto price", "source": "https://gusto.com/product/pricing", "ok": True, "facing": "money"},
+             {"item": "Passport renewal fee", "source": "Gusto pricing page, gusto.com", "ok": True, "facing": "internal"}]
     assert call(tmp_path, "update", identity=task["identity"], facts=facts)["facts"] == facts
     with pytest.raises(ValueError, match="evidence records prohibit"):
         call(tmp_path, "update", identity=task["identity"],
@@ -274,3 +274,47 @@ def test_export_script_without_a_ledger_is_a_usage_error(tmp_path):
     result = subprocess.run([sys.executable, str(ROOT / "scripts/export_va_evidence.py"), str(empty), "--owner", "A"],
                             capture_output=True, text=True)
     assert result.returncode in (0, 2) and "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("source", ["https://help.gusto.com/login/pricing", "https://www.youtube.com/watch?v=abc&t=42s"])
+def test_source_the_ledger_would_redact_is_refused(tmp_path, source):
+    row = record(tmp_path)
+    with pytest.raises(ValueError, match=r"stored redacted \(facts\)"):
+        call(tmp_path, "update", identity=row["identity"], status="pass",
+             facts=[{"item": "Price", "source": source, "ok": True, "facing": "money"}])
+    assert Ledger(tmp_path).get("action", row["identity"])["fields"]["status"] == "pending"  # Nothing was written.
+
+
+def test_task_types_the_ledger_would_drop_are_refused(tmp_path):
+    with pytest.raises(ValueError, match=r"stored redacted \(minutes_by_type\)"):
+        call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={"passport renewal": 30, "wifi setup": 15})
+
+
+def test_update_returns_what_was_stored(tmp_path):
+    row = record(tmp_path)
+    result = call(tmp_path, "update", identity=row["identity"], status="pass", closed_on=row["started"],
+                  facts=[{"item": "Price", "source": "https://example.org/pricing", "ok": True, "facing": "money"}])
+    stored = Ledger(tmp_path).get("action", row["identity"])["fields"]
+    assert {k: v for k, v in result.items() if k != "identity"} == stored
+
+
+def test_closed_on_is_the_owner_local_close_date(tmp_path):
+    row = record(tmp_path, started="2026-10-01", due="2026-10-14")
+    call(tmp_path, "update", identity=row["identity"], status="pass", closed_on="2026-10-14")
+    assert call(tmp_path, "export", owner="A")["tasks"][0]["closed_at"] == "2026-10-14"
+    with pytest.raises(ValueError, match="closed_on must not be before started"):
+        call(tmp_path, "update", identity=row["identity"], status="fail", closed_on="2026-09-30")
+
+
+def test_export_carries_one_profile_id_per_ledger(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir(), b.mkdir()
+    record(a)
+    time_records(a)
+    record(b)
+    first, again, other = call(a, "export", owner="A"), call(a, "export", owner="Alias"), call(b, "export", owner="B")
+    assert first["profile"] and first["profile"] == again["profile"] != other["profile"]
+    rows = [r for r in Ledger(a).list("action") if r["action_type"] in EVIDENCE_TYPES]
+    assert {r["fields"]["profile"] for r in rows} == {first["profile"]}
+    with pytest.raises(ValueError, match="same profile exported twice"):
+        build("test", "a" * 40, [], [first, again], as_of="2026-10-21")

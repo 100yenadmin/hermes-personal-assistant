@@ -40,7 +40,7 @@ def _distinct_owners(tasks):
     """One person must not count as two owners because a label differs only in case or spacing."""
     folded = {}
     for task in tasks:
-        folded.setdefault(task["owner"].strip().casefold(), set()).add(task["owner"])
+        folded.setdefault(" ".join(task["owner"].split()).casefold(), set()).add(task["owner"])
     clashes = sorted(sorted(labels) for labels in folded.values() if len(labels) > 1)
     if clashes:
         raise ValueError(f"owner labels differ only in case or spacing: {clashes}")
@@ -50,9 +50,13 @@ def _live(value):
     if value is None:
         return {"tasks": [], "baselines": {}, "day30": {}}
     if isinstance(value, list):
-        merged = {"tasks": [], "baselines": {}, "day30": {}}
+        merged, profiles = {"tasks": [], "baselines": {}, "day30": {}}, set()
         for entry in value:
             _require(isinstance(entry, dict), "live entry")
+            profile = entry.get("profile")
+            if profile is not None:  # One ledger exported twice, under any labels, is one owner.
+                _require(isinstance(profile, str) and profile not in profiles, "live entry profile (the same profile exported twice)")
+                profiles.add(profile)
             entry = _live(entry)
             repeated = {(t["owner"], t["id"]) for t in merged["tasks"]} & {(t["owner"], t["id"]) for t in entry["tasks"]}
             if repeated:
@@ -130,7 +134,18 @@ def _day30(live, as_of):
     return {"state": state, "owners": results}
 
 
+def _finite(value):
+    return type(value) in (int, float) and math.isfinite(value)
+
+
+def _status_at(task, as_of):
+    """A task closed after as_of was still open on that date, so a historical scorecard never sees its outcome."""
+    closed = task.get("closed_at")
+    return "pending" if task["status"] != "pending" and closed and _date(closed[:10], "closed_at") > as_of else task["status"]
+
+
 def _real_work(tasks, as_of):
+    tasks = [{**t, "status": _status_at(t, as_of)} for t in tasks]
     eligible = [t for t in tasks if _date(t["started"], "started") <= as_of
                 and (t["status"] in {"pass", "fail"} or _date(t["due"], "due") < as_of)]
     # A pass closed after its due date is late, so it is not a pass by the agreed date.
@@ -198,8 +213,8 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             sid = scenario["id"]
             run_id = f"{lab_name}/{folder.name}"
             start, given = run.get("start"), run.get("run_id")
-            well_formed = type(start) in (int, float) and (given is None or isinstance(given, str)) \
-                and ("end" not in run or type(run["end"]) in (int, float)) \
+            well_formed = _finite(start) and (given is None or isinstance(given, str)) \
+                and ("end" not in run or _finite(run["end"])) \
                 and run.get("scenario", sid) == sid  # The runner writes the scenario id into both files.
             # The runner writes run_id and start into run.json, so renamed or copied folders keep one identity.
             identity = (sid, given or folder.name, start) if well_formed else None

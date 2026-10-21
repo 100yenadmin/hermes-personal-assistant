@@ -1,6 +1,7 @@
 """Short, private task evidence in the existing profile ledger."""
 import hashlib
 import re
+import secrets
 from datetime import date, datetime, timezone
 
 from .privacy import clean
@@ -65,11 +66,23 @@ def _tasks(ledger):
             for r in sorted(rows, key=lambda r: r["created_at"], reverse=True)]
 
 
+def _profile(ledger):
+    """A random id for this profile's evidence, so one ledger exported under two owner labels is caught."""
+    rows = [r for r in ledger.list("action") if r["action_type"] in EVIDENCE_TYPES and r["fields"].get("profile")]
+    return rows[0]["fields"]["profile"] if rows else None
+
+
 def _save(ledger, identity, fields, row_type):
+    fields = {**fields, "profile": fields.get("profile") or _profile(ledger) or secrets.token_hex(6)}
+    # The ledger stores clean() output. Refuse what it would change, so evidence is never silently lost.
+    changed = sorted(k for k, v in fields.items() if clean({k: v}) != {k: v})
+    if changed:
+        raise ValueError(f"evidence would be stored redacted ({', '.join(changed)}); rephrase it without login, "
+                         "tracking or private-looking parts, e.g. cite the page title and site, or rename the task type")
     ledger.put("action", identity, fields, action_type=row_type,
                status=fields["status"] if row_type == "va_task" else "recorded",
                remove=("closed_at",) if row_type == "va_task" and "closed_at" not in fields else ())
-    return {"identity": identity, **fields}
+    return {"identity": identity, **ledger.get("action", identity)["fields"]}  # What was stored, never what was sent.
 
 
 def dispatch(ledger, data):
@@ -100,7 +113,7 @@ def dispatch(ledger, data):
             raise ValueError("evidence task exists; use update")
         return _save(ledger, identity, fields, "va_task")
     if action == "update":
-        _keys(data, "identity status owner_accepted correction correction_note facts due agreed_outcome title")
+        _keys(data, "identity status owner_accepted correction correction_note facts due agreed_outcome title closed_on")
         identity = data.get("identity")
         if not isinstance(identity, str) or not identity.startswith("va-task:"):
             raise ValueError("evidence task not found")
@@ -119,7 +132,10 @@ def dispatch(ledger, data):
             fields["status"] = _enum(data["status"], "status", _STATUSES)
             fields.pop("closed_at", None)
             if fields["status"] != "pending":
-                fields["closed_at"] = now()
+                # The owner-local close date when given (like started and due); UTC runs a day ahead west of it.
+                fields["closed_at"] = _date(data["closed_on"], "closed_on") if "closed_on" in data else now()
+                if fields["closed_at"][:10] < fields["started"]:
+                    raise ValueError("closed_on must not be before started")
         if "owner_accepted" in data:
             if data["owner_accepted"] is not None and type(data["owner_accepted"]) is not bool:
                 raise ValueError("owner_accepted must be bool or null")
@@ -177,7 +193,7 @@ def dispatch(ledger, data):
         keys = "area title started due status owner_accepted correction facts".split()
         result = {"tasks": [{"id": r["identity"][len("va-task:"):], "owner": owner, **{k: r[k] for k in keys},
                              **({"closed_at": r["closed_at"]} if r.get("closed_at") else {})} for r in _tasks(ledger)],
-                  "baselines": {}, "day30": {}}
+                  "baselines": {}, "day30": {}, "profile": _profile(ledger)}
         for name, prefix, keys in (("baselines", "va-baseline:", "week_of minutes_by_type total_minutes"),
                                    ("day30", "va-day30:", "week_ending minutes first_pass_task_types")):
             row = ledger.get("action", prefix + "owner")
