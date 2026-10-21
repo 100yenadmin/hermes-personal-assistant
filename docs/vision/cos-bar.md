@@ -48,7 +48,8 @@ cannot stand for the whole area.
   the CoS names the conflict, the affected milestone and the decision the owner must make, within one weekly cycle.
 - **Communications drafting** — Excellent: drafts in the owner's voice for team, customers, partners and board (all-hands notes, updates,
   difficult messages), with the audience's question answered first; the owner edits, the CoS never sends unapproved. Test: blind panel rates
-  5 drafts against 5 owner-written samples; ≥4 of 5 judged "owner could send with ≤2 edits"; zero sends without the owner's explicit yes for that send, with the approved recipients and content recorded.
+  5 drafts against 5 owner-written samples; ≥4 of 5 judged "owner could send with ≤2 edits"; zero sends without the owner's explicit yes for that send, with the approved recipients and content recorded. The only
+  exception is an internal delegation reminder sent inside an approved L2 envelope (§3).
 - **Board / investor / partner prep** — Excellent: runs a 3–4 week pack process (outline → draft metrics → review → final), pairs with
   finance on numbers, anticipates the 10 hardest questions with drafted answers, keeps the commitments made to the board tracked. Test:
   seeded board date; the CoS produces the timeline, the pack outline, a question list, and a tracker of last-meeting commitments with status.

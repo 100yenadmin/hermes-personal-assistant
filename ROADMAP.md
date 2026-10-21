@@ -47,7 +47,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 |---|---|---|
 | Onboarding interview ("grill me") | partial: 8 core and 6 Chief of Staff questions, weighted to travel | M1 |
 | Preference and voice learning | missing | M1, plus the voice test in M6 |
-| Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2, M3 |
+| Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2 (check), M3 (daily and weekly), M6 (monthly, quarterly, licences and contracts) |
 | Research | partial: adopt-or-build research only | M2 |
 | Travel | partial: prep up to the final page, nothing completed | M0 (real trip), M5 (completion) |
 | Personal life admin | partial: no renewal or birthday radar | M3 (radar), M6 (the rest) |
@@ -151,7 +151,7 @@ unit-test level.
   - a calendar week;
   - a Singapore trip;
   - a dinner and a repair errand;
-  - three calls;
+  - three outbound calls and one inbound call;
   - a payroll research question;
   - a 300-row contact list and a meeting recording;
   - 60 transactions;
@@ -289,7 +289,7 @@ needs both.
 **Exit.**
 - One real booking, explicitly approved, completes with the provider's readback,
   a correct itinerary and calendar entry, and a reminder.
-- The travel, errand and outbound phone fixtures pass 3 of 3.
+- The travel, errand and phone fixtures (outbound and inbound) pass 3 of 3.
 - With consenting test callers:
   - one outbound call returns a structured note;
   - one inbound call follows the answering rules;
@@ -313,6 +313,7 @@ needs both.
     reconciliation and income and expense summaries, and the accountant's tax
     pack.
   - Routine customer and content reporting.
+  - Monthly admin, quarterly reviews, and licence and contract tracking.
   - Personal life admin beyond the radar: gift shortlists, family logistics,
     health appointments, household vendors and a yearly personal calendar.
 
