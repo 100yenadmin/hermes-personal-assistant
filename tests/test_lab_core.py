@@ -26,9 +26,9 @@ def offline(monkeypatch):
 
 def test_catalog_and_plan():
     catalog = load_catalog()
-    assert len(catalog) == 17
+    assert len(catalog) == 18
     jobs = runner.plan(catalog, runs=3)
-    assert len(jobs) == 51 and len({j['run_id'] for j in jobs}) == 51
+    assert len(jobs) == 54 and len({j['run_id'] for j in jobs}) == 54
     args = SimpleNamespace(scenarios=__import__('evals.lab.scenario', fromlist=['CATALOG']).CATALOG, scenario='all', runs=3, workers=2, dry_run=True)
     assert runner.wave(args) == {'workers': 2, 'jobs': jobs}
     assert jobs[0]['run_id'] == 's01_seoul_tokyo_en__r001'
@@ -921,9 +921,9 @@ def test_post_keeps_long_page_results_scrubbed_before_slicing(tmp_path, monkeypa
     for name in ('browser_snapshot', 'web_fetch', 'pa'):
         observer.post(name, {}, result)
     rows = common.lines(tmp_path / 'tools.jsonl')
-    assert [len(row['result']) for row in rows] == [40000, 40000, 2000]
+    assert [len(row['result']) for row in rows] == [len(common.scrub(result)), len(common.scrub(result)), 2000]
     assert all(row['result'] == common.scrub(result)[:limit]
-               for row, limit in zip(rows, (40000, 40000, 2000)))
+               for row, limit in zip(rows, (200000, 200000, 2000)))
 
 
 def test_judge_digest_includes_claim_evidence_from_full_transcript(tmp_path, monkeypatch):

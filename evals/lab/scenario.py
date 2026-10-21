@@ -21,6 +21,9 @@ def validate(s):
     if "modes" in s:
         require(isinstance(s["modes"], dict) and s["modes"] == {"chief_of_staff": True}, "modes")
     cos = s.get("modes", {}).get("chief_of_staff") is True
+    require(s.get("area") in (None, "research"), "area")
+    research = s.get("area") == "research"
+    require(not research or (not cos and caps == ["research"]), "capabilities")
     if cos:
         require(isinstance(s.get("user_md"), str) and bool(s["user_md"].strip()), "user_md")
         try:
@@ -31,7 +34,7 @@ def validate(s):
         require(cos and isinstance(s["preferences"], dict) and set(s["preferences"]) <= {
             "cos_daily_time", "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time"}, "preferences")
     groups = [("persona", ("name", "email", "phone", "home_city", "notes"))]
-    if not cos:
+    if "trip" in s or not (cos or research):
         groups.append(("trip", ("origin", "destination", "depart_date", "return_date", "travellers")))
     for group, keys in groups:
         require(isinstance(s.get(group), dict), group)
@@ -41,12 +44,12 @@ def validate(s):
         require(isinstance(s["persona"][key], str), "persona." + key)
     require(isinstance(s["persona"]["email"], str) and re.fullmatch(r"[^@\s]+@[^@\s]+\.invalid", s["persona"]["email"]), "persona.email")
     require(bool(re.fullmatch(r"\+1[- ]?202[- ]?555[- ]?01\d\d", str(s["persona"]["phone"]))), "persona.phone")
-    for key in (() if cos else ("depart_date", "return_date")):
+    for key in (("depart_date", "return_date") if "trip" in s else ()):
         try:
             dt.date.fromisoformat(str(s["trip"][key]))
         except (ValueError, TypeError):
             raise ValueError(f"trip.{key}: expected ISO date") from None
-    if not cos:
+    if "trip" in s:
         require(str(s["trip"]["return_date"]) >= str(s["trip"]["depart_date"]), "trip.return_date")
         require(type(s["trip"]["travellers"]) is int and s["trip"]["travellers"] > 0, "trip.travellers")
     for key in ("max_user_turns", "budget_seconds"):
@@ -60,9 +63,12 @@ def validate(s):
             require(cos and step.get("job") in ("cos_daily", "cos_kickoff", "cos_weekly"), prefix + ".job")
         require(isinstance(step.get("goal"), str) and bool(step["goal"].strip()), prefix + ".goal")
         require(step.get("capability") in caps, prefix + ".capability")
+        require((step.get("capability") == "research") == research, prefix + ".capability")
         require(isinstance(step.get("answers"), dict), prefix + ".answers")
         ex = step.get("expect")
         require(isinstance(ex, dict), prefix + ".expect")
+        if "research" in ex:
+            require(research and ex["research"] is True, prefix + ".expect.research")
         for key in ("or_handoff", "ledger", "approval_packet", "packet_is_final"):
             require(type(ex.get(key, False)) is bool, prefix + ".expect." + key)
         if ex.get("packet_is_final"):
@@ -72,7 +78,7 @@ def validate(s):
             require((step.get("type") == "scheduled") == (ex["cos"] in ("daily", "silence", "kickoff", "weekly")), prefix + ".type")
             if step.get("type") == "scheduled":
                 require(step["job"] == {"kickoff": "cos_kickoff", "weekly": "cos_weekly"}.get(ex["cos"], "cos_daily"), prefix + ".job")
-        require("final" in ex or ex.get("or_handoff") or "calls" in s or cos, prefix + ".expect.final")
+        require("final" in ex or ex.get("or_handoff") or "calls" in s or cos or ex.get("research"), prefix + ".expect.final")
         if "final" in ex:
             for key in ("url_any", "text_any"):
                 values = ex["final"].get(key) if isinstance(ex["final"], dict) else None
