@@ -18,6 +18,9 @@ GitHub approval is not mandatory for this repository. After the exact merge reac
 `main`, the release workflow builds and verifies immutable assets before its
 narrowly scoped publication job receives `contents: write`.
 
+Releases from `0.10.0` (including prereleases) require `scorecard.json` and `scorecard.md` in `releases/<version>/`, with schema 1, the matching version and reviewed implementation commit, 14 areas, and the `# PA <version> VA scorecard` Markdown heading.
+HTML comments are removed from extracted release notes before publication, and the remaining notes must be substantive.
+
 For local development, run only the smallest affected test file. Push the
 candidate to use the hosted package, archive, release-contract, and exact-Hermes
 native lifecycle checks. Do not use a real operator or customer profile, or
