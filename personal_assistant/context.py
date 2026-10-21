@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Callable
 from .profile import KINDS as _PROFILE_TYPES
+from .evidence import EVIDENCE_TYPES
 
 
 DEFAULT_LIMIT = 8
@@ -88,7 +89,7 @@ def status_snapshot(ledger, data: dict[str, Any] | None = None) -> dict[str, Any
 
     limit, offset = _paging(data or {})
     trips = _page([_trip_summary(row) for row in ledger.list("trip")], limit, offset)
-    actions = _page([_action_summary(row) for row in ledger.list("action") if row["action_type"] not in _PROFILE_TYPES], limit, offset)
+    actions = _page([_action_summary(row) for row in ledger.list("action") if row["action_type"] not in _PROFILE_TYPES and row["action_type"] not in EVIDENCE_TYPES], limit, offset)
     return {
         "trips": trips["items"], "actions": actions["items"],
         "trip_count": trips["total"], "action_count": actions["total"],
@@ -122,7 +123,7 @@ def retrieve(ledger, data: dict[str, Any]) -> dict[str, Any]:
     if kind == "action":
         action_id = data.get("action_id")
         if not action_id:
-            return {"kind": kind, **_page([_action_summary(row) for row in ledger.list("action") if row["action_type"] not in _PROFILE_TYPES], limit, offset)}
+            return {"kind": kind, **_page([_action_summary(row) for row in ledger.list("action") if row["action_type"] not in _PROFILE_TYPES and row["action_type"] not in EVIDENCE_TYPES], limit, offset)}
         row = ledger.get("action", action_id)
         if not row:
             raise ValueError("action not found")

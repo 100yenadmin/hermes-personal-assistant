@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from .state import Ledger, stable_id
+from .evidence import EVIDENCE_TYPES, EVIDENCE_PREFIXES
 from .trip_facts import SEG_SCHEMA, SOURCES
 from .trip_watch import MOMENTS, SKIPS
 
@@ -12,10 +13,10 @@ OPERATIONS = ["status", "capabilities", "context", "recipes", "trip_import", "ex
               "authorization_prepare", "authorization_confirm", "authorization_cancel", "authorization_status",
               "event_upsert", "projection_claim", "projection_result", "reconcile", "freshness",
               "calendar_bind", "calendar_sync", "disconnect", "automations", "next_action", "setup",
-              "trip_watch_plan", "trip_offer", "browser_session", "profile"]
+              "trip_watch_plan", "trip_offer", "browser_session", "profile", "evidence"]
 SCHEMA = {
     "name": "pa",
-    "description": "Personal Assistant Plugin: recover focused context, manage eight recipes, and preserve provider evidence and replay-safe state-loop receipts. Use capabilities for setup or a missing integration; use recipes to locate a needed qualified skill. Load personal-assistant:personal-assistant for setup and operation contracts. Reuse known context without repeating setup. Never infer authentication, spending or messaging approval from configuration or credential access.",
+    "description": "Personal Assistant Plugin: recover focused context, manage eight recipes, and preserve provider evidence and replay-safe state-loop receipts. Use capabilities for setup or a missing integration; use recipes to locate a needed qualified skill. Load personal-assistant:personal-assistant for setup and operation contracts. Reuse known context without repeating setup. Never infer authentication, spending or messaging approval from configuration or credential access. evidence: record/update/list a real owner task (area, due, agreed outcome, result, owner acceptance, fact sources), baseline and day30 time records; export for the scorecard.",
     "parameters": {"type": "object", "properties": {
         "operation": {"type": "string", "enum": OPERATIONS},
         "data": {"type": "object", "properties": {
@@ -145,6 +146,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         from .capabilities import discover
         return discover(profile_root=profile_root)
     ledger = Ledger(profile_root)
+    if op == "evidence":
+        from .evidence import dispatch as evidence_dispatch
+        return evidence_dispatch(ledger, data)
     if op == "profile":
         from .profile import dispatch as profile_dispatch
         return profile_dispatch(ledger, data)
@@ -252,6 +256,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
             raise ValueError("browser_session records are lifecycle-owned")
         if data.get("action_type") in {"preference", "person", "sop", "trust"} or str(identity).split(":", 1)[0] in {"pref", "person", "sop", "trust"}:
             raise ValueError("profile records are written with operation profile")
+        existing = ledger.get("action", identity)
+        if data.get("action_type") in EVIDENCE_TYPES or str(identity).startswith(EVIDENCE_PREFIXES) or (existing and existing["action_type"] in EVIDENCE_TYPES):
+            raise ValueError("evidence records are written with operation evidence")
         fields = data.pop("fields", {})
         return _call_with_supported_data(ledger.put, "action", identity, fields, data=data)
     identity = data.pop("action_id")
@@ -259,6 +266,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         raise ValueError("browser_session records are lifecycle-owned")
     if str(identity).split(":", 1)[0] in {"pref", "person", "sop", "trust"}:
         raise ValueError("profile records are written with operation profile")
+    existing = ledger.get("action", identity)
+    if str(identity).startswith(EVIDENCE_PREFIXES) or (existing and existing["action_type"] in EVIDENCE_TYPES):
+        raise ValueError("evidence records are written with operation evidence")
     if op == "action_cancel":
         action = ledger.get("action", identity)
         if not action or action["fields"].get("enforcement_profile") != "exact_action":

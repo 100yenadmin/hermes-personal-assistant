@@ -40,6 +40,18 @@ def _number(value, field, positive=False):
 def _live(value):
     if value is None:
         return {"tasks": [], "baselines": {}, "day30": {}}
+    if isinstance(value, list):
+        merged = {"tasks": [], "baselines": {}, "day30": {}}
+        for entry in value:
+            _require(isinstance(entry, dict), "live entry")
+            entry = _live(entry)
+            merged["tasks"].extend(entry["tasks"])
+            for name in ("baselines", "day30"):
+                duplicate = merged[name].keys() & entry[name].keys()
+                if duplicate:
+                    raise ValueError(f"duplicate owner in {name}: {sorted(duplicate)}")
+                merged[name].update(entry[name])
+        return merged
     _require(isinstance(value, dict), "live")
     _require(isinstance(value.get("tasks"), list), "tasks")
     keys = {a["key"] for a in AREAS}

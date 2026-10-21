@@ -493,3 +493,29 @@ def test_pa_ref_is_found_by_name_or_source_not_position(tmp_path):
     assert _pa_ref(unknown) == other  # Fail closed: an unrecognised PA source reads as another commit.
     assert _pa_ref({"plugins": ["bad", {"ref": SHA}]}) == SHA
     assert _pa_ref({"plugins": []}) is None and _pa_ref(None) is None
+
+
+@pytest.mark.parametrize("name", ["baselines", "day30"])
+def test_multiple_live_duplicate_owner_rejected(tmp_path, name):
+    live = day30(live_tasks())
+    duplicate = {"tasks": [], name: live[name]}
+    with pytest.raises(ValueError, match=f"duplicate owner in {name}"):
+        card(tmp_path, [live, duplicate])
+
+
+def test_multiple_live_cli(tmp_path):
+    live = day30(live_tasks())
+    paths = []
+    for owner in ("owner-0", "owner-1"):
+        part = {"tasks": [t for t in live["tasks"] if t["owner"] == owner],
+                "baselines": {owner: live["baselines"][owner]}, "day30": {owner: live["day30"][owner]}}
+        path = tmp_path / f"{owner}.json"
+        write(path, part)
+        paths.append(path)
+    assert card(tmp_path, [json.loads(p.read_text()) for p in paths]) == card(tmp_path, live)
+    out = tmp_path / "out"
+    result = subprocess.run([sys.executable, "-m", "evals.scorecard", "--version", "test", "--commit", SHA,
+                             "--lab", str(tmp_path), "--live", str(paths[0]), "--live", str(paths[1]),
+                             "--as-of", "2026-10-21", "--out", str(out)], cwd=ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert area(json.loads((out / "scorecard.json").read_text()))["real_work"]["state"] == "pass"
