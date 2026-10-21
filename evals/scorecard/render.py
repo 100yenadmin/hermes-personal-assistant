@@ -6,7 +6,10 @@ from ._portable import scrub_paths
 
 def _text(value):
     text = str(value)
-    text = re.sub(r"(?:[A-Za-z][A-Za-z0-9+.-]*://|www\.)\S+", "[URL omitted]", text, flags=re.I)
+    text = re.sub(r"(?:[A-Za-z][A-Za-z0-9+.-]*://|www\.|(?:mailto|tel|javascript|data):)\S+", "[URL omitted]", text, flags=re.I)
+    text = re.sub(r"(?<![:\w])//[^\s)]+", "[URL omitted]", text)  # Protocol-relative destinations.
+    text = text.replace("<", "&lt;").replace(">", "&gt;")  # Untrusted reasons and titles never become HTML.
+    text = text.replace("](", "]\\(").replace("![", "!\\[")  # Markdown link and image syntax stays inert.
     text = scrub_paths(text)
     return text.replace("|", "&#124;").replace("\n", " ").replace("\r", " ")
 
@@ -14,8 +17,8 @@ def _text(value):
 def headline(card):
     counts = card["counts"]["lab"]
     partial = card["counts"]["partial"]
-    return (f"Lab: {counts['pass']} pass · {partial['pass']} partial checks passing · "
-            f"{partial['fail']} partial checks failing · "
+    return (f"Lab: {counts['pass']} pass · {partial['pass']} areas with partial checks passing · "
+            f"{partial['fail']} areas with partial checks failing · "
             f"{counts['fail']} fail · {counts['unproven']} unproven · "
             f"{counts['not_exercised']} not exercised")
 

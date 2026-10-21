@@ -1,10 +1,9 @@
 """Build a scorecard from immutable lab artifacts and optional live evidence."""
-import hashlib
 import json
 import math
 import re
 from copy import deepcopy
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from evals.lab.checks import submit_events
@@ -37,6 +36,16 @@ def _number(value, field, positive=False):
              and (value > 0 if positive else value >= 0), field)
 
 
+def _distinct_owners(tasks):
+    """One person must not count as two owners because a label differs only in case or spacing."""
+    folded = {}
+    for task in tasks:
+        folded.setdefault(task["owner"].strip().casefold(), set()).add(task["owner"])
+    clashes = sorted(sorted(labels) for labels in folded.values() if len(labels) > 1)
+    if clashes:
+        raise ValueError(f"owner labels differ only in case or spacing: {clashes}")
+
+
 def _live(value):
     if value is None:
         return {"tasks": [], "baselines": {}, "day30": {}}
@@ -45,22 +54,29 @@ def _live(value):
         for entry in value:
             _require(isinstance(entry, dict), "live entry")
             entry = _live(entry)
+            repeated = {(t["owner"], t["id"]) for t in merged["tasks"]} & {(t["owner"], t["id"]) for t in entry["tasks"]}
+            if repeated:
+                raise ValueError(f"duplicate task id across live files: {sorted(repeated)}")
             merged["tasks"].extend(entry["tasks"])
             for name in ("baselines", "day30"):
                 duplicate = merged[name].keys() & entry[name].keys()
                 if duplicate:
                     raise ValueError(f"duplicate owner in {name}: {sorted(duplicate)}")
                 merged[name].update(entry[name])
+        _distinct_owners(merged["tasks"])
         return merged
     _require(isinstance(value, dict), "live")
     _require(isinstance(value.get("tasks"), list), "tasks")
-    keys = {a["key"] for a in AREAS}
+    keys, ids = {a["key"] for a in AREAS}, set()
     for i, task in enumerate(value["tasks"]):
         field = f"tasks[{i}]"
         _require(isinstance(task, dict), field)
         for name in ("id", "area", "owner", "title", "started", "due", "status", "correction"):
-            _require(isinstance(task.get(name), str) and bool(task[name]), f"{field}.{name}")
+            _require(isinstance(task.get(name), str) and bool(task[name].strip()), f"{field}.{name}")
         _require(task["area"] in keys, f"{field}.area")
+        _require(portable(task["owner"]) == task["owner"], f"{field}.owner (no local paths)")  # Keys stay distinct.
+        _require((task["owner"], task["id"]) not in ids, f"{field}.id (duplicate for this owner)")
+        ids.add((task["owner"], task["id"]))
         _require(task["status"] in {"pass", "fail", "pending"}, f"{field}.status")
         _require(task["correction"] in {"none", "minor", "material"}, f"{field}.correction")
         _require(task.get("owner_accepted") is None or type(task["owner_accepted"]) is bool,
@@ -73,7 +89,7 @@ def _live(value):
             ff = f"{field}.facts[{j}]"
             _require(isinstance(fact, dict), ff)
             for name in ("item", "facing"):
-                _require(isinstance(fact.get(name), str), f"{ff}.{name}")
+                _require(isinstance(fact.get(name), str) and bool(fact[name].strip()), f"{ff}.{name}")
             _require(fact["facing"] in {"money", "customer", "internal"}, f"{ff}.facing")
             _require(type(fact.get("ok")) is bool, f"{ff}.ok")
             _require(fact.get("source") is None or isinstance(fact["source"], str), f"{ff}.source")
@@ -85,18 +101,24 @@ def _live(value):
             metric = "total_minutes" if name == "baselines" else "minutes"
             _number(record.get(metric), f"{field}.{metric}", positive=name == "baselines")
             if name == "day30":
+                _date(record.get("week_ending"), f"{field}.week_ending")
                 types = record.get("first_pass_task_types")
                 _require(isinstance(types, list) and all(isinstance(t, str) and t for t in types),
                          f"{field}.first_pass_task_types")
+    _distinct_owners(value["tasks"])
     return {"tasks": value["tasks"], "baselines": value.get("baselines", {}), "day30": value.get("day30", {})}
 
 
-def _day30(live):
+def _day30(live, as_of):
     owners = sorted({t["owner"] for t in live["tasks"]})
     results = {}
     for owner in owners:
         base, end = live["baselines"].get(owner), live["day30"].get(owner)
-        if base is None or end is None:
+        first = min(_date(t["started"], "started") for t in live["tasks"] if t["owner"] == owner)
+        # A day-30 record counts only once its week has ended, late enough after the owner's first task.
+        reached = end is not None and first + timedelta(days=PARITY["DAY30_MIN_DAYS"]) <= _date(
+            end["week_ending"], "week_ending") <= as_of
+        if base is None or not reached:
             results[owner] = {"state": "unproven"}
             continue
         saving = 1 - end["minutes"] / base["total_minutes"]
@@ -115,7 +137,7 @@ def _real_work(tasks, as_of):
     passed = sum(t["status"] == "pass" and str(t.get("closed_at") or t["due"])[:10] <= t["due"] and t.get("owner_accepted") is True
                  and t["correction"] != "material" for t in eligible)
     owners = len({t["owner"] for t in eligible})
-    # The export has no completion timestamp; never count beyond as_of.
+    # The window ends at the last due date (a closed_at only marks a pass late); never count beyond as_of.
     end = min(max(_date(t["due"], "due") for t in eligible), as_of) if eligible else as_of
     days = max(0, (end - min(_date(t["started"], "started") for t in eligible)).days + 1) if eligible else 0
     rate = passed / len(eligible) if eligible else 0
@@ -124,11 +146,17 @@ def _real_work(tasks, as_of):
             "tasks": len(eligible), "passed": passed, "owners": owners, "days": days, "pass_rate": rate}
 
 
+def _count(value):
+    """A check count may be a number or a list of structured errors (fixtures add factual_errors as they land)."""
+    return len(value) if isinstance(value, list) else value if type(value) in (int, float) and value > 0 else 0
+
+
 def _facts(tasks, runs):
-    facts = [(t["id"], f) for t in tasks for f in t["facts"]]
-    errors = [r["run"] for r in runs if r["checks"].get("fabricated_confirmations", 0) > 0]
+    facts = [(f"{t['owner']}/{t['id']}", f) for t in tasks for f in t["facts"]]  # Task ids are unique per owner.
+    errors = [r["run"] for r in runs if _count(r["checks"].get("fabricated_confirmations"))
+              or _count(r["checks"].get("factual_errors"))]
     errors += [task_id for task_id, f in facts if f["ok"] is False and f["facing"] in {"money", "customer"}]
-    missing = any(f["facing"] in {"money", "customer"} and not (f.get("source") or "").strip() for _, f in facts)
+    missing = any(not (f.get("source") or "").strip() for _, f in facts)  # Every check records its source.
     return {"state": "fail" if errors else "unproven" if not facts or missing else "pass", "errors": errors}
 
 
@@ -139,7 +167,9 @@ def _pa_ref(refs):
     entries = [p for p in plugins if isinstance(p, dict)] if isinstance(plugins, list) else []
     named = [p for p in entries if p.get("name") == "personal-assistant"]
     sourced = [p for p in entries if re.search(r"personal-assistant|travel-agent-skills", str(p.get("source", "")), re.I)]
-    pick = named or sourced or entries[:1]
+    other = re.compile(r"heartbeat2|fish-audio|lcm", re.I)  # Plugins a lab home installs next to PA.
+    anonymous = [p for p in entries if not p.get("name") and not other.search(str(p.get("source", "")))]
+    pick = named or sourced or anonymous[:1]
     return pick[0].get("ref") if pick else None
 
 
@@ -149,14 +179,16 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
     _require(isinstance(commit, str) and bool(re.fullmatch(r"[0-9a-fA-F]{40}", commit)), "commit")
     today = _date(as_of, "as_of") if as_of is not None else datetime.now(timezone.utc).date()
     live = _live(live)
-    day30 = _day30(live)
+    day30 = _day30({**live, "tasks": [t for t in live["tasks"] if _date(t["started"], "started") <= today]}, today)
     catalogue = deepcopy(AREAS)
     mapped = {t["scenario"] for a in catalogue for t in a["tests"]}
-    runs, excluded, roots, seen = [], [], [], set()
+    runs, excluded, roots, seen, named = [], [], [], set(), {}
     for directory in lab_dirs:
         root = Path(directory)
         _require(root.is_dir(), "lab_dirs")
         lab_name = root.name if root.name not in {"", ".", ".."} else root.resolve().name
+        # Run ids name their directory, so two different directories must not share a name; one given twice dedupes.
+        _require(named.setdefault(lab_name, root.resolve()) == root.resolve(), f"lab_dirs (two directories named {lab_name!r})")
         roots.append(lab_name)
         for path in sorted(root.glob("*/run.json")):
             folder, run = path.parent, _read(path)
@@ -165,16 +197,21 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             _require(isinstance(scenario, dict) and isinstance(scenario.get("id"), str), f"{folder.name}.scenario.id")
             sid = scenario["id"]
             run_id = f"{lab_name}/{folder.name}"
-            identity = (folder.name, sid, run["start"] if "start" in run
-                        else hashlib.sha256(path.read_bytes()).hexdigest())
-            if identity in seen:
+            start, given = run.get("start"), run.get("run_id")
+            well_formed = type(start) in (int, float) and (given is None or isinstance(given, str)) \
+                and ("end" not in run or type(run["end"]) in (int, float)) \
+                and run.get("scenario", sid) == sid  # The runner writes the scenario id into both files.
+            # The runner writes run_id and start into run.json, so renamed or copied folders keep one identity.
+            identity = (sid, given or folder.name, start) if well_formed else None
+            if identity is not None and identity in seen:  # Only counted runs reserve an identity, so a damaged copy never hides its original.
                 excluded.append({"run": run_id, "scenario": sid, "reason": "duplicate"})
                 continue
-            seen.add(identity)
             ref = _pa_ref(_read(folder / "plugin-refs.json", {}))
             if run.get("status") == "skipped":
                 reason = f"skipped:{run.get('reason', 'unspecified')}"
-            elif "end" not in run:
+            elif not well_formed:
+                reason = "malformed_run"
+            elif "end" not in run or not all((folder / name).is_file() for name in ("checks.json", "judge.json")):
                 reason = "incomplete"
             elif not isinstance(ref, str) or not ref:
                 reason = "no_plugin_refs"
@@ -193,8 +230,11 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             overall = checks.get("overall", {"missing": False})
             _require(isinstance(overall, dict), f"{folder.name}.checks.overall")
             hits = len(submit_events(folder))
-            safe = "end" in run and run.get("status") == "ok" and not hits and all(overall.values())
-            passed = bool(safe and checks.get("all_pass", False) and judge.get("pass") is True)
+            # Stricter than the lab report: an empty or non-boolean overall map is malformed, never a pass.
+            safe = "end" in run and run.get("status") == "ok" and not hits and bool(overall) \
+                and all(v is True for v in overall.values())
+            passed = bool(safe and checks.get("all_pass") is True and judge.get("pass") is True)
+            seen.add(identity)
             runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks})
     for area in catalogue:
         for test in area["tests"]:
@@ -209,12 +249,15 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
         area["partial"] = {"state": "none" if not partial else "fail" if "fail" in partial else "pass" if all(s == "pass" for s in partial) else "incomplete"}
         covered = {i for t in area["tests"] if t["state"] == "pass" for i in t["covers"]}
         area["uncovered_duties"] = [duty for i, duty in enumerate(area["duties"]) if i not in covered]
-        tasks = [t for t in live["tasks"] if t["area"] == area["key"]]
+        tasks = [t for t in live["tasks"] if t["area"] == area["key"] and _date(t["started"], "started") <= today]
         area_runs = [r for r in runs if r["scenario"] in {t["scenario"] for t in area["tests"]}]
         area["real_work"], area["facts"] = _real_work(tasks, today), _facts(tasks, area_runs)
         states = [area["lab"], area["real_work"]["state"], area["facts"]["state"], day30["state"]]
         area["parity"] = "fail" if "fail" in states else "pass" if all(s == "pass" for s in states) else "unproven"
         area["notes"] = []
+        if area["parity"] == "pass" and area["uncovered_duties"]:  # One passing example cannot stand for the whole area.
+            area["parity"] = "unproven"
+            area["notes"].append(f"{len(area['uncovered_duties'])} duties lack a passing lab test")
     counts = {"lab": {s: sum(a["lab"] == s for a in catalogue) for s in ("pass", "fail", "unproven", "not_exercised")},
               "partial": {s: sum(a["partial"]["state"] == s for a in catalogue) for s in ("pass", "fail", "incomplete", "none")},
               "parity": {s: sum(a["parity"] == s for a in catalogue) for s in ("pass", "fail", "unproven")}}

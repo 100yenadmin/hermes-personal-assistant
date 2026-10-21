@@ -31,9 +31,9 @@ def record(root, **data):
                                  "due": "2026-11-01", "agreed_outcome": "Short sourced recommendation", **data})
 
 
-def time_records(root):
+def time_records(root, week_ending="2026-10-21"):
     call(root, "baseline", week_of="2026-10-01", minutes_by_type={"research": 60, "inbox": 40})
-    call(root, "day30", week_ending="2026-10-21", minutes=75,
+    call(root, "day30", week_ending=week_ending, minutes=75,
          first_pass_task_types=["research", "inbox", "calendar", "travel"])
 
 
@@ -137,7 +137,8 @@ def test_invalid_time_records(tmp_path, action, data):
 def test_two_owner_scorecard(tmp_path):
     from datetime import timedelta
     today = datetime.now(timezone.utc).date()
-    START, DUE = (today - timedelta(days=14)).isoformat(), (today + timedelta(days=1)).isoformat()
+    # Day-30 counts only 28 or more days after the first task, so the cohort started 30 days ago.
+    START, DUE = (today - timedelta(days=30)).isoformat(), (today + timedelta(days=1)).isoformat()
     exports = []
     for owner in ("A", "B"):
         root = tmp_path / owner
@@ -147,7 +148,7 @@ def test_two_owner_scorecard(tmp_path):
             call(root, "update", identity=row["identity"], status="pass", owner_accepted=True,
                  correction="material" if owner == "B" and i == 9 else "none",
                  facts=[{"item": "Provider comparison", "source": "https://example.org", "ok": True, "facing": "customer"}])
-        time_records(root)
+        time_records(root, week_ending=today.isoformat())
         exports.append(call(root, "export", owner=owner))
     result = build("test", "a" * 40, [], exports, as_of=DUE)
     research = next(a for a in result["areas"] if a["key"] == "research")
