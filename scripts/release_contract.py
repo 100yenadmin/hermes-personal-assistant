@@ -34,8 +34,9 @@ def parse_body(body: str) -> tuple[str, str]:
         raise ValueError("PR body must contain exactly one 'Release impact: none|publish' line")
     if not LINK.search(body):
         raise ValueError("PR body must link an issue with Closes/Fixes/Resolves/Related #N")
-    notes_match = NOTES.search(body)
-    notes = re.sub(r"<!--.*?-->", "", notes_match.group(1), flags=re.DOTALL).strip() if notes_match else ""
+    # Comments go first, so a heading inside one cannot cut the notes section short.
+    notes_match = NOTES.search(re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL))
+    notes = notes_match.group(1).strip() if notes_match else ""
     return impact_matches[0].lower(), notes
 
 
@@ -76,12 +77,12 @@ def validate_release_files(revision: str, version: str) -> None:
     commit = scorecard.get("commit")
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", commit):
         raise ValueError("scorecard commit must be a 40-hex string")
-    if commit != manifest.get("reviewed_implementation_commit"):
+    if commit.lower() != str(manifest.get("reviewed_implementation_commit", "")).lower():
         raise ValueError("scorecard commit does not match the manifest's reviewed_implementation_commit")
     areas = scorecard.get("areas")
     if not isinstance(areas, (list, dict)) or len(areas) != 14:
         raise ValueError("scorecard areas must have 14 entries")
-    if not scorecards["md"].startswith(f"# PA {version} VA scorecard"):
+    if scorecards["md"].splitlines()[:1] != [f"# PA {version} VA scorecard"]:
         raise ValueError("scorecard.md must start with the release's VA scorecard heading")
 
 

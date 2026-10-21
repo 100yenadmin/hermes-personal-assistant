@@ -199,3 +199,23 @@ def test_comment_only_notes_are_not_substantive():
         with mock.patch.object(release_contract, "git", return_value="VERSION\nCHANGELOG.md"):
             with pytest.raises(ValueError, match="substantive release notes"):
                 release_contract.validate_pull_request(event(base, head, body))
+
+
+def test_comment_holding_a_heading_does_not_leak_into_notes():
+    body = ("Related #48\nRelease impact: publish\n## Release notes\nShips the release scorecard.\n"
+            "<!-- bot metadata\n## Not a section\n-->\n## Summary by Bot\nBot text.")
+    assert release_contract.parse_body(body) == ("publish", "Ships the release scorecard.")
+
+
+@pytest.mark.parametrize("heading", ["# PA 0.10.0-rc.1 VA scorecard for another report", "# PA 0.10.0-rc.1 VA scorecard-old", ""])
+def test_scorecard_heading_must_match_exactly(release_files, heading):
+    release_files["releases/0.10.0-rc.1/scorecard.md"] = heading + "\n"
+    with pytest.raises(ValueError, match="scorecard.md must start"):
+        release_contract.validate_release_files("candidate", "0.10.0-rc.1")
+
+
+def test_scorecard_commit_compares_case_insensitively(release_files):
+    card = json.loads(release_files["releases/0.10.0-rc.1/scorecard.json"])
+    card["commit"] = "A" * 40
+    release_files["releases/0.10.0-rc.1/scorecard.json"] = json.dumps(card)
+    release_contract.validate_release_files("candidate", "0.10.0-rc.1")
