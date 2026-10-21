@@ -473,3 +473,23 @@ def test_cli_rejects_invalid_live_enums(tmp_path, field, value):
     result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
     assert result.returncode == 2
     assert field in result.stderr
+
+
+def test_pa_ref_is_found_by_name_or_source_not_position(tmp_path):
+    from evals.scorecard.build import _pa_ref
+    other = "1" * 40
+    hand_built = {"plugins": [{"source": "https://github.com/electricsheephq/heartbeat2", "ref": other},
+                              {"source": "release archive travel-agent-skills-0.9.0-rc.2.tgz", "ref": SHA}]}
+    assert _pa_ref(hand_built) == SHA
+    named = {"plugins": [{"name": "heartbeat2", "source": "x", "ref": other},
+                         {"name": "personal-assistant", "source": "y", "ref": SHA},
+                         {"source": "travel-agent-skills", "ref": other}]}
+    assert _pa_ref(named) == SHA
+    home_py = {"plugins": [{"source": "https://github.com/100yenadmin/hermes-personal-assistant", "ref": SHA},
+                           {"source": "https://github.com/electricsheephq/heartbeat2", "ref": other}]}
+    assert _pa_ref(home_py) == SHA
+    unknown = {"plugins": [{"source": "https://github.com/electricsheephq/heartbeat2", "ref": other},
+                           {"source": "/some/local/checkout", "ref": SHA}]}
+    assert _pa_ref(unknown) == other  # Fail closed: an unrecognised PA source reads as another commit.
+    assert _pa_ref({"plugins": ["bad", {"ref": SHA}]}) == SHA
+    assert _pa_ref({"plugins": []}) is None and _pa_ref(None) is None

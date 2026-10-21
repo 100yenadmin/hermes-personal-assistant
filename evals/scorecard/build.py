@@ -117,6 +117,17 @@ def _facts(tasks, runs):
     return {"state": "fail" if errors else "unproven" if not facts or missing else "pass", "errors": errors}
 
 
+def _pa_ref(refs):
+    """PA's installed ref. Hand-built lab homes list heartbeat2 first, so match PA by name or source;
+    home.py installs --pa first, so fall back to the first entry (a wrong pick reads as other_commit)."""
+    plugins = refs.get("plugins") if isinstance(refs, dict) else None
+    entries = [p for p in plugins if isinstance(p, dict)] if isinstance(plugins, list) else []
+    named = [p for p in entries if p.get("name") == "personal-assistant"]
+    sourced = [p for p in entries if re.search(r"personal-assistant|travel-agent-skills", str(p.get("source", "")), re.I)]
+    pick = named or sourced or entries[:1]
+    return pick[0].get("ref") if pick else None
+
+
 def build(version, commit, lab_dirs, live=None, as_of=None):
     """Count only full-SHA-matching completed runs; retain an exclusion for all others."""
     _require(isinstance(version, str) and bool(version.strip()), "version")
@@ -145,9 +156,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
                 excluded.append({"run": run_id, "scenario": sid, "reason": "duplicate"})
                 continue
             seen.add(identity)
-            refs = _read(folder / "plugin-refs.json", {})
-            plugins = refs.get("plugins", []) if isinstance(refs, dict) else []
-            ref = plugins[0].get("ref") if isinstance(plugins, list) and plugins and isinstance(plugins[0], dict) else None
+            ref = _pa_ref(_read(folder / "plugin-refs.json", {}))
             if run.get("status") == "skipped":
                 reason = f"skipped:{run.get('reason', 'unspecified')}"
             elif "end" not in run:
