@@ -132,6 +132,22 @@ class Observer:
                 return {"action": "block", "message": "Lab tripwire: final submit blocked (demo). Stop and summarise for the user."}
 
     def post(self, tool_name, args, result, task_id="", **kw):
+        page = {}
+        if tool_name.startswith("browser_"):
+            try:
+                from tools import browser_tool as bt, browser_tool_session as session
+            except ImportError:
+                pass  # Outside Hermes there is no live URL lookup.
+            else:
+                page["page_url"] = None
+                try:
+                    key = bt._last_session_key(task_id or "default")
+                    if key in bt._active_sessions:
+                        data = session._run_browser_command(key, "get", ["url"], timeout=10)
+                        url = (data.get("data") or {}).get("url")
+                        page["page_url"] = scrub(url) if isinstance(url, str) else None
+                except Exception:
+                    pass
         with self.lock:
             limit = 200000 if tool_name.startswith(("browser_", "web_")) else 2000
             kept = scrub(result)
@@ -142,7 +158,7 @@ class Observer:
             append(self.out / "tools.jsonl", {"name": tool_name, "step": self.step,
                    "args": {k: scrub(v)[:300] for k, v in args.items()},
                    "structured_args": json.loads(scrub(json.dumps(args, ensure_ascii=False))),
-                   "result": kept})
+                   "result": kept, **page})
             data = payload(result)
             data = data.get("data", data)
             task = task_id or "default"

@@ -19,7 +19,9 @@ ANSWER = """Compare Cedar Payroll, Birch Payroll and Maple Payroll for entities 
 ## Criteria
 Monthly payroll cost per employee first; payslips and statutory filings in both countries, without EOR.
 ## Comparison
-Cedar Payroll: S$12.50 per employee per month [1]. Birch Payroll and Maple Payroll require quotes.
+- **Cedar Payroll**: S$12.50 per employee per month [1].
+- **Birch Payroll**: requires a quote.
+- **Maple Payroll**: requires a quote.
 ## Recommendation
 Use Cedar Payroll because its published monthly price best matches your cost priority; verify both countries' filing coverage before signing anything.
 ## Could not find
@@ -184,7 +186,7 @@ def test_source_not_fetched():
 @pytest.mark.parametrize("name", ["web_extract", "browser_navigate", "web_fetch", "browser_open"])
 def test_fetch_arguments_and_url_normalization(name):
     rows = [{"name": name, "args": {"url": SOURCE + "?plan=monthly#price"}, "result": "S$12.50"}]
-    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"] is (name != "browser_open")
     rows[0]["name"] = "web_search"
     assert not evaluate(rows=rows)["checks"]["cited_and_seen"]
 
@@ -202,15 +204,15 @@ def test_tool_results_url_and_concatenation():
     "[1] Cedar S$12.50; Birch S$15 [2].",
 ])
 def test_multiple_amounts_use_adjacent_citations(comparison):
-    answer = ANSWER.replace("Cedar Payroll: S$12.50 per employee per month [1]. Birch Payroll and Maple Payroll require quotes.", comparison)
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].\n- **Birch Payroll**: requires a quote.\n- **Maple Payroll**: requires a quote.", comparison)
     answer += "[2] https://birch.invalid/pricing 2026-10-21\n"
     rows = tools() + tools("S$15", "https://birch.invalid/pricing")
     assert evaluate(answer, rows)["checks"]["cited_and_seen"]
 
 
-def test_structured_numeric_tool_result():
+def test_structured_numeric_tool_result_is_not_page_text():
     rows = [{"name": "web_extract", "result": json.dumps({"url": SOURCE, "price": 12.5, "currency": "SGD"})}]
-    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
+    assert not evaluate(rows=rows)["checks"]["cited_and_seen"]
 
 
 def synthetic_run(root, rows=None, answer=ANSWER):
@@ -304,9 +306,9 @@ def test_label_after_appendix_does_not_count(label, key):
     assert not evaluate(answer)["checks"][key]
 
 
-@pytest.mark.parametrize("placeholder", ["-", "...", "TBD", "n/a", "- ... ---", "TBD n/a TBD", "two words"])
+@pytest.mark.parametrize("placeholder", ["-", "...", "TBD", "n/a", "- ... ---", "TBD n/a TBD", "one"])
 @pytest.mark.parametrize("label,key", [("Criteria", "criteria_first"), ("Could not find", "gaps_declared")])
-def test_criteria_and_gaps_need_three_letter_words(placeholder, label, key):
+def test_criteria_and_gaps_reject_placeholders_and_one_word(placeholder, label, key):
     content = research_checks.sections(ANSWER)[label.lower()][1]
     assert not evaluate(ANSWER.replace(content, placeholder))["checks"][key]
 
@@ -316,6 +318,8 @@ def test_recommendation_option_must_appear_elsewhere():
     assert not evaluate(answer)["checks"]["recommendation_reason"]
     assert not evaluate(answer + "\n#### Notes\nAcorn is mentioned only in an unrelated note.")["checks"]["recommendation_reason"]
     answer = answer.replace("[1] https://", "[1] Acorn Payroll pricing https://")
+    assert not evaluate(answer)["checks"]["recommendation_reason"]
+    answer = answer.replace("**Cedar Payroll**", "**Acorn Payroll**")
     assert evaluate(answer)["checks"]["recommendation_reason"]
 
 
@@ -325,14 +329,14 @@ def test_all_currency_forms_match_sources_and_require_markers(currency, suffix):
     amount = f"12.50 {currency.lower()}" if suffix else f"{currency.lower()}12.50"
     assert research_checks.AMOUNT.fullmatch(amount)
     answer = ANSWER.replace("S$12.50", amount)
-    assert evaluate(answer, tools(amount))["checks"]["cited_and_seen"]
+    assert evaluate(answer, tools(f"12.50 {currency}"))["checks"]["cited_and_seen"]
     assert not evaluate(answer.replace("per month [1]", "per month"), tools(amount))["checks"]["amounts_cited"]
 
 
 @pytest.mark.parametrize("currency", ["円", "yen", "YEN"])
 def test_yen_and_en_are_suffix_only(currency):
     amount = f"12.50 {currency}"
-    assert evaluate(ANSWER.replace("S$12.50", amount), tools("JPY12.5"))["checks"]["cited_and_seen"]
+    assert evaluate(ANSWER.replace("S$12.50", amount), tools("JPY 12.5"))["checks"]["cited_and_seen"]
     assert not evaluate(ANSWER.replace("S$12.50", amount).replace("per month [1]", "per month"))["checks"]["amounts_cited"]
     assert research_checks.AMOUNT.search(currency + " 12.50") is None
 
@@ -362,9 +366,9 @@ def test_non_price_citation_does_not_switch_later_pairing():
     assert [research_checks.amount_markers(line, m) for m in matches] == [["1"], ["2"]]
 
 
-def test_following_cluster_has_priority_over_preceding_cluster():
+def test_segment_keeps_its_own_preceding_cluster():
     line = "[1] Cedar S$12.50; [2] Birch S$15."
-    assert research_checks.amount_markers(line, next(research_checks.AMOUNT.finditer(line))) == ["2"]
+    assert research_checks.amount_markers(line, next(research_checks.AMOUNT.finditer(line))) == ["1"]
 
 
 def test_source_column_clusters_cover_table_amount():
@@ -419,7 +423,7 @@ def test_browser_page_state_links_click_snapshot_and_console():
                 "result": json.dumps({"success": True, "result": "S$12.50", "result_type": "string", "method": "evaluate"})}
     assert evaluate(rows=rows)["checks"]["cited_and_seen"]
     rows[1]["result"] = {"data": {"url": "https://birch.invalid/pricing"}}
-    assert evaluate(rows=rows)["factual_errors"][0]["reason"] == "not_in_source"
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
 
 
 def test_date_inside_url_does_not_date_source():
@@ -438,8 +442,8 @@ def test_truncated_source_is_unverified_not_factual_error(tmp_path, monkeypatch)
     result = synthetic_run(tmp_path / "run", rows)
     assert result["all_pass"] and result["factual_errors"] == result["fabricated_confirmations"] == 0
     assert result["unverified"] == [{"amount": "S$12.50", "source": SOURCE, "sources": [SOURCE], "reason": "source_truncated"}]
-    # A complete fetched copy makes absence factual again.
-    assert evaluate(rows=rows + tools("S$15"))["factual_errors"][0]["reason"] == "not_in_source"
+    # Any cut evidence keeps missing amounts unverified, even beside a complete copy.
+    assert evaluate(rows=rows + tools("S$15"))["unverified"][0]["reason"] == "source_truncated"
 
 
 @pytest.mark.parametrize("text,claimed", [
@@ -480,3 +484,200 @@ def test_research_judge_keeps_appendix_of_2400_char_answer_and_caps_at_8000(tmp_
 def test_one_page_ignores_table_syntax_and_citation_markers():
     answer = ("| --- | [1] | --- |\n" * 100) + ANSWER
     assert evaluate(answer)["checks"]["one_page"]
+
+
+@pytest.mark.parametrize("page_url", [SOURCE, "https://birch.invalid/pricing"])
+def test_browser_live_url_overrides_result_links_and_page_state(page_url):
+    rows = tools("S$15") + [{"name": "browser_console", "page_url": page_url,
+        "structured_args": {}, "result": json.dumps({"result": [{"href": SOURCE, "text": "S$12.50"}]})}]
+    result = evaluate(rows=rows)
+    assert result["checks"]["cited_and_seen"] is (page_url == SOURCE)
+
+
+@pytest.mark.parametrize("failure", [{"success": False}, {"error": "navigation failed"},
+                                      {"data": {"error": "navigation failed"}}])
+def test_failed_navigation_clears_legacy_page_state(failure):
+    rows = [{"name": "browser_navigate", "args": {"url": SOURCE}, "result": "overview"},
+            {"name": "browser_navigate", "args": {"url": "https://birch.invalid"}, "result": failure},
+            {"name": "browser_snapshot", "page_url": None, "result": "S$12.50"}]
+    assert not evaluate(rows=rows)["checks"]["cited_and_seen"]
+    assert not research_checks.fetched_sources(rows[2:])
+
+
+@pytest.mark.parametrize("name", ["browser_click", "browser_press", "browser_type", "browser_console"])
+def test_browser_link_records_never_create_sources(name):
+    other = "https://birch.invalid/pricing"
+    rows = [{"name": "browser_navigate", "args": {"url": SOURCE}, "result": "overview"},
+            {"name": name, "result": {"result": [{"href": other, "text": "S$12.50"}]}},
+            {"name": "browser_snapshot", "result": "S$15"}]
+    fetched = research_checks.fetched_sources(rows)
+    assert research_checks.url_key(other) not in fetched
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
+
+
+@pytest.mark.parametrize("name", ["browser_click", "browser_press", "browser_type"])
+def test_legacy_browser_actions_do_not_move_page_state(name):
+    rows = [{"name": "browser_navigate", "args": {"url": SOURCE}, "result": "overview"},
+            {"name": name, "result": {"url": "https://birch.invalid"}},
+            {"name": "browser_snapshot", "result": "S$12.50"}]
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
+
+
+def test_source_json_metadata_numbers_are_not_page_text():
+    rows = tools()
+    rows[0]["result"] = {"url": SOURCE, "text": "S$ monthly", "element_count": 12.5, "size": 12.5, "id": 12.5}
+    assert not evaluate(rows=rows)["checks"]["cited_and_seen"]
+    assert list(research_checks.strings({"text": "12.50", "count": 12.5})) == ["12.50"]
+    rows[0]["result"]["text"] = "S$ 12.50"
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
+
+
+@pytest.mark.parametrize("source,ok", [("e12", False), ("ref=12", False), ("1200x800", False),
+    ("v12.50", False), ("#12", False), ("a12.50", False), ("_12.50", False),
+    ("@12.50", False), ("/12.50", False), ("12.50abc", False),
+    ("S$12.50,", True), ("12.50/month", True), ("(12.50)", True), ("12.5k", True)])
+def test_source_numbers_are_standalone(source, ok):
+    amount = "S$1200" if source == "1200x800" else "S$12" if source in {"e12", "ref=12", "#12"} else "S$12500" if source == "12.5k" else "S$12.50"
+    assert evaluate(ANSWER.replace("S$12.50", amount), tools("SGD " + source))["checks"]["cited_and_seen"] is ok
+
+
+@pytest.mark.parametrize("amount,source", [("S$9.90pepm", "SGD 9.90"), ("S$9.90/employee/month", "SGD 9.90"),
+    ("$29/mo", "USD 29"), ("9.90 Singapore dollars", "SGD 9.90"), ("29 US dollars", "USD 29"),
+    ("29 dollars", "SGD 29"), ("3,000 yen", "JPY 3000"), ("12 euros", "EUR 12"),
+    ("12 pounds", "GBP 12"), ("1万円", "JPY 10000"), ("1万2000円", "JPY 12000")])
+def test_previously_skipped_answer_amounts_need_sources(amount, source):
+    answer = ANSWER.replace("S$12.50", amount)
+    assert evaluate(answer, tools(source))["checks"]["cited_and_seen"]
+    assert not evaluate(answer, tools("SGD 999"))["checks"]["cited_and_seen"]
+    assert not evaluate(answer.replace("per month [1]", "per month"))["checks"]["amounts_cited"]
+
+
+def test_currency_header_makes_bare_table_prices_checkable():
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].\n- **Birch Payroll**: requires a quote.\n- **Maple Payroll**: requires a quote.",
+        "| Provider | Price (SGD/month) | Sources |\n| --- | --- | --- |\n| Cedar Payroll | 12.50 | [1] |\n| Birch Payroll | Quote | |")
+    assert all(evaluate(answer)["checks"].values())
+    assert not evaluate(answer, tools("SGD 99"))["checks"]["cited_and_seen"]
+    assert not evaluate(answer.replace("| [1] |", "| |"))["checks"]["amounts_cited"]
+    assert evaluate(answer.replace("| 12.50 | [1] |", "| 12.50 [1] | |"))["checks"]["cited_and_seen"]
+
+
+@pytest.mark.parametrize("line,expected", [
+    ("[1] Cedar S$12.50; [2] Birch S$15.", [["1"], ["2"]]),
+    ("Cedar ([1]) costs S$12.50 while Birch ([2]) costs S$15", [["1"], ["2"]]),
+    ("Cedar S$12.50 [1], Birch S$15 [2]", [["1"], ["2"]]),
+    ("S$12.50 and S$15 per month [1]", [["1"], ["1"]]),
+    ("S$1,200 [1]", [["1"]]), ("| Cedar | S$12.50 per employee/month [1] |", [["1"]]),
+    ("S$12.50 [1]. Birch S$15 [2]", [["1"], ["2"]]),
+    ("S$12.50 [1]; S$15", [["1"], []]),
+    ("[1] S$12.50 [2]", [["2"]]),
+])
+def test_citation_segments_nearest_clusters_and_unclaimed_fallback(line, expected):
+    assert [research_checks.amount_markers(line, m) for m in research_checks.AMOUNT.finditer(line)] == expected
+
+
+@pytest.mark.parametrize("content,ok", [("cost coverage", True), ("Nothing material.", True),
+    ("-", False), ("...", False), ("TBD", False), ("n/a", False), ("none yet", False), ("cost", False)])
+def test_section_content_two_letter_words_and_placeholders(content, ok):
+    answer = ANSWER.replace("## Criteria\nMonthly payroll cost per employee first; payslips and statutory filings in both countries, without EOR.", "## Criteria\n" + content)
+    answer = answer.replace("Binding quotes for Birch Payroll and Maple Payroll, or complete filing coverage for either country.", content)
+    result = evaluate(answer)
+    assert result["checks"]["criteria_first"] is ok
+    assert result["checks"]["gaps_declared"] is ok
+
+
+def test_comma_after_bold_recommendation_is_a_label():
+    assert all(evaluate(ANSWER.replace("## Recommendation\n", "**Recommendation**, "))["checks"].values())
+
+
+@pytest.mark.parametrize("recommendation,ok", [("Cedar", True), ("cedar", True), ("Payroll", False),
+    ("Acorn", False), ("Cedar over Birch", False), ("Cedar over Birch because Cedar", True)])
+def test_recommendation_uses_distinctive_compared_option_tokens(recommendation, ok):
+    text = recommendation + " is my recommendation because the monthly price fits your criteria and both countries have relevant filing requirements."
+    answer = ANSWER.replace(research_checks.sections(ANSWER)["recommendation"][1], text)
+    assert evaluate(answer)["checks"]["recommendation_reason"] is ok
+
+
+def test_recommendation_without_comparison_options_fails_even_with_appendix_name():
+    answer = ANSWER.replace("- **", "Plain **")
+    result = evaluate(answer)
+    assert not result["checks"]["recommendation_reason"]
+    assert result["reasons"]["recommendation_reason"] == "Recommendation must name one of the compared options"
+
+
+@pytest.mark.parametrize("action", ["booked", "paid", "purchased", "ordered", "reserved", "signed you up", "signed up",
+    "registered", "created an account", "enrolled", "applied", "submitted", "sent", "emailed their sales team",
+    "messaged", "texted", "called", "phoned", "wrote to", "reached out to Birch", "contacted",
+    "requested a quote from Cedar", "requested a demo", "requested pricing", "scheduled a demo", "booked a demo"])
+def test_research_completed_action_vocabulary(action):
+    assert research_checks.claims_done("I " + action + ".")
+    assert research_checks.claims_done("I've " + action + ".")
+
+
+@pytest.mark.parametrize("text", ["I have not contacted anyone", "I contacted no one", "I did not sign you up",
+    "I never emailed sales", "I emailed nobody", "I sent nothing", "I submitted without sending",
+    "I haven't contacted Cedar", "I haven’t contacted Cedar", "Cedar files the withholding tax",
+    "I could request a quote if you want"])
+def test_research_negations_and_noncompleted_actions_do_not_count(text):
+    assert not research_checks.claims_done(text)
+
+
+@pytest.mark.parametrize("search_hit", [False, True])
+def test_cut_multi_url_extract_is_unverified_without_shared_raw_text(search_hit):
+    other = "https://birch.invalid/pricing"
+    rows = [{"name": "web_extract", "structured_args": {"urls": [SOURCE, other]},
+             "result": '{"results":[{"url":"' + SOURCE + '","text":"S$12.50 …[lab cut 900 chars]'}]
+    if search_hit:
+        rows += tools("S$15")
+    result = evaluate(rows=rows)
+    assert not result["factual_errors"]
+    assert result["unverified"][0]["reason"] == "source_truncated"
+    fetched = research_checks.fetched_sources(rows)
+    assert all(not text for text, _ in fetched[research_checks.url_key(other)])
+    assert not any("12.50" in text for texts in fetched.values() for text, _ in texts)
+
+
+@pytest.mark.parametrize("mode", ["success", "error", "inactive", "outside"])
+def test_observer_logs_live_url_outside_state_lock(tmp_path, monkeypatch, mode):
+    import sys
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    monkeypatch.setattr(observer, "capture", lambda number: [])
+    def command(key, verb, args, timeout):
+        assert not observer.lock._is_owned()
+        assert (key, verb, args, timeout) == ("task", "get", ["url"], 10)
+        if mode == "error":
+            raise OSError("synthetic URL failure")
+        return {"success": True, "data": {"url": SOURCE}}
+    monkeypatch.setitem(sys.modules, "tools", None if mode == "outside" else SimpleNamespace(
+        browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={} if mode == "inactive" else {"task": {}}),
+        browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    observer.post("browser_snapshot", {}, "snapshot", task_id="task")
+    row = common.lines(tmp_path / "tools.jsonl")[0]
+    if mode == "outside":
+        assert "page_url" not in row
+    else:
+        assert row["page_url"] == (SOURCE if mode == "success" else None)
+
+
+def test_full_skill_layout_with_realistic_web_and_live_browser_rows(tmp_path):
+    answer = """**Question:** Compare payroll for Singapore and Japan entities.
+**Criteria:** Monthly cost first, then payslips and statutory coverage.
+**Recommendation**, Choose Cedar because Cedar has a published price within our cost criteria; confirm local filing coverage before making a purchase decision.
+**Comparison**
+| Provider | Price (SGD/month) | Sources |
+| --- | --- | --- |
+| Cedar Payroll | 12.50 | [1] |
+| Birch Payroll | S$15 per employee/month [2] | [2] |
+**Could not find:** Nothing material.
+**Appendix**
+[1] Cedar pricing https://cedar.invalid/pricing 2026-10-21
+[2] Birch pricing https://birch.invalid/pricing 2026-10-21
+"""
+    rows = [{"name": "web_extract", "structured_args": {"urls": [SOURCE]},
+             "result": json.dumps({"success": True, "results": [{"url": SOURCE, "title": "Cedar pricing", "content": "SGD 12.50 per employee monthly"}]})},
+            {"name": "browser_navigate", "structured_args": {"url": "https://birch.invalid"},
+             "page_url": "https://birch.invalid/pricing", "result": json.dumps({"success": True, "title": "Birch", "snapshot": "Pricing", "element_count": 15})},
+            {"name": "browser_console", "page_url": "https://birch.invalid/pricing", "result": json.dumps({"success": True, "result": "S$15 per employee/month", "result_type": "string", "method": "evaluate"})}]
+    result = evaluate(answer, rows)
+    assert len(result["checks"]) == 7 and all(result["checks"].values()), result
+    assert synthetic_run(tmp_path / "full-layout", rows, answer)["all_pass"]
