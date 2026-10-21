@@ -14,6 +14,15 @@ GRILL_ME = ('If the owner is asking you to interview them ("grill me") so you ca
             'load personal-assistant:pa-setup and start setup with {"action":"start","section":"profile"}; if the profile is '
             'already complete, say so and point to /pa setup review. If "grill me" is negated, quoted, asked about, or about '
             'challenging a specific plan or pitch, answer normally.')
+OWNER_MEMORY = ('If this message states a lasting preference, corrects how you work, or sets a rule about a person, record it '
+                'now with pa(operation="profile", data={"action":"remember",...}) as personal-assistant\'s Owner memory section '
+                'says (load that skill if needed), not with the memory tool, then say "Noted."; otherwise ignore this note.')
+# Phrases that often carry a lasting preference or correction; the model decides whether this one does.
+PREFERENCE = re.compile(r"\b(?:from now on|going forward|in future|always|never(?! mind)|correction|actually|i(?:'d| would)? prefer|"
+                        r"i (?:don'?t |do not )?like|please (?:don'?t|do not|stop)|stop (?:doing|sending|using|calling)|"
+                        r"don'?t ever|make sure (?:you|to)|keep (?:your |my )?(?:replies|messages|answers|emails|notes)|"
+                        r"when (?:you )?(?:write|draft|email|message|reply|text|book|call)|use (?:a |an )?(?:formal|informal|casual|"
+                        r"short|polite)\b|(?:call|address) me)\b", re.I)
 GRILL_ME_COMPLETE = ('The owner said "grill me", but the profile is complete: say so and point to /pa setup review. '
                      'Do not start setup.')
 
@@ -103,6 +112,9 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                     mode_context = {"context": (mode_context["context"] + "\n" if mode_context else "") + note}
             current = setup.state(ledger)
             status = current["status"]
+            # Setup records its own answers; elsewhere a stated preference goes to owner memory, not the memory tool.
+            stated = bool(PREFERENCE.search(message))
+            remember = stated and status not in {"requested", "in_progress", "proposed"}
             if status in {"requested", "in_progress", "proposed"}:
                 platform, sender, chat = kwargs.get("platform") or "", kwargs.get("sender_id") or "", _chat_key(kwargs)
                 cos_stopped = current["requested_section"] == "chief_of_staff" and not cos_enabled(get_config)
@@ -115,9 +127,11 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                 elif not unbound and (platform, sender) != (current["active_platform"], current["active_sender_id"]):
                     return mode_context
                 elif reserved or chat != current["active_chat"]:  # A legacy row (no active_chat) is active in no chat.
-                    if not kwargs.get("is_first_turn"):
+                    # Not a setup answer here: a stated preference still goes to owner memory.
+                    extra = [ELSEWHERE] * bool(kwargs.get("is_first_turn")) + [OWNER_MEMORY] * stated
+                    if not extra:
                         return mode_context
-                    return {"context": (mode_context["context"] + "\n" if mode_context else "") + ELSEWHERE}
+                    return {"context": "\n".join(([mode_context["context"]] if mode_context else []) + extra)}
                 if cos_stopped:
                     return {"context": COS_STOPPED}
                 interview_start = (f"show what discovery found as one summary, then ask only the next question ({current['next_question']})"
@@ -158,6 +172,10 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                   and setup.offer_turn(Ledger(root, timeout=0.1), current, kwargs, history or [])):
                 text = "After answering this message, offer once, in one sentence, that the user can type /pa setup for a short guided setup."
             else:
+                text = None
+            if remember:
+                text = (text + "\n" if text else "") + OWNER_MEMORY
+            if text is None:
                 return mode_context
             if mode_context:
                 text = mode_context["context"] + "\n" + text

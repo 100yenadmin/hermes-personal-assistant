@@ -189,10 +189,55 @@ def main():
         if failures:  # Evidence is written first; the exit code then reports the regression.
             raise AssertionError("persona expectations failed: " + ", ".join(failures))
 
+    def profile_rows():
+        sys.path.insert(0, str(ROOT))
+        from personal_assistant.profile import _rows
+        from personal_assistant.state import Ledger
+        try:
+            return [{"identity": r["action_id"], "kind": r["action_type"], **r["fields"]}
+                    for r in _rows(Ledger(rig.gateway.hermes_home, read_only=True))]
+        except Exception:
+            return []
+
+    def owner_memory():
+        """Statements in one session; after /new, PA's first-turn note and the agent's replies must honour them."""
+        for text in persona["statements"]:
+            owner(text)
+        rows = profile_rows()
+        live = [r for r in rows if r["state"] in {"active", "filed"}]
+        person = next((r for r in live if r["kind"] == "person" and persona["person"].casefold() in r["name"].casefold()), None)
+        fixed = next((r for r in live if r["kind"] == "preference" and r.get("source") == "corrected"
+                      and persona["corrected"].casefold() in r["text"].casefold()), None)
+        old = next((r for r in rows if fixed and r["identity"] == fixed.get("supersedes")), None)
+        failures = [name for name, bad in (
+            ("no active person record with a rule", not person or not person.get("rules")),
+            ("no active corrected preference", not fixed),
+            ("correction does not supersede the replaced preference",
+             not old or old["state"] != "retired" or persona["replaced"].casefold() not in old["text"].casefold()),
+            ("replaced preference still active", any(r["kind"] == "preference" and persona["replaced"].casefold()
+                                                     in r["text"].casefold() for r in live))) if bad]
+        owner("/new")
+        start, checks = len(exchanges), []
+        for check in persona["after_new"]:
+            seen = len(rig.texts())
+            owner(check["ask"])
+            reply = "\n".join(rig.texts()[seen:])
+            checks.append({"ask": check["ask"], "passed": any(w.casefold() in reply.casefold() for w in check["expect_any"])})
+        first = json.dumps(exchanges[start]["request"]["messages"], ensure_ascii=False) if len(exchanges) > start else ""
+        failures += [name for name, bad in (
+            ("/new did not start a fresh session", not first or persona["statements"][0] in first),
+            ("first-turn note missing after /new", "Owner preferences and people from PA" not in first)) if bad]
+        failures += ["not honoured after /new: " + c["ask"] for c in checks if not c["passed"]]
+        result = {"persona": persona["name"], "profile": rows, "after_new": checks, "failures": failures}
+        (rig.root / "persona-result.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
+        transcript.append("Result: " + json.dumps(result, ensure_ascii=False))
+        if failures:  # Evidence is written first; the exit code then reports the regression.
+            raise AssertionError("persona expectations failed: " + ", ".join(failures))
+
     try:
         rig.start()
         if persona:
-            interview()
+            owner_memory() if persona.get("mode") == "owner_memory" else interview()
             return
         for text in ["/pa setup", "hi", *json.loads(args.answers.read_text()), "/new",
                      "When would you check in before my next flight?"]:

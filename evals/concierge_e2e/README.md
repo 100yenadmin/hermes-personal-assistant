@@ -22,6 +22,10 @@ setup record says is next, then writes `persona-result.json` with the discovered
 and asked question IDs. That checks that questions answered by discovery are not asked.
 A profile persona with `"sittings": 2` then applies, sends `/new` and "grill me", runs the
 next group's sitting to its review, and checks that nothing is re-asked across sittings.
+A persona with `"mode": "owner_memory"` (`personas/memory-corrections.json`) sends its statements in one
+session: a preference, a person rule and a correction. It then checks that PA's ledger holds them, with the
+corrected text active and the replaced one not. After `/new`, it checks that the first request carries PA's
+owner-memory note and that the agent's replies honour the corrected preference and the person rule (phrase match).
 Claim class: `local_e2e_proof` (loopback Bot API; not real Telegram or providers).
 P2 proves no provider actions, live profile behavior, CI or customer readiness.
 

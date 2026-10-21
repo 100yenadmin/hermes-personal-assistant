@@ -1,0 +1,29 @@
+{
+  "name": "memory-corrections",
+  "mode": "owner_memory",
+  "note": "Synthetic owner: a stated preference, a person rule and a correction in one session; after /new, PA's note and the agent's replies must honour the corrected preference and the rule.",
+  "statements": [
+    "From now on, keep your replies to me to three lines or fewer.",
+    "When you write anything to my accountant, Synthetic Mina Park, always open with a formal greeting like \"Dear Ms. Park\".",
+    "Correction: three lines is too short. Five lines or fewer is right."
+  ],
+  "after_new": [
+    {
+      "ask": "Draft a short note to Mina asking for the Q3 invoice. Just show me the draft.",
+      "expect_any": [
+        "Dear Ms. Park",
+        "Dear Ms Park"
+      ]
+    },
+    {
+      "ask": "Remind me: how long should your replies to me be?",
+      "expect_any": [
+        "five",
+        "5 lines"
+      ]
+    }
+  ],
+  "person": "Mina",
+  "corrected": "five",
+  "replaced": "three lines"
+}
