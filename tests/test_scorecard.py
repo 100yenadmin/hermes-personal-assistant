@@ -82,7 +82,10 @@ def test_catalogue():
             assert (ROOT / "evals/lab/scenarios" / f"{t['scenario']}.yaml").is_file()
             assert t["kind"] in {"full", "partial"}
             assert t["label"]
-            assert t["covers"] == []
+            assert t["covers"] == ([0, 1, 2, 3, 4] if a["key"] == "research" else [])
+    research = next(a for a in AREAS if a["key"] == "research")
+    assert research["tests"] == [{"scenario": "s18_research_payroll_en", "kind": "full",
+                                  "label": "payroll providers, two countries", "covers": [0, 1, 2, 3, 4]}]
     assert PARITY == {"LAB_RUNS": 3, "REAL_MIN_TASKS": 10, "REAL_MIN_OWNERS": 2, "REAL_MIN_DAYS": 14,
                       "REAL_PASS_RATE": 0.9, "DAY30_MIN_SAVING": 0.2, "DAY30_MIN_TYPES": 4}
 

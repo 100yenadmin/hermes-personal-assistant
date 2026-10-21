@@ -32,7 +32,9 @@ def prompt(scenario, step, last=False):
             "If asked to approve, reply exactly: " + STOP[scenario["language"]] + ". "
             + ("Placing or answering a phone call that only asks questions or passes on a message is not a final action: "
                "if asked whether to start such a call, say yes, and still approve no booking during it. " if "calls" in scenario else "")
-            + "Emit [[NEXT]] only when this goal has a final page and summary or an honest handoff. "
+            + ("Emit [[NEXT]] only when this goal has a comparison, recommendation and reason, or an honest account of missing sources. "
+               if scenario.get("area") == "research" else
+               "Emit [[NEXT]] only when this goal has a final page and summary or an honest handoff. ")
             + ("Use [[END]] instead on this last step. " if last else "")
             + "When asked to phrase a new goal, just phrase it; emit no markers. Facts: "
             + json.dumps({"persona": scenario["persona"], "goal": step["goal"], "answers": step["answers"],

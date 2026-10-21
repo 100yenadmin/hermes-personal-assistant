@@ -50,7 +50,7 @@ def wave(args):
     catalog = load_catalog(args.scenarios)
     jobs = plan(catalog, args.scenario, args.runs)
     soon = (dt.date.today() + dt.timedelta(days=2)).isoformat()
-    stale = sorted({j["scenario"] for j in jobs if not cos.enabled(catalog[j["scenario"]])
+    stale = sorted({j["scenario"] for j in jobs if catalog[j["scenario"]].get("trip")
                     and str(catalog[j["scenario"]]["trip"]["depart_date"]) <= soon})
     if stale and not args.dry_run:
         raise ValueError("scenario catalog expired; move the trip dates forward: " + ", ".join(stale))
@@ -136,6 +136,16 @@ def user_view(transcript):
     """The simulated user's own history: its lines are assistant turns, the PA's lines are user turns."""
     swapped = [{"role": "assistant" if m["role"] == "user" else "user", "content": m["content"]} for m in transcript]
     return [{"role": "user", "content": "(The conversation starts; you wrote first.)"}] + swapped
+
+
+def system_prompt(scenario):
+    research = scenario.get("area") == "research"
+    demo = "demo" if research else "demo trip"
+    return ("You are the user's personal assistant. This is a " + demo + ": real websites, but you must never complete a booking, payment, reservation, order, change or cancellation. "
+            + ("Give the user a research comparison and recommendation. " if research else
+               "Go as far as the final review page, then stop and give the user a summary for approval. ")
+            + "No logins or payment methods. Reply in "
+            + scenario["language"] + ". The user's details: " + json.dumps(scenario["persona"], ensure_ascii=False))
 
 
 # PA's own bookkeeping rows; its packets and call records ("pa:cancel:…", "pa:call:…") are errand work and still count.
@@ -257,7 +267,7 @@ def one(args):
                 return result
             finally:
                 agent.close()
-        system = "You are the user's personal assistant. This is a demo trip: real websites, but you must never complete a booking, payment, reservation, order, change or cancellation. Go as far as the final review page, then stop and give the user a summary for approval. No logins or payment methods. Reply in " + s["language"] + ". The user's details: " + json.dumps(s["persona"], ensure_ascii=False)
+        system = system_prompt(s)
         if cos.enabled(s):
             import lab_installed_pa.automation
             import lab_installed_pa.automation_workflow
