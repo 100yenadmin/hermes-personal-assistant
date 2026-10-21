@@ -108,7 +108,7 @@ cannot stand for the whole area.
   4) decision log with recall on recurring topics; 5) meeting pre-read + post-meeting capture from transcripts; 6) weekly scorecard with
   provenance; 7) L2 authority envelopes for internal nudges and task writes; 8) cross-team project register with dependency detection;
   9) quarterly OKR loop and board-pack process; 10) special-project recommendations (adopt/trial/watch/ignore).
-- **Where the plugin stands today (v0.9.0-rc.1)** — cos-daily, cos-kickoff, cos-weekly, cos-radar and cos-scout implement the single-owner
+- **Where the plugin stands today (v0.9.0-rc.2)** — cos-daily, cos-kickoff, cos-weekly, cos-radar and cos-scout implement the single-owner
   rhythm and the proposal formats above; the setup interview covers priorities and timing. Missing for the CoS bar: team model, team-system
   reads, cross-person delegation ledger, decision log, transcript capture, scorecard with provenance, L2 envelopes, project register.
 - **Gate** — the M7 foundation pilot is not a parity claim. It starts at the VA-core gate in ROADMAP.md; full VA parity stays

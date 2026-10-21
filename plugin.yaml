@@ -1,6 +1,6 @@
 name: personal-assistant
 label: Personal Assistant Plugin
-version: 0.9.0-rc.1
+version: 0.9.0-rc.2
 description: Durable personal operations for calendar, communication, meetings, household, shopping, travel and executive follow-through.
 manifest_version: 1
 api_version: 1
