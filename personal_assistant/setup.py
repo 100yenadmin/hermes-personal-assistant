@@ -19,6 +19,10 @@ def _view(fields):
               "applied": [], "applied_session_id": None, "fresh_check": {}, "pending_changes": False,
               "offer_shown_at": None, "updated_at": None, "look_around_consent": None,
               "active_platform": None, "active_sender_id": None, "active_chat": None, **fields}
+    current_ids = {q for section in SECTIONS.values() for q in section}
+    result["answers"] = {q: answer for q, answer in result["answers"].items() if q in current_ids}
+    for key in ("asked", "skipped"):
+        result[key] = [q for q in result[key] if q in current_ids]
     review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
     questions = (tuple(q for section in SECTIONS.values() for q in section) if review
                  else SECTIONS.get(result["requested_section"], CORE_QUESTIONS))
@@ -86,7 +90,8 @@ def record(ledger, answers=None, skipped=None, asked=None, consent=None):
         if not isinstance(answer, dict) or answer.get("source") not in {"user", "discovered"} or not isinstance(answer.get("text"), str):
             raise ValueError("answer requires text and user/discovered source")
         normalized[qid] = {"text": answer["text"][:300], "source": answer["source"]}
-    prior = state(ledger)
+    stored = (ledger.get("action", "pa:setup") or {}).get("fields", {})
+    prior = {**_view(stored), **stored}
     merged = {k: v for k, v in {**prior["answers"], **normalized}.items() if k not in skipped}
     skipped = list(dict.fromkeys(q for q in prior["skipped"] + skipped if q not in normalized or q in skipped))
     completed = prior["status"] in {"applied", "checked"}

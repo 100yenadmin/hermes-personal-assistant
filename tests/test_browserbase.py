@@ -8,6 +8,7 @@ import sys
 from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import HTTPHandler, ProxyHandler, build_opener
 from urllib.response import addinfourl
@@ -94,7 +95,8 @@ def test_missing_raising_unknown_and_capabilities(tmp_path, monkeypatch):
     assert not opener.calls
     monkeypatch.setenv("BROWSERBASE_API_KEY", KEY)
     for check, status in ((lambda name: True, "available"), (lambda name: False, "needs-setup"), (raising, "needs-setup"), (None, "needs-setup")):
-        rows = discover([SimpleNamespace(name="browser_open")], secret_present=check)["capabilities"]
+        with patch("shutil.which", return_value="/fixture/agent-browser"):
+            rows = discover([SimpleNamespace(name="browser_open")], secret_present=check)["capabilities"]
         row = next(row for row in rows if row["id"] == "remote_browser")
         assert row["status"] == status and row["recovery_action"] and KEY not in json.dumps(row)
     assert next(row for row in discover([])["capabilities"] if row["id"] == "remote_browser")["status"] == "needs-setup"
