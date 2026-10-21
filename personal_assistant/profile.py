@@ -15,11 +15,13 @@ SCHEMA = {"type": "object", "properties": {
     "category": {"enum": CATEGORIES}, "identity": {"type": "string"},
     "identities": {"type": "array", "items": {"type": "string"}},
     "text": {"type": "string", "maxLength": 300}, "evidence": {"type": "string", "maxLength": 200},
-    **{k: {"type": "string"} for k in ("slug", "name", "title", "trigger", "done_when", "escalation", "change", "state")},
+    **{k: {"type": "string"} for k in ("slug", "change", "state")},
+    **{k: {"type": "string", "maxLength": 120} for k in ("name", "title")},
+    **{k: {"type": "string", "maxLength": 300} for k in ("trigger", "done_when", "escalation")},
     "relationship": {"type": "string", "maxLength": 120}, "channel": {"type": "string", "maxLength": 60},
     "rules": {"type": "array", "maxItems": 5, "items": {"type": "string", "maxLength": 160}},
-    "sensitive": {"type": "boolean"}, "steps": {"type": "array", "maxItems": 12, "items": {"type": "string"}},
-    "tools": {"type": "array", "items": {"type": "string"}}, "version": {"type": "integer", "minimum": 1},
+    "sensitive": {"type": "boolean"}, "steps": {"type": "array", "maxItems": 12, "items": {"type": "string", "maxLength": 300}},
+    "tools": {"type": "array", "maxItems": 12, "items": {"type": "string", "maxLength": 60}}, "version": {"type": "integer", "minimum": 1},
     "task_type": {"type": "string", "maxLength": 60}, "level": {"enum": ["shadow", "own", "independent"]},
     "supersedes": {"type": ["string", "null"]}, "since": {"type": "string", "format": "date-time"},
     "owner_confirmed_at": {"type": ["string", "null"], "format": "date-time"},
@@ -43,7 +45,9 @@ def _private(value):
         return any(_private(v) for v in value)
     return isinstance(value, str) and (any(phone_card_spans([value])[0]) or bool(re.search(
         r"\b(?:card|account)\s*(?:number|no\.?|#|:)\s*\S+"
-        r"|\b(?:api[ _-]?key|token|secret|authorization|cookie)\s*[:=]\s*\S+", value, re.I)))
+        r"|\b(?:api[ _-]?key|token|secret|authorization|cookie)\s*[:=]\s*\S+"
+        r"|\b(?:api[ _-]?key|token|secret|password|bearer)\b\s*(?:is\s+|[:=]\s*)?(?=\S*\d)\S{8,}"  # Delimiter-free values.
+        r"|\b(?:sk[-_](?:live|test)?[-_]?|whsec_|xox[bp]-|ghp_|AKIA)\S{8,}", value, re.I)))
 
 
 def _is_profile(row):
@@ -78,7 +82,7 @@ def remember(ledger, data):
     kind = data.get("kind")
     if kind not in KINDS:
         raise ValueError("profile kind must be preference, person, sop or trust")
-    allowed = set(FIELDS[kind].split()) - {"remove_from_files"} | {"kind", "slug", "change"}
+    allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at"} | {"kind", "slug", "change"}
     if set(data) - allowed:
         raise ValueError("unsupported profile fields (raw message bodies and credentials are prohibited)")
     if data.get("state") == "filed":
@@ -121,6 +125,8 @@ def remember(ledger, data):
                                else "active")
         if kind == "person" and "state" in data:
             fields["state"] = data["state"]
+            if data["state"] == "retired" and old and old["fields"]["state"] == "filed":
+                fields["remove_from_files"] = True  # Same as forget: the filed text is listed for removal.
         if fields["state"] != "retired":
             fields.pop("remove_from_files", None)
     if kind == "trust":
@@ -191,7 +197,9 @@ def dispatch(ledger, data):
         kind, fields = row["action_type"], row["fields"]
         if action == "confirm" and (kind != "preference" or fields["state"] != "proposed"):
             raise ValueError("confirm requires a proposed preference")
-        if action == "mark_filed" and (kind not in {"preference", "person"}
+        done = action == "mark_filed" and kind in {"preference", "person"} and fields["state"] in {"filed", "retired"} \
+            and not fields.get("remove_from_files")  # A retried batch: this member was already filed.
+        if action == "mark_filed" and not done and (kind not in {"preference", "person"}
                                        or not (fields["state"] == "active" or fields.get("remove_from_files"))):
             raise ValueError("only active or removal-pending preferences and people can be filed after reviewed apply")
 
@@ -202,7 +210,8 @@ def dispatch(ledger, data):
             return {k: v for k, v in fields.items() if k != "remove_from_files"}  # The text left the files.
         return {**fields, "state": {"confirm": "active", "mark_filed": "filed"}[action],
                 **({"owner_confirmed_at": now()} if action == "confirm" else {})}
-    result = [_save(ledger, r["action_id"], r["action_type"], updated(r["fields"])) for r in rows]
+    result = [r if action == "mark_filed" and r["fields"]["state"] in {"filed", "retired"} and not r["fields"].get("remove_from_files")
+              else _save(ledger, r["action_id"], r["action_type"], updated(r["fields"])) for r in rows]
     return result if action == "mark_filed" else result[0]
 
 

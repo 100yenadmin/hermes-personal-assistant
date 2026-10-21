@@ -58,7 +58,7 @@ def test_private_values_rejected_without_write(tmp_path, data):
 
 @pytest.mark.parametrize("initial,source,change,expected", [
     ("confirmed", "inferred", {}, "active"),
-    ("confirmed", "inferred", {"text": "Prefer detailed replies", "owner_confirmed_at": None}, "active"),
+    ("confirmed", "inferred", {"text": "Prefer detailed replies"}, "active"),
     ("filed", "said", {}, "filed"),
     ("filed", "said", {"text": "Prefer detailed replies"}, "active"),
     ("filed", "said", {"category": "voice"}, "active"),
@@ -281,3 +281,24 @@ def test_generic_actions_cannot_use_profile_records(tmp_path, human_hook):
     pref(tmp_path)
     assert [r["identity"] for r in call(tmp_path, "list")] == ["pref:prefer-short-replies"]
     assert "pref:prefer-short-replies" in human_hook(user_message="Hello", is_first_turn=True, session_id="s")["context"]
+
+
+@pytest.mark.parametrize("text", ["API key sk-live-abc12345", "token is abc123def456", "Use password Hunter2024x"])
+def test_delimiter_free_credentials_are_rejected(tmp_path, text):
+    with pytest.raises(ValueError, match="prohibit credentials"):
+        pref(tmp_path, text)
+
+
+def test_review_round_three_lifecycle(tmp_path):
+    assert pref(tmp_path, "Keep the launch date secret")["fields"]["state"] == "active"
+    with pytest.raises(ValueError, match="unsupported profile fields"):
+        pref(tmp_path, "Prefer calls", source="inferred", owner_confirmed_at="2026-10-21T00:00:00+00:00")
+    alex = call(tmp_path, kind="person", name="Synthetic Alex", rules=["Formal greeting"])
+    sam = call(tmp_path, kind="person", name="Synthetic Sam")
+    call(tmp_path, "mark_filed", identities=[alex["action_id"]])
+    filed = call(tmp_path, "mark_filed", identities=[alex["action_id"], sam["action_id"]])  # A retried batch.
+    assert [r["fields"]["state"] for r in filed] == ["filed", "filed"]
+    retired = call(tmp_path, kind="person", name="Synthetic Alex", rules=["Formal greeting"], state="retired")
+    assert retired["fields"]["remove_from_files"] is True
+    with pytest.raises(ValidationError):
+        call(tmp_path, kind="sop", title="Prep", trigger="Fri", steps=["x" * 301], tools=["cal"], done_when="ok", escalation="ask")
