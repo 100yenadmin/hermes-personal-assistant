@@ -275,6 +275,8 @@ def test_generic_actions_cannot_use_profile_records(tmp_path, human_hook):
     for data in ({"action_type": "person", "fields": {}}, {"action_id": "pref:synthetic", "fields": {}}):
         with pytest.raises(ValueError, match="operation profile"):
             dispatch(tmp_path, {"operation": "action_upsert", "data": data})
+    with pytest.raises(ValueError, match="operation profile"):
+        dispatch(tmp_path, {"operation": "action_prepare", "data": {"action_id": "pref:synthetic", "summary": "x"}})
     Ledger(tmp_path).put("action", "legacy-row", {"note": "untyped"}, action_type="person")  # A pre-upgrade row.
     pref(tmp_path)
     assert [r["identity"] for r in call(tmp_path, "list")] == ["pref:prefer-short-replies"]

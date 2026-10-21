@@ -257,6 +257,8 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     identity = data.pop("action_id")
     if str(identity).startswith("pa:browser-session:"):  # Every remaining op here mutates the action row.
         raise ValueError("browser_session records are lifecycle-owned")
+    if str(identity).split(":", 1)[0] in {"pref", "person", "sop", "trust"}:
+        raise ValueError("profile records are written with operation profile")
     if op == "action_cancel":
         action = ledger.get("action", identity)
         if not action or action["fields"].get("enforcement_profile") != "exact_action":
