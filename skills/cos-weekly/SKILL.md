@@ -16,7 +16,7 @@ Run from the accepted `cos_weekly` job, the weekly closeout. Use the user's lang
 of Staff mode; if off, explain `/pa mode chief-of-staff on` in a human turn.
 Read `references/recommendation-state.md` for the shared event, retrieval,
 delivery and owner-approved follow-up protocol.
-`references/...` paths are relative to this skill.
+Every `references/...` path is relative to this skill directory.
 
 ## Compare intent with evidence
 
@@ -82,7 +82,7 @@ to the verified destination. Never use a message tool in a scheduled run.
 Record a separate recommendation identity for an actual radar
 offer, but use only this job's one delivery receipt. If neither review nor radar
 contains useful information, record `suppressed` with a safe note and reply exactly
-`[SILENT]` (nothing else). For a report, write and read back the note, then record
+`[SILENT]`. For a report, write and read back the note, then record
 `unknown` before the final response as the reference says. `delivered` needs a
 provider receipt the run cannot see.
 Never replay an already handled occurrence.
