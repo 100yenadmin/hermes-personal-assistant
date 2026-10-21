@@ -2,6 +2,7 @@
 import re
 import unicodedata
 
+from .phone_safety import phone_card_spans
 from .privacy import clean
 from .state import now
 
@@ -39,9 +40,9 @@ def _private(value):
         return any(_private(v) for v in value.values())
     if isinstance(value, list):
         return any(_private(v) for v in value)
-    return isinstance(value, str) and bool(re.search(
-        r"(?<!\d)(?:\d[ -]?){12,19}(?!\d)|\b(?:card|account)\s*(?:number|no\.?|#|:)\s*\S+"
-        r"|\b(?:api[ _-]?key|token|secret|authorization|cookie)\s*[:=]\s*\S+", value, re.I))
+    return isinstance(value, str) and (any(phone_card_spans([value])[0]) or bool(re.search(
+        r"\b(?:card|account)\s*(?:number|no\.?|#|:)\s*\S+"
+        r"|\b(?:api[ _-]?key|token|secret|authorization|cookie)\s*[:=]\s*\S+", value, re.I)))
 
 
 def _rows(ledger):
@@ -89,11 +90,21 @@ def remember(ledger, data):
         fields.setdefault("evidence", "")
         fields.setdefault("supersedes", None)
         fields.setdefault("owner_confirmed_at", None)
-        fields["state"] = "proposed" if fields["source"] == "inferred" else "active"
+        if old and old["fields"].get("owner_confirmed_at") is not None:
+            fields["owner_confirmed_at"] = old["fields"]["owner_confirmed_at"]
     if kind == "person":
-        fields["state"] = data.get("state", "active")
         for key, default in (("relationship", ""), ("channel", ""), ("rules", []), ("sensitive", False)):
             fields.setdefault(key, default)
+    if kind in {"preference", "person"}:
+        content = ("text", "category") if kind == "preference" else ("name", "relationship", "channel", "rules", "sensitive")
+        if old and old["fields"]["state"] != "retired" and all(fields[k] == old["fields"].get(k) for k in content):
+            fields["state"] = old["fields"]["state"]
+        else:
+            fields["state"] = ("proposed" if kind == "preference" and fields["source"] == "inferred"
+                               and (not old or old["fields"]["state"] == "retired" or fields["owner_confirmed_at"] is None)
+                               else "active")
+        if kind == "person" and "state" in data:
+            fields["state"] = data["state"]
     if kind == "trust":
         fields.setdefault("level", "shadow")
         fields.setdefault("evidence", "")

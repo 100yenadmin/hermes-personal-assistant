@@ -56,6 +56,63 @@ def test_private_values_rejected_without_write(tmp_path, data):
     assert Ledger(tmp_path).list("action") == []
 
 
+@pytest.mark.parametrize("initial,source,change,expected", [
+    ("confirmed", "inferred", {}, "active"),
+    ("confirmed", "inferred", {"text": "Prefer detailed replies", "owner_confirmed_at": None}, "active"),
+    ("filed", "said", {}, "filed"),
+    ("filed", "said", {"text": "Prefer detailed replies"}, "active"),
+    ("filed", "said", {"category": "voice"}, "active"),
+    ("filed", "inferred", {}, "filed"),
+    ("filed", "inferred", {"text": "Prefer detailed replies"}, "active"),
+    ("retired", "said", {}, "active"),
+    ("retired", "inferred", {}, "proposed"),
+    ("proposed", "inferred", {"text": "Prefer detailed replies"}, "proposed"),
+    ("filed-unconfirmed", "inferred", {"text": "Prefer detailed replies"}, "proposed"),
+])
+def test_preference_remember_preserves_lifecycle(tmp_path, initial, source, change, expected):
+    original = pref(tmp_path, slug="replies", source="inferred" if initial != "filed-unconfirmed" else "said")
+    if initial not in {"proposed", "filed-unconfirmed"}:
+        call(tmp_path, "confirm", identity=original["action_id"])
+    if initial.startswith("filed"):
+        call(tmp_path, "mark_filed", identities=[original["action_id"]])
+    elif initial == "retired":
+        call(tmp_path, "forget", identity=original["action_id"])
+    before = Ledger(tmp_path).get("action", original["action_id"])["fields"]
+    updated = pref(tmp_path, slug="replies", source=source, **change)["fields"]
+    assert updated["state"] == expected
+    assert updated["owner_confirmed_at"] == before["owner_confirmed_at"]
+    assert bool(call(tmp_path, "pending_files")) == (expected == "active")
+
+
+@pytest.mark.parametrize("change,expected", [
+    ({}, "filed"), ({"source": "inferred"}, "filed"),
+    ({"name": "Synthetic Sam"}, "active"), ({"relationship": "colleague"}, "active"),
+    ({"channel": "email"}, "active"), ({"rules": ["Use a formal greeting"]}, "active"),
+    ({"sensitive": True}, "active"), ({"state": "active"}, "active"),
+    ({"rules": ["Use a formal greeting"], "state": "filed"}, "filed"),
+])
+def test_person_remember_preserves_filing(tmp_path, change, expected):
+    data = dict(kind="person", slug="alex", name="Synthetic Alex")
+    person = call(tmp_path, **data)
+    call(tmp_path, "mark_filed", identities=[person["action_id"]])
+    assert call(tmp_path, **{**data, **change})["fields"]["state"] == expected
+    assert bool(call(tmp_path, "pending_files")) == (expected == "active")
+
+
+def test_retired_person_is_reactivated_unless_state_is_explicit(tmp_path):
+    data = dict(kind="person", name="Synthetic Alex")
+    person = call(tmp_path, **data)
+    call(tmp_path, "forget", identity=person["action_id"])
+    assert call(tmp_path, **data)["fields"]["state"] == "active"
+    assert call(tmp_path, **data, state="retired")["fields"]["state"] == "retired"
+
+
+@pytest.mark.parametrize("channel", ["+44 20 7946 0958", "+81 90-1234-5678"])
+def test_person_phone_channel_is_accepted(tmp_path, channel):
+    person = call(tmp_path, kind="person", name="Synthetic Alex", channel=channel)
+    assert person["fields"]["channel"] == channel
+
+
 def test_people_filing_and_action_readers(tmp_path, monkeypatch, capsys):
     p = pref(tmp_path)
     person = call(tmp_path, kind="person", name="Synthetic Alex", relationship="colleague", channel="email", rules=["Use a formal greeting"])
@@ -144,6 +201,7 @@ def test_list_limit_and_category_filter(tmp_path):
 
 @pytest.mark.parametrize("data", [
     dict(kind="person", name="Alex", rules=["password: synthetic-only"]),
+    dict(kind="person", name="Alex", rules=["4111 1111 1111 1111"]),
     dict(kind="sop", title="Weekly prep", steps=["token: synthetic-only"]),
     dict(kind="trust", task_type="prep", evidence="account number: 123456"),
 ])
