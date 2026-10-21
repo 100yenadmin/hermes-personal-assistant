@@ -73,6 +73,9 @@ engineering lessons in their own project context. Do not edit to meet the budget
 
 ## Close the week
 
+Read `pa(operation="profile", data={"action":"pending_files"})`; include these in the normal reviewed USER.md/manual proposal. After explicit apply and saved-file readback, call `profile` with `action=mark_filed, identities=[...]` for only those filed records.
+Read `pa(operation="profile", data={"action":"list","kind":"trust"})`. Once the oldest non-retired trust record is 30 days old, include one day-30 review paragraph: task types and levels, proposed level changes with evidence, and "Is this saving you time? Roughly how much?" Do this review once: first read `context kind=action action_id=pa:day30-review`; skip if its `asked_at` exists. Record the first ask using `action_upsert action_id=pa:day30-review action_type=note status=completed fields={asked_at:<ISO>}`. Change levels only after the owner's answer. Record the answer with `profile remember kind=preference source=said category=work` and a safe paraphrase; it feeds the parity rule. Chief of Staff mode must be on here; when off, use the daily-ops morning brief once instead.
+
 Then load `personal-assistant:cos-radar` for this week's single benchmark offer,
 if any. Include it in the single final response; Hermes delivers that owner message
 to the verified destination. Never use a message tool in a scheduled run.

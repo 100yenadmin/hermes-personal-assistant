@@ -12,7 +12,7 @@ OPERATIONS = ["status", "capabilities", "context", "recipes", "trip_import", "ex
               "authorization_prepare", "authorization_confirm", "authorization_cancel", "authorization_status",
               "event_upsert", "projection_claim", "projection_result", "reconcile", "freshness",
               "calendar_bind", "calendar_sync", "disconnect", "automations", "next_action", "setup",
-              "trip_watch_plan", "trip_offer", "browser_session"]
+              "trip_watch_plan", "trip_offer", "browser_session", "profile"]
 SCHEMA = {
     "name": "pa",
     "description": "Personal Assistant Plugin: recover focused context, manage eight recipes, and preserve provider evidence and replay-safe state-loop receipts. Use capabilities for setup or a missing integration; use recipes to locate a needed qualified skill. Load personal-assistant:personal-assistant for setup and operation contracts. Reuse known context without repeating setup. Never infer authentication, spending or messaging approval from configuration or credential access.",
@@ -44,7 +44,7 @@ SCHEMA = {
             "wakes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "status": {"type": "string"}, "expires_at": {"type": "string"}}, "required": ["id", "status"]}},
             "segments": {"anyOf": [{"type": "array", "items": SEG_SCHEMA, "minItems": 1, "maxItems": 8}, SEG_SCHEMA,
                                    {"type": "string", "description": "JSON-encoded segments; record_facts parses it."}]},
-            "source": {"type": "string", "enum": SOURCES},
+            "source": {"type": "string"},
             "wake_id": {"type": "string", "pattern": "^w_[A-Za-z0-9_-]+$"},
             "offer_type": {"type": "string", "pattern": "^[a-z][a-z_]{1,39}$"},
             "section": {"type": "string"},
@@ -80,7 +80,7 @@ SCHEMA = {
             "proof": {"description": "Provider or canonical readback evidence required for a known terminal outcome."},
             "freshness_seconds": {"type": "integer", "minimum": 1, "maximum": 315360000, "description": "Optional caller-owned projection freshness duration; PA supplies no domain default."},
             "at": {"type": "string", "description": "Explicit timezone-aware evaluation or transition timestamp."},
-            "kind": {"type": "string", "enum": ["trip", "action", "source", "guide"], "description": "Optional for context when exactly one of trip_id/action_id/source_id is given; trip_id plus query needs explicit kind."},
+            "kind": {"type": "string", "description": "context: trip/action/source/guide; profile: preference/person/sop/trust."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 20},
             "offset": {"type": "integer", "minimum": 0}
         }, "description": "Operation arguments. browser_session: action status/create/live_view/connect/release; live_view/connect/release take bb_session_id; create accepts region; live_view lists tabs when the session has more than one; connect returns a fresh connect_url for a running session. trip_watch_plan: plan (default), status, record_wake, record_cancel, record_skip, verify or record_facts with trip_id; plan arms check_in_window/arrival_logistics/watch; receipts take moment/wake_id, verify takes wakes, record_facts takes segments/source or flat carrier, number, origin, destination, origin_timezone, destination_timezone, scheduled_departure, scheduled_arrival, optional estimated_departure, estimated_arrival, terminal_departure, terminal_arrival, status. trip_import/record_facts may return next_step. trip_offer: action check or record with trip_id/offer_type and outcome for record; occurrence comes from an observer notice; record example: data={\"action\":\"record\",\"trip_id\":…,\"offer_type\":…,\"outcome\":\"accepted\",\"occurrence\":\"n_…\"} (occurrence at the top level of data, not in fields); check reserves by default (reserve false skips reservation); opted_out requires an explicit never request. setup actions: status (default), start, record, propose, applied, fresh_check, pause, decline; record accepts consent granted/declined for the look-around; after apply it preserves applied/checked status and flags pending_changes for the next /pa setup review, then propose and apply. propose with draft true saves deeper-answer summaries and keeps the interview in progress. applied takes readbacks with target plus skill/path as needed; PA reads back the files and computes hashes. capabilities takes no data and never proves authentication. context: kind plus trip_id/action_id/source_id/query and optional limit/offset; kind is optional with exactly one ID, except trip_id plus query; guide needs explicit kind. recipes: optional recipe_id R1-R8; trip_import: trip_id, ics_path, optional guide_path/timezone/title/source_url/complete; export: trip_id/output_dir and optional guarded overwrite for same-profile PA files; action_upsert: optional action_id/source_id/action_kind/occurrence, fields. Transaction prepare/confirm/claim require action_id and summary; confirm also requires confirmation. action_prepare with enforcement_profile exact_action automatically registers a server-bound pending scope; action_cancel cancels that governed action. Action result requires action_id, outcome and proof. authorization_prepare records a generic exact-action envelope and hashes complete tool_args without retaining them; authorization_confirm requires action_id and explicit confirmation; authorization_status reads one action. event_upsert requires source_type/source_id/source_revision/projections and optional payload/occurred_at; each projection may declare freshness_seconds. projection_claim requires event_id/projection_key/claimed_by and optional lease_seconds/at. projection_result requires event_id/projection_key/claim_token/outcome and optional proof/at. reconcile optionally accepts event_id. freshness requires explicit at and optionally accepts event_id."}},
@@ -100,6 +100,15 @@ SCHEMA = {
             }}}}}}
         }]},
 }
+
+from .profile import SCHEMA as PROFILE_SCHEMA
+SCHEMA["parameters"]["allOf"].append({
+    "if": {"properties": {"operation": {"const": "profile"}}},
+    "then": {"properties": {"data": PROFILE_SCHEMA}},
+    "else": {"properties": {"data": {"properties": {
+        "kind": {"enum": ["trip", "action", "source", "guide"]}, "source": {"enum": SOURCES}
+    }}}},
+})
 
 
 def _call_with_supported_data(function, *args, data):
@@ -136,6 +145,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         from .capabilities import discover
         return discover(profile_root=profile_root)
     ledger = Ledger(profile_root)
+    if op == "profile":
+        from .profile import dispatch as profile_dispatch
+        return profile_dispatch(ledger, data)
     if op == "browser_session":
         from .browserbase import browser_session
         scope = runtime_scope or {}
