@@ -77,7 +77,8 @@ def test_update_lifecycle_and_export(tmp_path):
     call(tmp_path, "update", identity=identity, title="Revised title", due="2026-11-02", agreed_outcome="Revised result")
     export = call(tmp_path, "export")
     assert set(export) == {"tasks", "baselines", "day30"}
-    assert set(export["tasks"][0]) == set("id area owner title started due status owner_accepted correction facts".split())
+    keys = set("id area owner title started due status owner_accepted correction facts".split())
+    assert set(export["tasks"][0]) - {"closed_at"} == keys  # closed_at appears once a task is closed.
     build("test", "a" * 40, [], export, as_of="2026-11-02")
 
 
@@ -134,18 +135,21 @@ def test_invalid_time_records(tmp_path, action, data):
 
 
 def test_two_owner_scorecard(tmp_path):
+    from datetime import timedelta
+    today = datetime.now(timezone.utc).date()
+    START, DUE = (today - timedelta(days=14)).isoformat(), (today + timedelta(days=1)).isoformat()
     exports = []
     for owner in ("A", "B"):
         root = tmp_path / owner
         root.mkdir()
         for i in range(10):
-            row = record(root, task_id=f"task-{i}", started="2026-10-01", due="2026-10-15")
+            row = record(root, task_id=f"task-{i}", started=START, due=DUE)  # Closed today, before the due date.
             call(root, "update", identity=row["identity"], status="pass", owner_accepted=True,
                  correction="material" if owner == "B" and i == 9 else "none",
                  facts=[{"item": "Provider comparison", "source": "https://example.org", "ok": True, "facing": "customer"}])
         time_records(root)
         exports.append(call(root, "export", owner=owner))
-    result = build("test", "a" * 40, [], exports, as_of="2026-10-15")
+    result = build("test", "a" * 40, [], exports, as_of=DUE)
     research = next(a for a in result["areas"] if a["key"] == "research")
     assert research["real_work"]["state"] == research["facts"]["state"] == result["day30"]["state"] == "pass"
     assert research["parity"] == "unproven"  # No lab evidence.
