@@ -74,6 +74,8 @@ def dispatch(ledger, data):
                   "cohort": _text(data.get("cohort", "default"), "cohort", 40),
                   "status": "pending", "owner_accepted": None, "correction": "none",
                   "facts": [], "created_at": now()}
+        if fields["due"] < fields["started"]:
+            raise ValueError("due must not be before started")  # The scorecard rejects such tasks.
         slug = re.sub(r"[^a-z0-9]+", "-", fields["title"].lower()).strip("-")
         task_id = data.get("task_id", (slug[:49].rstrip("-") or "task") + "-" + fields["started"])
         if not isinstance(task_id, str) or not re.fullmatch(r"[a-z0-9-]{3,60}", task_id):
@@ -96,6 +98,8 @@ def dispatch(ledger, data):
                 fields[key] = _text(data[key], key, limit, allow_empty=key == "correction_note")
         if "due" in data:
             fields["due"] = _date(data["due"], "due")
+            if fields["due"] < fields["started"]:
+                raise ValueError("due must not be before started")
         if "status" in data:
             fields["status"] = _enum(data["status"], "status", _STATUSES)
             fields.pop("closed_at", None)
@@ -136,6 +140,8 @@ def dispatch(ledger, data):
         for key, value in minutes.items():
             _text(key, "task type", 60)
             _minutes(value, "minutes_by_type")
+        if not sum(minutes.values()):
+            raise ValueError("baseline needs the minutes spent on at least one delegated task type")  # Day-30 divides by it.
         fields = {"week_of": _date(data.get("week_of"), "week_of"), "minutes_by_type": minutes,
                   "total_minutes": sum(minutes.values()), "recorded_at": now()}
         return _save(ledger, "va-baseline:owner", fields, "va_baseline")

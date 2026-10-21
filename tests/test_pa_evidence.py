@@ -112,10 +112,10 @@ def test_time_records_replace_and_round_trip(tmp_path):
     result = call(tmp_path, "export", owner="A")
     assert result["baselines"]["A"]["total_minutes"] == 100
     assert result["day30"]["A"]["minutes"] == 75
-    call(tmp_path, "baseline", week_of="2026-10-08", minutes_by_type={"calendar": 0})
+    call(tmp_path, "baseline", week_of="2026-10-08", minutes_by_type={"calendar": 30})
     call(tmp_path, "day30", week_ending="2026-10-28", minutes=0, first_pass_task_types=[])
     result = call(tmp_path, "export", owner="A")
-    assert result["baselines"]["A"] == {"week_of": "2026-10-08", "minutes_by_type": {"calendar": 0}, "total_minutes": 0}
+    assert result["baselines"]["A"] == {"week_of": "2026-10-08", "minutes_by_type": {"calendar": 30}, "total_minutes": 30}
     assert result["day30"]["A"] == {"week_ending": "2026-10-28", "minutes": 0, "first_pass_task_types": []}
     rows = Ledger(tmp_path).list("action")
     assert len(rows) == 2 and all(r["status"] == "recorded" and r["fields"]["recorded_at"] for r in rows)
@@ -199,3 +199,17 @@ def test_export_script_copy_read_only(tmp_path):
 def test_unknown_action(tmp_path):
     with pytest.raises(ValueError, match="unknown evidence action"):
         call(tmp_path, "unknown")
+
+
+def test_dates_and_baseline_stay_scoreable(tmp_path):
+    """The scorecard rejects due-before-start tasks and zero-minute baselines, so the op refuses them first."""
+    with pytest.raises(ValueError, match="due must not be before started"):
+        call(tmp_path, "record", area="research", title="Payroll comparison", due="2026-10-01",
+             agreed_outcome="one-page answer", started="2026-10-05")
+    task = record(tmp_path)
+    with pytest.raises(ValueError, match="due must not be before started"):
+        call(tmp_path, "update", identity=task["identity"], due="2000-01-01")
+    with pytest.raises(ValueError, match="at least one delegated task type"):
+        call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={"inbox": 0})
+    with pytest.raises(ValueError, match="at least one delegated task type"):
+        call(tmp_path, "baseline", week_of="2026-10-12", minutes_by_type={})

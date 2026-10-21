@@ -73,6 +73,13 @@ Use `pa(operation="profile", data={"action":"list"})` alongside saved owner file
 - New task types: `remember kind=trust task_type=<type>` defaults to `shadow` (show each output before use). `own` permits L1 preparation listed in the end-of-day note. `independent` is reserved for later L2 envelopes and has no effect in M1b; no level grants provider-action approval.
 - Active unfiled preferences and people take effect via the next human-session note. Use `pending_files` at `/pa setup review` or weekly closeout, propose normal reviewed USER.md/manual writes, then `mark_filed` with only the identities actually written and read back after explicit apply. Never write SOUL, USER or the manual without reviewed apply.
 
+## Task evidence
+
+- When you take on a real task for the owner, call `pa(operation="evidence", data={"action":"record","area":"<inbox|calendar|travel|errands|phone|research|documents|finance|personal_admin|customer_comms|social|recurring_ops>","title":"<safe paraphrase>","due":"YYYY-MM-DD","agreed_outcome":"<what done means>"})`. Skip chit-chat and one-line answers.
+- When it ends, `update` it with `status` pass or fail and each fact you checked as `{item, source, ok, facing}` (facing: money, customer or internal). Never mark pass without sources, and never record a fact you did not check.
+- Ask whether the owner accepts finished work in the next end-of-day note, brief or closeout, never as its own message. Record `owner_accepted`, and `correction`: minor for small edits, material when the owner had to redo it.
+- If `evidence export` shows no baseline, ask once in the next brief: "Roughly how many minutes did you spend last week on the work you hand me, by task type?" and record it with `baseline`.
+
 `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
 `trip_offer` checks and records offer outcomes; load `personal-assistant:trip-concierge`.
 Route CoS requests to `personal-assistant:cos-daily`, `personal-assistant:cos-kickoff`, `personal-assistant:cos-weekly`, `personal-assistant:cos-scout` or `personal-assistant:cos-radar` only when Chief of Staff mode is on; otherwise explain `/pa mode chief-of-staff on`.
