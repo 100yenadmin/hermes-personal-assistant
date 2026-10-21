@@ -307,6 +307,8 @@ def digest(root):
     scenario = read(root / "scenario.json", {})
     if scenario.get("area") == "research":
         result["research"] = {"scenario": scenario, "checks": result["checks"].get("steps", []),
+                              "answer": next((m["content"] for m in reversed(transcript) if m["role"] == "assistant"), "")[:8000],
+                              "unverified": result["checks"].get("unverified", []),
                               "factual_errors": result["checks"].get("factual_error_details", [])}
     if enabled(scenario):
         result["wake_attempts"] = lines(root / "wake-tripwire.jsonl")

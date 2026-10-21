@@ -133,11 +133,16 @@ class Observer:
 
     def post(self, tool_name, args, result, task_id="", **kw):
         with self.lock:
-            limit = 40000 if tool_name.startswith(("browser_", "web_")) else 2000
+            limit = 200000 if tool_name.startswith(("browser_", "web_")) else 2000
+            kept = scrub(result)
+            removed = len(kept) - limit
+            kept = kept[:limit]
+            if removed > 0 and tool_name.startswith(("browser_", "web_")):
+                kept += f" …[lab cut {removed} chars]"
             append(self.out / "tools.jsonl", {"name": tool_name, "step": self.step,
                    "args": {k: scrub(v)[:300] for k, v in args.items()},
                    "structured_args": json.loads(scrub(json.dumps(args, ensure_ascii=False))),
-                   "result": scrub(result)[:limit]})
+                   "result": kept})
             data = payload(result)
             data = data.get("data", data)
             task = task_id or "default"

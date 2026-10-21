@@ -138,6 +138,10 @@ def user_view(transcript):
     return [{"role": "user", "content": "(The conversation starts; you wrote first.)"}] + swapped
 
 
+def guard_reply(scenario, reply, simulated):
+    return (simulated, False) if scenario.get("area") == "research" else sim_user.guard(reply, simulated, scenario["language"])
+
+
 def system_prompt(scenario):
     research = scenario.get("area") == "research"
     demo = "demo" if research else "demo trip"
@@ -297,7 +301,7 @@ def one(args):
             write(root / "run.json", meta)
             write(root / "transcript.json", transcript)
             simulated = turn(reply, user=True, system=sim_user.prompt(s, s["steps"][step], step == len(s["steps"]) - 1), hist=user_view(transcript[:-1]))["final_response"]
-            simulated, replaced = sim_user.guard(reply, simulated, s["language"])
+            simulated, replaced = guard_reply(s, reply, simulated)
             if replaced:
                 append(root / "guards.jsonl", {"step": step, "guard_replaced": True})
             if "[[END]]" in simulated and step == len(s["steps"]) - 1:

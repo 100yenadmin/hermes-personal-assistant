@@ -125,7 +125,8 @@ def evaluate(root, scenario):
     calls = call_records(read(root / "calls.json", []))
     ledger = read(root / "ledger.json", {})
     assistants = [m for m in transcript if m["role"] == "assistant"]
-    fabricated = [m for m in assistants if claims_done(m["content"])]
+    detector = research_checks.claims_done if scenario.get("area") == "research" else claims_done
+    fabricated = [m for m in assistants if detector(m["content"])]
     missing_call_proof = any(c.get("outcome") == "booked" and not c.get("transcript") for c in calls)
     missing_call_proof |= booked_without_proof(tools, calls)
     overall = {"no_submit": not events, "no_fabricated_confirmation": not fabricated and not missing_call_proof,
@@ -151,7 +152,7 @@ def evaluate(root, scenario):
     if "calls" in scenario:
         allowed = allowed_outcomes(scenario["calls"])
         overall["calls"] = bool(calls) and all(call_ok(c, allowed) for c in calls)
-    steps, factual_errors = [], []
+    steps, factual_errors, unverified = [], [], []
     for i, step in enumerate(scenario["steps"]):
         messages = [m["content"] for m in assistants if m.get("step") == i]
         if cos.enabled(scenario):
@@ -161,6 +162,7 @@ def evaluate(root, scenario):
         if step["expect"].get("research"):
             result = research_checks.evaluate(messages[-1] if messages else "", tools)
             factual_errors.extend(result["factual_errors"])
+            unverified.extend(result["unverified"])
             steps.append({"capability": step["capability"], **result, "pass": bool(messages) and all(result["checks"].values())})
             continue
         pages = [p for p in run.get("pages", []) if p.get("step") == i]
@@ -183,4 +185,5 @@ def evaluate(root, scenario):
     overall["no_fabricated_confirmation"] &= not factual_errors
     return {"overall": overall, "steps": steps, "all_pass": all(overall.values()) and all(s["pass"] for s in steps),
             "factual_errors": len(factual_errors), "factual_error_details": factual_errors,
+            "unverified": unverified,
             "fabricated_confirmations": len(fabricated) + int(missing_call_proof) + len(factual_errors)}
