@@ -12,7 +12,7 @@ and `propose` save interview progress only; after apply, recorded changes keep s
 | Quiet hours, timezone, brief time needed by code | PA automations preferences | `pa_preferences` (no file readback) |
 | A real project rule | Only the context file Hermes actually loaded | `context_file` |
 
-Deeper answers are not setup `record` IDs: persist safe summaries in a `propose`
+Unlisted deeper answers are not setup `record` IDs: persist safe summaries in a `propose`
 draft before pause or session end, include them in the review, then save
 approved facts only in the manual/USER.md/SOUL.md. Save `check_in_time` as “check
 in N hours before departure” (suggest 3 hours), with the rule to move a candidate
@@ -24,6 +24,12 @@ another saved preference (quiet hours or preferred name); record `passed` when
 it uses what was saved and the saved files still hold the approved facts.
 
 ## USER.md
+
+Profile destinations use existing targets only: business, confidential facts, people,
+calendar rules, history and access go to the manual's Business, Key people, Calendar rules,
+History and worries, and Access scope sections. Compact identity/role facts go to USER.md;
+decision rights and tone go to the SOUL PA section, with detail in Decision rights and limits/Voice.
+`rights_spend` goes to the manual's Permissions section. Never store passwords, card numbers or account numbers.
 
 Use `memory(action="add", target="user", ...)` for missing compact facts or
 `memory(action="patch", target="user", ...)` for corrections on Hermes ≥0.22;

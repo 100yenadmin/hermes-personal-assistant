@@ -19,12 +19,12 @@ def test_cos_questions_walk_and_sections_keep_independent_counts(tmp_path):
     setup.record(ledger, {"call_and_quiet": ANSWER}, skipped=["authority"], asked=["call_and_quiet"])
     core = setup.state(ledger)
     current = setup.request(ledger, "chief_of_staff")
-    assert current["counts"] == {"asked": 0, "answers": 0, "skipped": 0, "total": 6}
+    assert current["counts"] == {"asked": 0, "answers": 0, "skipped": 0, "covered": 0, "total": 6}
     for question in COS:
         assert current["next_question"] == question
         current = setup.record(ledger, {question: ANSWER}, asked=[question])
     assert current["next_question"] is None
-    assert current["counts"] == {"asked": 6, "answers": 6, "skipped": 0, "total": 6}
+    assert current["counts"] == {"asked": 6, "answers": 6, "skipped": 0, "covered": 0, "total": 6}
     setup.request(ledger)
     current = setup.state(ledger)
     assert current["counts"] == core["counts"]
@@ -165,14 +165,15 @@ def test_review_mode_reports_combined_progress_without_a_next_question(tmp_path)
     setup.record(ledger, {question: ANSWER for question in COS})
     current = setup.request(ledger, None)
     assert current["next_question"] is None
-    assert current["counts"] == {"asked": 0, "answers": 6, "skipped": 0, "total": 14}
+    assert current["counts"] == {"asked": 0, "answers": 6, "skipped": 0, "covered": 1, "total": 41}
 
 
 def test_fresh_session_check_branches_for_cos():
     from pathlib import Path
     text = (Path(__file__).resolve().parents[1] / "skills/pa-setup/SKILL.md").read_text()
     check = text[text.index("## Fresh-session check"):]
-    assert "If `requested_section` is `chief_of_staff`" in check.split("When would you check in")[0]
+    branch = check.split("When would you check in")[0]
+    assert "Pick the check by `fresh_check.section`, else `requested_section`: `chief_of_staff` runs the CoS check" in branch
 
 
 def test_cos_count_reply_follows_the_question_tuple(tmp_path, monkeypatch):

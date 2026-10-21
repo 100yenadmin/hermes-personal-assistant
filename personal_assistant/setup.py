@@ -8,7 +8,21 @@ CORE_QUESTIONS = ("call_and_quiet", "worth_a_message", "authority", "first_trip"
                   "arrival_help", "protect", "route", "check_in_time")
 CHIEF_OF_STAFF_QUESTIONS = ("cos_priorities", "cos_radar_topics", "cos_daily_time",
                             "cos_kickoff_slot", "cos_weekly_slot", "cos_schedule_choices")
-SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS}
+PROFILE_GROUPS = (
+    ("business", ("biz_what", "biz_priorities", "biz_people", "biz_confidential")),
+    ("you", ("you_role", "you_rhythm", "you_interrupt", "you_offload")),
+    ("communication", ("comm_channel", "comm_rhythm", "comm_format")),
+    ("decision_rights", ("rights_act", "rights_draft", "rights_ask", "rights_spend", "rights_backup")),
+    ("voice", ("voice_tone", "voice_examples", "prefs_travel", "prefs_life")),
+    ("calendar", ("cal_rules", "cal_protect", "cal_people")),
+    ("history", ("hist_past", "hist_worries")),
+    ("access", ("access_systems", "access_off_limits")),
+)
+PROFILE_QUESTIONS = tuple(q for _, ids in PROFILE_GROUPS for q in ids)
+SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS, "profile": PROFILE_QUESTIONS}
+EQUIVALENT_IDS = ({"biz_priorities", "cos_priorities"},)  # Exact equivalents only; a covered ID is never asked.
+# A related source answers only part of its ID: the ID is still asked, for the missing part only.
+RELATED_IDS = {"rights_ask": "authority", "comm_channel": "route", "comm_rhythm": "worth_a_message"}
 FILE_TARGETS = {"user_memory", "soul_section", "manual_skill", "context_file"}
 TARGETS = FILE_TARGETS | {"pa_preferences"}  # Via pa automations preferences; no file/readback.
 
@@ -18,19 +32,42 @@ def _view(fields):
               "asked": [], "answers": {}, "skipped": [], "proposal": {"writes": []},
               "applied": [], "applied_session_id": None, "fresh_check": {}, "pending_changes": False,
               "offer_shown_at": None, "updated_at": None, "look_around_consent": None,
-              "active_platform": None, "active_sender_id": None, "active_chat": None, **fields}
+              "active_platform": None, "active_sender_id": None, "active_chat": None, "sitting_group": None, **fields}
     current_ids = {q for section in SECTIONS.values() for q in section}
     result["answers"] = {q: answer for q, answer in result["answers"].items() if q in current_ids}
     for key in ("asked", "skipped"):
         result[key] = [q for q in result[key] if q in current_ids]
+    result["covered"] = {q: source for ids in EQUIVALENT_IDS for q in sorted(ids)
+                         if q not in result["answers"]
+                         for source in sorted(ids & result["answers"].keys())[:1]}
+    covered = result["answers"].keys() | result["covered"].keys()
+    result["related"] = {q: source for q, source in RELATED_IDS.items()
+                         if q not in result["answers"] and source in result["answers"]}
     review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
     questions = (tuple(q for section in SECTIONS.values() for q in section) if review
                  else SECTIONS.get(result["requested_section"], CORE_QUESTIONS))
+    result["groups"] = [{"group": group, "total": len(ids), "answered": sum(q in covered for q in ids),
+                         "skipped": sum(q in result["skipped"] and q not in covered for q in ids),
+                         "done": all(q in covered or q in result["skipped"] for q in ids)}
+                        for group, ids in PROFILE_GROUPS]
+    open_groups = [g["group"] for g in result["groups"] if not g["done"]]
+    result["current_group"] = next(iter(open_groups), None)
+    result["next_group"] = next(iter(open_groups[1:]), None)
+    # A sitting is one group: once it is done the interview stops for review and apply (legacy rows: current group).
+    result["sitting_group"] = result["sitting_group"] or result["current_group"]
+    sitting = dict(PROFILE_GROUPS).get(result["sitting_group"], ())
+    result["sitting_done"] = result["sitting_group"] not in open_groups
+    result["sitting_fresh"] = bool(sitting) and not any(
+        q in result["asked"] or q in result["skipped"] or result["answers"].get(q, {}).get("source") == "user"
+        for q in sitting)
+    order = sitting if result["requested_section"] == "profile" else questions
     result["next_question"] = None if review else next(
-        (q for q in questions if q not in result["answers"] and q not in result["skipped"]), None)
-    result["counts"] = {key: sum(q in questions for q in result[key])
-                        for key in ("asked", "answers", "skipped")}
-    result["counts"]["total"] = len(questions)
+        (q for q in order if q not in covered and q not in result["skipped"]), None)
+    def counts(ids):
+        return {**{key: sum(q in ids for q in result[key]) for key in ("asked", "answers", "skipped", "covered")},
+                "total": len(ids)}
+    result["counts"] = counts(questions)
+    result["sections"] = {section: counts(ids) for section, ids in SECTIONS.items()}
     return result
 
 
@@ -56,9 +93,10 @@ def request(ledger, section="core", *, active_chat=None):
         _section(section)
     prior = state(ledger)
     status = "in_progress" if prior["status"] in {"in_progress", "proposed"} else "requested"
+    sitting = {"sitting_group": prior["current_group"]} if section == "profile" else {}  # The first group not done.
     return _save(ledger, status, requested_section=section,
                  requested_mode="review" if section is None else None,
-                 active_platform=None, active_sender_id=None, active_chat=active_chat, proposal={"writes": []})
+                 active_platform=None, active_sender_id=None, active_chat=active_chat, proposal={"writes": []}, **sitting)
 
 
 def continue_here(ledger, active_chat=None):
@@ -70,11 +108,22 @@ def start(ledger, section=None, *, active_platform=None, active_sender_id=None, 
     if section is not None:
         _section(section)
     prior = state(ledger)
+    if prior["status"] == "proposed" and section is not None and section != prior["requested_section"]:
+        raise ValueError("A setup review is waiting: apply or change it before starting another section.")
     # Only the hook passes a binding; the skill's plain start keeps the chat it is in.
     binding = ({"active_platform": active_platform, "active_sender_id": active_sender_id, "active_chat": active_chat}
                if active_platform is not None else {})
+    reset = not binding and section is not None and prior["status"] not in {"requested", "in_progress", "proposed"}
+    if reset:
+        # A new interview started from chat (e.g. "grill me" after setup finished) must not stay bound to the
+        # older setup's chat; the hook binds the next human turn. An active setup keeps its binding (#32).
+        binding = {"active_platform": None, "active_sender_id": None, "active_chat": None}
+    extra = {"requested_mode": None} if section is not None else {}  # An explicit section is an interview, not a review.
+    stored = (ledger.get("action", "pa:setup") or {}).get("fields", {})
+    if section == "profile" and (reset or prior["requested_section"] != "profile" or not stored.get("sitting_group")):
+        extra["sitting_group"] = prior["current_group"]  # A new sitting starts at the first group not done.
     return _save(ledger, prior["status"] if prior["status"] == "proposed" else "in_progress",
-                 requested_section=prior["requested_section"] if section is None else section, **binding)
+                 requested_section=prior["requested_section"] if section is None else section, **binding, **extra)
 
 
 def record(ledger, answers=None, skipped=None, asked=None, consent=None):
@@ -195,7 +244,9 @@ def applied(ledger, readbacks, session_id=None):
         raise ValueError("readbacks must match proposed file targets")
     readbacks = [_readback(ledger.root, item) for item in readbacks]
     return _save(ledger, "applied", applied=readbacks, requested_mode=None,
-                 applied_session_id=session_id, fresh_check={"status": "pending"}, pending_changes=False)
+                 applied_session_id=session_id, fresh_check=(current["fresh_check"] if current["requested_section"] == "profile"
+                                                            else {"status": "pending", "section": current["requested_section"]}),
+                 pending_changes=False)
 
 
 def fresh_check(ledger, status, session_id=None):
@@ -219,7 +270,8 @@ def fresh_check(ledger, status, session_id=None):
     if status == "failed":
         failed_sessions = list(dict.fromkeys(failed_sessions + [session_id]))[-5:]
     return _save(ledger, "checked" if status == "passed" else "applied",
-                 fresh_check={"status": status, "at": now(), "failed_sessions": failed_sessions})
+                 fresh_check={"status": status, "at": now(), "failed_sessions": failed_sessions,
+                              **{k: v for k, v in current["fresh_check"].items() if k == "section"}})
 
 
 def pause(ledger):

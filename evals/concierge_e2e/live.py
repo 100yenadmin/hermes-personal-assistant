@@ -92,7 +92,11 @@ def main():
 
     def interview():
         """Answer whatever PA's setup record says is next, so skipped questions cannot misalign answers."""
-        owner("/pa setup")
+        section = persona.get("section", "core")
+        owner("/pa setup" + (" " + section if section != "core" else ""))
+        begin = setup_state()
+        sitting, asked_before = begin.get("sitting_group"), set(begin.get("asked") or [])
+        from personal_assistant.setup import PROFILE_GROUPS  # Importable once setup_state() has run.
         owner("hi")
         consents, kept = 0, False
         for _ in range(14):
@@ -119,10 +123,13 @@ def main():
         transcript.append("Result: " + json.dumps(result))
         failures = [name for name, bad in (
             ("not at the review", result["status"] != "proposed"),
-            ("core questions left open", current.get("next_question") is not None),
+            ("sitting questions left open", not next((g["done"] for g in current.get("groups", []) if g["group"] == sitting), False)
+             if section == "profile" else current.get("next_question") is not None),
             ("discovered set differs from expected", set(result["expected_discovered"]) != set(discovered)),
             ("discovered question asked", result["asked_and_discovered"]),
-            ("partly known question marked discovered", set(persona.get("must_not_discover", [])) & set(discovered))) if bad]
+            ("partly known question marked discovered", set(persona.get("must_not_discover", [])) & set(discovered)),
+            ("asked outside the sitting", section == "profile" and set(result["asked"] or []) - asked_before
+             - set(dict(PROFILE_GROUPS).get(sitting, ())))) if bad]
         if failures:  # Evidence is written first; the exit code then reports the regression.
             raise AssertionError("persona expectations failed: " + ", ".join(failures))
 

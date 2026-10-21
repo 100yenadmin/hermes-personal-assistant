@@ -114,6 +114,10 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                                         "or ask call_and_quiet if consent was declined or nothing was found")
                 if current["requested_section"] == "chief_of_staff":
                     interview_start = "follow the Chief of Staff section's intro and consent flow, then ask only its next question"
+                fresh = not any(current["counts"][key] for key in ("asked", "answers", "skipped"))
+                if current["requested_section"] == "profile":
+                    interview_start = "follow the profile section's intro, saved-file readback and consent flow; one group per sitting, no core trip arming"
+                    fresh = current["sitting_fresh"]  # Each sitting starts with the saved-file readback.
                 next_step = ("wait for the user to approve or edit the review"
                              if status == "proposed"
                              else "show the saved setup as one review with proposed changes, then call pa setup propose"
@@ -122,11 +126,14 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                              if current["next_question"] is None
                              # A fresh section starts with the intro, consent and look-around, not a question.
                              else interview_start
-                             if not any(current["counts"][key] for key in ("asked", "answers", "skipped"))
+                             if fresh
                              else f"ask only the next question ({current['next_question']})")
                 text = ("Guided setup is active. Load skill personal-assistant:pa-setup and continue: "
                         f"help with this message first if it is about something else, then {next_step}.")
+                if current["requested_section"] == "profile":
+                    text += " Follow the profile sitting boundary: review and apply when its group finishes before offering another group."
             elif (status == "applied" and current["fresh_check"].get("status") in {"pending", "failed"}
+                  and (current["fresh_check"].get("section") or current["requested_section"]) != "profile"
                   and kwargs.get("is_first_turn") and kwargs.get("session_id") != current["applied_session_id"]
                   and kwargs.get("session_id") not in current["fresh_check"].get("failed_sessions", [])):
                 text = "Setup was saved in an earlier session. Load skill personal-assistant:pa-setup and run its fresh-session check once."

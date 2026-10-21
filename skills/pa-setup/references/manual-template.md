@@ -92,6 +92,27 @@ quiet-hours candidate to the evening before. HB2 defaults to 22:00–08:00; its
 config and chat overrides are separate from PA. Do not claim alignment until the
 user confirms the HB2 setting.
 
+## Business
+<What it does, revenue model, quarterly priorities, offload goals and confidentiality boundaries.>
+
+## Key people
+<Team, clients, vendors and family: relationships, VIP/exclusion and contact rules.>
+
+## Decision rights and limits
+<Act/draft/ask boundaries and backup approver scope; category spend thresholds live in Permissions.>
+
+## Calendar rules
+<Meeting lengths, buffers, booking horizon, focus/call windows, sacred meetings and interruptions.>
+
+## Voice
+<Tone/sign-off by audience, banned words, safe style summaries, update/feedback formats and response SLAs.>
+
+## History and worries
+<Past assistant mistakes, corrected expectations and delegation concerns; safe summaries only.>
+
+## Access scope
+<Systems, owners, least-privilege delegated access and off-limits accounts; no passwords, card or account numbers.>
+
 ## Routines
 
 <For each: trigger, authorized inputs, useful output, timezone, publisher, route,

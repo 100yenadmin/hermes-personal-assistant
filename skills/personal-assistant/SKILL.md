@@ -35,6 +35,7 @@ even in a new chat, resumes from it instead of starting over. A checkpoint is me
 not approval: the final yes still uses the governed transaction below.
 
 ## Setup
+When the user says "grill me", or asks you to interview them about their work, preferences or routines so you can assist them, load `personal-assistant:pa-setup` and start setup with `{"action":"start","section":"profile"}`. A mock interview, or an interview for something else, is not setup.
 
 For first setup or an integration gap, use `pa(operation="capabilities")`, then call `pa` with
 `operation="recipes"` and load the returned qualified skill. Capability status

@@ -16,10 +16,9 @@ Every `references/...` path is relative to this skill directory.
 ## When to use
 
 Use when the context note says guided setup is active, or the user asks to set up
-or review PA. Resume from saved progress; do not restart a completed interview.
+or review PA, says “grill me”, or sends `/pa setup grill`. Resume saved progress; do not restart a completed interview.
 
 ## Rules
-
 - Ask one question per message, with a recommended answer grounded in discovery.
   If nothing supports a recommendation, say so and offer a clearly labelled default.
 - “Skip”, “later”, and “you decide” always work. Skip leaves an answer unknown;
@@ -52,14 +51,15 @@ Progress lives in the `pa:setup` record, never a state-loop event.
 Answer sources are `user` or `discovered`. File targets are `user_memory`,
 `soul_section`, `manual_skill`, and `context_file`; `pa_preferences` is proposal-only.
 Read `status`, `requested_mode`, `next_question`, `answers`, `skipped`, `asked`,
-`proposal`, `proposal_draft`, `applied`, and `fresh_check`, plus `requested_section`. Omitting `section` on `start` preserves the requested section; `/pa setup` requests core, or continues an active setup in the current chat. Only IDs in the two question-bank sections may appear in `record` answers, skipped or asked. Use `start` for a requested start, never to reset a fresh-session check.
+`proposal`, `proposal_draft`, `applied`, `fresh_check`, `requested_section`, `covered`, `related`, `sections`, and profile `groups`/`current_group`/`sitting_group`/`sitting_done`. Omitting `section` on `start` preserves the section; bare `/pa setup` continues active setup, offers the saved check, or shows the menu when core is complete. Only question-bank IDs may appear in `record`. Use `start` for a requested start, never to reset a fresh-session check.
 ## Chief of Staff section
 `/pa setup chief-of-staff`: first check mode; if off, explain `/pa mode chief-of-staff on`, restart and a new session, then stop.
 Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow in `references/question-bank.md` and the reviewed destinations in `references/where-answers-go.md`.
+## Profile section
+For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"start","section":"profile"}` (no CoS mode gate); if it fails because a review is waiting, relay that message. Follow `references/question-bank.md`: one group per sitting (`sitting_group`), read each answer back, and end when `sitting_done`: “That covers <group>. Next is <current_group>, about N questions: now or later?” For a `related` ID, state its source answer as known (the recommendation) and ask only the missing part. Review and apply each sitting with steps 6–7. Start the next sitting by reading back two saved facts from loaded USER.md/manual files; never run `/new` or arm a trip for profile.
 
 ## Flow
-
-1. Read setup status; `pending_changes` waits for the next `/pa setup review`, then propose and apply to save it in files. For applied setup with a pending or failed check, use the
+1. Read setup status; `pending_changes` waits for the next `/pa setup review`, then propose and apply to save it in files. For applied core/CoS setup with a pending or failed check, use the
    Fresh-session check section directly. If `status` is `proposed`, read the current
    targets, rebuild the exact diff, `propose` again and get approval of that diff,
    then step 7; saved summaries never authorize writes. Otherwise introduce briefly:
@@ -82,17 +82,16 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
    A repeated `/pa setup` keeps prior answers: show them in the review, never re-ask.
 4. Send “Here is what I already know” as its own message, with safe source summaries
    and uncertainties, ending with one ask: keep these (recommended if supported) or correct.
-   In one `record` call, save each fully known core ID as `discovered` (not in `asked`):
+   In one `record` call, save each fully known ID in the requested section as `discovered` (not in `asked`); existing equivalents stay under their source IDs. Core examples:
    name+quiet hours+zone → call_and_quiet, ask-before rules → authority, arrival wishes →
-   arrival_help, check-in lead → check_in_time. Ask a partly known ID, known parts recommended.
+   arrival_help, check-in lead → check_in_time. For a partly known ID, state the known part as a fact and ask only for the unknown part. Never ask for a name, zone or rule that discovery found.
    For each existing brief or alert job, show keep / adapt / replace with a reason.
    Resolve one job per question; one publisher per brief or alert. Review job changes.
-5. Read `references/question-bank.md`. For core, follow the eight core IDs in order, skipping
-   known answers and respecting skipped IDs. Record `asked` IDs and each core answer
-   using setup `record`. Deeper answers go into the review, then manual/USER.md/
-   SOUL.md only; never pass deeper section names or IDs to setup `start` or `record`.
-   Save deeper answers as you go with `propose` and `draft: true` (safe summaries under
-   their targets); a draft keeps the interview going and step 6 uses `proposal_draft`.
+5. Read `references/question-bank.md`. Follow the requested section's IDs, skipping answers,
+   `covered` equivalents and skipped IDs; read known answers back instead of asking again.
+   Record each answer and only actually `asked` IDs. Profile stops at its sitting's group boundary.
+   Unlisted deeper topics use `propose` and `draft: true` summaries, not invented IDs;
+   a draft keeps the interview going and step 6 uses `proposal_draft`.
 6. Read `references/where-answers-go.md` and `references/manual-template.md`.
    Build one fresh review, then call `propose` with changed targets and summaries.
    Use `pa_preferences` for PA preference changes, or `writes: []` for no changes.
@@ -113,7 +112,7 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
    hashes; never compute or invent them. On a failed readback, fix the write and call
    again; with no file targets use `readbacks: []`. Keep failures and pending writes
    visible. Verify preference/job changes through their own status operations.
-8. Core only (a CoS setup skips 8–9 and follows its question-bank flow). Ask for `/new` and then any message
+8. Core only (CoS and profile skip 8–9 and follow their question-bank flows). Ask for `/new` and then any message
    (never `/pa setup`, which reopens setup), then ask, for example, “When would you check in
    before my next flight?” Do not arm a wake yet: `/new` can orphan existing HB2 wakes.
 9. Complete the fresh-session check below, then load
@@ -127,7 +126,8 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
 ## Fresh-session check
 
 The new-session hook may load this section without the interview. First read `pa(operation="setup", data={"action":"status"})`; do not call `start`.
-If `requested_section` is `chief_of_staff`, run the CoS check in `references/question-bank.md` instead: no flight question and no trip or check-in arming.
+For `profile`, use the next sitting's two-fact saved-file readback instead; no `/new` check.
+Pick the check by `fresh_check.section`, else `requested_section`: `chief_of_staff` runs the CoS check in `references/question-bank.md` (no flight question, no trip or check-in arming); anything else runs the core check below.
 Later recorded answers leave the fresh check unaffected. If `status` is not `applied`, resume its flow; if `fresh_check.status` is already
 `passed`, do not rerun from the hook note. When `pending` or `failed`, run the check
 in a session other than the apply session: load the saved manual/USER.md through

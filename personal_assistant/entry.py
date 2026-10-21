@@ -163,6 +163,7 @@ def dispatch(profile_root, args, *, runtime_scope=None):
             data["session_id"] = (runtime_scope or {}).get("session_id")
         if action in {"start", "record"}:
             from .modes import config_getter, cos_enabled
+            # Core and profile interviews are available without Chief of Staff mode.
             section = data.get("section") if action == "start" else None
             if ((section or setup.state(ledger)["requested_section"]) == "chief_of_staff"
                     and not cos_enabled(config_getter(ledger.root))):
