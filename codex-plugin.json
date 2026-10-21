@@ -1,6 +1,6 @@
 {
   "name": "travel-agent-skills",
-  "version": "0.8.0-rc.2",
+  "version": "0.8.0-rc.3",
   "description": "Personal assistant travel skills with trip/action ledgers, Browserbase checkout continuity, payment readiness, food/rideshare/check-in/provider-message flows, final-state confirmation, and proof capture.",
   "author": {
     "name": "ElectricSheep"
