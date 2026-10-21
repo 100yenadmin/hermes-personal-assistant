@@ -285,6 +285,21 @@ def test_session_note_never_cuts_a_rule_and_names_replaced_filed_text(tmp_path):
     assert all(any(line.endswith(": " + text) for text in long_rules) or "replaces the filed text" in line for line in lines)
 
 
+def test_session_note_keeps_sensitive_filed_details_out_and_fits_shorter_rows(tmp_path):
+    alex = call(tmp_path, kind="person", slug="alex", name="Synthetic Alex", rules=["Private synthetic rule"])["action_id"]
+    call(tmp_path, "mark_filed", identities=[alex])
+    call(tmp_path, kind="person", slug="alex", name="Synthetic Alex", rules=["Private synthetic rule"], sensitive=True)
+    note = session_note(Ledger(tmp_path))
+    assert "Synthetic Alex [sensitive: consult profile by identity] (replaces its filed entry" in note
+    assert "Private synthetic rule" not in note
+    pref(tmp_path, "Tiny rule", slug="tiny")
+    for n in range(4):
+        pref(tmp_path, f"Long {n} " + "x" * 280, slug=f"long-{n}")
+    note = session_note(Ledger(tmp_path))
+    assert len(note) <= 1200 and note.count("Long ") < 4 and note.endswith("(More owner memory is waiting: call profile pending_files.)")
+    assert "Tiny rule" in note  # The oldest long row does not fit, but the shorter row after it does.
+
+
 def test_schema_limits_and_review_paths(tmp_path):
     with pytest.raises(ValidationError):
         call(tmp_path, kind="person", name="Alex", rules=["x"] * 6)
