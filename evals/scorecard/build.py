@@ -36,9 +36,39 @@ def _number(value, field, positive=False):
              and (value > 0 if positive else value >= 0), field)
 
 
+def _distinct_owners(tasks):
+    """One person must not count as two owners because a label differs only in case or spacing."""
+    folded = {}
+    for task in tasks:
+        folded.setdefault(" ".join(task["owner"].split()).casefold(), set()).add(task["owner"])
+    clashes = sorted(sorted(labels) for labels in folded.values() if len(labels) > 1)
+    if clashes:
+        raise ValueError(f"owner labels differ only in case or spacing: {clashes}")
+
+
 def _live(value):
     if value is None:
         return {"tasks": [], "baselines": {}, "day30": {}}
+    if isinstance(value, list):
+        merged, profiles = {"tasks": [], "baselines": {}, "day30": {}}, set()
+        for entry in value:
+            _require(isinstance(entry, dict), "live entry")
+            profile = entry.get("profile")
+            if profile is not None:  # One ledger exported twice, under any labels, is one owner.
+                _require(isinstance(profile, str) and profile not in profiles, "live entry profile (the same profile exported twice)")
+                profiles.add(profile)
+            entry = _live(entry)
+            repeated = {(t["owner"], t["id"]) for t in merged["tasks"]} & {(t["owner"], t["id"]) for t in entry["tasks"]}
+            if repeated:
+                raise ValueError(f"duplicate task id across live files: {sorted(repeated)}")
+            merged["tasks"].extend(entry["tasks"])
+            for name in ("baselines", "day30"):
+                duplicate = merged[name].keys() & entry[name].keys()
+                if duplicate:
+                    raise ValueError(f"duplicate owner in {name}: {sorted(duplicate)}")
+                merged[name].update(entry[name])
+        _distinct_owners(merged["tasks"])
+        return merged
     _require(isinstance(value, dict), "live")
     _require(isinstance(value.get("tasks"), list), "tasks")
     keys, ids = {a["key"] for a in AREAS}, set()
@@ -56,6 +86,8 @@ def _live(value):
         _require(task.get("owner_accepted") is None or type(task["owner_accepted"]) is bool,
                  f"{field}.owner_accepted")
         _require(_date(task["due"], f"{field}.due") >= _date(task["started"], f"{field}.started"), f"{field}.due")
+        _require(task.get("closed_at") is None or (isinstance(task["closed_at"], str)
+                 and bool(re.match(r"\d{4}-\d{2}-\d{2}", task["closed_at"]))), f"{field}.closed_at")
         _require(isinstance(task.get("facts"), list), f"{field}.facts")
         for j, fact in enumerate(task["facts"]):
             ff = f"{field}.facts[{j}]"
@@ -77,6 +109,7 @@ def _live(value):
                 types = record.get("first_pass_task_types")
                 _require(isinstance(types, list) and all(isinstance(t, str) and t for t in types),
                          f"{field}.first_pass_task_types")
+    _distinct_owners(value["tasks"])
     return {"tasks": value["tasks"], "baselines": value.get("baselines", {}), "day30": value.get("day30", {})}
 
 
@@ -101,13 +134,30 @@ def _day30(live, as_of):
     return {"state": state, "owners": results}
 
 
+def _finite(value):
+    return type(value) in (int, float) and math.isfinite(value)
+
+
+def _status_at(task, as_of):
+    """A task closed after as_of was still open on that date, so a historical scorecard never sees its outcome."""
+    closed = task.get("closed_at")
+    return "pending" if task["status"] != "pending" and closed and _date(closed[:10], "closed_at") > as_of else task["status"]
+
+
+def _at(task, as_of):
+    """The task as it stood on as_of: an outcome closed later, and the fact checks recorded with it, are not seen yet."""
+    return task if _status_at(task, as_of) == task["status"] else {**task, "status": "pending", "facts": []}
+
+
 def _real_work(tasks, as_of):
+    tasks = [{**t, "status": _status_at(t, as_of)} for t in tasks]
     eligible = [t for t in tasks if _date(t["started"], "started") <= as_of
                 and (t["status"] in {"pass", "fail"} or _date(t["due"], "due") < as_of)]
-    passed = sum(t["status"] == "pass" and t.get("owner_accepted") is True
+    # A pass closed after its due date is late, so it is not a pass by the agreed date.
+    passed = sum(t["status"] == "pass" and str(t.get("closed_at") or t["due"])[:10] <= t["due"] and t.get("owner_accepted") is True
                  and t["correction"] != "material" for t in eligible)
     owners = len({t["owner"] for t in eligible})
-    # The export has no completion timestamp; never count beyond as_of.
+    # The window ends at the last due date (a closed_at only marks a pass late); never count beyond as_of.
     end = min(max(_date(t["due"], "due") for t in eligible), as_of) if eligible else as_of
     days = max(0, (end - min(_date(t["started"], "started") for t in eligible)).days + 1) if eligible else 0
     rate = passed / len(eligible) if eligible else 0
@@ -122,7 +172,7 @@ def _count(value):
 
 
 def _facts(tasks, runs):
-    facts = [(t["id"], f) for t in tasks for f in t["facts"]]
+    facts = [(f"{t['owner']}/{t['id']}", f) for t in tasks for f in t["facts"]]  # Task ids are unique per owner.
     errors = [r["run"] for r in runs if _count(r["checks"].get("fabricated_confirmations"))
               or _count(r["checks"].get("factual_errors"))]
     errors += [task_id for task_id, f in facts if f["ok"] is False and f["facing"] in {"money", "customer"}]
@@ -152,11 +202,13 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
     day30 = _day30({**live, "tasks": [t for t in live["tasks"] if _date(t["started"], "started") <= today]}, today)
     catalogue = deepcopy(AREAS)
     mapped = {t["scenario"] for a in catalogue for t in a["tests"]}
-    runs, excluded, roots, seen = [], [], [], set()
+    runs, excluded, roots, seen, named = [], [], [], set(), {}
     for directory in lab_dirs:
         root = Path(directory)
         _require(root.is_dir(), "lab_dirs")
         lab_name = root.name if root.name not in {"", ".", ".."} else root.resolve().name
+        # Run ids name their directory, so two different directories must not share a name; one given twice dedupes.
+        _require(named.setdefault(lab_name, root.resolve()) == root.resolve(), f"lab_dirs (two directories named {lab_name!r})")
         roots.append(lab_name)
         for path in sorted(root.glob("*/run.json")):
             folder, run = path.parent, _read(path)
@@ -166,7 +218,8 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             sid = scenario["id"]
             run_id = f"{lab_name}/{folder.name}"
             start, given = run.get("start"), run.get("run_id")
-            well_formed = type(start) in (int, float) and (given is None or isinstance(given, str)) \
+            well_formed = _finite(start) and (given is None or isinstance(given, str)) \
+                and ("end" not in run or _finite(run["end"])) \
                 and run.get("scenario", sid) == sid  # The runner writes the scenario id into both files.
             # The runner writes run_id and start into run.json, so renamed or copied folders keep one identity.
             identity = (sid, given or folder.name, start) if well_formed else None
@@ -216,7 +269,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
         area["partial"] = {"state": "none" if not partial else "fail" if "fail" in partial else "pass" if all(s == "pass" for s in partial) else "incomplete"}
         covered = {i for t in area["tests"] if t["state"] == "pass" for i in t["covers"]}
         area["uncovered_duties"] = [duty for i, duty in enumerate(area["duties"]) if i not in covered]
-        tasks = [t for t in live["tasks"] if t["area"] == area["key"] and _date(t["started"], "started") <= today]
+        tasks = [_at(t, today) for t in live["tasks"] if t["area"] == area["key"] and _date(t["started"], "started") <= today]
         area_runs = [r for r in runs if r["scenario"] in {t["scenario"] for t in area["tests"]}]
         area["real_work"], area["facts"] = _real_work(tasks, today), _facts(tasks, area_runs)
         states = [area["lab"], area["real_work"]["state"], area["facts"]["state"], day30["state"]]
