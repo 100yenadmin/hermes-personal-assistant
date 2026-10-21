@@ -58,19 +58,20 @@ def test_private_values_rejected_without_write(tmp_path, data):
 
 @pytest.mark.parametrize("initial,source,change,expected", [
     ("confirmed", "inferred", {}, "active"),
-    ("confirmed", "inferred", {"text": "Prefer detailed replies"}, "active"),
+    ("confirmed", "inferred", {"text": "Prefer detailed replies"}, "refused"),
     ("filed", "said", {}, "filed"),
     ("filed", "said", {"text": "Prefer detailed replies"}, "active"),
     ("filed", "said", {"category": "voice"}, "active"),
     ("filed", "inferred", {}, "filed"),
-    ("filed", "inferred", {"text": "Prefer detailed replies"}, "active"),
+    ("filed", "inferred", {"text": "Prefer detailed replies"}, "refused"),
+    ("confirmed", "said", {"text": "Prefer detailed replies"}, "active"),
     ("retired", "said", {}, "active"),
     ("retired", "inferred", {}, "proposed"),
     ("proposed", "inferred", {"text": "Prefer detailed replies"}, "proposed"),
     ("proposed", "inferred", {}, "proposed"),
     ("proposed", "said", {}, "active"),
     ("proposed", "corrected", {}, "active"),
-    ("filed-unconfirmed", "inferred", {"text": "Prefer detailed replies"}, "proposed"),
+    ("filed-unconfirmed", "inferred", {"text": "Prefer detailed replies"}, "refused"),
 ])
 def test_preference_remember_preserves_lifecycle(tmp_path, initial, source, change, expected):
     original = pref(tmp_path, slug="replies", source="inferred" if initial != "filed-unconfirmed" else "said")
@@ -81,10 +82,48 @@ def test_preference_remember_preserves_lifecycle(tmp_path, initial, source, chan
     elif initial == "retired":
         call(tmp_path, "forget", identity=original["action_id"])
     before = Ledger(tmp_path).get("action", original["action_id"])["fields"]
+    if expected == "refused":  # An inference never rewrites what the owner stated or confirmed.
+        with pytest.raises(ValueError, match="ask the owner"):
+            pref(tmp_path, slug="replies", source=source, **change)
+        assert Ledger(tmp_path).get("action", original["action_id"])["fields"] == before
+        return
     updated = pref(tmp_path, slug="replies", source=source, **change)["fields"]
     assert updated["state"] == expected
     assert updated["owner_confirmed_at"] == before["owner_confirmed_at"]
     assert bool(call(tmp_path, "pending_files")) == (expected == "active")
+
+
+@pytest.mark.parametrize("retire", ["forget", "supersede", "person"])
+def test_filed_text_changed_before_review_is_still_removed(tmp_path, retire):
+    if retire == "person":
+        data = dict(kind="person", slug="alex", name="Synthetic Alex")
+        identity = call(tmp_path, **data)["action_id"]
+        call(tmp_path, "mark_filed", identities=[identity])
+        assert call(tmp_path, **data, channel="email")["fields"]["state"] == "active"  # Changed: the file needs the new text.
+        call(tmp_path, **data, channel="email", state="retired")
+    else:
+        identity = pref(tmp_path, slug="replies")["action_id"]
+        call(tmp_path, "mark_filed", identities=[identity])
+        assert pref(tmp_path, "Prefer detailed replies", slug="replies")["fields"]["state"] == "active"
+        if retire == "forget":
+            call(tmp_path, "forget", identity=identity)
+        else:
+            pref(tmp_path, "Prefer bullet replies", source="corrected", supersedes=identity)
+    row = Ledger(tmp_path).get("action", identity)["fields"]
+    assert row["state"] == "retired" and row["remove_from_files"] is True
+    assert identity in [r["identity"] for r in call(tmp_path, "pending_files")]
+    call(tmp_path, "mark_filed", identities=[identity])
+    row = Ledger(tmp_path).get("action", identity)["fields"]
+    assert "remove_from_files" not in row and row["in_files"] is False
+    assert identity not in [r["identity"] for r in call(tmp_path, "pending_files")]
+    call(tmp_path, "forget", identity=identity)  # Already out of the files: nothing is listed again.
+    assert "remove_from_files" not in Ledger(tmp_path).get("action", identity)["fields"]
+
+
+def test_in_files_is_lifecycle_owned(tmp_path):
+    with pytest.raises(ValueError, match="unsupported profile fields"):
+        pref(tmp_path, in_files=True)
+    assert Ledger(tmp_path).list("action") == []
 
 
 @pytest.mark.parametrize("change,expected", [

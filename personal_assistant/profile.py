@@ -25,14 +25,14 @@ SCHEMA = {"type": "object", "properties": {
     "task_type": {"type": "string", "maxLength": 60}, "level": {"enum": ["shadow", "own", "independent"]},
     "supersedes": {"type": ["string", "null"]}, "since": {"type": "string", "format": "date-time"},
     "owner_confirmed_at": {"type": ["string", "null"], "format": "date-time"},
-    "remove_from_files": {"type": "boolean"},
+    "remove_from_files": {"type": "boolean"}, "in_files": {"type": "boolean"},
     "changelog": {"type": "array", "items": {"type": "object", "properties": {
         "version": {"type": "integer"}, "change": {"type": "string"}, "at": {"type": "string", "format": "date-time"}},
         "required": ["version", "change", "at"], "additionalProperties": False}},
 }, "additionalProperties": False}
 FIELDS = {
-    "preference": "text category source evidence state supersedes since owner_confirmed_at remove_from_files",
-    "person": "name relationship channel rules sensitive source since state remove_from_files",
+    "preference": "text category source evidence state supersedes since owner_confirmed_at remove_from_files in_files",
+    "person": "name relationship channel rules sensitive source since state remove_from_files in_files",
     "sop": "title trigger steps tools done_when escalation version changelog state",
     "trust": "task_type level since evidence state",
 }
@@ -66,9 +66,14 @@ def _get(ledger, identity):
     return row
 
 
+def _in_files(fields):
+    """True while a reviewed write has put this record's text in the files, even if it changed since."""
+    return fields.get("state") == "filed" or bool(fields.get("in_files"))
+
+
 def _retire(fields):
     """A filed record stays listed for removal until the reviewed write takes its text out of the files."""
-    return {**fields, "state": "retired", **({"remove_from_files": True} if fields.get("state") == "filed" else {})}
+    return {**fields, "state": "retired", **({"remove_from_files": True} if _in_files(fields) else {})}
 
 
 def _save(ledger, identity, kind, fields):
@@ -82,7 +87,7 @@ def remember(ledger, data):
     kind = data.get("kind")
     if kind not in KINDS:
         raise ValueError("profile kind must be preference, person, sop or trust")
-    allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at"} | {"kind", "slug", "change"}
+    allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "in_files"} | {"kind", "slug", "change"}
     if set(data) - allowed:
         raise ValueError("unsupported profile fields (raw message bodies and credentials are prohibited)")
     if data.get("state") == "filed":
@@ -119,13 +124,14 @@ def remember(ledger, data):
             fields["state"] = old["fields"]["state"]
             if fields["state"] == "proposed" and fields["source"] != "inferred":
                 fields["state"] = "active"  # The owner stated a pending inference directly; never ask it again.
+        elif kind == "preference" and fields["source"] == "inferred" and old and old["fields"]["state"] in {"active", "filed"}:
+            raise ValueError("an inference never changes an active or filed preference: "
+                             "ask the owner, then remember their answer with source said or corrected")
         else:
-            fields["state"] = ("proposed" if kind == "preference" and fields["source"] == "inferred"
-                               and (not old or old["fields"]["state"] == "retired" or fields["owner_confirmed_at"] is None)
-                               else "active")
+            fields["state"] = "proposed" if kind == "preference" and fields["source"] == "inferred" else "active"
         if kind == "person" and "state" in data:
             fields["state"] = data["state"]
-            if data["state"] == "retired" and old and old["fields"]["state"] == "filed":
+            if data["state"] == "retired" and old and _in_files(old["fields"]):
                 fields["remove_from_files"] = True  # Same as forget: the filed text is listed for removal.
         if fields["state"] != "retired":
             fields.pop("remove_from_files", None)
@@ -207,8 +213,9 @@ def dispatch(ledger, data):
         if action == "forget":
             return _retire(fields)
         if action == "mark_filed" and fields.get("remove_from_files"):
-            return {k: v for k, v in fields.items() if k != "remove_from_files"}  # The text left the files.
+            return {**{k: v for k, v in fields.items() if k != "remove_from_files"}, "in_files": False}  # The text left the files.
         return {**fields, "state": {"confirm": "active", "mark_filed": "filed"}[action],
+                **({"in_files": True} if action == "mark_filed" else {}),
                 **({"owner_confirmed_at": now()} if action == "confirm" else {})}
     result = [r if action == "mark_filed" and r["fields"]["state"] in {"filed", "retired"} and not r["fields"].get("remove_from_files")
               else _save(ledger, r["action_id"], r["action_type"], updated(r["fields"])) for r in rows]
