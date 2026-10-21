@@ -93,6 +93,14 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
             if chief_of_staff and not cos_enabled(get_config):
                 mode_context = {"context": "Chief of Staff mode is off: do not load or run personal-assistant:cos-* skills; if asked, say it is off and how to turn it on."}
             ledger = Ledger(root, timeout=0.1, read_only=True)
+            if kwargs.get("is_first_turn") and ledger.path.exists():
+                from .profile import session_note
+                try:
+                    note = session_note(ledger)
+                except Exception:
+                    note = ""  # The optional note never blocks setup handling below.
+                if note:
+                    mode_context = {"context": (mode_context["context"] + "\n" if mode_context else "") + note}
             current = setup.state(ledger)
             status = current["status"]
             if status in {"requested", "in_progress", "proposed"}:

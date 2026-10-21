@@ -71,6 +71,8 @@ python3 -m personal_assistant.daily_ops.clients_sync
 run from any working directory when `DAILY_OPS_CONFIG` is set. State is
 profile-bound, locked, atomic, and private.
 
+In the existing morning brief, when Chief of Staff mode is off, read `pa(operation="profile", data={"action":"list","kind":"trust"})`. Once the oldest non-retired record is 30 days old, include the day-30 review once (first read `context kind=action action_id=pa:day30-review`; skip if its `asked_at` exists; an "action not found" result means it was never asked, so continue; record the first ask using `action_upsert action_id=pa:day30-review action_type=note status=completed fields={asked_at:<ISO>}`): task types and levels, proposed level changes with evidence, and "Is this saving you time? Roughly how much?" Wait for the answer before changing levels. Record it as `profile remember kind=preference source=said category=work`, using a safe paraphrase for the parity rule. When CoS is on, its weekly closeout owns this review; do not duplicate it.
+
 ## Hard safety rules
 
 - There is no unattended mailbox mutation path. Daily-ops never sends,
