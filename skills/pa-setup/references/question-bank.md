@@ -112,6 +112,7 @@ USER.md, the existing manual, calendar and past itineraries; with consent and on
 through an already authorized read path, read up to 20 recent sent emails for
 sign-off, tone and key contacts. Store no raw mail text. Unsupported guesses are labelled defaults.
 Record fully known IDs as discovered; for partly known IDs state the known facts and ask only what is missing.
+Discovery records fully known IDs from all eight groups; a sitting asks only its own group.
 The only exact equivalents are `biz_priorities` ↔ `cos_priorities` (`covered`): read the answered ID back, never ask it again or copy its answer.
 Related IDs answer only part: `rights_ask` ← `authority`, `comm_channel` ← `route`, `comm_rhythm` ← `worth_a_message`.
 For an ID in `related`, use the source answer as the recommended answer, state it as known, and ask only the missing part

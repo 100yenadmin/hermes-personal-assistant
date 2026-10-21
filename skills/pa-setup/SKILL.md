@@ -82,14 +82,14 @@ For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"st
    A repeated `/pa setup` keeps prior answers: show them in the review, never re-ask.
 4. Send “Here is what I already know” as its own message, with safe source summaries
    and uncertainties, ending with one ask: keep these (recommended if supported) or correct.
-   In one `record` call, save each fully known ID in the requested section as `discovered` (not in `asked`); existing equivalents stay under their source IDs. Core examples:
+   In one `record` call, save each fully known ID in the requested section as `discovered` (not in `asked`); for profile, every fully known ID in all eight groups, not only this sitting's group; existing equivalents stay under their source IDs. Core examples:
    name+quiet hours+zone → call_and_quiet, ask-before rules → authority, arrival wishes →
    arrival_help, check-in lead → check_in_time. For a partly known ID, state the known part as a fact and ask only for the unknown part. Never ask for a name, zone or rule that discovery found.
    For each existing brief or alert job, show keep / adapt / replace with a reason.
    Resolve one job per question; one publisher per brief or alert. Review job changes.
 5. Read `references/question-bank.md`. Follow the requested section's IDs, skipping answers,
    `covered` equivalents and skipped IDs; read known answers back instead of asking again.
-   Record each answer and only actually `asked` IDs. Profile stops at its sitting's group boundary.
+   Record each answer and only actually `asked` IDs. Profile asks only its sitting's group; discovered answers from any group are recorded in step 4.
    Unlisted deeper topics use `propose` and `draft: true` summaries, not invented IDs;
    a draft keeps the interview going and step 6 uses `proposal_draft`.
 6. Read `references/where-answers-go.md` and `references/manual-template.md`.
