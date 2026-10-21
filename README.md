@@ -11,6 +11,10 @@ Calendar, inbox, meetings, household administration, shopping, and travel are
 domain workflows built on that shared foundation. Travel remains a supported
 domain pack, not the product identity.
 
+Where it is going: [VISION.md](VISION.md) sets the goal, a remote assistant at
+the level of a top-rated human VA and then a remote Chief of Staff, and the bar
+that measures it. [ROADMAP.md](ROADMAP.md) sets the order of work.
+
 ## What it does
 
 - **Focused context:** recover only the relevant trip, action, source, guide, or

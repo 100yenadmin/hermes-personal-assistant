@@ -14,6 +14,10 @@ current product guarantee.
   what installation does not enable.
 - [Repository README](../README.md) — quick start, installation, domain map, and
   compatibility identities.
+- [Vision](../VISION.md) and [roadmap](../ROADMAP.md) — the goal, the bar for
+  parity with a top remote VA and a remote Chief of Staff
+  ([VA bar](vision/va-bar.md), [Chief of Staff bar](vision/cos-bar.md)), and the
+  order of work.
 
 ## For users and product owners
 
