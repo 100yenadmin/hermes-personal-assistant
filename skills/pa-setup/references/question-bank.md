@@ -28,7 +28,7 @@ hours or preferred name; record `passed` when the answer uses what was saved.
 ## Going deeper
 
 Ask only when relevant or the user picks a section, one question at a time.
-The setup op supports `core` and `chief_of_staff`. Never pass another deeper
+The setup op supports `core`, `chief_of_staff` and `profile`. Never pass another deeper
 section name or ID to setup `start` or `record`, or reuse a core ID for it.
 Keep deeper answers in the review, then save approved facts to the manual,
 USER.md or SOUL.md as below; they are not setup progress records.
@@ -104,3 +104,49 @@ of the recommendation; defaults are suggestions. Skip/later/you decide still wor
 Record these IDs through setup `record`; include both sections' saved answers
 in the same review. Times alone never approve schedules. Confirm a missing
 timezone or destination one question at a time before promising delivery.
+
+## Profile (grill me)
+
+Start `profile` at any time, without Chief of Staff mode. Use discovery before asking:
+USER.md, the existing manual, calendar and past itineraries; with consent and only
+through an already authorized read path, read up to 20 recent sent emails for
+sign-off, tone and key contacts. Store no raw mail text. Unsupported guesses are labelled defaults.
+Record fully known IDs as discovered; for partly known IDs state the known facts and ask only what is missing.
+Equivalents are `biz_priorities` ↔ `cos_priorities`, `rights_ask` ↔ `authority`,
+`comm_channel` ↔ `route`, `comm_rhythm` ↔ `worth_a_message`: read answered core/CoS IDs back, never ask them again or copy their answers into equivalent IDs.
+At sitting start, remember `current_group`; ask only its open IDs and read each answer back.
+When it is done (covered or skipped), stop before the next group's question, review and apply
+with steps 6–7, then offer “That covers <group>. Next is <next_group>, about N questions: now or later?”
+Use the next unfinished group's total minus answered/skipped for N; if none remains, say the profile is complete.
+At the next sitting, load USER.md or the manual and read back two saved facts to prove persistence;
+if fewer are saved, state the gap. No `/new` check or trip/check-in arming.
+
+| ID | Friendly question | Form the recommended answer | Where to save after apply |
+|---|---|---|---|
+| `biz_what` | What does your business do to earn money? | Existing business summary and revenue model. | Manual: Business |
+| `biz_priorities` | What are your three priorities this quarter? | USER.md/manual priorities; reuse `cos_priorities`. | USER.md; Business detail |
+| `biz_people` | Who matters most to your work and family? | Known team, clients, vendors and family with their relationships. | Manual: Key people |
+| `biz_confidential` | What is confidential, and from whom? | Existing confidentiality rules. | Manual: Business |
+| `you_role` | What is your role, including work only you can do? | USER.md role and responsibilities. | USER.md |
+| `you_rhythm` | What working hours, zone and energy windows suit you? | Known hours/zone, deep-work and call windows. | USER.md; Calendar rules |
+| `you_interrupt` | When may I interrupt you? | Existing urgent-only or never-interrupt rules. | Manual: Calendar rules |
+| `you_offload` | What should I take off your plate for a better day? | Known burdens and examples of great/bad days. | Manual: Business |
+| `comm_channel` | Which channel should I use to reach you? | Connected preferred route; reuse `route`. | USER.md; Access scope |
+| `comm_rhythm` | What response times and update rhythm work for you? | Existing SLAs and digest/exception rules; reuse `worth_a_message`. | Manual: Voice |
+| `comm_format` | What update and feedback format do you prefer? | Accepted bullets, tables, voice and feedback examples. | Manual: Voice |
+| `rights_act` | What may I do without asking? | Existing permissions within the approval line. | SOUL PA; Decision rights and limits |
+| `rights_draft` | What should I draft for you to send? | Existing draft-and-hold boundaries. | SOUL PA; Decision rights and limits |
+| `rights_ask` | What must I always ask you about? | Never-do list and ask-before rules; reuse `authority`. | SOUL PA; Decision rights and limits |
+| `rights_spend` | What spending limits apply per category? | Recorded thresholds; unknown means ask, never payment authority. | Manual: Permissions |
+| `rights_backup` | Who can approve when you are unreachable? | Named delegated approver and scope, otherwise ask you. | SOUL PA; Decision rights and limits |
+| `voice_tone` | What tone and sign-off suit each audience? | Approved client/team/family/stranger examples and banned words. | SOUL PA; Voice |
+| `voice_examples` | Which messages sounded right or wrong to you? | Safe style summaries from approved examples, never raw mail. | SOUL PA; Voice |
+| `prefs_travel` | What travel habits should I remember? | Past itineraries: airline, seat, hotel, arrive-by margin and meals; no account numbers. | Manual: Travel profile |
+| `prefs_life` | What food, gifts, places and vendors do you prefer? | Existing safe preferences and trusted vendors. | Manual: Key people; Travel profile |
+| `cal_rules` | What meeting lengths, buffers and booking horizon suit you? | Calendar patterns and confirmed scheduling rules. | Manual: Calendar rules |
+| `cal_protect` | Which focus blocks and recurring meetings are sacred? | Existing protected calendar blocks. | Manual: Calendar rules |
+| `cal_people` | Who always gets a slot, and who never does? | Accepted VIP and exclusion rules. | Manual: Key people; Calendar rules |
+| `hist_past` | What did previous assistants get wrong? | Known corrections, with safe summaries only. | Manual: History and worries |
+| `hist_worries` | What delegation mistake worries you most? | Stated concerns; never infer sensitive history. | Manual: History and worries |
+| `access_systems` | Which systems, owners and delegated access are in scope? | Existing authorized reads and least-privilege access roles. | Manual: Access scope |
+| `access_off_limits` | Which accounts or systems are off limits? | Existing never-access list. | Manual: Access scope |

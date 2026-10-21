@@ -92,8 +92,10 @@ def main():
 
     def interview():
         """Answer whatever PA's setup record says is next, so skipped questions cannot misalign answers."""
-        owner("/pa setup")
+        section = persona.get("section", "core")
+        owner("/pa setup" + (" " + section if section != "core" else ""))
         owner("hi")
+        sitting = setup_state().get("current_group")
         consents, kept = 0, False
         for _ in range(14):
             current, last = setup_state(), "\n".join(rig.texts()[-3:]).lower()
@@ -119,7 +121,8 @@ def main():
         transcript.append("Result: " + json.dumps(result))
         failures = [name for name, bad in (
             ("not at the review", result["status"] != "proposed"),
-            ("core questions left open", current.get("next_question") is not None),
+            ("sitting questions left open", not next((g["done"] for g in current.get("groups", []) if g["group"] == sitting), False)
+             if section == "profile" else current.get("next_question") is not None),
             ("discovered set differs from expected", set(result["expected_discovered"]) != set(discovered)),
             ("discovered question asked", result["asked_and_discovered"]),
             ("partly known question marked discovered", set(persona.get("must_not_discover", [])) & set(discovered))) if bad]

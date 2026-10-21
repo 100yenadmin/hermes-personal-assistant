@@ -13,6 +13,97 @@ from personal_assistant.privacy import PRIVATE_KEYS
 from personal_assistant.state import Ledger
 
 
+def test_profile_group_walk_stays_in_sitting_and_skips_finish_it(tmp_path):
+    ledger = Ledger(tmp_path)
+    current = setup.start(ledger, "profile")
+    assert len(setup.PROFILE_QUESTIONS) == 27
+    for index, (group, ids) in enumerate(setup.PROFILE_GROUPS):
+        assert current["current_group"] == group
+        assert current["next_group"] == (setup.PROFILE_GROUPS[index + 1][0] if index < 7 else None)
+        for q in ids:
+            assert current["current_group"] == group and current["next_question"] == q
+            current = setup.record(ledger, skipped=[q]) if q == ids[-1] else setup.record(
+                ledger, {q: {"text": "Synthetic", "source": "user"}}, asked=[q])
+        assert current["groups"][index] == {"group": group, "total": len(ids), "answered": len(ids) - 1, "skipped": 1, "done": True}
+    assert current["current_group"] is None and current["next_question"] is None
+
+
+@pytest.mark.parametrize("source,target,section", [
+    (source, target, section) for a, b, section in [("cos_priorities", "biz_priorities", "chief_of_staff"),
+    ("authority", "rights_ask", "core"), ("route", "comm_channel", "core"),
+    ("worth_a_message", "comm_rhythm", "core")] for source, target, section in [(a, b, "profile"), (b, a, section)]])
+def test_equivalents_cover_both_directions_without_copying(tmp_path, source, target, section):
+    ledger = Ledger(tmp_path)
+    answer = {"text": "Synthetic", "source": "discovered"}
+    setup.record(ledger, {source: answer})
+    setup.request(ledger, section)
+    ids = setup.SECTIONS[section]
+    current = setup.record(ledger, skipped=[q for q in ids if q != target])
+    assert current["covered"][target] == source and current["next_question"] is None
+    assert current["answers"] == {source: answer} and not current["asked"]
+    assert Ledger(tmp_path).get("action", "pa:setup")["fields"]["answers"] == {source: answer}
+
+
+def test_live_core_counts_ignore_five_cos_asked_ids(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger)
+    current = setup.record(ledger, {q: {"text": "Synthetic", "source": "user"} for q in setup.CORE_QUESTIONS},
+                           asked=list(setup.CHIEF_OF_STAFF_QUESTIONS[:5]))
+    assert current["counts"] == current["sections"]["core"] == {"asked": 0, "answers": 8, "skipped": 0, "covered": 0, "total": 8}
+    assert current["sections"]["chief_of_staff"]["asked"] == 5
+    assert current["sections"]["profile"]["covered"] == 3
+    reply = make_pa_command(tmp_path)("setup status")
+    assert all(text in reply for text in ("Core 8 of 8", "Chief of Staff 0 of 6", "Profile 3 of 27 (next: business)"))
+
+
+@pytest.mark.parametrize("fresh", ["pending", "failed"])
+def test_bare_setup_after_cos_apply_keeps_saved_check(tmp_path, fresh):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, "chief_of_staff")
+    setup.propose(ledger, [])
+    setup.applied(ledger, [], "A")
+    if fresh == "failed":
+        setup.fresh_check(ledger, "failed", "B")
+    with patch("personal_assistant.onboarding_hook.command_chat_key", return_value="telegram:fixture:topic"):
+        assert make_pa_command(tmp_path)("setup") == "Setup is saved. Send me any message here and I'll run the quick check."
+    current = setup.state(ledger)
+    assert current["requested_section"] == "chief_of_staff" and current["status"] == "applied"
+    assert current["active_chat"] == "telegram:fixture:topic" and current["fresh_check"]["status"] == fresh
+
+
+def test_bare_setup_complete_core_shows_menu_without_request(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.record(ledger, {"rights_ask": {"text": "Ask", "source": "user"}}, skipped=list(setup.CORE_QUESTIONS[:2] + setup.CORE_QUESTIONS[3:]))
+    setup.pause(ledger)
+    prior = setup.state(ledger)
+    assert make_pa_command(tmp_path)("setup") == "/pa setup grill (get to know you, about 27 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
+    assert setup.state(ledger) == prior
+
+
+@pytest.mark.parametrize("alias", ["grill", "profile"])
+def test_profile_command_dispatch_and_hook_without_cos_mode(tmp_path, alias):
+    assert make_pa_command(tmp_path)("setup " + alias) == "Send me any message and I'll start with business — about 4 questions. Say pause any time."
+    current = dispatch(tmp_path, {"operation": "setup", "data": {"action": "start"}})
+    assert current["requested_section"] == "profile"
+    note = make_pre_llm_call(tmp_path, lambda k, d: d)(user_message="Hi", platform="telegram", sender_id="synthetic")
+    assert "profile section's intro" in note["context"] and "no core trip arming" in note["context"]
+    assert setup.state(Ledger(tmp_path))["active_platform"] == "telegram"
+
+
+@pytest.mark.parametrize("passed", [False, True])
+def test_profile_apply_preserves_fresh_check_and_never_prompts_new(tmp_path, passed):
+    ledger = Ledger(tmp_path)
+    if passed:
+        setup.propose(ledger, [])
+        setup.applied(ledger, [], "A")
+        setup.fresh_check(ledger, "passed", "B")
+    before = setup.state(ledger)["fresh_check"]
+    setup.request(ledger, "profile")
+    setup.propose(ledger, [])
+    assert setup.applied(ledger, [], "C")["fresh_check"] == before
+    assert make_pre_llm_call(tmp_path, lambda k, d: d)(user_message="Hi", is_first_turn=True, session_id="D") is None
+
+
 @pytest.fixture
 def setup_files(tmp_path):
     paths = {"user_memory": tmp_path / "memories/USER.md", "soul_section": tmp_path / "SOUL.md",
@@ -46,7 +137,7 @@ def test_state_transitions_and_round_trip(tmp_path, setup_files):
     assert setup.fresh_check(ledger, "passed", "session-c")["status"] == "checked"
     setup.request(ledger, None)
     fields = Ledger(tmp_path).get("action", "pa:setup")["fields"]
-    assert fields == {key: value for key, value in setup.state(ledger).items() if key not in {"counts", "next_question"}}
+    assert fields == {key: value for key, value in setup.state(ledger).items() if key not in {"counts", "next_question", "covered", "sections"}}
     assert fields["requested_mode"] == "review" and fields["requested_section"] is None
     assert fields["proposal"] == {"writes": []} and fields["applied"] == readbacks
     assert fields["applied_session_id"] == "session-a" and fields["offer_shown_at"] and fields["updated_at"]
@@ -87,7 +178,7 @@ def test_rc1_retired_answers_hidden_but_preserved_after_record(tmp_path):
     view = dispatch(tmp_path, {"operation": "setup"})
     assert view["answers"] == {"authority": current}
     assert view["asked"] == ["authority"] and view["skipped"] == ["protect"]
-    assert view["counts"] == {"answers": 1, "asked": 1, "skipped": 1, "total": 14}
+    assert view["counts"] == {"answers": 1, "asked": 1, "skipped": 1, "covered": 1, "total": 41}
     assert view["next_question"] is None
     raw = ledger.get("action", "pa:setup")["fields"]
     assert raw["answers"]["cos_schedules"] == retired

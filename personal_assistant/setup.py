@@ -8,7 +8,20 @@ CORE_QUESTIONS = ("call_and_quiet", "worth_a_message", "authority", "first_trip"
                   "arrival_help", "protect", "route", "check_in_time")
 CHIEF_OF_STAFF_QUESTIONS = ("cos_priorities", "cos_radar_topics", "cos_daily_time",
                             "cos_kickoff_slot", "cos_weekly_slot", "cos_schedule_choices")
-SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS}
+PROFILE_GROUPS = (
+    ("business", ("biz_what", "biz_priorities", "biz_people", "biz_confidential")),
+    ("you", ("you_role", "you_rhythm", "you_interrupt", "you_offload")),
+    ("communication", ("comm_channel", "comm_rhythm", "comm_format")),
+    ("decision_rights", ("rights_act", "rights_draft", "rights_ask", "rights_spend", "rights_backup")),
+    ("voice", ("voice_tone", "voice_examples", "prefs_travel", "prefs_life")),
+    ("calendar", ("cal_rules", "cal_protect", "cal_people")),
+    ("history", ("hist_past", "hist_worries")),
+    ("access", ("access_systems", "access_off_limits")),
+)
+PROFILE_QUESTIONS = tuple(q for _, ids in PROFILE_GROUPS for q in ids)
+SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS, "profile": PROFILE_QUESTIONS}
+EQUIVALENT_IDS = ({"biz_priorities", "cos_priorities"}, {"rights_ask", "authority"},
+                  {"comm_channel", "route"}, {"comm_rhythm", "worth_a_message"})
 FILE_TARGETS = {"user_memory", "soul_section", "manual_skill", "context_file"}
 TARGETS = FILE_TARGETS | {"pa_preferences"}  # Via pa automations preferences; no file/readback.
 
@@ -23,14 +36,28 @@ def _view(fields):
     result["answers"] = {q: answer for q, answer in result["answers"].items() if q in current_ids}
     for key in ("asked", "skipped"):
         result[key] = [q for q in result[key] if q in current_ids]
+    result["covered"] = {q: source for ids in EQUIVALENT_IDS for q in sorted(ids)
+                         if q not in result["answers"]
+                         for source in sorted(ids & result["answers"].keys())[:1]}
+    covered = result["answers"].keys() | result["covered"].keys()
     review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
     questions = (tuple(q for section in SECTIONS.values() for q in section) if review
                  else SECTIONS.get(result["requested_section"], CORE_QUESTIONS))
     result["next_question"] = None if review else next(
-        (q for q in questions if q not in result["answers"] and q not in result["skipped"]), None)
-    result["counts"] = {key: sum(q in questions for q in result[key])
-                        for key in ("asked", "answers", "skipped")}
-    result["counts"]["total"] = len(questions)
+        (q for q in questions if q not in covered and q not in result["skipped"]), None)
+    def counts(ids):
+        return {**{key: sum(q in ids for q in result[key]) for key in ("asked", "answers", "skipped", "covered")},
+                "total": len(ids)}
+    result["counts"] = counts(questions)
+    result["sections"] = {section: counts(ids) for section, ids in SECTIONS.items()}
+    if result["requested_section"] == "profile":
+        result["groups"] = [{"group": group, "total": len(ids), "answered": sum(q in covered for q in ids),
+                             "skipped": sum(q in result["skipped"] and q not in covered for q in ids),
+                             "done": all(q in covered or q in result["skipped"] for q in ids)}
+                            for group, ids in PROFILE_GROUPS]
+        open_groups = [g["group"] for g in result["groups"] if not g["done"]]
+        result["current_group"] = next(iter(open_groups), None)
+        result["next_group"] = next(iter(open_groups[1:]), None)
     return result
 
 
@@ -195,7 +222,8 @@ def applied(ledger, readbacks, session_id=None):
         raise ValueError("readbacks must match proposed file targets")
     readbacks = [_readback(ledger.root, item) for item in readbacks]
     return _save(ledger, "applied", applied=readbacks, requested_mode=None,
-                 applied_session_id=session_id, fresh_check={"status": "pending"}, pending_changes=False)
+                 applied_session_id=session_id, fresh_check=(current["fresh_check"] if current["requested_section"] == "profile"
+                                                            else {"status": "pending"}), pending_changes=False)
 
 
 def fresh_check(ledger, status, session_id=None):
