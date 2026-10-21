@@ -129,9 +129,12 @@ def test_people_filing_and_action_readers(tmp_path, monkeypatch, capsys):
     assert [r["action_id"] for r in dispatch(tmp_path, {"operation": "next_action"})["candidates"]] == ["real-task"]
     assert [r["action_id"] for r in dispatch(tmp_path, {"operation": "status"})["actions"]] == ["real-task"]
     assert dispatch(tmp_path, {"operation": "context", "data": {"kind": "action"}})["total"] == 1
+    with ledger.connect() as conn:  # A legacy row without a type stays visible in the summary.
+        conn.execute("insert into actions values(?,?,?,?,?,?,?,?)", ("legacy-null", None, None, "", "pending", "{}",
+                     "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"))
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     legacy.summary(SimpleNamespace(json=True))
-    assert [r["action_id"] for r in json.loads(capsys.readouterr().out)["actions"]] == ["real-task"]
+    assert [r["action_id"] for r in json.loads(capsys.readouterr().out)["actions"]] == ["real-task", "legacy-null"]
     call(tmp_path, kind="person", name="Synthetic Alex", rules=["Use a short greeting"])
     assert call(tmp_path, "pending_files")[0]["rules"] == ["Use a short greeting"]
 
@@ -163,6 +166,15 @@ def human_hook(tmp_path, monkeypatch):
 def test_hook_omits_nonhuman_or_later_turns(tmp_path, human_hook, override):
     pref(tmp_path)
     assert human_hook(**{**dict(user_message="Hello", is_first_turn=True, session_id="next"), **override}) is None
+
+
+def test_failing_session_note_keeps_setup_context(tmp_path, human_hook, monkeypatch):
+    from personal_assistant import profile, setup
+    pref(tmp_path)
+    setup.request(Ledger(tmp_path))
+    monkeypatch.setattr(profile, "session_note", lambda ledger: 1 / 0)
+    reply = human_hook(user_message="Hello", is_first_turn=True, platform="telegram", sender_id="u1", session_id="s1")
+    assert "Guided setup is active" in reply["context"]
 
 
 def test_new_session_note_bounds_order_and_filing(tmp_path, human_hook):

@@ -89,7 +89,10 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
             ledger = Ledger(root, timeout=0.1, read_only=True)
             if kwargs.get("is_first_turn") and ledger.path.exists():
                 from .profile import session_note
-                note = session_note(ledger)
+                try:
+                    note = session_note(ledger)
+                except Exception:
+                    note = ""  # The optional note never blocks setup handling below.
                 if note:
                     mode_context = {"context": (mode_context["context"] + "\n" if mode_context else "") + note}
             current = setup.state(ledger)

@@ -1135,7 +1135,7 @@ def summary(args):
     data = {
         "db": db_path(),
         "trips": [row_to_dict(r) for r in conn.execute("select * from trips order by updated_at desc limit 20")],
-        "actions": [row_to_dict(r) for r in conn.execute("select * from actions where action_type not in ('preference','person','sop','trust') order by updated_at desc limit 20")],
+        "actions": [row_to_dict(r) for r in conn.execute("select * from actions where coalesce(action_type, '') not in ('preference','person','sop','trust') order by updated_at desc limit 20")],
         "browser_checkpoints": [row_to_dict(r) for r in conn.execute("select * from browser_checkpoints order by updated_at desc limit 20")],
         "payment_readiness": [row_to_dict(r) for r in conn.execute("select * from payment_readiness order by updated_at desc limit 20")],
     }
