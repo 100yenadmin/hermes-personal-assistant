@@ -4,10 +4,14 @@
   "sittings": 2,
   "note": "Synthetic profile: discover the known role, priorities and never-do list; review and apply the business sitting, then /new and grill me for the you sitting.",
   "seed": {
-    "memories/USER.md": "Preferred name: Mina. Role: founder; only Mina approves strategy. Three quarterly priorities: ship the demo, renew clients, hire a designer.",
+    "memories/USER.md": "Preferred name: Mina. Role: founder and sole operator. Work only Mina can do: approve strategy and sign client contracts; everything else can be delegated. Three quarterly priorities: ship the demo, renew clients, hire a designer.",
     "skills/operating-manual/SKILL.md": "---\nname: operating-manual\ndescription: Use for this user's business and permissions.\n---\n# Operating Manual\n## Permissions\nNever pay, book, send as Mina, contact anyone or cancel without asking Mina first."
   },
-  "expected_discovered": ["biz_priorities", "rights_ask", "you_role"],
+  "expected_discovered": [
+    "biz_priorities",
+    "rights_ask",
+    "you_role"
+  ],
   "consent": "Yes, look around and keep the facts you find.",
   "answers": {
     "biz_what": "We design synthetic training games and earn subscription revenue.",
