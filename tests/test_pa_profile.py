@@ -143,6 +143,17 @@ def test_changed_filed_record_carries_the_text_to_replace(tmp_path):
     assert Ledger(tmp_path).get("action", secret)["fields"]["filed_text"] == "Synthetic Kim"  # Referenced, never quoted.
 
 
+def test_forgotten_records_leave_lookups_and_since_is_lifecycle_owned(tmp_path):
+    alex = call(tmp_path, kind="person", name="Synthetic Alex", rules=["Never call before 10"])["action_id"]
+    call(tmp_path, "forget", identity=alex)
+    assert call(tmp_path, "list", name="Alex") == []  # A forgotten rule no longer guides drafts.
+    assert [r["identity"] for r in call(tmp_path, "list", name="Alex", state="retired")] == [alex]
+    trust = call(tmp_path, kind="trust", task_type="inbox triage")
+    with pytest.raises(ValueError, match="unsupported profile fields"):
+        call(tmp_path, kind="trust", task_type="inbox triage", since="2020-01-01T00:00:00+00:00")
+    assert call(tmp_path, kind="trust", task_type="inbox triage", level="own")["fields"]["since"] == trust["fields"]["since"]
+
+
 @pytest.mark.parametrize("kind,data,active", [
     ("trust", {"task_type": "inbox triage"}, "active"),
     ("sop", {"title": "Weekly invoices", "trigger": "Friday", "steps": ["Collect"], "tools": ["mail"],

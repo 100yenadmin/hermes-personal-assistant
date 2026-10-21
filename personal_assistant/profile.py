@@ -97,7 +97,7 @@ def remember(ledger, data):
     kind = data.get("kind")
     if kind not in KINDS:
         raise ValueError("profile kind must be preference, person, sop or trust")
-    allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "filed_text"} | {"kind", "slug", "change"}
+    allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "filed_text", "since"} | {"kind", "slug", "change"}
     if set(data) - allowed:
         raise ValueError("unsupported profile fields (raw message bodies and credentials are prohibited)")
     if data.get("state") == "filed":
@@ -198,6 +198,8 @@ def dispatch(ledger, data):
         return remember(ledger, data)
     if action in {"list", "pending_files"}:
         rows = sorted(_rows(ledger), key=lambda r: (r["fields"].get("source") == "corrected", r["updated_at"]), reverse=True)
+        if action == "list" and not data.get("state"):
+            rows = [r for r in rows if r["fields"]["state"] != "retired"]  # Forgotten records are not in force.
         if action == "pending_files":
             rows = [r for r in rows if r["action_type"] in {"preference", "person"}
                     and (r["fields"]["state"] == "active" or r["fields"].get("remove_from_files"))]
