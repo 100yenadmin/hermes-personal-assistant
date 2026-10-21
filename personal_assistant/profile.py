@@ -25,14 +25,14 @@ SCHEMA = {"type": "object", "properties": {
     "task_type": {"type": "string", "maxLength": 60}, "level": {"enum": ["shadow", "own", "independent"]},
     "supersedes": {"type": ["string", "null"]}, "since": {"type": "string", "format": "date-time"},
     "owner_confirmed_at": {"type": ["string", "null"], "format": "date-time"},
-    "remove_from_files": {"type": "boolean"}, "in_files": {"type": "boolean"},
+    "remove_from_files": {"type": "boolean"}, "filed_text": {"type": ["string", "null"], "maxLength": 1200},
     "changelog": {"type": "array", "items": {"type": "object", "properties": {
         "version": {"type": "integer"}, "change": {"type": "string"}, "at": {"type": "string", "format": "date-time"}},
         "required": ["version", "change", "at"], "additionalProperties": False}},
 }, "additionalProperties": False}
 FIELDS = {
-    "preference": "text category source evidence state supersedes since owner_confirmed_at remove_from_files in_files",
-    "person": "name relationship channel rules sensitive source since state remove_from_files in_files",
+    "preference": "text category source evidence state supersedes since owner_confirmed_at remove_from_files filed_text",
+    "person": "name relationship channel rules sensitive source since state remove_from_files filed_text",
     "sop": "title trigger steps tools done_when escalation version changelog state",
     "trust": "task_type level since evidence state",
 }
@@ -68,7 +68,17 @@ def _get(ledger, identity):
 
 def _in_files(fields):
     """True while a reviewed write has put this record's text in the files, even if it changed since."""
-    return fields.get("state") == "filed" or bool(fields.get("in_files"))
+    return fields.get("state") == "filed" or bool(fields.get("filed_text"))
+
+
+def _file_text(kind, fields):
+    """The record as last written to the files, kept so a later review can find, replace or remove it."""
+    if kind == "preference":
+        return fields["text"]
+    if fields["sensitive"]:
+        return fields["name"]  # Sensitive people are referenced, never quoted.
+    details = "; ".join(v for v in (fields["relationship"], fields["channel"], *fields["rules"]) if v)
+    return fields["name"] + (": " + details if details else "")
 
 
 def _retire(fields):
@@ -87,7 +97,7 @@ def remember(ledger, data):
     kind = data.get("kind")
     if kind not in KINDS:
         raise ValueError("profile kind must be preference, person, sop or trust")
-    allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "in_files"} | {"kind", "slug", "change"}
+    allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "filed_text"} | {"kind", "slug", "change"}
     if set(data) - allowed:
         raise ValueError("unsupported profile fields (raw message bodies and credentials are prohibited)")
     if data.get("state") == "filed":
@@ -104,6 +114,8 @@ def remember(ledger, data):
         raise ValueError("profile identity belongs to another action type")
     fields = {**(old["fields"] if old else {}), **{k: v for k, v in data.items() if k in FIELDS[kind].split()}}
     fields.setdefault("state", "draft" if kind == "sop" else "active")
+    if kind in {"sop", "trust"} and old and old["fields"]["state"] == "retired" and "state" not in data:
+        fields["state"] = "draft" if kind == "sop" else "active"  # Remembering a forgotten record reactivates it.
     if kind != "sop":
         fields.setdefault("since", now())
     if kind in {"preference", "person"}:
@@ -209,16 +221,16 @@ def dispatch(ledger, data):
                                        or not (fields["state"] == "active" or fields.get("remove_from_files"))):
             raise ValueError("only active or removal-pending preferences and people can be filed after reviewed apply")
 
-    def updated(fields):
+    def updated(kind, fields):
         if action == "forget":
             return _retire(fields)
         if action == "mark_filed" and fields.get("remove_from_files"):
-            return {**{k: v for k, v in fields.items() if k != "remove_from_files"}, "in_files": False}  # The text left the files.
+            return {**{k: v for k, v in fields.items() if k != "remove_from_files"}, "filed_text": None}  # The text left the files.
         return {**fields, "state": {"confirm": "active", "mark_filed": "filed"}[action],
-                **({"in_files": True} if action == "mark_filed" else {}),
+                **({"filed_text": _file_text(kind, fields)} if action == "mark_filed" else {}),
                 **({"owner_confirmed_at": now()} if action == "confirm" else {})}
     result = [r if action == "mark_filed" and r["fields"]["state"] in {"filed", "retired"} and not r["fields"].get("remove_from_files")
-              else _save(ledger, r["action_id"], r["action_type"], updated(r["fields"])) for r in rows]
+              else _save(ledger, r["action_id"], r["action_type"], updated(r["action_type"], r["fields"])) for r in rows]
     return result if action == "mark_filed" else result[0]
 
 
@@ -230,7 +242,8 @@ def session_note(ledger):
                   row["name"] + (" [sensitive: consult profile by identity]" if row["sensitive"] else
                   ": " + "; ".join([row["relationship"], row["channel"], *row["rules"]])))
         if row.get("remove_from_files"):
-            detail = "FORGOTTEN, do not use (still in files until the next review): " + detail
+            detail = "FORGOTTEN, do not use (still in files until the next review): " + (
+                detail if row["kind"] == "person" and row["sensitive"] else row.get("filed_text") or detail)
         line = "\n- " + row["identity"] + ": " + detail.replace("\n", " ")
         text += line[:max(0, 1200 - len(text))]
         if len(text) >= 1200:

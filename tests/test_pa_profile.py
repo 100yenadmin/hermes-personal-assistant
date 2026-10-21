@@ -10,7 +10,7 @@ from jsonschema import validate, ValidationError
 from personal_assistant.entry import dispatch, SCHEMA
 from personal_assistant.onboarding_hook import make_pre_llm_call
 from personal_assistant.state import Ledger, legacy
-from personal_assistant.profile import remember
+from personal_assistant.profile import remember, session_note
 
 
 def call(root, action="remember", **data):
@@ -111,19 +111,49 @@ def test_filed_text_changed_before_review_is_still_removed(tmp_path, retire):
             pref(tmp_path, "Prefer bullet replies", source="corrected", supersedes=identity)
     row = Ledger(tmp_path).get("action", identity)["fields"]
     assert row["state"] == "retired" and row["remove_from_files"] is True
-    assert identity in [r["identity"] for r in call(tmp_path, "pending_files")]
+    filed = "Synthetic Alex" if retire == "person" else "Prefer short replies"  # What the files hold, not the later text.
+    pending = {r["identity"]: r for r in call(tmp_path, "pending_files")}
+    assert pending[identity]["filed_text"] == filed
+    assert "FORGOTTEN, do not use (still in files until the next review): " + filed in session_note(Ledger(tmp_path))
     call(tmp_path, "mark_filed", identities=[identity])
     row = Ledger(tmp_path).get("action", identity)["fields"]
-    assert "remove_from_files" not in row and row["in_files"] is False
+    assert "remove_from_files" not in row and row["filed_text"] is None
     assert identity not in [r["identity"] for r in call(tmp_path, "pending_files")]
     call(tmp_path, "forget", identity=identity)  # Already out of the files: nothing is listed again.
     assert "remove_from_files" not in Ledger(tmp_path).get("action", identity)["fields"]
 
 
-def test_in_files_is_lifecycle_owned(tmp_path):
+def test_filed_text_is_lifecycle_owned(tmp_path):
     with pytest.raises(ValueError, match="unsupported profile fields"):
-        pref(tmp_path, in_files=True)
+        pref(tmp_path, filed_text="Prefer short replies")
     assert Ledger(tmp_path).list("action") == []
+
+
+def test_changed_filed_record_carries_the_text_to_replace(tmp_path):
+    identity = call(tmp_path, kind="person", slug="alex", name="Synthetic Alex", channel="email", rules=["Formal"])["action_id"]
+    call(tmp_path, "mark_filed", identities=[identity])
+    assert Ledger(tmp_path).get("action", identity)["fields"]["filed_text"] == "Synthetic Alex: email; Formal"
+    call(tmp_path, kind="person", slug="alex", name="Synthetic Alex", channel="phone", rules=["Formal"])
+    row = {r["identity"]: r for r in call(tmp_path, "pending_files")}[identity]
+    assert row["state"] == "active" and row["channel"] == "phone" and row["filed_text"] == "Synthetic Alex: email; Formal"
+    call(tmp_path, "mark_filed", identities=[identity])
+    assert Ledger(tmp_path).get("action", identity)["fields"]["filed_text"] == "Synthetic Alex: phone; Formal"
+    secret = call(tmp_path, kind="person", slug="kim", name="Synthetic Kim", rules=["Private matter"], sensitive=True)["action_id"]
+    call(tmp_path, "mark_filed", identities=[secret])
+    assert Ledger(tmp_path).get("action", secret)["fields"]["filed_text"] == "Synthetic Kim"  # Referenced, never quoted.
+
+
+@pytest.mark.parametrize("kind,data,active", [
+    ("trust", {"task_type": "inbox triage"}, "active"),
+    ("sop", {"title": "Weekly invoices", "trigger": "Friday", "steps": ["Collect"], "tools": ["mail"],
+             "done_when": "Sent", "escalation": "Ask the owner"}, "draft"),
+])
+def test_remembering_a_forgotten_record_reactivates_it(tmp_path, kind, data, active):
+    identity = call(tmp_path, kind=kind, **data)["action_id"]
+    call(tmp_path, "forget", identity=identity)
+    assert call(tmp_path, kind=kind, **data)["fields"]["state"] == active
+    call(tmp_path, "forget", identity=identity)
+    assert call(tmp_path, kind=kind, **data, state="retired")["fields"]["state"] == "retired"  # An explicit state wins.
 
 
 @pytest.mark.parametrize("change,expected", [
