@@ -5,10 +5,11 @@ Run `python -m evals.scorecard --version V --commit SHA --lab DIR --as-of YYYY-M
 Catalogue tests may declare `covers`, a list of zero-based indices into their area's `duties`; it defaults to `[]` for every existing test. Only tests in state `pass` cover a duty. Each JSON area includes `uncovered_duties`, and the Markdown's "Unexercised duties" section lists those duties for every area, including areas with passing full tests. The headline always includes both passing and failing partial-check counts (`· N partial checks failing`, even at zero), and never a parity percentage.
 
 Fail-closed input rules:
-- A counted run needs a non-empty `overall` check map whose values are all `true`.
+- A counted run needs a non-empty `overall` check map whose values are all `true`, and `all_pass` and the judge's `pass` must be the boolean `true`.
 - Lab factual errors count from `fabricated_confirmations` and, where a fixture writes it, `factual_errors` (a number or a list).
-- Live task ids must be unique per owner, and every fact needs a non-empty `item`.
-- Tasks starting after `--as-of` count for neither real work nor facts.
+- A run's identity is its scenario, `run_id` and `start` from `run.json`, so a renamed or copied folder is a duplicate. A `run.json` without `start` is excluded as `malformed_run`.
+- Live task ids must be unique per owner, text fields must not be blank, and every fact needs a non-empty `item` and `source`, internal facts included.
+- Tasks starting after `--as-of` count for neither real work, facts nor the day-30 cohort.
 - An area's parity stays `unproven` while any of its duties lacks a passing lab test.
 - A damaged copy of a run never hides a valid one, because only counted runs reserve a run identity.
-- Markdown neutralises HTML and `mailto:`-style links as well as URLs and paths.
+- Markdown neutralises HTML, URLs (including protocol-relative and `mailto:`-style ones), link and image syntax, and local paths in values and JSON keys.

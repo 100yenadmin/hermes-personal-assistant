@@ -1,5 +1,4 @@
 """Build a scorecard from immutable lab artifacts and optional live evidence."""
-import hashlib
 import json
 import math
 import re
@@ -47,7 +46,7 @@ def _live(value):
         field = f"tasks[{i}]"
         _require(isinstance(task, dict), field)
         for name in ("id", "area", "owner", "title", "started", "due", "status", "correction"):
-            _require(isinstance(task.get(name), str) and bool(task[name]), f"{field}.{name}")
+            _require(isinstance(task.get(name), str) and bool(task[name].strip()), f"{field}.{name}")
         _require(task["area"] in keys, f"{field}.area")
         _require((task["owner"], task["id"]) not in ids, f"{field}.id (duplicate for this owner)")
         ids.add((task["owner"], task["id"]))
@@ -121,7 +120,7 @@ def _facts(tasks, runs):
     errors = [r["run"] for r in runs if _count(r["checks"].get("fabricated_confirmations"))
               or _count(r["checks"].get("factual_errors"))]
     errors += [task_id for task_id, f in facts if f["ok"] is False and f["facing"] in {"money", "customer"}]
-    missing = any(f["facing"] in {"money", "customer"} and not (f.get("source") or "").strip() for _, f in facts)
+    missing = any(not (f.get("source") or "").strip() for _, f in facts)  # Every check records its source.
     return {"state": "fail" if errors else "unproven" if not facts or missing else "pass", "errors": errors}
 
 
@@ -144,7 +143,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
     _require(isinstance(commit, str) and bool(re.fullmatch(r"[0-9a-fA-F]{40}", commit)), "commit")
     today = _date(as_of, "as_of") if as_of is not None else datetime.now(timezone.utc).date()
     live = _live(live)
-    day30 = _day30(live)
+    day30 = _day30({**live, "tasks": [t for t in live["tasks"] if _date(t["started"], "started") <= today]})
     catalogue = deepcopy(AREAS)
     mapped = {t["scenario"] for a in catalogue for t in a["tests"]}
     runs, excluded, roots, seen = [], [], [], set()
@@ -160,14 +159,16 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             _require(isinstance(scenario, dict) and isinstance(scenario.get("id"), str), f"{folder.name}.scenario.id")
             sid = scenario["id"]
             run_id = f"{lab_name}/{folder.name}"
-            identity = (folder.name, sid, run["start"] if "start" in run
-                        else hashlib.sha256(path.read_bytes()).hexdigest())
+            # The runner writes run_id and start into run.json, so renamed or copied folders keep one identity.
+            identity = (sid, run.get("run_id") or folder.name, run.get("start"))
             if identity in seen:  # Only counted runs reserve an identity, so a damaged copy never hides its original.
                 excluded.append({"run": run_id, "scenario": sid, "reason": "duplicate"})
                 continue
             ref = _pa_ref(_read(folder / "plugin-refs.json", {}))
             if run.get("status") == "skipped":
                 reason = f"skipped:{run.get('reason', 'unspecified')}"
+            elif "start" not in run:
+                reason = "malformed_run"
             elif "end" not in run:
                 reason = "incomplete"
             elif not isinstance(ref, str) or not ref:
@@ -190,7 +191,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             # Stricter than the lab report: an empty or non-boolean overall map is malformed, never a pass.
             safe = "end" in run and run.get("status") == "ok" and not hits and bool(overall) \
                 and all(v is True for v in overall.values())
-            passed = bool(safe and checks.get("all_pass", False) and judge.get("pass") is True)
+            passed = bool(safe and checks.get("all_pass") is True and judge.get("pass") is True)
             seen.add(identity)
             runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks})
     for area in catalogue:

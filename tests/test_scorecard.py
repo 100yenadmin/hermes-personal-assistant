@@ -119,7 +119,7 @@ def test_full_tests(tmp_path, single_test, n, failed, expected):
     ({"plugin-refs.json": None}, SCENARIO, SHA, "no_plugin_refs"),
     ({"plugin-refs.json": {"plugins": []}}, SCENARIO, SHA, "no_plugin_refs"),
     ({}, "unmapped", SHA, "unmapped_scenario"),
-    ({"run.json": {"status": "ok"}}, SCENARIO, SHA, "incomplete"),
+    ({"run.json": {"status": "ok", "start": 1}}, SCENARIO, SHA, "incomplete"),
     ({"run.json": {"status": "skipped", "reason": "fixture unavailable"}}, SCENARIO, SHA, "skipped:fixture unavailable"),
 ])
 def test_exclusions(tmp_path, changes, scenario, ref, reason):
@@ -130,7 +130,7 @@ def test_exclusions(tmp_path, changes, scenario, ref, reason):
 
 
 @pytest.mark.parametrize("changes", [
-    {"run.json": {"end": 1, "status": "error"}},
+    {"run.json": {"start": 0, "end": 1, "status": "error"}},
     {"checks.json": {"all_pass": True}},
     {"checks.json": {"overall": {"safe": False}, "all_pass": True}},
     {"checks.json": {"overall": {"safe": True}, "all_pass": False}},
@@ -163,7 +163,7 @@ def test_multiple_roots_and_duplicate_inputs(tmp_path):
     assert c["excluded"] == [{"run": "one/r1", "scenario": SCENARIO, "reason": "duplicate"}]
 
 
-@pytest.mark.parametrize("with_start", [True, False])
+@pytest.mark.parametrize("with_start", [True])
 def test_copied_runs_are_duplicates(tmp_path, single_test, with_start):
     single_test["kind"] = "full"
     original, copied = tmp_path / "original", tmp_path / "copied"
@@ -183,7 +183,7 @@ def test_copied_runs_are_duplicates(tmp_path, single_test, with_start):
                              for i in range(2)]
 
 
-@pytest.mark.parametrize("with_start", [True, False])
+@pytest.mark.parametrize("with_start", [True])
 def test_same_folder_names_with_distinct_runs_count(tmp_path, single_test, with_start):
     single_test["kind"] = "full"
     roots = [tmp_path / f"wave-{i}" for i in range(3)]
@@ -297,6 +297,8 @@ def test_facts_live_and_missing_sources(tmp_path):
     fact["facing"] = "customer"
     assert area(card(tmp_path, live))["facts"]["state"] == "fail"
     fact["facing"] = "internal"
+    assert area(card(tmp_path, live))["facts"]["state"] == "unproven"  # Internal facts still need a source.
+    fact["source"] = "booking page"
     assert area(card(tmp_path, live))["facts"]["state"] == "pass"
 
 
@@ -585,3 +587,72 @@ def test_markdown_links_and_html_are_neutralised(tmp_path):
     c["version"] = '<a href="mailto:x@example.invalid">mail</a> mailto:y@example.invalid'
     line = markdown(c).splitlines()[0]
     assert "<a" not in line and "mailto:" not in line
+
+
+def test_renamed_copies_are_duplicates(tmp_path, single_test):
+    single_test["kind"] = "full"
+    original = tmp_path / "wave"
+    for i in range(2):
+        run(original, f"r{i}", **{"run.json": {"run_id": f"{SCENARIO}__r00{i}", "start": i, "end": 10, "status": "ok"}})
+    renamed = tmp_path / "export"
+    for i in range(2):
+        shutil.copytree(original / f"r{i}", renamed / f"copy-{i}")
+    test = area(build("V", SHA, [original, renamed]))["tests"][0]
+    assert test["runs"] == 2 and test["state"] == "insufficient_runs"
+
+
+def test_run_without_start_is_malformed(tmp_path, single_test):
+    run(tmp_path, **{"run.json": {"end": 10, "status": "ok"}})
+    c = card(tmp_path)
+    assert area(c)["tests"][0]["runs"] == 0 and c["excluded"][0]["reason"] == "malformed_run"
+
+
+@pytest.mark.parametrize("owner", [" ", "  "])
+def test_whitespace_owner_is_rejected(tmp_path, owner):
+    live = live_tasks()
+    live["tasks"][0]["owner"] = owner
+    with pytest.raises(ValueError, match=r"tasks\[0\]\.owner"):
+        card(tmp_path, live)
+
+
+def test_future_owner_does_not_change_day30(tmp_path):
+    live = day30(live_tasks())
+    live["tasks"].append(dict(live["tasks"][0], id="later", owner="newcomer", started="2026-10-25", due="2026-10-30"))
+    assert card(tmp_path, live)["day30"]["state"] == "pass"
+
+
+def test_internal_fact_without_source_is_unproven(tmp_path):
+    live = live_tasks()
+    for task in live["tasks"]:
+        task["facts"] = [{"item": "note", "source": " ", "ok": True, "facing": "internal"}]
+    assert area(card(tmp_path, live))["facts"]["state"] == "unproven"
+
+
+@pytest.mark.parametrize("value", ["false", 1, "true"])
+def test_non_boolean_all_pass_never_passes(tmp_path, single_test, value):
+    run(tmp_path, **{"checks.json": {"overall": {"safe": True}, "all_pass": value, "fabricated_confirmations": 0}})
+    assert area(card(tmp_path))["tests"][0]["passed"] == 0
+
+
+def test_json_keys_are_scrubbed(tmp_path):
+    live = day30(live_tasks())
+    for task in live["tasks"]:
+        task["owner"] = "/Users/alice/private" if task["owner"] == "owner-0" else task["owner"]
+    live["baselines"]["/Users/alice/private"] = live["baselines"].pop("owner-0")
+    live["day30"]["/Users/alice/private"] = live["day30"].pop("owner-0")
+    assert "/Users" not in json.dumps(card(tmp_path, live))
+
+
+@pytest.mark.parametrize("value", ["/etc/hosts", "/Library/Caches/x", "/usr/local/bin/x", "/Applications/A.app/x"])
+def test_more_local_roots_are_scrubbed(tmp_path, value):
+    c = card(tmp_path)
+    c["version"] = "see " + value
+    assert value.split("/")[1] not in markdown(c).splitlines()[0].replace("[path omitted]", "")
+
+
+@pytest.mark.parametrize("value", ["![x](//example.invalid/pixel)", "[x](/relative/path)"])
+def test_markdown_link_syntax_is_inert(tmp_path, value):
+    c = card(tmp_path)
+    c["version"] = value
+    line = markdown(c).splitlines()[0]
+    assert "](" not in line and "//example.invalid" not in line
