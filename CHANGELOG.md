@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.9.0-rc.2 — 2026-10-21
+
+- **Stated preferences reach owner memory (#62, #47).** When an owner message looks like a lasting preference, a correction or a rule about a person ("from now on…", "always…", "correction:…"), PA adds a short routing note. The note tells the agent to record the message with the `profile` operation rather than Hermes' memory tool. The agent judges whether the message really is one. During an active setup interview, setup records the answers itself, so no note is added.
+  - Before this, a live model could answer such messages by writing USER.md directly. The preference then had no source, did not retire the one it corrected, and skipped the reviewed filing.
+- **Persona rig (#62).** A new `owner_memory` persona checks that a preference, a person rule and a correction are recorded in one session. After `/new`, it checks they are honoured through PA's first-turn note. The rig runs locally, with a loopback gateway.
+
 ## 0.9.0-rc.1 — 2026-10-21
 
 Roadmap M1, "Knows you" (#46, #47): the agent interviews the owner, remembers what it learns, and reuses it instead of asking again.
