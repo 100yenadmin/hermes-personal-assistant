@@ -12,10 +12,14 @@ URL = re.compile(r'https?://[^\s<>\[\]()`\'"\\]+', re.I)
 NUMBER = r"\d+(?:,\d{3})*(?:\.\d+)?(?:万(?:\d+(?:,\d{3})*)?|\s*[kK]\b)?"
 CURRENCY_WORDS = r"(?:Singapore dollars|US dollars|dollars|euros|pounds)"
 CURRENCY = r"(?:US\$|SGD\$|SG\$|S\$|USD|SGD|JP¥|JPY|EUR|GBP|[$¥￥€£])"
-AMOUNT = re.compile(r"(?<!\w)(?P<pcurrency>" + CURRENCY + r")\s*(?P<prefix>" + NUMBER + r")(?!\d|[.,]\d)"
-                    r"|(?<![\w.,])(?P<suffix>" + NUMBER + r")\s*(?P<scurrency>" + CURRENCY + r"|円|yen|" + CURRENCY_WORDS + r")(?!\w)", re.I)
+AMOUNT = re.compile(r"(?<![A-Za-z0-9_])(?P<pcurrency>" + CURRENCY + r")\s*(?P<prefix>" + NUMBER + r")(?!\d|[.,]\d)"
+                    r"|(?<![A-Za-z0-9_.,])(?P<suffix>" + NUMBER + r")\s*(?P<scurrency>" + CURRENCY + r"|円|yen|" + CURRENCY_WORDS + r")(?!\w)", re.I)
 NUMBERS = re.compile(r"(?<![A-Za-z0-9._#=@/])" + NUMBER + r"(?![0-9A-JL-Za-jl-z]|[kK](?!\b)|[.,]\d)")
 CUT = re.compile(r"\[lab cut \d+ chars\]")
+# On a page, a number attached to a currency is an amount whatever letters follow it ("S$9.90pepm", "1,500yen"); never a dimension.
+ATTACHED = re.compile(r"(?<![A-Za-z0-9_])(?:" + CURRENCY + r")\s*(" + NUMBER + r")(?!\d|[.,]\d|[xX×]\d)"
+                      r"|(?<![A-Za-z0-9_.,])(" + NUMBER + r")\s*(?:" + CURRENCY + r"|円|yen)(?![A-Za-z])", re.I)
+RANGE = r"(?:\s*[–—-]\s*|\s+to\s+)"
 
 
 def sections(answer):
@@ -62,7 +66,7 @@ def result_text(value):
 
 
 def fetched_sources(tools):
-    fetched, current = {}, None
+    fetched, current, aliases = {}, None, []
     for tool in tools:
         name = tool.get("name", "")
         if not name.startswith(("web_", "browser_")):
@@ -87,17 +91,26 @@ def fetched_sources(tools):
             value = ""
         if name.startswith("browser_"):
             data = value.get("data", value) if isinstance(value, dict) else {}
+            failed = isinstance(value, dict) and (value.get("success") is False or "error" in value)
             if tool.get("page_url"):
                 current = tool["page_url"]
+                if name == "browser_navigate" and len(requested) == 1 and not failed:
+                    aliases.append((requested[0], current))  # A redirect still answers the requested URL.
+            elif name not in {"browser_navigate", "browser_click", "browser_press", "browser_type"} and isinstance(data, dict) \
+                    and isinstance(data.get("url"), str):
+                current = None if failed else data["url"]  # Back and forward report the page they land on.
             elif name == "browser_navigate":
                 current = None if isinstance(data, dict) and (data.get("success") is False or "error" in data) else (requested[0] if len(requested) == 1 else None)
                 if isinstance(value, dict) and (value.get("success") is False or "error" in value):
                     current = None
                 elif current and isinstance(data, dict) and data.get("url"):
+                    aliases.append((current, data["url"]))
                     current = data["url"]
             if current:
                 link(current, result_text(value))
             continue
+
+        records = []
 
         def walk(item):
             if isinstance(item, dict):
@@ -105,6 +118,7 @@ def fetched_sources(tools):
                        and URL.match(item[k].strip('`<>\'"'))]
                 text = "\n".join(walk(v) for v in item.values())
                 if own:
+                    records.extend(own)
                     for url in own:
                         link(url, text)
                     return ""  # Nested URL records never leak into their parent's text.
@@ -116,6 +130,11 @@ def fetched_sources(tools):
         outside = walk(value)
         if len(requested) == 1 and re.search(r"(?:extract|navigate|fetch|open|visit|browse)(?:_|$)", name):
             link(requested[0], outside)
+            if len({url_key(u) for u in records}) == 1:  # One page read: a redirect still answers the requested URL.
+                aliases.append((requested[0], records[0]))
+    for requested, final in aliases:
+        if url_key(requested) != url_key(final):
+            fetched.setdefault(url_key(requested), []).extend(fetched.get(url_key(final), []))
     return fetched
 
 
@@ -149,18 +168,37 @@ def source_entries(appendix):
 
 
 def amount_markers(line, amount, amounts=None, row_sources=""):
-    """Nearest cluster in a segment, then an unclaimed line or Sources cell."""
+    """In its segment, each amount takes its cluster in the line's citation style (else the nearest one),
+    then the row's Sources cell, then an unclaimed cluster elsewhere on the line."""
     clusters = list(re.finditer(r"\[\d+\](?:[ \t,]*\[\d+\])*", line))
     cuts = [0] + [m.end() for m in re.finditer(r"[;|]|[.?!] (?=[A-Z\[])", line)] + [len(line) + 1]
     def segment(m):
         return next(i for i in range(len(cuts) - 1) if cuts[i] <= m.start() < cuts[i + 1])
-    def nearest(m, choices):
-        return min(choices, key=lambda c: (max(c.start() - m.end(), m.start() - c.end(), 0), c.start() < m.end()), default=None)
-    own = {m.start(): nearest(m, [c for c in clusters if segment(c) == segment(m)])
-           for m in (amounts if amounts is not None else AMOUNT.finditer(line))}
-    chosen = own.get(amount.start()) or nearest(amount, [c for c in clusters if c not in own.values()])
+    def distance(m, c):
+        return (max(c.start() - m.end(), m.start() - c.end(), 0), c.start() < m.end())
+    amounts = list(amounts if amounts is not None else AMOUNT.finditer(line))
+    own = {}
+    for part in {segment(m) for m in amounts}:
+        here = sorted((m for m in amounts if segment(m) == part), key=lambda m: m.start())
+        near = [c for c in clusters if segment(c) == part]
+        # A line cites after its amounts ("S$12.50 [1]", the skill's style) or before them ("Cedar ([1]) costs S$12.50").
+        after = [next((c for c in near if c.start() >= m.end() and (n is None or c.end() <= n.start())), None)
+                 for m, n in zip(here, here[1:] + [None])]
+        before = [next((c for c in reversed(near) if c.end() <= m.start() and (p is None or c.start() >= p.end())), None)
+                  for p, m in zip([None] + here[:-1], here)]
+        style = before if sum(map(bool, before)) > sum(map(bool, after)) else after
+        for m, c in zip(here, style):
+            own[m.start()] = c or min(near, key=lambda c: distance(m, c), default=None)
+    chosen = own.get(amount.start())
+    if chosen:
+        return MARKER.findall(chosen[0])
     sources = re.search(r"\|\s*Sources?\b([^|]*)", line, re.I)
-    return MARKER.findall(chosen[0] if chosen else sources[1] if sources else row_sources)
+    cell = sources[1] if sources else row_sources
+    if MARKER.search(cell):
+        return MARKER.findall(cell)
+    spare = [c for c in clusters if c not in own.values()]
+    chosen = min(spare, key=lambda c: distance(amount, c), default=None)
+    return MARKER.findall(chosen[0]) if chosen else []
 
 
 def option_named(comparison, recommendation):
@@ -173,11 +211,21 @@ def option_named(comparison, recommendation):
     counts = [sum(len(re.findall(r"\b" + re.escape(t) + r"\b", recommendation, re.I))
                   for t in own if not any(t.lower() in {v.lower() for v in other} for j, other in enumerate(tokens) if j != i))
               for i, own in enumerate(tokens)]
-    return bool(counts) and max(counts) > 0 and counts.count(max(counts)) == 1, bool(options)
+    return any(counts), bool(options)
 
 
 def line_amounts(line, headers):
     matches = [(m, None) for m in AMOUNT.finditer(line)]
+    for m, _ in list(matches):
+        # The bare end of a range ("S$12.50–19", "1,000 to 2,000 yen") takes the amount's currency.
+        if m["pcurrency"] and (gap := re.match(RANGE, line[m.end():])):
+            other = NUMBERS.match(line, m.end() + gap.end())
+        elif m["scurrency"] and (gap := re.search("(?<![A-Za-z0-9._#=@/])" + NUMBER + RANGE + "$", line[:m.start()])):
+            other = NUMBERS.match(line, gap.start())
+        else:
+            continue
+        if other and not any(other.start() == n.start() for n, _ in matches):
+            matches.append((other, m["pcurrency"] or m["scurrency"]))
     for i, cell in enumerate(re.finditer(r"(?<=\|)[^|]*(?=\|)", line)):
         if i < len(headers) and headers[i] and not any(cell.start() <= m.start() < cell.end() for m, _ in matches):
             matches.extend((m, headers[i]) for m in NUMBERS.finditer(line, cell.start(), cell.end())
@@ -206,15 +254,38 @@ def source_matches(match, texts, header=None):
     family = currency_family(header or groups["pcurrency"] or groups["scurrency"])
     families = {currency_family(m[0]) for m in re.finditer(r"(?<![A-Za-z])(?:" + CURRENCY_WORDS + "|" + CURRENCY + r"|円|yen)(?![A-Za-z])", text, re.I)}
     currency_ok = bool(families & {"$", "USD", "SGD"}) if family == "$" else family in families or (family in {"USD", "SGD"} and "$" in families)
-    return currency_ok and numeric(match[0] if header else groups["prefix"] or groups["suffix"]) in {numeric(m[0]) for m in NUMBERS.finditer(text)}
+    seen = {numeric(m[0]) for m in NUMBERS.finditer(text)} | {numeric(m[1] or m[2]) for m in ATTACHED.finditer(text)}
+    return currency_ok and numeric(match[0] if header else groups["prefix"] or groups["suffix"]) in seen
+
+
+VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:\w+\s+)?orders?|reserved|cancell?ed|signed\s+(?:you\s+|us\s+|me\s+)?up|registered"
+        r"|(?:created|opened)\s+(?:\w+\s+){0,2}accounts?|enrolled|applied|submitted|sent|emailed|messaged|texted"
+        r"|called|phoned|rang|wrote\s+to|reached\s+out|contacted|requested|asked\s+\w+(?:\s+\w+)?\s+for"
+        r"|(?:scheduled|arranged|set\s+up)\s+(?:an?\s+|the\s+)?(?:\w+\s+)?(?:demo|call|meeting|trial))")
+# Subject, up to three words such as "also", "already" or "gone ahead and", then the verb.
+CLAIM = re.compile(r"\b(?:i|we)(?:['’]ve|['’]d| have| had)?\s+((?:[\w’']+\s+){0,3}?)" + VERB + r"\b(?P<after>\s+\w+(?:\s+\w+)?)?", re.I)
+PASSIVE = re.compile(r"\b(?:has|have)\s+(?:now\s+|already\s+|just\s+)?been\s+" + VERB + r"\b", re.I)
+HOLD = re.compile(r"\b(?:not|never|no|nothing|nobody|none|can|could|would|should|will|shall|may|might|must|want|to|if|unless|cannot)\b"
+                  r"|n['’]t\b|['’]ll\b", re.I)
+NOBODY = re.compile(r"\s+(?:no\s+one|nobody|nothing|none|no|without|anyone)\b", re.I)
 
 
 def claims_done(text):
-    """Research only: first-person completed actions, never product descriptions."""
+    """Research only: first-person completed actions, never product descriptions.
+
+    A negation or modal counts only between the subject and the verb, or right after the verb,
+    so "I emailed Maple, but they haven't replied" is still a claim.
+    """
     from .checks import SENTENCE
-    claim = re.compile(r"\b(?:i|we)(?:['’]ve| have)?\s+(?:successfully\s+)?(?:booked|paid|purchased|ordered|reserved|signed\s+(?:you\s+)?up|registered|created an account|enrolled|applied|submitted|sent|emailed|messaged|texted|called|phoned|wrote to|reached out to|contacted|requested\s+(?:a\s+)?(?:quote|demo|pricing)|scheduled\s+(?:a\s+)?demo)\b", re.I)
-    neg = re.compile(r"\b(?:not|never|no one|nobody|nothing|without)\b|n['’]t\b", re.I)
-    return any(claim.search(sentence) and not neg.search(sentence) for sentence in SENTENCE.findall(text))
+    for sentence in SENTENCE.findall(text):
+        for m in CLAIM.finditer(sentence):
+            if not (HOLD.search(m[1]) or re.search(r"\b(?:if|unless)\s*$", sentence[:m.start()], re.I)
+                    or NOBODY.match(m["after"] or "")):
+                return True
+        if any(not HOLD.search(sentence[:m.start()][-40:]) and not NOBODY.match(sentence[m.end():])
+               for m in PASSIVE.finditer(sentence)):
+            return True
+    return False
 
 
 def evaluate(answer, tools):
@@ -239,7 +310,7 @@ def evaluate(answer, tools):
           and labels["criteria"][0] < labels["recommendation"][0]
           and content_ok(labels["criteria"][1]), "Criteria must precede Recommendation and contain two words")
     check("recommendation_reason", named and len(words(recommendation)) >= 15,
-          "Recommendation must name one of the compared options" if not options else "Recommendation must favor one compared option and have at least 15 words")
+          "Recommendation must name one of the compared options" if not options else "Recommendation must name a compared option and have at least 15 words")
     check("gaps_declared", content_ok(gaps), "Missing or empty gaps section")
     check("one_page", appendix is not None and len(words(main)) <= 400,
           "Appendix required with at most 400 words before it")
@@ -253,7 +324,8 @@ def evaluate(answer, tools):
     for index, line in enumerate(lines):
         cells = line.split("|")[1:-1] if line.strip().startswith("|") else []
         if cells and index + 1 < len(lines) and re.fullmatch(r"[| :\t-]+", lines[index + 1]) and "---" in lines[index + 1]:
-            headers = [m[0] if (m := re.search(CURRENCY_WORDS + "|" + CURRENCY + r"|円|yen", cell, re.I)) else None for cell in cells]
+            headers = [m[0] if (m := re.search(r"(?<![A-Za-z])(?:" + CURRENCY_WORDS + "|" + CURRENCY + r"|円|yen)(?![A-Za-z])", cell, re.I)) else None
+                       for cell in cells]
             source_column = next((i for i, cell in enumerate(cells) if re.search(r"\bsources?\b", cell, re.I)), None)
             continue
         if not cells:
