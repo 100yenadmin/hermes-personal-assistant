@@ -67,7 +67,9 @@ def discover(entries: Iterable[Any] | None = None,
             discovery_error = type(exc).__name__
     entries = list(entries)
     which = which or shutil.which
-    gog = os.environ.get("GOG_PATH") or which("gog")
+    configured_gog = os.environ.get("GOG_PATH")
+    gog = (configured_gog if configured_gog and os.path.isfile(configured_gog)
+           and os.access(configured_gog, os.X_OK) else which("gog"))  # A stale GOG_PATH is not presence.
     rows = []
     for capability, hints, reuse in _SPECS:
         matched = [entry for entry in entries if _matches(str(getattr(entry, "name", "")), hints)]

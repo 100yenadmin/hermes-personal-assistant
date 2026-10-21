@@ -24,9 +24,14 @@ class DiscoveryTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch("shutil.which", return_value=None).start()
         patch.dict("os.environ", {"GOG_PATH": ""}).start()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.gog = Path(tmp.name) / "gog"
+        self.gog.write_text("#!/bin/sh\nexit 9\n")
+        self.gog.chmod(0o755)
 
     def test_gog_path_is_presence_only_and_preserves_registration_states(self):
-        with patch.dict("os.environ", {"GOG_PATH": "/fixture/gog"}), patch("subprocess.run") as run:
+        with patch.dict("os.environ", {"GOG_PATH": str(self.gog)}), patch("subprocess.run") as run:
             for verdict in (False, None, True):
                 with self.subTest(verdict=verdict):
                     rows = {r["id"]: r for r in discover([
@@ -52,10 +57,17 @@ class DiscoveryTests(unittest.TestCase):
         lookup.assert_called_once_with("gog")
         with patch("shutil.which", side_effect=lookup):
             self.assertEqual(discover([])["capabilities"], list(rows.values()))
-        with patch.dict("os.environ", {"GOG_PATH": "/configured/gog"}):
+        with patch.dict("os.environ", {"GOG_PATH": str(self.gog)}):
             lookup.reset_mock()
             discover([], which=lookup)
             lookup.assert_not_called()
+        missing = Mock(return_value=None)
+        for stale in (str(self.gog.parent / "missing-gog"), str(self.gog.parent)):
+            with self.subTest(stale=stale), patch.dict("os.environ", {"GOG_PATH": stale}):
+                stale_rows = {r["id"]: r for r in discover([], which=missing)["capabilities"]}
+                for capability in ("calendar", "email"):
+                    self.assertNotIn("gog", stale_rows[capability]["tools"])
+                missing.assert_called_with("gog")
 
     def test_remote_browser_requires_cli_on_this_host(self):
         from unittest.mock import Mock
