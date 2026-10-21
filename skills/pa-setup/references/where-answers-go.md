@@ -143,12 +143,14 @@ Rules store intent and create no jobs. Read automation status back, then call
 Check that the chosen suggestions actually exist; do not claim they are enabled.
 
 Tell the user: “Run `/suggestions` in Hermes to review pending automations.
-Accept daily with `/suggestions accept personal-assistant-cos-daily`, the kickoff
-with `/suggestions accept personal-assistant-cos-kickoff` and the closeout with
-`/suggestions accept personal-assistant-cos-weekly`, only for the schedules you
-chose, each in the chat or topic that should receive it.” Hermes v0.22.2 accepts an exact title or ID, or the current pending
-number (`/suggestions accept N`); re-list after each numbered acceptance because
-numbers shift. This is the CLI and gateway chat command, not a shell
+Accept only the schedules you chose, each in the chat or topic that should receive it,”
+and give each one's `accept_command` from the suggest result (`/suggestions accept <id>`).
+The ID always resolves. A title such as `personal-assistant-cos-daily` can resolve to an
+older, already-resolved record after Chief of Staff was turned off and on. A pending number
+(`/suggestions accept N`) also works; re-list after each one because numbers shift.
+For `dismissed` or `already_accepted` (accepted before, but its job is gone), say Hermes
+will not offer it again by itself; if the user wants it now, call suggest again with
+`"reoffer": true`. For `backlog_full`, follow the result's `next_step`. This is the CLI and gateway chat command, not a shell
 `hermes cron` subcommand. Acceptance creates the native job; verify Hermes's
 scheduled response and jobs list. Five-minute prechecks use the saved daily,
 kickoff or closeout slot, quiet hours, pause and snooze, with one report per local

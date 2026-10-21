@@ -97,7 +97,7 @@ def _install_precheck(ledger, kind):
     return str(target)
 
 
-def prepare_suggestions(ledger, *, native=False, get_config=None):
+def prepare_suggestions(ledger, *, native=False, get_config=None, reoffer=False):
     prefs = preferences(ledger)
     result = auto.suggest_automation_jobs(ledger=ledger, timezone=prefs.get("timezone"),
                                           chief_of_staff=cos_enabled(get_config or config_getter(ledger.root)))
@@ -142,29 +142,53 @@ def prepare_suggestions(ledger, *, native=False, get_config=None):
                 continue
             ref = "pa:suggestion:" + job["kind"]
             generation = (ledger.get("action", ref) or {}).get("fields", {}).get("generation", 0)
-            dedup_key = "personal-assistant:" + job["kind"] + (":g" + str(generation) if generation else "")
             description = "Optional PA routine; accepting enables it. Briefs use your configured local time."
             if job["kind"] in {"daily_brief", "cos_daily"}:  # Weekly kinds have their own catch-up limits.
                 description += " If today's slot has already passed, the first run comes within minutes of accepting."
-            item = add_suggestion(title=job["name"], description=description, source="integration", job_spec=job["job_spec"], dedup_key=dedup_key)
-            if item:
-                job["suggestion"] = "suggested"
-                # Ledger.put merges fields, preserving the generation set by stop_cos.
-                ledger.put("action", ref, {"suggestion_id": item["id"]}, action_type="automation_reference", status="suggested")
-            else:
+
+            def add(generation):
+                dedup_key = "personal-assistant:" + job["kind"] + (":g" + str(generation) if generation else "")
+                return dedup_key, add_suggestion(title=job["name"], description=description, source="integration",
+                                                 job_spec=job["job_spec"], dedup_key=dedup_key)
+
+            dedup_key, item = add(generation)
+            prior = None
+            if not item:
                 from cron.suggestions import load_suggestions  # Only needed to explain a skipped add.
                 saved = load_suggestions()
                 prior = next((s for s in saved if s.get("dedup_key") == dedup_key
                               and s.get("status") in {"pending", "accepted", "dismissed"}), None)
-                if prior:
-                    job["suggestion"] = {"pending": "already_pending", "accepted": "already_accepted",
-                                         "dismissed": "dismissed"}[prior["status"]]
-                elif sum(s.get("status") == "pending" for s in saved) >= MAX_PENDING:
-                    job["suggestion"] = "backlog_full"
+                if prior and prior["status"] != "pending" and reoffer:
+                    # The user asked again for a routine Hermes will not re-offer under its old key.
+                    dedup_key, item = add(generation + 1)
+                    if item:
+                        generation += 1
+                    else:
+                        saved, prior = load_suggestions(), None
+            if item:
+                job["suggestion"] = "suggested"
+                job["accept_command"] = "/suggestions accept " + item["id"]
+                # Ledger.put merges fields, preserving the generation set by stop_cos.
+                ledger.put("action", ref, {"suggestion_id": item["id"], **({"generation": generation} if generation else {})},
+                           action_type="automation_reference", status="suggested")
+            elif prior:
+                job["suggestion"] = {"pending": "already_pending", "accepted": "already_accepted",
+                                     "dismissed": "dismissed"}[prior["status"]]
+                if prior["status"] == "pending":
+                    job["accept_command"] = "/suggestions accept " + prior["id"]
+            elif sum(s.get("status") == "pending" for s in saved) >= MAX_PENDING:
+                job["suggestion"] = "backlog_full"
+        steps = []
         dropped = sum(job.get("suggestion") == "backlog_full" for job in result["jobs"])
         if dropped:
-            result["next_step"] = (f"Hermes keeps at most {MAX_PENDING} pending suggestions and dropped {dropped}. "
-                                   "Ask the user to review /suggestions (accept or dismiss older ones), then run suggest again.")
+            steps.append(f"Hermes keeps at most {MAX_PENDING} pending suggestions and dropped {dropped}. "
+                         "Ask the user to review /suggestions (accept or dismiss older ones), then run suggest again.")
+        resolved = [job["name"] for job in result["jobs"] if job.get("suggestion") in {"already_accepted", "dismissed"}]
+        if resolved:
+            steps.append("Hermes will not offer " + ", ".join(resolved) + " again by itself (dismissed, or accepted "
+                         "before and the job is gone). If the user says they want it now, run suggest again with reoffer true.")
+        if steps:
+            result["next_step"] = " ".join(steps)
     return result
 
 

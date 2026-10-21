@@ -120,6 +120,52 @@ def test_stop_cos_generations_reoffer_without_losing_refs(tmp_path, monkeypatch,
         assert prepare_suggestions(ledger, native=True)["jobs"][0]["suggestion"] == "already_pending"
 
 
+def test_suggest_gives_id_accept_commands_and_reoffers_only_on_request(tmp_path, monkeypatch):
+    from personal_assistant.automation_workflow import dispatch
+    ledger = ledger_at(tmp_path)
+    for kind in COS[1:]:
+        rule(ledger, kind)
+    native(monkeypatch, tmp_path, suggestions=[
+        {"id": "daily-old", "dedup_key": "personal-assistant:cos_daily", "status": "accepted"},
+        {"id": "kickoff-old", "dedup_key": "personal-assistant:cos_kickoff", "status": "dismissed"},
+        {"id": "weekly-old", "dedup_key": "personal-assistant:cos_weekly", "status": "pending"}])
+    first = prepare_suggestions(ledger, native=True)
+    by_kind = {j["kind"]: j for j in first["jobs"]}
+    assert {k: j["suggestion"] for k, j in by_kind.items()} == {
+        "cos_daily": "already_accepted", "cos_kickoff": "dismissed", "cos_weekly": "already_pending"}
+    assert by_kind["cos_weekly"]["accept_command"] == "/suggestions accept weekly-old"
+    assert "accept_command" not in by_kind["cos_daily"] and "accept_command" not in by_kind["cos_kickoff"]
+    assert "personal-assistant-cos-daily, personal-assistant-cos-kickoff" in first["next_step"]
+    assert "reoffer true" in first["next_step"]
+    assert not any("generation" in r["fields"] for r in ledger.list("action"))
+
+    again = dispatch(ledger, {"action": "suggest", "native": True, "reoffer": True})
+    by_kind = {j["kind"]: j for j in again["jobs"]}
+    assert {k: (j["suggestion"], j.get("accept_command")) for k, j in by_kind.items()} == {
+        "cos_daily": ("suggested", "/suggestions accept personal-assistant:cos_daily:g1"),
+        "cos_kickoff": ("suggested", "/suggestions accept personal-assistant:cos_kickoff:g1"),
+        "cos_weekly": ("already_pending", "/suggestions accept weekly-old")}
+    assert "next_step" not in again
+    for kind in ("cos_daily", "cos_kickoff"):
+        assert ledger.get("action", "pa:suggestion:" + kind)["fields"] == {
+            "generation": 1, "suggestion_id": f"personal-assistant:{kind}:g1"}
+
+    later = {j["kind"]: j for j in prepare_suggestions(ledger, native=True)["jobs"]}
+    assert later["cos_daily"]["suggestion"] == "already_pending"
+    assert later["cos_daily"]["accept_command"] == "/suggestions accept personal-assistant:cos_daily:g1"
+
+
+def test_reoffer_into_a_full_backlog_reports_it_and_keeps_the_generation(tmp_path, monkeypatch):
+    ledger = ledger_at(tmp_path)
+    native(monkeypatch, tmp_path, suggestions=[
+        {"id": "daily-old", "dedup_key": "personal-assistant:cos_daily", "status": "dismissed"},
+        *({"id": f"other-{n}", "dedup_key": f"other-{n}", "status": "pending"} for n in range(5))])
+    result = prepare_suggestions(ledger, native=True, reoffer=True)
+    assert [j["suggestion"] for j in result["jobs"]] == ["backlog_full"]
+    assert "dropped 1" in result["next_step"]
+    assert ledger.get("action", "pa:suggestion:cos_daily") is None
+
+
 def test_cos_accept_text_explains_first_run(tmp_path, monkeypatch):
     ledger = ledger_at(tmp_path)
     for kind in COS[1:]:
@@ -618,4 +664,4 @@ def test_setup_guides_hand_made_kickoff_and_closeout_jobs():
     assert "keep it" in text and "do not create the matching PA rule" in text
     assert "replace it" in text and "removes the hand-made job in Hermes before accepting" in text
     assert "Never remove a hand-made job yourself" in text
-    assert "/suggestions accept personal-assistant-cos-kickoff" in text
+    assert "accept_command" in text and "/suggestions accept <id>" in text
