@@ -129,7 +129,7 @@ def prepare_suggestions(ledger, *, native=False, get_config=None):
     if native:
         native_profile_guard(ledger)
         from cron.jobs import list_jobs
-        from cron.suggestions import add_suggestion, load_suggestions
+        from cron.suggestions import add_suggestion
         try:
             from cron.suggestions import MAX_PENDING
         except ImportError:
@@ -152,6 +152,7 @@ def prepare_suggestions(ledger, *, native=False, get_config=None):
                 # Ledger.put merges fields, preserving the generation set by stop_cos.
                 ledger.put("action", ref, {"suggestion_id": item["id"]}, action_type="automation_reference", status="suggested")
             else:
+                from cron.suggestions import load_suggestions  # Only needed to explain a skipped add.
                 saved = load_suggestions()
                 prior = next((s for s in saved if s.get("dedup_key") == dedup_key
                               and s.get("status") in {"pending", "accepted", "dismissed"}), None)
