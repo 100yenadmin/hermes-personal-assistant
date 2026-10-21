@@ -113,11 +113,9 @@ Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow i
    hashes; never compute or invent them. On a failed readback, fix the write and call
    again; with no file targets use `readbacks: []`. Keep failures and pending writes
    visible. Verify preference/job changes through their own status operations.
-8. Core only (a CoS setup skips 8–9 and follows its question-bank flow). Ask the user to send `/new`
-   and then any message; never suggest `/pa setup` here, which reopens setup instead of
-   running the check. Then ask, for example,
-   “When would you check in before my next flight?” Do not arm a wake yet:
-   `/new` can orphan existing HB2 wakes.
+8. Core only (a CoS setup skips 8–9 and follows its question-bank flow). Ask for `/new` and then any message
+   (never `/pa setup`, which reopens setup), then ask, for example, “When would you check in
+   before my next flight?” Do not arm a wake yet: `/new` can orphan existing HB2 wakes.
 9. Complete the fresh-session check below, then load
    `personal-assistant:trip-concierge` to arm the first agreed trip/day check-in.
    Reuse the selected publisher; pass the agreed lead as `check_in_lead_minutes`
@@ -142,7 +140,7 @@ rule (move a quiet-hours candidate to the evening before); otherwise give the
 relative rule and say trip timing is unknown. Confirm the saved files hold the
 approved facts; repeating interview text is not proof. Call `fresh_check` with
 `status: "passed"` when the answer correctly uses a saved preference; otherwise
-`"failed"`: show the gap, offer a reviewed fix, then repeat `/new` (and any message) and the check.
+`"failed"`: show the gap, offer a reviewed fix, then repeat `/new` and the check.
 Do not arm the first check-in until the check passes.
 
 ## Existing users
