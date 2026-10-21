@@ -799,3 +799,12 @@ def test_legacy_back_moves_the_page_state():
             {"name": "browser_back", "args": {}, "result": json.dumps({"success": True, "url": other})},
             {"name": "browser_snapshot", "args": {}, "result": json.dumps({"snapshot": "S$12.50"})}]
     assert not evaluate(rows=rows)["checks"]["cited_and_seen"]
+
+
+def test_research_skill_is_routed_and_matches_the_checks():
+    root = Path(__file__).resolve().parents[1] / "skills"
+    text = (root / "research/SKILL.md").read_text()
+    assert "Load `personal-assistant:research` for comparison" in (root / "personal-assistant/SKILL.md").read_text()
+    assert text.index("**Question**") < text.index("**Criteria**") < text.index("**Recommendation**") < text.index("**Comparison**")
+    assert "one row per option" in text and "`[n] title, URL, read YYYY-MM-DD`" in text
+    assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text

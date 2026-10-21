@@ -84,6 +84,7 @@ Use `pa(operation="profile", data={"action":"list"})` alongside saved owner file
 `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
 `trip_offer` checks and records offer outcomes; load `personal-assistant:trip-concierge`.
 Route CoS requests to `personal-assistant:cos-daily`, `personal-assistant:cos-kickoff`, `personal-assistant:cos-weekly`, `personal-assistant:cos-scout` or `personal-assistant:cos-radar` only when Chief of Staff mode is on; otherwise explain `/pa mode chief-of-staff on`.
+Load `personal-assistant:research` for comparison, price or which-to-use questions.
 
 For account-agnostic management loops, use `event_upsert`, `projection_claim`,
 `projection_result`, `reconcile`, and `freshness`. Domain adapters own reduction
