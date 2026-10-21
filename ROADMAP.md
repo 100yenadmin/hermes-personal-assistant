@@ -50,7 +50,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2, M3 |
 | Research | partial: adopt-or-build research only | M2 |
 | Travel | partial: prep up to the final page, nothing completed | M0 (real trip), M5 (completion) |
-| Personal life admin | partial: no renewal or birthday radar | M3 |
+| Personal life admin | partial: no renewal or birthday radar | M3 (radar), M6 (the rest) |
 | Follow-up, reporting, escalation | missing or partial | M3 |
 | Inbox | missing | M4 |
 | Calendar | partial: reads and conflict checks | M4 |
@@ -121,7 +121,8 @@ avoids rebuilding every later workflow.
   - Decision rights and spending limits per category.
   - A written list of what the agent may access.
   - A trust level per task type: shadow, then own, then independent.
-  - A day-30 review in the weekly closeout.
+  - A day-30 review with the owner. It runs in the weekly closeout when Chief of
+    Staff mode is on, and in the daily brief otherwise.
 - **Availability.** Working hours, response expectations, an away handoff and
   the emergency route are recorded and used in reporting and escalation.
 
@@ -143,7 +144,9 @@ avoids rebuilding every later workflow.
 unit-test level.
 
 **Scope.**
-- **Lab fixtures.** The Capability Lab gets one seeded fixture per VA bar area:
+- **Lab fixtures.** The Capability Lab gets one seeded fixture for each of the 12
+  VA task areas. Onboarding, preference learning and the working norms are
+  checked inside these scenarios and by the M1 and M3 tests. The fixtures:
   - a 40-email inbox;
   - a calendar week;
   - a Singapore trip;
@@ -258,7 +261,8 @@ needs both.
 **Exit.**
 - The inbox and calendar fixtures pass 3 of 3.
 - On the pilot agent, after the owner's yes, three things happen live: a triage
-  digest is delivered, an in-voice draft is sent, and an invite is sent.
+  digest is delivered, an owner-approved draft in the owner's voice is sent, and
+  an invite is sent.
 
 ### M5: Finishes the job: transactions, calls and vendors (target 0.13.0)
 
@@ -309,6 +313,8 @@ needs both.
     reconciliation and income and expense summaries, and the accountant's tax
     pack.
   - Routine customer and content reporting.
+  - Personal life admin beyond the radar: gift shortlists, family logistics,
+    health appointments, household vendors and a yearly personal calendar.
 
   The working norms are checked during these tasks. A passing sample fixture
   does not close duties it never exercised.
@@ -358,10 +364,10 @@ M7 claims neither full VA parity nor Chief of Staff parity.
 
 **Exit.**
 - The delegation and decision-log fixtures pass.
-- Two consenting owners with teams each receive six scheduled Chief of Staff
-  reports within two weeks (#7). Justified silence counts as a report.
-- Each owner uses at least one recommendation and explicitly chooses to
-  continue. Delivery alone does not pass this exit.
+- Two consenting owners with teams each have six scheduled Chief of Staff runs
+  within two weeks (#7). A justified silence counts as a run, but each owner
+  must still receive reports, use at least one recommendation, and explicitly
+  choose to continue. Scheduled runs alone do not pass this exit.
 
 ### M8: Chief of Staff operating system (target 1.2.0)
 
@@ -409,8 +415,8 @@ M7 claims neither full VA parity nor Chief of Staff parity.
 - Every Chief of Staff bar area meets all four parity conditions in VISION.md,
   with at least two business owners and their teams, including the lab checks
   and each owner's day-30 review.
-- The observation window stretches to take in infrequent duties. Until they are
-  observed, those areas stay unproven.
+- The observation window is at least 13 weeks, so every monthly and quarterly
+  duty happens at least once. A duty not yet observed leaves its area unproven.
 
 ## Why this order
 

@@ -40,7 +40,7 @@ first).
 
 | Stage | The job | Where PA stands (0.8.0-rc.3) |
 |---|---|---|
-| 1. Personal assistant | The owner's travel, errands, bookings and personal admin | **Strongest area.** Trip intake, concierge offers, booking prep up to the final page on real sites. No transaction has been completed end to end yet. |
+| 1. Personal assistant | The owner's travel, errands, bookings and personal admin | **Strongest area.** Trip intake, concierge offers, booking prep up to the final page on real sites. No transaction has been completed end-to-end yet. |
 | 2. Remote VA / executive assistant | The owner's office: inbox, calendar, follow-through, documents, finance admin, vendors, calls | **Partial.** Calendar reads and daily briefs work on the live pilot. The safe-action gateway has unit tests and its native hook loads, but no real provider action has gone through it yet. Inbox management, chasing open loops and office work are missing. |
 | 3. Remote Chief of Staff | The owner's business and teams | **Single-owner rhythm only:** daily recommendation, weekly kickoff and closeout, scout, radar. No team model. |
 
@@ -80,13 +80,17 @@ future task succeeds.
      - the agreed outcome and due date;
      - whether the owner accepted it;
      - any correction the owner had to make.
-   - At least 90% of tasks must meet the area's pass rule by the agreed date.
+   - At least 90% of tasks must meet the area's pass rule by the agreed date,
+     and the owner must accept them. A task the owner had to correct materially
+     counts as a fail.
    - A pending task never counts as a pass.
    - An area without enough tasks stays unproven.
-3. **Facts.** Across every scored lab and live task, there are zero wrong names,
-   dates, time zones, amounts or confirmation numbers on money-facing or
-   customer-facing items. Each check records the source used. One such error
-   fails parity, whatever the overall pass rate.
+3. **Facts.** Across every scored lab and live task in the declared parity cohort
+   and release candidate, there are zero wrong names, dates, time zones, amounts
+   or confirmation numbers on money-facing or customer-facing items. Each check
+   records the source used. One such error fails parity, whatever the overall
+   pass rate. Errors from earlier cohorts stay on record but do not block a new
+   cohort.
 4. **Day-30 review, once per owner.**
    - Compare the owner's time on the delegated work, including review and
      correction, in two weeks: a baseline week recorded at onboarding, and the
@@ -100,8 +104,8 @@ means the same outcomes inside it, and the safety line is part of every pass
 rule.
 
 Chief of Staff parity uses the same four conditions against the Chief of Staff
-bar, with business owners and their teams. Its observation window stretches to
-take in real monthly and quarterly work.
+bar, with business owners and their teams. Its observation window is at least
+13 weeks, so every monthly and quarterly duty happens at least once.
 
 ## The safety line never moves
 
@@ -170,7 +174,7 @@ proven, and covers only internal nudges and task writes.
 8. **Prove it on real work.** A capability counts only at the proof level it has
    actually reached:
    - unit test;
-   - local end to end;
+   - local end-to-end;
    - live web, stopped before submit;
    - live pilot;
    - customer ready, which needs real owners with measured pass rates.
