@@ -110,7 +110,8 @@ def start(ledger, section=None, *, active_platform=None, active_sender_id=None, 
     prior = state(ledger)
     if prior["status"] == "proposed" and section is not None and section != prior["requested_section"]:
         raise ValueError("A setup review is waiting: apply or change it before starting another section.")
-    if section == "profile" and prior["current_group"] is None:  # Matches the /pa setup grill guard; review uses request().
+    if section == "profile" and prior["current_group"] is None and prior["status"] != "proposed":
+        # Matches the /pa setup grill guard; review uses request(); a waiting last-group review still gets applied.
         raise ValueError("Your profile is complete. Use /pa setup review to change an answer.")
     # Only the hook passes a binding; the skill's plain start keeps the chat it is in.
     binding = ({"active_platform": active_platform, "active_sender_id": active_sender_id, "active_chat": active_chat}

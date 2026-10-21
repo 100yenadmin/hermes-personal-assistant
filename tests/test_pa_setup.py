@@ -178,6 +178,13 @@ def test_start_profile_on_complete_profile_raises_without_change(tmp_path):
     assert setup.state(ledger) == prior
     assert setup.request(ledger, None)["requested_mode"] == "review"  # /pa setup review still opens the review.
 
+
+def test_start_profile_keeps_a_waiting_last_group_review(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.record(ledger, skipped=list(setup.PROFILE_QUESTIONS))
+    setup._save(ledger, "proposed", requested_section="profile")  # The last group's review awaits apply.
+    assert setup.start(ledger, "profile")["status"] == "proposed"
+
 @pytest.fixture
 def setup_files(tmp_path):
     paths = {"user_memory": tmp_path / "memories/USER.md", "soul_section": tmp_path / "SOUL.md",
