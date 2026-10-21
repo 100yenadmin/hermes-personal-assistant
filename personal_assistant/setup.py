@@ -100,8 +100,13 @@ def start(ledger, section=None, *, active_platform=None, active_sender_id=None, 
     # Only the hook passes a binding; the skill's plain start keeps the chat it is in.
     binding = ({"active_platform": active_platform, "active_sender_id": active_sender_id, "active_chat": active_chat}
                if active_platform is not None else {})
+    if not binding and section is not None and prior["status"] not in {"requested", "in_progress", "proposed"}:
+        # A new interview started from chat (e.g. "grill me" after setup finished) must not stay bound to the
+        # older setup's chat; the hook binds the next human turn. An active setup keeps its binding (#32).
+        binding = {"active_platform": None, "active_sender_id": None, "active_chat": None}
+    extra = {"requested_mode": None} if section is not None else {}  # An explicit section is an interview, not a review.
     return _save(ledger, prior["status"] if prior["status"] == "proposed" else "in_progress",
-                 requested_section=prior["requested_section"] if section is None else section, **binding)
+                 requested_section=prior["requested_section"] if section is None else section, **binding, **extra)
 
 
 def record(ledger, answers=None, skipped=None, asked=None, consent=None):

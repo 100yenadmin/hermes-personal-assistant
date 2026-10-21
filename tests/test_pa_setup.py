@@ -915,3 +915,23 @@ def test_pa_setup_reserves_the_chat_it_is_said_in(tmp_path, monkeypatch):
     other = make_pre_llm_call(fresh, COS_ON)
     assert _chat_turn(monkeypatch, other, "-200", is_first_turn=True) == {"context": ELSEWHERE}
     assert "Guided setup is active" in _chat_turn(monkeypatch, other, "7")["context"]
+
+
+def test_chat_started_profile_rebinds_to_the_next_human_turn(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.start(ledger, "core", active_platform="telegram", active_sender_id="fixture-owner", active_chat="telegram:old-topic")
+    setup.pause(ledger)  # The earlier setup is no longer active (paused, applied or checked).
+    current = setup.start(ledger, "profile")  # "grill me" from another chat: the skill's start, no binding.
+    assert current["requested_section"] == "profile"
+    assert (current["active_platform"], current["active_sender_id"], current["active_chat"]) == (None, None, None)
+    setup.start(ledger, active_platform="telegram", active_sender_id="fixture-owner", active_chat="telegram:new-topic")
+    kept = setup.start(ledger, "profile")  # Same section, still active: the new binding stays.
+    assert kept["active_chat"] == "telegram:new-topic"
+
+
+def test_explicit_section_start_leaves_review_mode(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, None)
+    assert setup.state(ledger)["requested_mode"] == "review"
+    current = setup.start(ledger, "profile")
+    assert current["requested_mode"] is None and current["next_question"] == "biz_what"
