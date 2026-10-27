@@ -57,6 +57,8 @@ liking a recommendation is not permission to transact.
    local blogs or public no-login social posts. Quote currency and basis (per
    person, set, portion, buffet), menu/publication date, tax/service/deposit
    terms and any uncertainty. Do not convert ¥¥ or ₩ into a numeric budget.
+   A page's new publication/update date does not refresh an explicitly older
+   menu/photo inside it; retain the older evidence date beside the claim.
    Derive a per-person estimate only from sourced item prices and explicit
    party/order assumptions; show the arithmetic. Seek 2–3 actual venue/dish/menu
    photos per option, linking each original image and source page. Label each

@@ -1,6 +1,6 @@
 ---
 name: restaurant-reservations
-description: Use to find restaurants and submit reservations after final confirmation, including party size, time, venue policy, deposits, no-show fees, special requests, messages, or calls.
+description: Use when booking a chosen restaurant. Prepare party size, time, venue policy, deposits, no-show fees, special requests, messages or calls, then stop for final confirmation.
 metadata:
   openclaw:
     skillKey: restaurant-reservations
@@ -33,7 +33,8 @@ Use `phone-calls` when a phone call is needed.
 1. Identify location, date/time, party size, cuisine, budget, accessibility, and calendar constraints.
 2. If no venue is selected, use `personal-assistant:restaurant-discovery`; once
    selected, verify that exact branch on the reservation platform or venue site.
-3. Compare at least three options when practical.
+3. Reuse the discovery comparison; do not substitute another branch or venue
+   for the user's choice without asking.
    Quote a price, price range, fee or deposit only as a page or tool result you saw shows it for that restaurant (a cart or checkout counts), with its currency and basis such as per person. Report a symbol tier such as $$$ as a tier, never as an amount; call a missing amount unknown.
 4. Prepare the selected reservation with party size, seating, special requests, and contact details.
 5. Use saved reservation credentials, Browserbase, persistent browser profile, and Live Browser fallback to work through login/CAPTCHA/provider friction.
