@@ -36,7 +36,7 @@ Tian Mimi's closing/last-order conflict remains visible, so it stays outside the
 
 **My pick: 청기와타운 영등포본점**, a Korean barbecue dinner at the exact branch listed in **Blue Ribbon's Seoul 2026 selection**. That's my taste judgment, not a claim about an unknown owner preference.[23]
 
-Compared for **Tuesday 2026-10-27, 18:30 Asia/Seoul**. Seoul-wide comparison because your stay/district is unknown; I have not invented travel times. I have **one pick and one supported alternative**; a third researched venue stays below under **unverified leads** because its closing time conflicts.
+Compared for **Tuesday 2026-10-27, 18:30 Asia/Seoul**. Seoul-wide comparison because your stay/district is unknown; I have not invented travel times. I have **one pick and one supported alternative**; a third researched venue stays below under **unverified leads** because its closing time conflicts.[24][33][36]
 
 ### Pick — 청기와타운 영등포본점 / Blue Roof Town, Yeongdeungpo main branch[23][26]
 

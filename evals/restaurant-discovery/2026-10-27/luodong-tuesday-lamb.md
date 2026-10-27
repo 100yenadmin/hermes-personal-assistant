@@ -52,7 +52,9 @@ Khan's exposed native `pa` schema omits `operation="profile"`, so this is **not*
 
 **My pick is 正老林羊肉爐 羅東店:** the lamb buffet is the closest match to your saved lamb preference; the article lists lamb ribs, big bones and tendons.[1][55]
 
-I applied your saved **lamb preference** and your saved request for **photos, menu prices and what to order**. The links below have dated provenance, but not all are recent, and none is visually inspected; that part of the preference is not fully met.[55]
+I applied your saved **lamb preference** and your saved request for **photos, menu prices and what to order**.[55]
+
+The photo links below have dated article provenance, but some are historical; the **recent-photo** part of the preference is not fully met.[1][9][5] Images were not visually inspected in this run; the [photo provenance record](photos.json) and each link label retain that limitation.
 
 I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel distance, budget and recent meals are unknown, so I have not invented a walking time or a reason to avoid another night market.
 
