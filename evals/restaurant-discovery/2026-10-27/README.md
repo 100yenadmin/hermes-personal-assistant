@@ -1,115 +1,127 @@
 # Restaurant discovery — live author evals, 2026-10-27
 
-Related: [PA #71](https://github.com/100yenadmin/hermes-personal-assistant/issues/71).
+Related: [PA #71](https://github.com/100yenadmin/hermes-personal-assistant/issues/71)
+and draft [PR #72](https://github.com/100yenadmin/hermes-personal-assistant/pull/72).
 
-## What was exercised
+## Outputs and current self-grades
 
-The repository's `restaurant-discovery` skill was applied by Khan against the
-real public web, read-only, using synthetic requests. The three outputs include
-condensed decisive tool transcripts, native-language queries, source excerpts,
-final user-facing responses and criterion-by-criterion author self-grades:
+These are real public-web, read-only **author-executed** evaluations, not mocked
+search/provider responses, fresh independent-agent benchmarks or bookings.
+Each output retains its initial decisive transcript and recovery boundary,
+then records the round-2 corrections, final response and per-criterion grade.
+The exact reviewed revision is the PR head recorded in the Kanban handoff;
+older skill SHAs in the run contracts identify the earlier retrieval phases.
 
-| Case | Transcript, output and self-grade | Specific #71 live acceptance | Wider quality grade |
+| Case | Transcript, output and self-grade | Specific #71 behaviour | Remaining quality gaps |
 | --- | --- | --- | --- |
-| Luodong Tuesday dinner, “I love lamb” | [luodong-tuesday-lamb.md](luodong-tuesday-lamb.md) | Lamb-led picks; Tuesday-closed venue excluded; dated image links and numeric dated menu reference | PARTIAL: current prices, recent-review sample and visual inspection incomplete |
-| Osaka Namba, Bib Gourmand | [osaka-namba-bib.md](osaka-namba-bib.md) | Own-site Michelin category evidence and direct Guide links | PARTIAL: geography explicitly widened; some historical menu/photos and incomplete reviews |
-| Seoul via local platforms | [seoul-local-platforms.md](seoul-local-platforms.md) | Korean queries, Blue Ribbon, Naver Place and Naver Blog, not English-only | PARTIAL: only one supported alternative; third venue quarantined for hours conflict; current-price/review gaps |
+| Luodong Tuesday, “I love lamb” | [luodong-tuesday-lamb.md](luodong-tuesday-lamb.md) | Lamb-led shortlist, actual-day scheduled hours and Tuesday exclusion, dated menu/price and viewed food/menu photos | PARTIAL: historical prices/photos, insufficient recent-review sample; scoped backend preference read is not native `pa profile` proof |
+| Osaka Namba, Bib Gourmand | [osaka-namba-bib.md](osaka-namba-bib.md) | Own-site Michelin links; all 59 official category entries checked for address/area; Minato surfaced as in-area hours conflict before retaining wider cards | PARTIAL: no verified core dinner pick; explicit Shinsaibashi/Shimmachi/Tanimachi expansion, dated menu/photo and review gaps |
+| Seoul via local platforms | [seoul-local-platforms.md](seoul-local-platforms.md) | Korean queries, Blue Ribbon/Naver evidence and viewed grill/soup/menu photos | PARTIAL: only one supported alternative, third venue quarantined for hours conflict; price/recency gaps |
 
-This demonstrates the three **locale-specific** live acceptance behaviours. It
-does **not** establish that every wider proposal goal is fully satisfied. The
-individual factual claims and declared gaps, not this summary table, are the
-review target. A non-author may disagree with these self-grades.
+The locale-specific behaviours are demonstrated; the broader quality grades
+remain **PARTIAL**, not a claim that every proposal goal is fully satisfied.
+Author self-grades, passing static checks and independent acceptance are distinct.
 
-## Provenance and interruption boundary
+## Round-1 review and corrections
 
-The initial task run was interrupted before publication. Its local skill commits,
-authored drafts, citation ledger and real public HTTP/browser records were
-recovered in the same task. Key load-bearing sources were opened again in the
-recovery run; each output has a **Recovery readback** section. The missing exact
-李家莊 Google Maps hours record was freshly retrieved, with browser timestamp.
-The two unpublished implementation commits were reauthored to Khan to correct
-inherited local Git identity before any push. Each case names the candidate
-skill revision. The final review must bind the PR's exact head, not just that
-skill-only revision.
+Eva's separate non-author review requested changes at
+`a82298c15aaf8199f82190aaa59c8cf67f6aac9f`: account for the missed Minato and inspect
+actual photos, replacing the foreground pork/beef freezer and Morimoto staircase.
 
-These are **author-executed live tool evaluations**, not fresh independent-agent
-benchmarks, raw full-session exports or successful provider transactions. Query
-rows are grouped by locale, not an invented globally ordered transcript; the
-public HTTP index retains its actual recorded access timestamps. Recovery did
-not silently rerun all earlier queries or manufacture responses for blocked
-pages. Full HTML and isolated browser state stay outside source control.
+- The skill now requires every category-list entry's address/area across
+  pagination **before widening**, with each in-area match retained as a pick,
+  exclusion or unverified lead. It must disclose an incomplete sweep.
+- [osaka-area-audit.md](osaka-area-audit.md) / [JSON](osaka-area-audit.json)
+  enumerate all **59 unique entries** from the **48 + 11** official-list pages.
+  Each has an opened Michelin address excerpt and explicit disposition. The
+  scope is a declared locality judgment, not an invented numeric radius; all
+  twelve conservatively flagged fringes remain visible. Minato is **not a
+  dinner pick**: Michelin/mobile Tabelog lunch-only conflicts with desktop
+  Tabelog dinner hours. The raw source spelling of addresses is retained.
+- Source clocks in that audit mark collection start, not per-request access
+  times. Direct list GETs returned empty 202; public `web_extract` supplied the
+  actual list/venue evidence. Failed locale/slugs and remaining gaps are retained.
 
-## Reviewable evidence files
+## Operator-bounded photo procedure and actual proof
 
-- [sources.json](sources.json): shared citation ID → retrieved URL ledger. Each
-  output's Sources block was rendered mechanically from this ledger, restricted
-  to its cited IDs. Citation-map verification passes for all three; the helper
-  warns about unused IDs because the ledger also covers the other cases. This
-  does not validate semantic truth or evidence freshness.
-- [photos.json](photos.json): the 18 original image URLs, original page,
-  publication date, credit and source ID, grouped by the nine researched venues.
-  All captions state **capture date unknown / not visually inspected**; article
-  date is not passed off as camera date. Historical/possibly older evidence is
-  labelled. No image bytes are rehosted or generated.
+The skill now explicitly requires: **finalists only**, pre-filter from source
+article position/dish/menu text, alt text and filenames; **at most 3 candidates
+per finalist / about 9 per response**; stop at **2 good photos**. Skip logos,
+maps, staircases and storefront-only images unless the venue is the point.
+Use **one batched** cheap/fast image helper where the existing authorized lane
+supports it, returning only short visible-content captions and keep/reject.
+No images to the main session; same cap inline if delegation is unavailable.
+Nothing passes → **“no verified dish photo”**, not an unchecked illustration.
+
+[photo-inspection.json](photo-inspection.json) records the actual final pass:
+**one helper call, 16 candidates for eight supported finalists**: 6 Taiwan,
+6 Japan, 4 Korea. Each finalist had two pre-filtered candidates, both kept;
+no additional gallery was opened and no unverified lead was included in that
+pass. Only captions/decisions returned to the main session. The current
+`delegate_task` schema has no per-call model selector, so the existing authorized
+image-input model was used; a cheaper/faster route is **not proven** and no
+runtime/provider/config change or silent paid fallback was made.
+
+An earlier **120-panel broad author sweep preceded that operator steering and
+exceeded the later cap**. It informed the final pre-filter. The bounded pass is
+therefore a recheck, not a fresh blind experiment or evidence that the whole
+session respected the later cap. That history is disclosed, not erased.
+
+[photos.json](photos.json) now holds **16 selected original image links**, two
+per supported finalist, with literal visible-content captions, source/publication
+date, credit, selected ID and image SHA-256. Capture dates remain unknown.
+Fourteen links matched source image tags beside article text; two Polle links
+come from the recovered post photo array, not a claimed current static image-tag
+match. Images were viewed as labelled contact-sheet previews, not separately
+enlarged originals. No image bytes are committed or rehosted.
+
+Morimoto's pair shows whole-serving/detail views of the same fried-rice serving;
+it is not two independent dishes or a photograph of the chicken/noodle order.
+Oribe's seasonal plated dishes are not promised to be the exact price-example
+order. The Korean table-order screen is not today's bowl quote. Photos of the
+unverified Tian Mimi lead are omitted from the final response rather than
+spending finalist inspection budget on it. Historical imagery stays labelled.
+
+## Preserved earlier evidence and privacy boundaries
+
+- [sources.json](sources.json): shared retrieval URL → citation ledger. Each
+  Sources block is mechanically rendered. Per-case unused-ID warnings are
+  expected; citation-map integrity is not semantic truth/freshness proof.
 - [photo-probes.json](photo-probes.json) and
-  [photo-curl-fallback.json](photo-curl-fallback.json): real image GET results.
-  Sixteen succeeded in the initial probe; two Ayamedo image requests failed
-  Python TLS verification, then succeeded with the system-TLS `curl` fallback.
-  TLS verification was not disabled. Serving an image proves neither its content
-  nor its date; those remain source-provenance claims with explicit limits.
+  [photo-curl-fallback.json](photo-curl-fallback.json): **earlier 18-link** HTTP
+  probes, not the current 16-photo selection or visual proof. Two old Ayamedo
+  Python TLS failures succeeded via system-TLS curl; TLS was not disabled.
+- [hours-evidence.json](hours-evidence.json): exact-branch Google Maps published
+  weekly schedules, not live seats or unpublished temporary-closure absence.
+- [public-fetches.json](public-fetches.json): bounded original public HTTP
+  metadata/failures. Full HTML, credentials, cookies and host paths are omitted.
 - [preference-read-attestation.json](preference-read-attestation.json): derivative
-  proof of the operator-authorized two-food-record read for the Luodong follow-up.
-  Both were active. Khan's installed native PA surface lacks the profile API;
-  the existing repository's `Ledger.get(read_only=True)` read only those named
-  records. This is not a native `pa` tool transcript, a fixture, a full owner
-  profile export or a runtime/config change. The follow-up prompt omits lamb;
-  the saved rule drives the renewed Chinese lamb query. Ordinary bound-native
-  profile retrieval remains to be live-tested in a supporting runtime.
-- [hours-evidence.json](hours-evidence.json): bounded exact-branch Google Maps
-  hour readbacks. Original results without embedded times say so; no invented
-  access timestamp. These prove a published weekly schedule, not temporary
-  closure absence or seat availability.
-- [public-fetches.json](public-fetches.json): bounded original HTTP metadata,
-  including request URL, timestamp, status/type/hash when present, and failures.
-  Host paths, full HTML, credentials, cookies and unrelated page text are omitted.
-  Direct 403/429/TLS failures are retained rather than claimed as successful reads.
-  A failed direct GET does not contradict a separately identified `web_extract`
-  read of public indexed text; those are different retrieval paths.
+  attestation of the operator-authorized two-food-record read. The Luodong
+  follow-up omits lamb and uses the actual in-force preference. The existing
+  `Ledger.get(read_only=True)` fallback is explicitly **not native `pa` proof**;
+  no raw owner record, private path or unrelated context is published.
 
-Public business/review sources and synthetic prompts are included, plus the
-redacted derivative attestation of the two food preferences explicitly named in
-operator steering. No raw owner profile, stay address, customer ledger,
-authenticated provider response, booking, queue entry, call, message, sign-up or
-preference write is published. Japan/Korea remain separate synthetic cases and
-do not claim the Taiwan follow-up's scoped profile personalization.
+No booking, queue entry, call, message, signup, login, preference write, runtime
+activation/configuration change, merge or release occurred. No owner stay or
+private profile export is included. Japan/Korea remain separate synthetic cases.
 
-## Local and hosted checks
+## Verification and acceptance boundary
 
-`tests/test_restaurant_discovery_skill.py` covers packaging, both entry routes,
-read-only/confirmation boundaries and the saved artifacts' citation/photo
-structure. It is **not** a substitute for reading the live outputs. The four
-original focused tests failed on unchanged base
-`1564e079e221df6c6036dad3818c56180ea888e7` and passed with the skill.
-Full package/archive/release-contract/two-pin native lifecycle checks belong to
-hosted CI, per repository guidance.
+- Focused discovery/artifact, exact inventory-parity and installed-version probe
+  checks: **37 passed** after the round-2 changes. These are integrity/policy
+  guards, not restaurant-quality proof. New policy and evidence tests were
+  demonstrated red before their corresponding fixes. On an isolated checkout
+  of round-1 head `a82298c`, the current discovery test file produced **5 failed,
+  6 passed**; the same file passes on the new candidate.
+- Citation maps are verified for the three outputs and complete area-audit
+  document; the human/non-author still checks load-bearing source meaning.
+- Full package/archive/release-contract/two-pin native lifecycle matrices run
+  only on hosted CI. Fresh exact-head CI is required for this changed head.
+- Keep the PR **draft** until a separate non-author run reads all three outputs,
+  the audit and photo evidence as well as the diff, and records
+  ACCEPT / REJECT / DEFER on that exact head. Any later head invalidates approval.
 
-Hosted CI caught the initial omission of discovery from the three matching
-required-skill inventories. The exact parity failure was reproduced locally;
-all three inventories were corrected rather than weakening the check. The final
-targeted rerun (discovery contracts, that parity test, installed-version probe
-tests) passed **33 tests**. Seven of those are discovery-specific checks; this
-does not replace the hosted full suite or non-author semantic review.
-
-## Independent review and next iteration
-
-Keep the PR draft until a **separate non-author run** reads all three full
-outputs and the diff, checks load-bearing sources and records
-ACCEPT / REJECT / DEFER against the exact PR head. Author self-grades and green
-CI are not that verdict. Any changed head needs renewed acceptance. No merge,
-release, runtime installation/activation or fleet/customer acceptance is implied.
-
-Recommended next improvement: obtain fresh branch-owned menus and a dated,
-independent recent-review sample; visually inspect/caption the photos; tighten
-Namba travel radius from an approved starting point; resolve the Korean third
-venue's hours before adding it as an alternative. Do not use a booking/call or
-login merely to turn a PARTIAL grade green.
+Next: native bound-profile live test in the supporting owner runtime; fresh
+branch-owned menus/reviews; resolve Minato's and Tian Mimi's hours; owner-approved
+Namba radius; verify a cheap/fast image-helper lane without changing the bound
+runtime. Do not use a booking/call/login to turn a PARTIAL grade green.

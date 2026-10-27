@@ -18,9 +18,14 @@ or use Instagram login; public posts are optional evidence, never a dependency.
   `なんば ミシュラン ビブグルマン 火曜日 夜`,
   `<店名 支店> 食べログ メニュー 写真 2026`,
   `<店名> 定休日 営業時間 ラストオーダー 臨時休業 公式`.
-- Do not confuse Osaka-wide results with Namba. State a wider search radius
-  explicitly; use map directions for distance/time, not guesswork. A former
-  Bib Gourmand in a blog may now be Selected or absent; check the Guide itself.
+- Do not confuse Osaka-wide results with Namba. Before expanding, enumerate
+  every entry on the official category list across all pages; inspect its exact
+  address/area and retain each local match as a pick, an exclusion or an
+  unverified lead. A nearby venue with conflicting hours must not disappear
+  from the accounting. Save declared total / checked count and any coverage gap.
+  State a wider search radius explicitly; use map directions for distance/time,
+  not guesswork. A former Bib Gourmand in a blog may now be Selected or absent;
+  check the Guide itself.
 - Reservations use `personal-assistant:restaurant-reservations` and its
   `references/japan-korea.md` (Tabelog, TableCheck and other provider routes).
 

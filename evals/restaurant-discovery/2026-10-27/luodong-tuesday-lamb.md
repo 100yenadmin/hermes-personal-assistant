@@ -48,13 +48,21 @@ Khan's exposed native `pa` schema omits `operation="profile"`, so this is **not*
 | `web_extract`: `https://ayuulife.com/mutton-hot-pot/` | Re-read `2026 年 1 月 31 日`, `大人每人580元`, `用餐時間120分鐘`, and the lamb ribs/bones/tendons description. This did not refresh the menu or photos to October.[1] |
 | Reuse checked branch hours, dated original photos and exclusion evidence | Same lamb-led pick remains the judgment below; stale/current-price and review gaps remain disclosed, so the preference for **recent** photos is only partially satisfied.[1][47][12] |
 
+## Round-2 visual readback after independent review
+
+This phase exercises the working skill after `a82298c`, including its new bounded photo procedure; the new exact PR head is bound in the review handoff, not the earlier recovery-only skill SHA.
+
+After the operator's cap steering, **one batched author-side image helper** inspected **2 pre-filtered candidates per finalist**, stopping with two kept photos each: **6 candidates for Taiwan, 6 for Japan, 4 for Korea**, 16 total across eight supported finalists. No unverified lead was included; only short captions and keep/reject decisions returned to the main session, not image bytes. The [inspection record](photo-inspection.json) includes article-position/alt/filename pre-filter evidence, selected IDs and hashes. Two Polle links come from the recovered post photo array rather than a current static image tag.[121]
+
+An earlier **120-panel broad sweep preceded this steering and exceeded the later cap**; it informed the pre-filter, so this is a bounded recheck, not a fresh blind test or a claim that the whole session respected the later cap. The helper schema has no per-call model selector; the existing authorized image-input lane was used without a runtime/provider/config switch, not a proven cheap/fast route. This is **not independent PR review**. Original images were viewed as contact-sheet previews, not separately enlarged; dates were not refreshed by viewing.[121]
+
 ## Final user-facing output
 
 **My pick is 正老林羊肉爐 羅東店:** the lamb buffet is the closest match to your saved lamb preference; the article lists lamb ribs, big bones and tendons.[1][55]
 
 I applied your saved **lamb preference** and your saved request for **photos, menu prices and what to order**.[55]
 
-The photo links below have dated article provenance, but some are historical; the **recent-photo** part of the preference is not fully met.[1][9][5] Images were not visually inspected in this run; the [photo provenance record](photos.json) and each link label retain that limitation.
+The photo links below have dated article provenance, but some are historical; the **recent-photo** part of the preference is not fully met.[1][9][5] Selected images are now visually inspected as contact-sheet pixels and captioned only for visible contents; the [inspection record](photo-inspection.json) explains the method and limits.[121]
 
 I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel distance, budget and recent meals are unknown, so I have not invented a walking time or a reason to avoid another night market.
 
@@ -67,8 +75,8 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 - **Recent reviews / caveat:** the readable place proxy's latest review is **2026-02-28**, outside the desired six-month window; recent-review/complaint checking is incomplete, not “no complaints”.[2]
 - **Booking route:** phone inquiry **03-9551314**; whether a reservation is required or accepted for this party is unknown. No call placed.[1]
 
-- [Photo 1](https://ayuulife.com/wp-content/uploads/2026/01/1769834464045.jpg) — 小譽的食旅地圖; publication **2026-01-31 (historical)**; capture date unknown; **not visually inspected**; [original source page](https://ayuulife.com/mutton-hot-pot/).[1]
-- [Photo 2](https://ayuulife.com/wp-content/uploads/2026/01/1769834466458.jpg) — 小譽的食旅地圖; publication **2026-01-31 (historical)**; capture date unknown; **not visually inspected**; [original source page](https://ayuulife.com/mutton-hot-pot/).[1]
+- [Photo 1](https://ayuulife.com/wp-content/uploads/2026/01/1769834463881.jpg) — **Metal hot pot with broth, pale leaves and clustered stems.** 小譽的食旅地圖; publication **2026-01-31 (historical)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://ayuulife.com/mutton-hot-pot/).[1]
+- [Photo 2](https://ayuulife.com/wp-content/uploads/2026/01/1769834464082.jpg) — **Two wall-mounted menu boards on a brick-patterned wall.** 小譽的食旅地圖; publication **2026-01-31 (historical)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://ayuulife.com/mutton-hot-pot/).[1]
 
 ### Alternative 1 — 李家莊羊肉爐（吃到飽）[9]
 
@@ -77,8 +85,8 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 - **Tonight:** **scheduled 16:00–22:30 Tuesday**, from today's exact-branch Google Maps readback; last order/entry and temporary closures unknown.[37]
 - **Practical / recency:** the dated report is historical, not evidence of recent consistency; cash/card, seating limit and current booking-required policy are unknown. Contact/inquiry **03-965-9886** is matched to the branch; no call placed.[9][37]
 
-- [Photo 1](https://twsala40.com/wp-content/uploads/pixnet/6a8089c28aa770bf33c03d733a1033c8.jpg) — 沙拉飯團; publication **2024-02-16 (historical)**; capture date unknown; **not visually inspected**; [original source page](https://twsala40.com/2024-02-16-1417/).[9]
-- [Photo 2](https://twsala40.com/wp-content/uploads/pixnet/c80fc254ced6ea680d41845048c74556.jpg) — 沙拉飯團; publication **2024-02-16 (historical)**; capture date unknown; **not visually inspected**; [original source page](https://twsala40.com/2024-02-16-1417/).[9]
+- [Photo 1](https://twsala40.com/wp-content/uploads/pixnet/70daf5e51e7a78d57f5f835912bd8d48.jpg) — **Broth-filled metal pot with large pieces, corn rounds and mushrooms.** 沙拉飯團; publication **2024-02-16 (historical)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://twsala40.com/2024-02-16-1417/).[9]
+- [Photo 2](https://twsala40.com/wp-content/uploads/pixnet/e9b7f7b5f0210eeae0c36f7ba3ace1a0.jpg) — **Two red trays holding sliced and rolled meat, with tongs.** 沙拉飯團; publication **2024-02-16 (historical)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://twsala40.com/2024-02-16-1417/).[9]
 
 ### Alternative 2 — 阿灶伯當歸羊肉湯[5]
 
@@ -87,8 +95,8 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 - **Tonight:** **scheduled 16:00–01:00**, ending Wednesday morning, per today's Google Maps readback; the local article says **Wednesday closed**. Last order/entry unknown; this does not establish live seat or queue availability.[48][5]
 - **Practical / reviews:** the August article describes separate dine-in/takeaway queues and recounts both an old rude-service visit and a more pleasant later visit; that is one author's mixed history, **not a repeated recent complaint trend**. Reservation route is unverified; no queue entry or call made.[5]
 
-- [Photo 1](https://pic.pimg.tw/magianword/1716749450-1904733954-g_l.jpg) — 馬鈴薯大哥; publication **2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)**; capture date unknown; **not visually inspected**; [original source page](https://marsfood.tw/uncle-azao/).[5]
-- [Photo 2](https://pic.pimg.tw/magianword/1716749450-1771767797-g_l.jpg) — 馬鈴薯大哥; publication **2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)**; capture date unknown; **not visually inspected**; [original source page](https://marsfood.tw/uncle-azao/).[5]
+- [Photo 1](https://pic.pimg.tw/magianword/1716749450-1904733954-g_l.jpg) — **White bowl piled with sliced meat above broth.** 馬鈴薯大哥; publication **2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://marsfood.tw/uncle-azao/).[5]
+- [Photo 2](https://pic.pimg.tw/magianword/1716749450-1771767797-g_l.jpg) — **Spoonful of amber broth held above the bowl.** 馬鈴薯大哥; publication **2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://marsfood.tw/uncle-azao/).[5]
 
 **Excluded for Tuesday:** 羊舖子當歸羊肉湯, 民權路110號 — the specific Tuesday-closed note is supported by the dated local report and iFoodie's detail section, and today's recovery readback also displays `今日休息`.[3][12]
 
@@ -100,14 +108,14 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 | --- | --- | --- |
 | Lamb-focused option + owner fit | PASS for scoped saved-preference read | The follow-up prompt omits lamb; two actual active food records were read and used before the follow-up query. Native bound `pa profile list` is not proven by the labelled backend fallback.[55] Lamb-led picks are sourced.[1][9][5] |
 | Tuesday exclusions / actual-day hours | PASS for scheduled hours | Direct exact-branch Google Maps weekly hours.[37][47][48] 羊舖子 excluded.[12] Not a same-day closure/seat guarantee. |
-| Dated photos + menu/price line | PASS for dated provenance; PARTIAL for freshness | Two real image links each; article dates explicit. All six image GETs succeeded. Current October dine-in prices were not established.[1][9][5] |
+| Dated photos + menu/price line | PASS for provenance and visual relevance; PARTIAL for freshness | Two viewed/captioned images each: hot pot + price board, buffet meal + food trays, soup views. Wrong foreground pork/beef freezer removed. Capture dates and October menu confirmation remain unknown.[121][1][9] |
 | Curated + local-language/platform search | PARTIAL | Chinese queries, TVBS/iFoodie and direct Google Maps used.[6][12][47] No exact local Michelin result established.[52] |
 | Recent reviews / repeated complaints | PARTIAL | No adequate last-six-month independent sample for the buffet pick; no average-rating ranking or invented trend.[2] |
 | One pick plus two alternatives | PASS | Three sourced options, none scheduled closed at 18:30.[47][37][48] |
 | Every factual output line cited | PASS, author check | Restaurant facts have inline sources; unknowns remain explicit. Citation checker validates mapping, not truth. |
 | Reservation handoff / no actions | PASS | Offer only; no reservation form, booking, queue, message, call, account or preference change. |
 
-**Overall: Taiwan's specific live acceptance behavior and a scoped live saved-preference read demonstrated, with material freshness/runtime-path gaps.** This is not a claim that every broader #71 quality goal is complete or that Khan's native `pa` surface supports the new profile API. Next improvement: a correctly bound native-profile live run, fresh branch-owned menus and a readable recent-review sample, plus visual inspection/captioning rather than source-photo links alone.
+**Overall: Taiwan's specific live acceptance behavior and a scoped live saved-preference read demonstrated, with material freshness/runtime-path gaps.** This is not a claim that every broader #71 quality goal is complete or that Khan's native `pa` surface supports the new profile API. Next improvement: a correctly bound native-profile live run, fresh branch-owned menus and a readable recent-review sample, plus separately enlarged recent photos and current menu confirmation; the selected pixels are now inspected and captioned.
 
 ## Sources
 
@@ -127,3 +135,4 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 [52] https://guide.michelin.com/tw/zh_TW/restaurants
 [53] https://tw.news.yahoo.com/%E7%8D%A8%E5%AE%B6-%E7%BE%85%E6%9D%B1%E9%98%BF%E7%81%B6%E4%BC%AF%E7%BE%8A%E8%82%89%E6%B9%AF%E8%AA%BF%E6%BC%B2-%E7%BE%8A%E8%82%89%E6%B9%AF-%E9%BA%B5-%E7%A0%B4%E7%99%BE%E5%85%83-051200418.html
 [55] ./preference-read-attestation.json — Operator-authorized scoped read-only PA food-preference attestation
+[121] ./photo-inspection.json

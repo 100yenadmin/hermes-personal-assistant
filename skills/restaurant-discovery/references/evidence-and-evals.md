@@ -19,7 +19,10 @@ Practical: time limit, booking-required and booking URL/app/phone needs [source]
        or unknown. Scheduled hours do not imply seats available.
 Photos (2–3): linked actual image + original page, credit, capture date OR
        publication date with capture date unknown; historical/undated as needed.
-       If not visually inspected, say so; never invent the pictured dish.
+       Inspect candidate pixels when viewing is available. Caption only visible
+       content; prefer the recommended dish, menu/prices, then useful venue views.
+       If only venue photos are suitable, state the missing dish/menu coverage.
+       Say not visually inspected only with a real viewing-capability/failure gap.
 Recent visits: dates, repeated themes and independent sample size [sources],
        or recent-review check incomplete; don't turn one complaint into a trend.
 Unknown/conflicting evidence: name the gap next to the field it affects.
@@ -32,6 +35,17 @@ A reviewer's rating is a dated opinion, not proof that food is good or safe.
 Use linked images/previews only where the delivery surface can show them; plain
 links with dated provenance are the fallback. Do not rehost copyrighted photos
 or imply a photo was inspected when only its URL was retrieved.
+
+Inspect only the final pick and at most two supported alternatives, after the
+hours/identity gates and ranking. Pre-filter from relevant article text/image
+position, alt text and filenames; skip logos/maps/staircases/storefront-only
+shots unless the venue itself is the point. Limit viewing to 3 candidates per
+finalist (about 9 total); stop at 2 good photos. Use one batched, existing-lane
+cheap/fast image helper where available, returning short captions + keep/reject
+only, not image bytes to the main session; otherwise use the same cap inline.
+If nothing passes, say “no verified dish photo”; never send an unchecked image
+or open a whole gallery to fill the quota. Record any actual lane/model limit
+without changing runtime/config or silently switching paid/provider routes.
 
 List closed or dinner-ineligible exclusions separately with their evidence.
 Unresolved opening/address/dietary gates belong under unverified leads, not in
@@ -52,7 +66,11 @@ prompts and no private owner/stay information:
    dinner time. Find a lamb-focused option, exclude Tuesday-closed places, and
    show dated photos plus a sourced menu/price line.
 2. **Osaka Namba:** request Bib Gourmand. Use Michelin's own current venue pages
-   and direct Guide links; do not promote Selected, old awards or far-away
+   and direct Guide links; check every category-list entry's address/area across
+   pagination before widening. Save declared total, unique entries checked and
+   each in-area match's pick/exclusion/unverified disposition (including hours
+   conflicts). Expose any inaccessible-entry coverage gap; do not claim local
+   exhaustion without the sweep. Do not promote Selected, old awards or far-away
    Osaka venues as current Namba Bib Gourmand. State any radius expansion.
 3. **Seoul or Songdo:** use Naver/Kakao or Blue Ribbon public evidence and native
    Korean queries, not an English-only roundup.
@@ -75,7 +93,10 @@ For each run save: timestamp/timezone, skill revision, exact prompt and declared
 assumptions, ordered queries, tool names, returned URLs and short relevant
 verbatim excerpts, blocked/failed attempts and fallbacks, final user-facing
 output, and a criterion-by-criterion self-grade. Retain source publication and
-visit/photo dates separately from retrieval time. Save complete public tool
+visit/photo dates separately from retrieval time. When viewing is available,
+record the images actually viewed, visible-content captions, selected/rejected
+IDs and reasons; an HTTP probe is not this proof. Keep source-page publication
+and unknown capture dates visible even after inspecting pixels. Save complete public tool
 results locally when useful; publish only bounded non-sensitive evidence, not
 private context, customer data, authenticated provider responses or ledgers.
 

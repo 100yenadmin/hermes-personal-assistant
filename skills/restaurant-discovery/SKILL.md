@@ -47,8 +47,17 @@ liking a recommendation is not permission to transact.
    stars, **Bib Gourmand** and Selected. Follow with Tabelog Award / Hyakumeiten
    in Japan, Blue Ribbon Survey in Korea, Michelin and local food media in
    Taiwan. Record the edition/year when shown; a historical award is not a
-   current one. No exact local guide match? Say so and continue locally; do not
-   label a food-blog favourite Michelin or quietly widen the geography.
+   current one. For a category/location request, check the address or area of
+   **every entry** on the official category list, including **pagination**,
+   **before widening** the radius. Record the list's declared total, unique
+   entries checked and each entry's area evidence. Account for every in-area
+   match as a **pick, an exclusion or an unverified lead**, with a reason;
+   conflicting dinner hours do not justify silently omitting a nearby match.
+   If pages or addresses are inaccessible, report the coverage gap and do not
+   claim the local category is exhausted. Any wider-area suggestions must be
+   labelled as an expansion, not a satisfied strict-location request.
+   No exact local guide match? Say so and continue locally; do not label a
+   food-blog favourite Michelin or quietly widen the geography.
 2. **Search as a local.** Translate the query, not just the answer. Use native
    place/branch names plus dish, neighbourhood, weekday and menu terms. Search
    Tabelog (JP), Naver / Kakao Map (KR), Google Maps + iFoodie (TW). Open the
@@ -62,20 +71,51 @@ liking a recommendation is not permission to transact.
    rather than ranking by mean score. One complaint is an anecdote, not a trend;
    copied roundups are not independent. If recent reviews cannot be read, say
    the recency check is incomplete. No “no complaints” claim from an empty sample.
-4. **Menu and visuals.** Use the venue's own current menu, then recent dated
+4. **Menu and visual pre-filter.** Use the venue's own current menu, then recent dated
    local blogs or public no-login social posts. Quote currency and basis (per
    person, set, portion, buffet), menu/publication date, tax/service/deposit
    terms and any uncertainty. Do not convert ¥¥ or ₩ into a numeric budget.
    A page's new publication/update date does not refresh an explicitly older
    menu/photo inside it; retain the older evidence date beside the claim.
    Derive a per-person estimate only from sourced item prices and explicit
-   party/order assumptions; show the arithmetic. Seek 2–3 actual venue/dish/menu
-   photos per option, linking each original image and source page. Label each
+   party/order assumptions; show the arithmetic. Collect actual venue/dish/menu
+   photo links without viewing pixels during broad search. Apply the bounded
+   finalist-only procedure below after ranking, linking each selected original
+   image and source page. Label each
    with capture date if known; otherwise publication date and “capture date
    unknown”. Retrieval date is not photo date. Old/undated imagery is labelled
    historical/undated, never “current”; do not fill a gap with stock/generated
-   imagery. If image viewing is unavailable, provide labelled source links and
-   say not visually inspected; do not invent a caption or infer menu text.
+   imagery. At this stage collect/pre-filter links only; **defer pixel inspection
+   until after steps 5–6 have selected the supported finalists**.
+   **When image viewing is available**, use this bounded procedure:
+   - **Finalists only:** inspect the pick + at most two supported alternatives,
+     after hours/identity screening and ranking. Never inspect during broad
+     search or spend this budget on unverified/excluded leads.
+   - **Pre-filter before viewing:** choose candidates next to relevant dish/menu
+     text in the source article, using alt text and file names as leads, not
+     proof. Skip logos, maps, staircases and storefront-only shots unless the
+     venue itself is the point of the recommendation.
+   - **Cap and stop:** at most **3 candidate images per finalist** (about **9
+     total** for a three-option response). Stop for that finalist once **2 good
+     photos** are confirmed; do not open a whole gallery to fill a quota.
+   - **One batched helper:** where delegation is available, pass all pre-filtered
+     finalist candidates to one cheap/fast image-capable helper in the existing
+     authorized model lane. Ask it to inspect pixels and return only short
+     visible-content captions plus **keep/reject** decisions/reasons. Keep image
+     bytes and galleries out of the main conversation. Do not change runtime or
+     silently use a paid/provider fallback to select a different model. Without
+     delegation, inspect inline under the same cap.
+   - Prefer the recommended dish, then useful menu/prices or venue views;
+     **caption only what is visible**. Do not infer meat species, ingredients,
+     exact dish names or tiny menu text. Source context is not a visual finding.
+     HTTP 200, filenames, alt text and page extracts are not visual inspection.
+   - Save the pre-filter rationale, candidate count, viewed IDs, captions and
+     keep/reject results in eval evidence. If nothing passes, say **“no verified
+     dish photo”** rather than send an unchecked image. With only one suitable
+     image, show one and the gap; never exceed the cap to manufacture two.
+   Only if viewing is genuinely unavailable or fails, provide labelled source
+   links and say not visually inspected with the actual capability/failure gap;
+   do not invent a caption or infer menu text.
 5. **Verify the actual day before ranking.** For the exact branch, check today's
    weekday hours, breaks, last order / last entry, special closure notices,
    cash-only/payment rules, service charge, seating limits and booking-required
@@ -99,7 +139,8 @@ liking a recommendation is not permission to transact.
 Return **one pick plus two alternatives** when supported, each with native name
 and exact branch/address, why it fits, what to order, sourced price per person
 (or an honest unknown), hours for the stated date, last order/entry and practical
-terms, 2–3 dated photo links, and a verified booking route or “route unknown”.
+terms, two verified dated photo links when available (or the explicit gap), and
+a verified booking route or “route unknown”.
 Cite every factual line, including hours, prices, award status and photo
 provenance. Separate unknowns and source conflicts beside the relevant field.
 Fewer supported options are better than invented completeness; report which

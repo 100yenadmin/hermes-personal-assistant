@@ -38,11 +38,29 @@ The October-18 menu and TableCheck's `Reservations cannot be made on behalf of a
 
 Macauda still says `Tuesday closed`.[16]
 
+## Round-2 visual readback after independent review
+
+This phase exercises the working skill after `a82298c`, including its new complete category/area sweep and bounded photo procedure; the new exact PR head is bound in the review handoff, not the earlier recovery-only skill SHA.
+
+After the operator's cap steering, **one batched author-side image helper** inspected **2 pre-filtered candidates per finalist**, stopping with two kept photos each: **6 candidates for Taiwan, 6 for Japan, 4 for Korea**, 16 total across eight supported finalists. No unverified lead was included; only short captions and keep/reject decisions returned to the main session, not image bytes. The [inspection record](photo-inspection.json) includes article-position/alt/filename pre-filter evidence, selected IDs and hashes. Two Polle links come from the recovered post photo array rather than a current static image tag.[121]
+
+An earlier **120-panel broad sweep preceded this steering and exceeded the later cap**; it informed the pre-filter, so this is a bounded recheck, not a fresh blind test or a claim that the whole session respected the later cap. The helper schema has no per-call model selector; the existing authorized image-input lane was used without a runtime/provider/config switch, not a proven cheap/fast route. This is **not independent PR review**. Original images were viewed as contact-sheet previews, not separately enlarged; dates were not refreshed by viewing.[121]
+
+## Round-2 category/area sweep before retaining the wider fallback
+
+The official English list and its second page declare **48 + 11 = 59** category entries. All **59 unique entries** now have opened Michelin address evidence; the [complete per-entry accounting](osaka-area-audit.md) records each address and pick/alternative/exclusion/unverified disposition. The core versus fringe classification is declared author judgment, not an invented routed-distance boundary. The only core match under that comparison scope is Minato; twelve deliberately conservative fringe flags remain visible rather than silently discarded.[56][57][120]
+
+The direct HTTP list fetches returned empty **202** responses, so the actual evidence lane was public `web_extract`, not a claimed successful scrape.[120] Minato's official page and Tabelog desktop/mobile were freshly opened: Michelin has Tuesday `11:00-15:00`, desktop Tabelog `17:30 - 20:50`, and mobile `10:30 - 16:00` only.[58][59][60] FineDiningIndex separately gives Tuesday `10:30 - 15:40` without dinner.[61] These conflicting schedules are not proof of an open dinner slot; Minato stays an in-area unverified lead.[58][59][60]
+
 ## Final user-facing output
 
 **My pick: 中華旬彩 森本 in Shinsaibashi**, for the current Bib Gourmand listing and a dinner menu with chicken, dim sum and noodles.[13][17]
 
-**Geography caveat:** I did not establish three strict-Namba matches. This first pass explicitly widens to **Shinsaibashi, Shimmachi and Andojimachi/Tanimachi**, using the exact addresses below—not “all walking distance from your hotel”.[13][14][15] Hotel/radius and routed journey times are unknown; if Namba-only is a hard limit, these are wider-area suggestions, not a satisfied location constraint.
+**Namba accounting first:** I checked the addresses/areas of **all 59** entries across Michelin's two category-list pages before retaining an expanded shortlist; no nearby match is silently dropped for inconvenient hours. The full address/disposition table records one core match and twelve conservatively flagged outer-fringe candidates.[56][57][120]
+
+**In-area unverified lead — とんかつ みな斗 / Tonkatsu Minato:** **大阪市中央区島之内2-9-26**; Tabelog classifies it under **難波・日本橋・道頓堀**, 380 m from Nippombashi. It is on Michelin's current Bib list, but **not a dinner pick**: Michelin gives Tuesday **11:00–15:00 only**, mobile Tabelog **10:30–16:00 only**, versus desktop Tabelog **17:30–20:50 dinner**. That dinner conflict remains unresolved; I will not select the convenient schedule or imply a seat.[58][59][60]
+
+**Geography caveat:** the three cards below are an explicit **Shinsaibashi, Shimmachi and Andojimachi/Tanimachi expansion**, not three strict-Namba matches or an approved walking radius.[13][14][15] Hotel/radius and routed journey times are unknown; if Namba-only is a hard limit, I have **no verified core dinner shortlist** from this sweep, not permission to move you elsewhere. Other fringe leads and scheduled Tuesday closures are accounted for in the audit, not promoted as extra alternatives.[120]
 
 Compared for **Tuesday 2026-10-27, 18:30 Asia/Tokyo**. All three are scheduled to serve dinner at that time, not confirmed to have seats; no same-day temporary-closure guarantee.[13][14][15]
 
@@ -56,8 +74,10 @@ Compared for **Tuesday 2026-10-27, 18:30 Asia/Tokyo**. All three are scheduled t
 - **Recency / complaints:** the visible May-2026 lunch excerpts show uneven queue experiences; the August food-journalist visit supplies recent dish evidence. This is not a representative recent dinner complaint sample.[18][42]
 - **Booking route:** exact-branch Tabelog online reservation route; direct shop phone **06-6252-6022**, with the listing asking diners to prefer online because calls may not connect. No slot or form selected.[54]
 
-- [Photo 1](https://livedoor.blogimg.jp/hants/imgs/3/6/36fd5aa6-s.jpg) — はんつ遠藤; publication **2026-08-17**; capture date unknown; **not visually inspected**; [original source page](https://hants.livedoor.biz/archives/52236222.html).[42]
-- [Photo 2](https://livedoor.blogimg.jp/hants/imgs/7/6/768c3491-s.jpg) — はんつ遠藤; publication **2026-08-17**; capture date unknown; **not visually inspected**; [original source page](https://hants.livedoor.biz/archives/52236222.html).[42]
+- [Photo 1](https://livedoor.blogimg.jp/hants/imgs/b/7/b73f7b81-s.jpg) — **Fried rice in a blue-and-white handled bowl.** はんつ遠藤; publication **2026-08-17**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://hants.livedoor.biz/archives/52236222.html).[42]
+- [Photo 2](https://livedoor.blogimg.jp/hants/imgs/3/0/3079e6b3-s.jpg) — **Close-up of the fried rice in the patterned bowl.** はんつ遠藤; publication **2026-08-17**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://hants.livedoor.biz/archives/52236222.html).[42]
+
+**Photo scope:** Morimoto's food photograph is a dish from the August article, not proof of the chicken/noodle order above; Oribe's photos below are seasonal plated dishes, not a guarantee of the exact example order.[42][39][40]
 
 ### Alternative 1 — 鉄板焼き お好み焼き Oribe / オリベ[14]
 
@@ -68,8 +88,8 @@ Compared for **Tuesday 2026-10-27, 18:30 Asia/Tokyo**. All three are scheduled t
 - **Booking policy:** public **TableCheck** route requires the **visiting diner** to reserve and explicitly bans reservations on another person's behalf. I can prepare the details, but **cannot submit this for you**. Card required; same-day cancellation/reduced-party fee **¥11,000/person**; special-item deadlines differ and require fresh review.[46]
 - **Reviews / fit caveat:** official menu says no vegan options; no independent recent-review sample was established, so I am not claiming a service/quality trend.[32][46]
 
-- [Photo 1](https://o-ri-be.com/wp-content/uploads/2026/10/oribe20161024.png) — Oribe (venue); publication **2026-10-26**; capture date unknown; **not visually inspected**; [original source page](https://o-ri-be.com/2026/10/26/20261026/).[39]
-- [Photo 2](https://o-ri-be.com/wp-content/uploads/2026/09/20260926h-705x571.jpg) — Oribe (venue); publication **2026-09-29**; capture date unknown; **not visually inspected**; [original source page](https://o-ri-be.com/2026/09/29/20260929/).[40]
+- [Photo 1](https://o-ri-be.com/wp-content/uploads/2026/10/oribe20161024.png) — **Shell-on seafood with orange sauce on a white plate.** Oribe (venue); publication **2026-10-26**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://o-ri-be.com/2026/10/26/20261026/).[39]
+- [Photo 2](https://o-ri-be.com/wp-content/uploads/2026/09/20260926h-705x571.jpg) — **Stacked food under dark glossy sauce with green garnish.** Oribe (venue); publication **2026-09-29**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://o-ri-be.com/2026/09/29/20260929/).[40]
 
 ### Alternative 2 — そば切り文目堂 / Ayamedo[15]
 
@@ -79,8 +99,8 @@ Compared for **Tuesday 2026-10-27, 18:30 Asia/Tokyo**. All three are scheduled t
 - **Recency:** two October-2026 visit excerpts are visible on Tabelog, but not enough readable recent detail to establish repeated service/cleanliness complaints. No mean-score ranking used.[20]
 - **Route:** walk-in according to Tabelog; shop phone **06-7504-5260** for an hours inquiry, not a promise they will reserve. Michelin's generic contact-to-book wording is weaker than the explicit local `予約不可` field; booking must be rechecked before any action.[20][15]
 
-- [Photo 1](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051735051862-1024x768.jpg) — 釣りするカツオに食べるカツオ; publication **2026-03-05 (historical)**; capture date unknown; **not visually inspected**; [original source page](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/).[43]
-- [Photo 2](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051737012702-1024x768.jpg) — 釣りするカツオに食べるカツオ; publication **2026-03-05 (historical)**; capture date unknown; **not visually inspected**; [original source page](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/).[43]
+- [Photo 1](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051745424112-scaled.jpg) — **Noodles on a woven tray beside a black bowl.** 釣りするカツオに食べるカツオ; publication **2026-03-05 (historical)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/).[43]
+- [Photo 2](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051736182612-1024x768.jpg) — **Printed Japanese menu held open.** 釣りするカツオに食べるカツオ; publication **2026-03-05 (historical)**; capture date unknown; **visually inspected (contact-sheet pixels)**; [original source page](https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/).[43]
 
 **Excluded tonight:** マカウダ / Macauda — Michelin's exact venue page lists **Tuesday closed**.[16]
 
@@ -91,16 +111,16 @@ Compared for **Tuesday 2026-10-27, 18:30 Asia/Tokyo**. All three are scheduled t
 | Criterion | Grade | Evidence / limitation |
 | --- | --- | --- |
 | Michelin-sourced Bib results with Guide links | PASS | Two venue pages explicitly label Bib; Oribe is on the own-site Bib filter. No Selected-to-Bib promotion.[13][15][7] |
-| Namba fit | PARTIAL | Radius expanded explicitly; no strict-Namba completion or route-time claim.[13][14][15] |
+| Namba accounting / fit | PASS for complete category/area accounting; PARTIAL for strict-location dinner fit | 59/59 addresses checked; Minato surfaced before expanded cards with its dinner conflict. All in-area/fringe dispositions visible; no verified core dinner pick claimed.[56][57][120] |
 | Native-language local review/menu use | PASS | Tabelog public menu/listings/reviews.[17][18][20] Japanese blogs opened after native-name queries.[42][43] |
 | Menu / per-person price basis | PASS for provenance; PARTIAL for freshness | October Morimoto menu, official undated Oribe menu; Ayamedo numeric dish price historical.[17][32][43] Budgets distinguished from quotes.[20] |
 | Actual-day hours / closures | PASS for scheduled hours | Dinner windows checked; Oribe monthly notice checked.[13][41][15] Macauda excluded; temporary-notice gaps explicit.[16] |
-| Two dated photos per option | PASS for provenance; PARTIAL for freshness | Morimoto/Oribe linked source photos.[42][39][40] Ayamedo March photos historical; exact capture dates unknown for all.[43] |
+| Two dated photos per option | PASS for provenance + bounded visual inspection; PARTIAL for freshness/exact-order coverage | Staircase removed; Morimoto now has whole-serving/detail food views, Oribe two plated dishes, Ayamedo noodles + menu. Six pre-filtered candidates, one batched helper across all evals. Dates remain historical/unknown capture; no exact example-order photo guarantee.[121] |
 | Recent complaints rather than averages | PARTIAL | Some recent local excerpts, no adequate independent sample for all three; no manufactured trend.[18][20] |
 | One pick plus two alternatives | PASS, widened geography | Three scheduled dinner options, location caveat prominent.[13][14][15] |
 | Factual citation / safe handoff | PASS, author check | Every restaurant fact attributed; third-party booking restriction retained; no booking, call, login or form interaction.[46] |
 
-**Overall: Japan's specific Michelin-link live acceptance demonstrated; broader location/freshness quality is partial.** Next improvement: strict-radius routing from an approved starting point, newer Ayamedo menu/photos, and representative recent dinner review coverage. Static tests and this self-grade are not independent review acceptance.
+**Overall: Japan's specific Michelin-link live acceptance demonstrated; broader location/freshness quality is partial.** Next improvement: strict-radius routing from an approved starting point and resolution of Minato's dinner conflict, newer Ayamedo menu/photos, and representative recent dinner review coverage. Static tests and this self-grade are not independent review acceptance.
 
 ## Sources
 
@@ -120,3 +140,11 @@ Compared for **Tuesday 2026-10-27, 18:30 Asia/Tokyo**. All three are scheduled t
 [43] https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou
 [46] https://www.tablecheck.com/shops/oribe/reserve
 [54] https://tabelog.com/osaka/A2701/A270201/27086074
+[56] https://guide.michelin.com/jp/en/osaka-region/restaurants/bib-gourmand
+[57] https://guide.michelin.com/en/jp/osaka-region/restaurants/bib-gourmand/page/2
+[58] https://guide.michelin.com/jp/ja/osaka-region/osaka/restaurant/tonkatsu-minato
+[59] https://tabelog.com/osaka/A2701/A270202/27141118
+[60] https://s.tabelog.com/osaka/A2701/A270202/27141118
+[61] https://finediningindex.com/ja/osaka/tonkatsu-minato
+[120] ./osaka-area-audit.json
+[121] ./photo-inspection.json

@@ -330,6 +330,402 @@
       "url": "./preference-read-attestation.json",
       "title": "Operator-authorized scoped read-only PA food-preference attestation",
       "accessed": "2026-10-27"
+    },
+    {
+      "id": 56,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/restaurants/bib-gourmand",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 57,
+      "url": "https://guide.michelin.com/en/jp/osaka-region/restaurants/bib-gourmand/page/2",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 58,
+      "url": "https://guide.michelin.com/jp/ja/osaka-region/osaka/restaurant/tonkatsu-minato",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 59,
+      "url": "https://tabelog.com/osaka/A2701/A270202/27141118",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 60,
+      "url": "https://s.tabelog.com/osaka/A2701/A270202/27141118",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 61,
+      "url": "https://finediningindex.com/ja/osaka/tonkatsu-minato",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 62,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/chukashunsai-morimoto",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 63,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/prestau",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 64,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/daidokoro-kamiya",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 65,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/macauda",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 66,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ramen-kuon",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 67,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sumibi-iwata",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 68,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sumisho-mikuriya",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 69,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ueroku-wine",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 70,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kyomachibori-nakamura",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 71,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/aka-to-shiro",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 72,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/la-bonne-tache",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 73,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/il-luogo-di-takeuchi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 74,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/chukasoba-mugen",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 75,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/sushidokoro-kaihara",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 76,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/tanpopo",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 77,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/shokudo-akari",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 78,
+      "url": "https://guide.michelin.com/us/en/osaka-region/osaka/restaurant/az",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 79,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/shuko-osaka-manpukudou",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 80,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kushiage-010",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 81,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ayamuya",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 82,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/oribe",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 83,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/oudon-yomogi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 84,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/sakamoto-sushi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 85,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kamigata-rainbow",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 86,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tonkatsu-fujii",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 87,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tonkatsu-katsu-hana",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 88,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/pitak-gohan",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 89,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tonkatsu-minato",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 90,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ramen-hayato",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 91,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobakiri-gaku",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 92,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/diva-1242557",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 93,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/naniwa-okina",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 94,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobakiri-arabompu",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 95,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/suigyo-murabayashi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 96,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/sushitsune",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 97,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/aozora-blue",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 98,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobakiri-karani",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 99,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/benikurage",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 100,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/gastroteka-bimendi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 101,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/au-soleil-couchant",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 102,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/osteria-la-cicerchia",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 103,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sakeya-sakana-yoshimura",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 104,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/udondokoro-shigemi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 105,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/mendokoro-subete",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 106,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/bistrot-neuf-1242628",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 107,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tenboshi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 108,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/oryori-amenimomakezu",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 109,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/izakaya-tokitame",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 110,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobadokoro-toki",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 111,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/donostia-1193223",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 112,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/chukasoba-uemachi",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 113,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/mugito-mensuke",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 114,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/via-del-emme",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 115,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/jibundoki",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 116,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/nikomi-kimura",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 117,
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/ogimachi-udonya-asuro",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 118,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tempura-kozaki",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 119,
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kushikatsu-gojoya",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 120,
+      "url": "./osaka-area-audit.json",
+      "title": "",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": 121,
+      "url": "./photo-inspection.json",
+      "title": "",
+      "accessed": "2026-10-27"
     }
   ]
 }
