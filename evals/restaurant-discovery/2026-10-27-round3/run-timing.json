@@ -1,0 +1,28 @@
+{
+  "prompt": "Taipei, Wed 28 Oct 2026 dinner, near Taipei Main / Zhongshan, 3 adults; owner loves lamb. Read-only public web; 15-minute end-to-end budget.",
+  "start_utc": "2026-10-27T10:38:01Z",
+  "deadline_utc": "2026-10-27T10:53:01Z",
+  "budget_seconds": 900,
+  "budget_allocation": "0–7m curated/native-language/menu/hours research; 7–11m finalist-only photos; 11–15m compact output, evidence and self-grade",
+  "meal_timezone": "Asia/Taipei",
+  "meal_date": "2026-10-28",
+  "arrival_and_meal_assumption": "18:30–20:00",
+  "party": 3,
+  "preference_binding": "Lamb explicitly supplied by task; live PA profile operation absent from exposed schema, no Eva profile access or live preference-read claim.",
+  "location_binding": "Public Taipei Main/Zhongshan landmarks only; no private stay, numerical radius or routed distance/time assumed.",
+  "skill_revision": "Round-3 working-tree policy patch based on 626c60cd03239cce50c824a30a81ac9b2cac55e0; final immutable head in task handoff.",
+  "finish_utc": "2026-10-27T10:46:28.813755+00:00",
+  "elapsed_seconds": 507.814,
+  "within_budget": true,
+  "compact_lines": 10,
+  "compact_utf16_units": 1913,
+  "photo_groups": 3,
+  "photo_count": 6,
+  "scope": "original research plus saved recommendation, photo evidence and self-grade; subsequent review/CI/archive are outside eval budget",
+  "post_eval_corrections": {
+    "trigger": "Independent non-author REJECT at 45f3724cf72cf0d46e716a4c5bf90f18f90990ec",
+    "notice_recheck_at_utc": "2026-10-27T10:54:40.286324+00:00",
+    "changes": ["Retracted verified-latest-notice implication and preserved extractor/direct-GET discrepancy", "Made photo captions standalone with direct original-article links; added artifact regression guard"],
+    "boundary": "Corrections occurred after the frozen original eval end; the final publication revision is not claimed to have existed before the 15-minute deadline. No new candidate search or image inspection was added."
+  }
+}

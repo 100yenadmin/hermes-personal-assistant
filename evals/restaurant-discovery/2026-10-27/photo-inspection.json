@@ -1,0 +1,673 @@
+{
+  "date": "2026-10-27",
+  "method": "One bounded image-capable author-side helper call directly inspected two pre-filtered candidates for each of eight already shortlisted finalists (16 total; 6 Taiwan, 6 Japan, 4 Korea). Only captions and keep/reject decisions returned to the main session; no image bytes. No unverified lead was included in this bounded pass.",
+  "batch_calls": 1,
+  "case_candidate_counts": {
+    "luodong": 6,
+    "osaka": 6,
+    "seoul": 4
+  },
+  "per_finalist_candidate_counts": {
+    "tw-pick": 2,
+    "tw-alt1": 2,
+    "tw-alt2": 2,
+    "jp-pick": 2,
+    "jp-alt1": 2,
+    "jp-alt2": 2,
+    "kr-pick": 2,
+    "kr-alt2": 2
+  },
+  "operator_cap": {
+    "per_finalist": 3,
+    "per_case": 9,
+    "stop_at_good_photos": 2
+  },
+  "decisions": {
+    "tw-pick": [
+      {
+        "id": "tw-pick-new12",
+        "decision": "keep",
+        "caption": "Metal hot pot with broth, pale leaves and clustered stems.",
+        "reason": "Clear prepared-food view with the pot prominently framed."
+      },
+      {
+        "id": "tw-pick-new2",
+        "decision": "keep",
+        "caption": "Two wall-mounted menu boards on a brick-patterned wall.",
+        "reason": "Useful menu context alongside the food photo; not evidence of current prices."
+      }
+    ],
+    "tw-alt1": [
+      {
+        "id": "tw-alt1-more1",
+        "decision": "keep",
+        "caption": "Broth-filled metal pot with large pieces, corn rounds and mushrooms.",
+        "reason": "Clear overhead view of the prepared serving."
+      },
+      {
+        "id": "tw-alt1-more9",
+        "decision": "keep",
+        "caption": "Two red trays holding sliced and rolled meat, with tongs.",
+        "reason": "Useful food-display context; depicts uncooked items, not a finished dish."
+      }
+    ],
+    "tw-alt2": [
+      {
+        "id": "tw-alt2-old1",
+        "decision": "keep",
+        "caption": "White bowl piled with sliced meat above broth.",
+        "reason": "Clearly shows the bowl and its contents."
+      },
+      {
+        "id": "tw-alt2-old2",
+        "decision": "keep",
+        "caption": "Spoonful of amber broth held above the bowl.",
+        "reason": "Adds a useful broth detail rather than repeating the first framing."
+      }
+    ],
+    "jp-pick": [
+      {
+        "id": "jp-pick-new3",
+        "decision": "keep",
+        "caption": "Fried rice in a blue-and-white handled bowl.",
+        "reason": "Shows the entire serving and presentation."
+      },
+      {
+        "id": "jp-pick-new4",
+        "decision": "keep",
+        "caption": "Close-up of the fried rice in the patterned bowl.",
+        "reason": "Useful texture detail of the same serving, not a separate dish."
+      }
+    ],
+    "jp-alt1": [
+      {
+        "id": "jp-alt1-old1",
+        "decision": "keep",
+        "caption": "Shell-on seafood with orange sauce on a white plate.",
+        "reason": "Clear plated-food photograph with visible presentation detail."
+      },
+      {
+        "id": "jp-alt1-old2",
+        "decision": "keep",
+        "caption": "Stacked food under dark glossy sauce with green garnish.",
+        "reason": "Distinct plated presentation, clearly visible without identifying the covered food."
+      }
+    ],
+    "jp-alt2": [
+      {
+        "id": "jp-alt2-more1",
+        "decision": "keep",
+        "caption": "Noodles on a woven tray beside a black bowl.",
+        "reason": "Clear food view showing the serving arrangement."
+      },
+      {
+        "id": "jp-alt2-more2",
+        "decision": "keep",
+        "caption": "Printed Japanese menu held open.",
+        "reason": "Useful menu context paired with the food photograph."
+      }
+    ],
+    "kr-pick": [
+      {
+        "id": "kr-pick-old2",
+        "decision": "keep",
+        "caption": "Broad pieces of meat on a round tabletop grill.",
+        "reason": "Clear food-focused view of the grill."
+      },
+      {
+        "id": "kr-pick-old1",
+        "decision": "keep",
+        "caption": "Two raised glasses above a grill and small side dishes.",
+        "reason": "Adds same-visit table context while keeping the grilling food visible."
+      }
+    ],
+    "kr-alt2": [
+      {
+        "id": "kr-alt2-later23",
+        "decision": "keep",
+        "caption": "Black pot of orange-red broth topped with green leaves.",
+        "reason": "Clear prepared-food photograph with the serving prominently framed."
+      },
+      {
+        "id": "kr-alt2-later14",
+        "decision": "keep",
+        "caption": "Tabletop ordering screen with Korean text and food thumbnails.",
+        "reason": "Useful menu context only; does not establish the pictured bowl's current price."
+      }
+    ]
+  },
+  "model_lane": "Existing authorized gpt-6.1-sol image-input lane; delegate_task exposes no per-call model selector in this runtime. No runtime/config/provider change or paid fallback. A cheaper/faster helper route remains unproven here.",
+  "previous_pre_steering_pass": {
+    "candidate_panels": 120,
+    "compliant_with_later_cap": false,
+    "note": "Earlier broad author image sweep preceded operator steering. It informed pre-filter choices; this is a bounded recheck, not a fresh blind experiment or proof the whole session respected the later cap. Full galleries remain task-local, outside source control."
+  },
+  "proof_boundary": "not_independent_review; author-side photo curation only, not a PR verdict. Contact-sheet pixels, not separately enlarged originals; HTTP success alone is not visual evidence.",
+  "candidate_panel_count": 16,
+  "unique_candidate_urls": 16,
+  "selected_photo_count": 16,
+  "viewed_candidates": [
+    {
+      "id": "tw-pick-new12",
+      "group": "tw-pick",
+      "url": "https://ayuulife.com/wp-content/uploads/2026/01/1769834463881.jpg",
+      "source": "https://ayuulife.com/mutton-hot-pot/",
+      "date": "2026-01-31 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "74ea830057695c63a6fb257063990086226d16846a00791c8f1d558cf35a2137",
+      "fetch_utc": "2026-10-27T07:57:29.744632+00:00",
+      "http": "200 image/jpeg",
+      "width": 1477,
+      "height": 1108,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "hot pot",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "重頭戲是這一面自助的食材，店員補料也很快，有羊排、羊腳筋、羊大骨可以拿。",
+        "等帶骨的肉煮好前可以先去吃肉片，有羊肉、豬肉、牛肉，挑自己喜歡的肉品吃。",
+        "忘記說湯頭選擇：有紅燒、麻辣、清燉蔬菜等湯頭，可加價 $100 升級鴛鴦鍋。很推薦來這聚餐，氣氛熱鬧想聊天也不用擔心被白眼。",
+        "正老林羊肉爐羅東店"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "tw-pick-new2",
+      "group": "tw-pick",
+      "url": "https://ayuulife.com/wp-content/uploads/2026/01/1769834464082.jpg",
+      "source": "https://ayuulife.com/mutton-hot-pot/",
+      "date": "2026-01-31 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "ed7b35848ae435a9579c636c9be5985c7a583dfd6c0a8f3c9bfa263fa1dc1a93",
+      "fetch_utc": "2026-10-27T07:57:28.581384+00:00",
+      "http": "200 image/jpeg",
+      "width": 1477,
+      "height": 1108,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "正老林羊肉爐",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        ",",
+        "台灣旅遊",
+        "大人每人580元、小孩依身高有90元、280元價位。重點正老林羊肉爐吃到飽不收服務費～很佛心，主打羊大骨、羊排、羊蹄筋吃到飽的自助式火鍋店。",
+        "晚上到了用餐時間直接客滿，不過場地很大不會很擠，用餐時間120分鐘，給足2小時吃飯超讚的。"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "tw-alt1-more1",
+      "group": "tw-alt1",
+      "url": "https://twsala40.com/wp-content/uploads/pixnet/70daf5e51e7a78d57f5f835912bd8d48.jpg",
+      "source": "https://twsala40.com/2024-02-16-1417/",
+      "date": "2024-02-16 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "78174e2b672a5f1fd1f66772c239abfd7b216fe4a948f66679eaf32f6010e4a7",
+      "fetch_utc": "2026-10-27T08:09:18.502155+00:00",
+      "http": "200 image/jpeg",
+      "width": 639,
+      "height": 426,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "宜蘭羅東羊肉爐吃到飽『李家莊羊肉爐』有停車場",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "宜蘭",
+        ",",
+        "宜蘭羅東火鍋吃到飽『李家莊羊肉爐』冷冷的天吃羊肉爐最溫暖，夏天也可以吃到，還不錯，三五好友或家庭都可以來吃",
+        "// <![CDATA[(adsbygoogle = window.adsbygoogle || []).push({});// ]]&gt;"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "tw-alt1-more9",
+      "group": "tw-alt1",
+      "url": "https://twsala40.com/wp-content/uploads/pixnet/e9b7f7b5f0210eeae0c36f7ba3ace1a0.jpg",
+      "source": "https://twsala40.com/2024-02-16-1417/",
+      "date": "2024-02-16 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "f80bbd50a8603a0606da4bbd3fea07151881bdfdbf064b2c4b01b544761c2b15",
+      "fetch_utc": "2026-10-27T08:09:18.846555+00:00",
+      "http": "200 image/jpeg",
+      "width": 639,
+      "height": 426,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "宜蘭羅東羊肉爐吃到飽『李家莊羊肉爐』有停車場",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "羊腳筋比較需要久煮，有點佔位",
+        "羊腳筋和羊大骨好像蠻像的",
+        "也有羊肉和豬肉片",
+        "ac_post_img"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "tw-alt2-old1",
+      "group": "tw-alt2",
+      "url": "https://pic.pimg.tw/magianword/1716749450-1904733954-g_l.jpg",
+      "source": "https://marsfood.tw/uncle-azao/",
+      "date": "2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "351115bc9c8ba698de8908c2a9ea32a748cefb7b34c1b8952ff102be11aee38c",
+      "fetch_utc": "2026-10-27T07:57:26.414572+00:00",
+      "http": "200 image/jpeg",
+      "width": 2048,
+      "height": 1363,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "宜蘭美食 》羅東夜市 阿灶伯當歸羊肉湯，不管如何都要吃的超人氣排隊美食",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "阿灶伯當歸羊肉湯 菜單價格",
+        "在攤位前面排隊的人是排外帶的，內用客滿的話需要到後面的土地公廟跟著人潮排隊。",
+        "當歸羊肉湯($85)",
+        "以前肉超多，現在肉還是很多的當歸羊肉湯，光那滿滿的肉就很吸引人，而且肉質軟嫩沒有羊騷味，搭配旁邊的沾醬更好吃，這次來吃的湯頭較為清甜，有著淡淡的香氣，裡面還有一些青菜。"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "tw-alt2-old2",
+      "group": "tw-alt2",
+      "url": "https://pic.pimg.tw/magianword/1716749450-1771767797-g_l.jpg",
+      "source": "https://marsfood.tw/uncle-azao/",
+      "date": "2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "050277edbc7bbd7a7734ef726378d27df3a7eca6504da87c412edb417d17a3cf",
+      "fetch_utc": "2026-10-27T07:57:26.516218+00:00",
+      "http": "200 image/jpeg",
+      "width": 2048,
+      "height": 1363,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "L1010393.jpg",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "阿灶伯當歸羊肉湯 餐點內容",
+        "阿灶伯當歸羊肉湯菜單品項簡單，主要是當歸羊肉湯跟臭豆腐，沙茶羊肉也很多人推，不過我知道附近有一間炒沙茶很厲害的老店，其它還有魯肉飯、燙青菜、乾麵….等小吃。(菜單為2024年5月拍攝)",
+        "以前的湯頭味道非常濃郁，現在轉為較清甜的口感還可以，主要還是吃肉。",
+        "軟嫩的羊肉片吸附當歸湯頭，沾點醬更好吃。"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "jp-pick-new3",
+      "group": "jp-pick",
+      "url": "https://livedoor.blogimg.jp/hants/imgs/b/7/b73f7b81-s.jpg",
+      "source": "https://hants.livedoor.biz/archives/52236222.html",
+      "date": "2026-08-17",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "dc235af94881301206143388200ef52d355b50b26ec16f800d81a8746da44ca7",
+      "fetch_utc": "2026-10-27T07:57:30.489411+00:00",
+      "http": "200 image/jpeg",
+      "width": 480,
+      "height": 320,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "a-morimotooosaka2",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "「濃厚担々麺」も話題です。",
+        "圧倒的人気は「四川式よだれ鶏」",
+        "「咸魚炒飯」などもありました(限定品)。",
+        "中華旬彩 森本　(もりもと)"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "jp-pick-new4",
+      "group": "jp-pick",
+      "url": "https://livedoor.blogimg.jp/hants/imgs/3/0/3079e6b3-s.jpg",
+      "source": "https://hants.livedoor.biz/archives/52236222.html",
+      "date": "2026-08-17",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "c384b87ab995c027733c9da1cf6bd5b1cbb05b60f0ff5be9e68efcccd36e4ac5",
+      "fetch_utc": "2026-10-27T07:57:30.520628+00:00",
+      "http": "200 image/jpeg",
+      "width": 480,
+      "height": 320,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "a-IMG_0065",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "「濃厚担々麺」も話題です。",
+        "圧倒的人気は「四川式よだれ鶏」",
+        "「咸魚炒飯」などもありました(限定品)。",
+        "中華旬彩 森本　(もりもと)"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "jp-alt1-old1",
+      "group": "jp-alt1",
+      "url": "https://o-ri-be.com/wp-content/uploads/2026/10/oribe20161024.png",
+      "source": "https://o-ri-be.com/2026/10/26/20261026/",
+      "date": "2026-10-26",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "56e62e2da71f08286b3415d85eefed1fc46a4b9641f0ad452cee87046681dfec",
+      "fetch_utc": "2026-10-27T07:57:26.538883+00:00",
+      "http": "200 image/png",
+      "width": 650,
+      "height": 720,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "Type3",
+        "Type2",
+        "🦐天然足赤海老、🦑イカ、🍄岩手県・安比舞茸アメリケーヌソース",
+        "関西では馴染みの足赤海老。。。"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "jp-alt1-old2",
+      "group": "jp-alt1",
+      "url": "https://o-ri-be.com/wp-content/uploads/2026/09/20260926h-705x571.jpg",
+      "source": "https://o-ri-be.com/2026/09/29/20260929/",
+      "date": "2026-09-29",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "de340ababd0030c4143b63f7bff197592876cf8c9561c3087feaeea1e36aa816",
+      "fetch_utc": "2026-10-27T07:57:26.559524+00:00",
+      "http": "200 image/jpeg",
+      "width": 705,
+      "height": 571,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "Type3",
+        "Type2",
+        "毎年人気のサンマの燻製が始まりました〜👨‍🍳",
+        "サンマのわた(内蔵)を丁寧に処理して、ソースに仕上げてます。"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "jp-alt2-more1",
+      "group": "jp-alt2",
+      "url": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051745424112-scaled.jpg",
+      "source": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/",
+      "date": "2026-03-05 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "6b04140688266a1180bd3ff274e78da644ea84c76cda136bb148c112ed8fd6a2",
+      "fetch_utc": "2026-10-27T08:09:19.064791+00:00",
+      "http": "200 image/jpeg",
+      "width": 2560,
+      "height": 1920,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "大阪府",
+        "ホーム"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "jp-alt2-more2",
+      "group": "jp-alt2",
+      "url": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051736182612-1024x768.jpg",
+      "source": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/",
+      "date": "2026-03-05 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "808b9cac33c83ae22a5141d5bc10f6e303a1e58ec45f452d590688a967d096a4",
+      "fetch_utc": "2026-10-27T08:09:19.072964+00:00",
+      "http": "200 image/jpeg",
+      "width": 1024,
+      "height": 768,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "深緑色の木板に白文字の店名の看板、営業中の木札が立て掛けられてるのが印象的です。",
+        "営業時間…11:30〜14:30、17:30〜20:30",
+        "そばメニューは冷たいそば（細切り、荒挽き）、温かいそば。",
+        "飲み物、おつまみの提供もあり、おつまみをアテにお酒を飲まれるお客さまが羨ましいです。"
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "kr-pick-old2",
+      "group": "kr-pick",
+      "url": "https://d2uja84sd90jmv.cloudfront.net/posts/-OmWWClbKl9YACw2vt5hzw/ms.jpg?updated=-62167392000",
+      "source": "https://polle.com/j47433298/posts/1",
+      "date": "2026-03-12 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "dc746d8ce13fc16a9c973046c0c779989f58fcd0109d99fea60f53d9cfb5a288",
+      "fetch_utc": "2026-10-27T07:57:27.855584+00:00",
+      "http": "200 image/jpeg",
+      "width": 540,
+      "height": 720,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": false,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [],
+      "prefilter_note": "For the two Polle URLs, current HTML has no static image tag; these are the recovered post photo-array links paired with the post text, not a claim of current DOM adjacency."
+    },
+    {
+      "id": "kr-pick-old1",
+      "group": "kr-pick",
+      "url": "https://d2uja84sd90jmv.cloudfront.net/posts/6pvah39KyLuckZzRHjs9iw/ms.jpg?updated=-62167392000",
+      "source": "https://polle.com/j47433298/posts/1",
+      "date": "2026-03-12 (historical)",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "95478859e0a650628416c8b7b2657fa73d2fa29a02147acb4362ade411705406",
+      "fetch_utc": "2026-10-27T07:57:27.777108+00:00",
+      "http": "200 image/jpeg",
+      "width": 540,
+      "height": 720,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": false,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [],
+      "prefilter_note": "For the two Polle URLs, current HTML has no static image tag; these are the recovered post photo-array links paired with the post text, not a claim of current DOM adjacency."
+    },
+    {
+      "id": "kr-alt2-later23",
+      "group": "kr-alt2",
+      "url": "https://mblogthumb-phinf.pstatic.net/MjAyNjA1MzBfMjQ5/MDAxNzgwMTI1NjI1NDIy.7AJvyMa4v00Cz-yjgH19AztM39RaRYsgIbNdIW-GhV4g.97egJVVzkD1W2KHtJJHQdPSgrJ924Kl2gkE5M-pnZwwg.JPEG/SE-8cb612ae-89f1-4833-bf00-b8db786834c2.jpg?type=w400",
+      "source": "https://m.blog.naver.com/PostView.naver?blogId=kmi0508&logNo=224301021811",
+      "date": "2026-06-07",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "b6e348b79e45c113ebcedfcfa6fec0390b7a4b3d2476a335607f689cf1139235",
+      "fetch_utc": "2026-10-27T08:13:30.310182+00:00",
+      "http": "200 image/jpeg",
+      "width": 400,
+      "height": 300,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "SE-TEXT {",
+        "곱해장은.. 참고로 점심엔 못먹을것같다.."
+      ],
+      "prefilter_note": ""
+    },
+    {
+      "id": "kr-alt2-later14",
+      "group": "kr-alt2",
+      "url": "https://mblogthumb-phinf.pstatic.net/MjAyNjA1MzBfMTU2/MDAxNzgwMTI1NTczMTEx.e1Qz49uJ2TWBYFf5-82nYZ1B54FgVHho2o_iFgc9ulcg.t0DllIxBRqXRgqdw6dUQEJTTeRzPKVa6UVNWq8yJ4TIg.JPEG/SE-fc3fed93-f4ac-4e2e-a7e2-cf6f6cde2592.jpg?type=w800",
+      "source": "https://m.blog.naver.com/PostView.naver?blogId=kmi0508&logNo=224301021811",
+      "date": "2026-06-07",
+      "method": "contact_sheet_pixels",
+      "image_sha256": "dd51140d39ab4a47b3017eb2495338c5da0dad1b735834d75f24ca5627c3d772",
+      "fetch_utc": "2026-10-27T08:13:28.549005+00:00",
+      "http": "200 image/jpeg",
+      "width": 800,
+      "height": 600,
+      "prefilter": {
+        "method": "Original article image position, nearby text, alt text and file name; this is not visual proof.",
+        "exact_image_tag_matched": true,
+        "alt": "",
+        "rationale": "Finalist food/menu candidate from the matched source article. No logos, maps, staircases or storefront-only candidates. Prior pre-steering selections informed this bounded recheck; not a fresh blind experiment."
+      },
+      "nearby_text": [
+        "SE-TEXT {",
+        "📌 리뷰이벤트 진행시 음료 1캔 제공!"
+      ],
+      "prefilter_note": ""
+    }
+  ],
+  "selected_ids": {
+    "tw-pick": [
+      "tw-pick-new12",
+      "tw-pick-new2"
+    ],
+    "tw-alt1": [
+      "tw-alt1-more1",
+      "tw-alt1-more9"
+    ],
+    "tw-alt2": [
+      "tw-alt2-old1",
+      "tw-alt2-old2"
+    ],
+    "jp-pick": [
+      "jp-pick-new3",
+      "jp-pick-new4"
+    ],
+    "jp-alt1": [
+      "jp-alt1-old1",
+      "jp-alt1-old2"
+    ],
+    "jp-alt2": [
+      "jp-alt2-more1",
+      "jp-alt2-more2"
+    ],
+    "kr-pick": [
+      "kr-pick-old2",
+      "kr-pick-old1"
+    ],
+    "kr-alt2": [
+      "kr-alt2-later23",
+      "kr-alt2-later14"
+    ]
+  },
+  "rejected_scope": "Rejection reasons below are retained from pre-steering curation, not additional candidates viewed in the final bounded pass. The decisions field records the final pass (16 keep, no reject).",
+  "rejected": [
+    {
+      "id": "tw-pick-old2",
+      "reason": "Foreground compartments are labelled pork and beef slices; poor showcase for the lamb preference. Replaced with hot pot and a price board."
+    },
+    {
+      "id": "jp-pick-old1",
+      "reason": "A staircase rather than prepared food; replaced by two useful whole-serving/detail views of the article dish, not a storefront or directory."
+    },
+    {
+      "id": "tw-alt1-old1",
+      "reason": "Entrance displaced by a complete meal photograph."
+    },
+    {
+      "id": "tw-alt1-old2",
+      "reason": "Dining room displaced by a complementary buffet food view."
+    },
+    {
+      "id": "jp-alt2-old1",
+      "reason": "Entrance displaced by an actual noodle meal."
+    },
+    {
+      "id": "jp-alt2-old2",
+      "reason": "Interior displaced by a menu photograph."
+    },
+    {
+      "id": "kr-alt1-old1",
+      "reason": "Toilet-information/menu-promotion notice displaced by actual served steamer dishes."
+    },
+    {
+      "id": "kr-alt1-old2",
+      "reason": "Side dish displaced by dumplings and another served steamer dish."
+    },
+    {
+      "id": "kr-alt2-old1",
+      "reason": "Dining room displaced by an actual served soup close-up."
+    },
+    {
+      "id": "kr-alt2-old2",
+      "reason": "Jeon-only menu displaced by a table-order menu screen."
+    },
+    {
+      "id": "tw-pick-new13",
+      "reason": "Beauty products; unrelated sidebar imagery."
+    },
+    {
+      "id": "tw-pick-new14",
+      "reason": "Photo-printing kiosk; unrelated sidebar imagery."
+    },
+    {
+      "id": "jp-pick-new1",
+      "reason": "Blog banner, not meal/venue evidence."
+    },
+    {
+      "id": "jp-pick-new2",
+      "reason": "Explicitly Lunch Menu, not dinner-menu evidence."
+    },
+    {
+      "id": "jp-pick-new7",
+      "reason": "Publication cover, not this venue meal."
+    },
+    {
+      "id": "jp-alt2-more11",
+      "reason": "Different-looking food with no verified connection to the target article meal; possible sidebar."
+    },
+    {
+      "id": "jp-alt2-more12",
+      "reason": "Different-looking food with no verified connection to the target article meal; possible sidebar."
+    },
+    {
+      "id": "kr-alt1-more2",
+      "reason": "Title collage with a small food inset; later article images supply actual served dumplings."
+    },
+    {
+      "id": "kr-alt2-more8",
+      "reason": "Promotional menu board displaced by actual served soup and a closer menu screen."
+    }
+  ],
+  "limitations": [
+    "Publication dates remain original page provenance, not inferred camera dates; all capture dates unknown.",
+    "Contact-sheet resolution limits small menu text; captions avoid uncertain meat species, ingredients and exact dish names.",
+    "Morimoto images are useful whole-serving and detail views of the same fried-rice serving from the article, not independent dishes or photos of the recommended chicken/noodle order.",
+    "Oribe photos depict the venue's seasonal plated dishes, not a guarantee that the exact example order is pictured or available.",
+    "The Korean table-order screen is a photographed menu reference, not confirmation of today's price or that the soup photo is the same set item.",
+    "Some food views are complementary angles of the same serving, not independent visits.",
+    "No image bytes are committed/rehosted; hashes bind the locally fetched bytes to the original public image links."
+  ]
+}

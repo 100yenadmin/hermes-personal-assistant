@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "read_at_utc": "2026-10-27T07:25:38.101665+00:00",
+  "authority": "Operator steering on Kanban t_f9316036 explicitly named these two existing food preference records in Eva's PA profile",
+  "method": "personal_assistant.state.Ledger.get with read_only=True; two named action identities only",
+  "native_pa_tool": false,
+  "runtime_gap": "Khan's currently exposed native pa schema omits operation=profile; this is an explicit scoped repository-backend read, not a native pa tool transcript",
+  "profile_records_written": false,
+  "runtime_or_config_changed": false,
+  "unrelated_records_listed": false,
+  "records": [
+    {
+      "identity": "pref:loves-lamb",
+      "kind": "preference",
+      "state": "active",
+      "category": "food",
+      "source": "said",
+      "safe_effect": "Use the saved lamb preference to rank lamb-led dinner options"
+    },
+    {
+      "identity": "pref:restaurant-photos-menu",
+      "kind": "preference",
+      "state": "active",
+      "category": "food",
+      "source": "said",
+      "safe_effect": "Show recent-photo provenance, menu prices and suggested orders; label any freshness gap"
+    }
+  ],
+  "privacy_boundary": "Derivative scoped read attestation only. No raw profile rows, private filesystem path, customer ledger, unrelated preferences or live owner-file contents are published. The food-preference meanings were also supplied explicitly in the task steering."
+}

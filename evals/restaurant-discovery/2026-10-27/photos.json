@@ -1,0 +1,226 @@
+{
+  "tw-pick": [
+    {
+      "url": "https://ayuulife.com/wp-content/uploads/2026/01/1769834463881.jpg",
+      "source": "https://ayuulife.com/mutton-hot-pot/",
+      "date": "2026-01-31 (historical)",
+      "credit": "小譽的食旅地圖",
+      "citation": 1,
+      "candidate_id": "tw-pick-new12",
+      "caption": "Metal hot pot with broth, pale leaves and clustered stems.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "74ea830057695c63a6fb257063990086226d16846a00791c8f1d558cf35a2137",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://ayuulife.com/wp-content/uploads/2026/01/1769834464082.jpg",
+      "source": "https://ayuulife.com/mutton-hot-pot/",
+      "date": "2026-01-31 (historical)",
+      "credit": "小譽的食旅地圖",
+      "citation": 1,
+      "candidate_id": "tw-pick-new2",
+      "caption": "Two wall-mounted menu boards on a brick-patterned wall.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "ed7b35848ae435a9579c636c9be5985c7a583dfd6c0a8f3c9bfa263fa1dc1a93",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ],
+  "tw-alt1": [
+    {
+      "url": "https://twsala40.com/wp-content/uploads/pixnet/70daf5e51e7a78d57f5f835912bd8d48.jpg",
+      "source": "https://twsala40.com/2024-02-16-1417/",
+      "date": "2024-02-16 (historical)",
+      "credit": "沙拉飯團",
+      "citation": 9,
+      "candidate_id": "tw-alt1-more1",
+      "caption": "Broth-filled metal pot with large pieces, corn rounds and mushrooms.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "78174e2b672a5f1fd1f66772c239abfd7b216fe4a948f66679eaf32f6010e4a7",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://twsala40.com/wp-content/uploads/pixnet/e9b7f7b5f0210eeae0c36f7ba3ace1a0.jpg",
+      "source": "https://twsala40.com/2024-02-16-1417/",
+      "date": "2024-02-16 (historical)",
+      "credit": "沙拉飯團",
+      "citation": 9,
+      "candidate_id": "tw-alt1-more9",
+      "caption": "Two red trays holding sliced and rolled meat, with tongs.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "f80bbd50a8603a0606da4bbd3fea07151881bdfdbf064b2c4b01b544761c2b15",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ],
+  "tw-alt2": [
+    {
+      "url": "https://pic.pimg.tw/magianword/1716749450-1904733954-g_l.jpg",
+      "source": "https://marsfood.tw/uncle-azao/",
+      "date": "2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)",
+      "credit": "馬鈴薯大哥",
+      "citation": 5,
+      "candidate_id": "tw-alt2-old1",
+      "caption": "White bowl piled with sliced meat above broth.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "351115bc9c8ba698de8908c2a9ea32a748cefb7b34c1b8952ff102be11aee38c",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://pic.pimg.tw/magianword/1716749450-1771767797-g_l.jpg",
+      "source": "https://marsfood.tw/uncle-azao/",
+      "date": "2026-08-24 (article publication; underlying menu explicitly 2024-05; photo may predate publication)",
+      "credit": "馬鈴薯大哥",
+      "citation": 5,
+      "candidate_id": "tw-alt2-old2",
+      "caption": "Spoonful of amber broth held above the bowl.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "050277edbc7bbd7a7734ef726378d27df3a7eca6504da87c412edb417d17a3cf",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ],
+  "jp-pick": [
+    {
+      "url": "https://livedoor.blogimg.jp/hants/imgs/b/7/b73f7b81-s.jpg",
+      "source": "https://hants.livedoor.biz/archives/52236222.html",
+      "date": "2026-08-17",
+      "credit": "はんつ遠藤",
+      "citation": 42,
+      "candidate_id": "jp-pick-new3",
+      "caption": "Fried rice in a blue-and-white handled bowl.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "dc235af94881301206143388200ef52d355b50b26ec16f800d81a8746da44ca7",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://livedoor.blogimg.jp/hants/imgs/3/0/3079e6b3-s.jpg",
+      "source": "https://hants.livedoor.biz/archives/52236222.html",
+      "date": "2026-08-17",
+      "credit": "はんつ遠藤",
+      "citation": 42,
+      "candidate_id": "jp-pick-new4",
+      "caption": "Close-up of the fried rice in the patterned bowl.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "c384b87ab995c027733c9da1cf6bd5b1cbb05b60f0ff5be9e68efcccd36e4ac5",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ],
+  "jp-alt1": [
+    {
+      "url": "https://o-ri-be.com/wp-content/uploads/2026/10/oribe20161024.png",
+      "source": "https://o-ri-be.com/2026/10/26/20261026/",
+      "date": "2026-10-26",
+      "credit": "Oribe (venue)",
+      "citation": 39,
+      "candidate_id": "jp-alt1-old1",
+      "caption": "Shell-on seafood with orange sauce on a white plate.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "56e62e2da71f08286b3415d85eefed1fc46a4b9641f0ad452cee87046681dfec",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://o-ri-be.com/wp-content/uploads/2026/09/20260926h-705x571.jpg",
+      "source": "https://o-ri-be.com/2026/09/29/20260929/",
+      "date": "2026-09-29",
+      "credit": "Oribe (venue)",
+      "citation": 40,
+      "candidate_id": "jp-alt1-old2",
+      "caption": "Stacked food under dark glossy sauce with green garnish.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "de340ababd0030c4143b63f7bff197592876cf8c9561c3087feaeea1e36aa816",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ],
+  "jp-alt2": [
+    {
+      "url": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051745424112-scaled.jpg",
+      "source": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/",
+      "date": "2026-03-05 (historical)",
+      "credit": "釣りするカツオに食べるカツオ",
+      "citation": 43,
+      "candidate_id": "jp-alt2-more1",
+      "caption": "Noodles on a woven tray beside a black bowl.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "6b04140688266a1180bd3ff274e78da644ea84c76cda136bb148c112ed8fd6a2",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/wp-content/uploads/2026/03/2603051736182612-1024x768.jpg",
+      "source": "https://xn--88jtb2b9cgc8sdee4yf22343aopua.net/2026/03/05/sobakiri-bunmokudou/",
+      "date": "2026-03-05 (historical)",
+      "credit": "釣りするカツオに食べるカツオ",
+      "citation": 43,
+      "candidate_id": "jp-alt2-more2",
+      "caption": "Printed Japanese menu held open.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "808b9cac33c83ae22a5141d5bc10f6e303a1e58ec45f452d590688a967d096a4",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ],
+  "kr-pick": [
+    {
+      "url": "https://d2uja84sd90jmv.cloudfront.net/posts/-OmWWClbKl9YACw2vt5hzw/ms.jpg?updated=-62167392000",
+      "source": "https://polle.com/j47433298/posts/1",
+      "date": "2026-03-12 (historical)",
+      "credit": "옘미 / Polle",
+      "citation": 35,
+      "candidate_id": "kr-pick-old2",
+      "caption": "Broad pieces of meat on a round tabletop grill.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "dc746d8ce13fc16a9c973046c0c779989f58fcd0109d99fea60f53d9cfb5a288",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://d2uja84sd90jmv.cloudfront.net/posts/6pvah39KyLuckZzRHjs9iw/ms.jpg?updated=-62167392000",
+      "source": "https://polle.com/j47433298/posts/1",
+      "date": "2026-03-12 (historical)",
+      "credit": "옘미 / Polle",
+      "citation": 35,
+      "candidate_id": "kr-pick-old1",
+      "caption": "Two raised glasses above a grill and small side dishes.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "95478859e0a650628416c8b7b2657fa73d2fa29a02147acb4362ade411705406",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ],
+  "kr-alt2": [
+    {
+      "url": "https://mblogthumb-phinf.pstatic.net/MjAyNjA1MzBfMjQ5/MDAxNzgwMTI1NjI1NDIy.7AJvyMa4v00Cz-yjgH19AztM39RaRYsgIbNdIW-GhV4g.97egJVVzkD1W2KHtJJHQdPSgrJ924Kl2gkE5M-pnZwwg.JPEG/SE-8cb612ae-89f1-4833-bf00-b8db786834c2.jpg?type=w400",
+      "source": "https://m.blog.naver.com/PostView.naver?blogId=kmi0508&logNo=224301021811",
+      "date": "2026-06-07",
+      "credit": "여행하는 Groot / Naver Blog",
+      "citation": 30,
+      "candidate_id": "kr-alt2-later23",
+      "caption": "Black pot of orange-red broth topped with green leaves.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "b6e348b79e45c113ebcedfcfa6fec0390b7a4b3d2476a335607f689cf1139235",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    },
+    {
+      "url": "https://mblogthumb-phinf.pstatic.net/MjAyNjA1MzBfMTU2/MDAxNzgwMTI1NTczMTEx.e1Qz49uJ2TWBYFf5-82nYZ1B54FgVHho2o_iFgc9ulcg.t0DllIxBRqXRgqdw6dUQEJTTeRzPKVa6UVNWq8yJ4TIg.JPEG/SE-fc3fed93-f4ac-4e2e-a7e2-cf6f6cde2592.jpg?type=w800",
+      "source": "https://m.blog.naver.com/PostView.naver?blogId=kmi0508&logNo=224301021811",
+      "date": "2026-06-07",
+      "credit": "여행하는 Groot / Naver Blog",
+      "citation": 30,
+      "candidate_id": "kr-alt2-later14",
+      "caption": "Tabletop ordering screen with Korean text and food thumbnails.",
+      "visually_inspected": true,
+      "inspection_method": "contact_sheet_pixels",
+      "image_sha256": "dd51140d39ab4a47b3017eb2495338c5da0dad1b735834d75f24ca5627c3d772",
+      "inspection_limit": "Original source image was viewed as a labelled preview in a contact sheet; no capture-date, ingredient or current-availability inference."
+    }
+  ]
+}

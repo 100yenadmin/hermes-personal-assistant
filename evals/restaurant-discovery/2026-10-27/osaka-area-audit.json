@@ -1,0 +1,1340 @@
+{
+  "declared_total": 59,
+  "lists": [
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/restaurants/bib-gourmand",
+      "source_kind": "official_category_page",
+      "method": "web_extract",
+      "excerpt": "Osaka : 1-48 of 59 restaurants",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "names": [
+        "Chukashunsai Morimoto",
+        "PRESTAU",
+        "Daidokoro Kamiya",
+        "Macauda",
+        "Ramen Kuon",
+        "Sumibi Iwata",
+        "Sumisho Mikuriya",
+        "Ueroku wine",
+        "Kyomachibori Nakamura",
+        "AKA to SHIRO",
+        "La bonne tâche",
+        "il luogo di TAKEUCHI",
+        "Chukasoba Mugen",
+        "Sushidokoro Kaihara",
+        "tanpopo",
+        "Shokudo Akari",
+        "Az",
+        "Shuko Osaka Manpukudou",
+        "kushiage 010",
+        "Ayamuya",
+        "Oribe",
+        "Oudon Yomogi",
+        "Sakamoto Sushi",
+        "Kamigata Rainbow",
+        "Tonkatsu Fujii",
+        "Tonkatsu KATSU Hana",
+        "PITAK GOHAN",
+        "Tonkatsu Minato",
+        "Ramen Hayato",
+        "Sobakiri Gaku",
+        "DIVA",
+        "Naniwa Okina",
+        "Sobakiri Arabompu",
+        "Suigyo Murabayashi",
+        "Sushitsune",
+        "Aozora blue",
+        "Sobakiri Karani",
+        "Benikurage",
+        "gastroteka bimendi",
+        "au soleil couchant",
+        "Osteria La Cicerchia",
+        "Sakeya Sakana Yoshimura",
+        "Ayamedo",
+        "Udondokoro Shigemi",
+        "Mendokoro Subete",
+        "bistrot neuf",
+        "Tenboshi",
+        "Oryori Amenimomakezu"
+      ]
+    },
+    {
+      "url": "https://guide.michelin.com/en/jp/osaka-region/restaurants/bib-gourmand/page/2",
+      "source_kind": "official_category_page",
+      "method": "web_extract",
+      "excerpt": "Osaka : 49-59 of 59 restaurants",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "names": [
+        "Izakaya Tokitame",
+        "Sobadokoro Toki",
+        "Donostia",
+        "Chukasoba Uemachi",
+        "Mugito Mensuke",
+        "via del emme",
+        "JIBUNDOKI",
+        "Nikomi Kimura",
+        "Ogimachi Udonya Asuro",
+        "Tempura Kozaki",
+        "Kushikatsu Gojoya"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "name": "Chukashunsai Morimoto",
+      "address": "B1F, 1-4-14 Shinsaibashisuji, Chuo-ku, Osaka, 542-0085, Japan",
+      "area_scope": "boundary",
+      "reason": "Shinsaibashi shopping-street fringe north of Dotonbori; do not silently exclude.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/chukashunsai-morimoto",
+      "source_kind": "official_venue_page",
+      "excerpt": "B1F, 1-4-14 Shinsaibashisuji, Chuo-ku, Osaka, 542-0085, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "pick",
+      "disposition_reason": "Explicit Shinsaibashi expansion; menu/hour/photo evidence retained in the output."
+    },
+    {
+      "name": "PRESTAU",
+      "address": "2-17-17 Shimmachi, Nishi-ku, Osaka, 550-0013, Japan",
+      "area_scope": "boundary",
+      "reason": "Shimmachi/Nishiohashi northwest fringe; conservatively flag for owner boundary decision, not core Namba.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/prestau",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-17-17 Shimmachi, Nishi-ku, Osaka, 550-0013, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "Outer fringe, not Namba proper; not promoted without comparable menu/photo/policy verification and a radius decision. See recorded schedule/conflict evidence."
+    },
+    {
+      "name": "Daidokoro Kamiya",
+      "address": "1-10-12 Kyomachibori, Nishi-ku, Osaka, 550-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Kyomachibori/Utsubo district, not the requested Namba/Nippombashi/Dotonbori core or immediate fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/daidokoro-kamiya",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-10-12 Kyomachibori, Nishi-ku, Osaka, 550-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Macauda",
+      "address": "2-1-3 Tokiwamachi, Chuo-ku, Osaka, 540-0028, Japan",
+      "area_scope": "outside",
+      "reason": "Tokiwamachi/Tanimachi 4-chome district north of the eastern fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/macauda",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-1-3 Tokiwamachi, Chuo-ku, Osaka, 540-0028, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Outside strict core and published Tuesday-closed schedule; not a dinner alternative."
+    },
+    {
+      "name": "Ramen Kuon",
+      "address": "B2F, Semba Centar Bldg Sangokan, 1-4-3 Sembachuo, Chuo-ku, Osaka, 541-0055, Japan",
+      "area_scope": "outside",
+      "reason": "Semba Center/Sakaisuji-Hommachi district north of the Shinsaibashi fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ramen-kuon",
+      "source_kind": "official_venue_page",
+      "excerpt": "B2F, Semba Centar Bldg Sangokan, 1-4-3 Sembachuo, Chuo-ku, Osaka, 541-0055, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sumibi Iwata",
+      "address": "3-5-8 Miyakojimanakadori, Miyakojima-ku, Osaka, 534-0022, Japan",
+      "area_scope": "outside",
+      "reason": "Miyakojima-ku, separate northeastern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sumibi-iwata",
+      "source_kind": "official_venue_page",
+      "excerpt": "3-5-8 Miyakojimanakadori, Miyakojima-ku, Osaka, 534-0022, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sumisho Mikuriya",
+      "address": "5-10-4 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "area_scope": "outside",
+      "reason": "Nishitemma in Kita-ku, separate northern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sumisho-mikuriya",
+      "source_kind": "official_venue_page",
+      "excerpt": "5-10-4 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Ueroku wine",
+      "address": "4-15 Higashikozucho, Tennoji-ku, Osaka, 543-0021, Japan",
+      "area_scope": "boundary",
+      "reason": "Uehommachi eastern outer fringe; retained conservatively for boundary decision rather than treated as core Namba.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ueroku-wine",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-15 Higashikozucho, Tennoji-ku, Osaka, 543-0021, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "Outer fringe, not Namba proper; not promoted without comparable menu/photo/policy verification and a radius decision. See recorded schedule/conflict evidence."
+    },
+    {
+      "name": "Kyomachibori Nakamura",
+      "address": "1-17-9 Kyomachibori, Nishi-ku, Osaka, 550-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Kyomachibori/Utsubo district, north of requested core and immediate fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kyomachibori-nakamura",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-17-9 Kyomachibori, Nishi-ku, Osaka, 550-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "AKA to SHIRO",
+      "address": "3F, 1-1-41 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "area_scope": "outside",
+      "reason": "Sonezakishinchi/Kitashinchi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/aka-to-shiro",
+      "source_kind": "official_venue_page",
+      "excerpt": "3F, 1-1-41 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "La bonne tâche",
+      "address": "4-1-8 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "area_scope": "outside",
+      "reason": "Nishitemma in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/la-bonne-tache",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-1-8 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "il luogo di TAKEUCHI",
+      "address": "5-1-26 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Fukushima-ku, separate northwestern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/il-luogo-di-takeuchi",
+      "source_kind": "official_venue_page",
+      "excerpt": "5-1-26 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Chukasoba Mugen",
+      "address": "5-5-10 Ebie, Fukushima-ku, Osaka, 553-0001, Japan",
+      "area_scope": "outside",
+      "reason": "Ebie/Fukushima-ku, separate northwestern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/chukasoba-mugen",
+      "source_kind": "official_venue_page",
+      "excerpt": "5-5-10 Ebie, Fukushima-ku, Osaka, 553-0001, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sushidokoro Kaihara",
+      "address": "5-4 Ikedacho, Kita-ku, Osaka, 530-0033, Japan",
+      "area_scope": "outside",
+      "reason": "Ikedacho/Tenma in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/sushidokoro-kaihara",
+      "source_kind": "official_venue_page",
+      "excerpt": "5-4 Ikedacho, Kita-ku, Osaka, 530-0033, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "tanpopo",
+      "address": "6F, 1-10-16 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "area_scope": "outside",
+      "reason": "Sonezakishinchi/Kitashinchi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/tanpopo",
+      "source_kind": "official_venue_page",
+      "excerpt": "6F, 1-10-16 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Shokudo Akari",
+      "address": "2F, 1-6-27 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "area_scope": "outside",
+      "reason": "Sonezakishinchi/Kitashinchi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/shokudo-akari",
+      "source_kind": "official_venue_page",
+      "excerpt": "2F, 1-6-27 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Az",
+      "address": "B1F, 4-4-8 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "area_scope": "outside",
+      "reason": "Nishitemma in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/us/en/osaka-region/osaka/restaurant/az",
+      "source_kind": "official_venue_page",
+      "excerpt": "B1F, 4-4-8 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Shuko Osaka Manpukudou",
+      "address": "3-4-14 Oimazatonishi, Higashinari-ku, Osaka, 537-0014, Japan",
+      "area_scope": "outside",
+      "reason": "Oimazatonishi/Higashinari-ku, separate eastern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/shuko-osaka-manpukudou",
+      "source_kind": "official_venue_page",
+      "excerpt": "3-4-14 Oimazatonishi, Higashinari-ku, Osaka, 537-0014, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "kushiage 010",
+      "address": "4F, 1-1-41 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "area_scope": "outside",
+      "reason": "Sonezakishinchi/Kitashinchi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kushiage-010",
+      "source_kind": "official_venue_page",
+      "excerpt": "4F, 1-1-41 Sonezakishinchi, Kita-ku, Osaka, 530-0002, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Ayamuya",
+      "address": "5-17-39 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Fukushima-ku, separate northwestern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ayamuya",
+      "source_kind": "official_venue_page",
+      "excerpt": "5-17-39 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Oribe",
+      "address": "1-6-18 Shimmachi, Nishi-ku, Osaka, 550-0013, Japan",
+      "area_scope": "boundary",
+      "reason": "Yotsubashi/Shimmachi northwest Shinsaibashi fringe; not silently excluded.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/oribe",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-6-18 Shimmachi, Nishi-ku, Osaka, 550-0013, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "alternative",
+      "disposition_reason": "Explicit Shimmachi/Tanimachi expansion; supporting evidence retained in the output."
+    },
+    {
+      "name": "Oudon Yomogi",
+      "address": "2-10-6 Sagisu, Fukushima-ku, Osaka, 553-0002, Japan",
+      "area_scope": "outside",
+      "reason": "Sagisu/Fukushima-ku, separate northwestern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/oudon-yomogi",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-10-6 Sagisu, Fukushima-ku, Osaka, 553-0002, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sakamoto Sushi",
+      "address": "1-23-13 Nishikujo, Konohana-ku, Osaka, 554-0012, Japan",
+      "area_scope": "outside",
+      "reason": "Nishikujo/Konohana-ku, separate western Osaka district.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/sakamoto-sushi",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-23-13 Nishikujo, Konohana-ku, Osaka, 554-0012, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Kamigata Rainbow",
+      "address": "4-6-3 Katsuyama, Tennoji-ku, Osaka, 543-0043, Japan",
+      "area_scope": "outside",
+      "reason": "Katsuyama eastern Tennoji-ku, beyond the retained Yuhigaoka fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kamigata-rainbow",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-6-3 Katsuyama, Tennoji-ku, Osaka, 543-0043, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Tonkatsu Fujii",
+      "address": "1-11-5 Sembayashi, Asahi-ku, Osaka, 535-0012, Japan",
+      "area_scope": "outside",
+      "reason": "Sembayashi/Asahi-ku, separate northeastern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tonkatsu-fujii",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-11-5 Sembayashi, Asahi-ku, Osaka, 535-0012, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Tonkatsu KATSU Hana",
+      "address": "2-2-11 Kitakyuhojimachi, Chuo-ku, Osaka, 541-0057, Japan",
+      "area_scope": "boundary",
+      "reason": "Northern Shinsaibashi/Minamisemba outer fringe; retained conservatively, not asserted to be core Namba.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tonkatsu-katsu-hana",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-2-11 Kitakyuhojimachi, Chuo-ku, Osaka, 541-0057, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Outside strict core and published Tuesday-closed schedule; not a dinner alternative."
+    },
+    {
+      "name": "PITAK GOHAN",
+      "address": "2-2-13 Nakazaki, Kita-ku, Osaka, 530-0016, Japan",
+      "area_scope": "outside",
+      "reason": "Nakazakicho in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/pitak-gohan",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-2-13 Nakazaki, Kita-ku, Osaka, 530-0016, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Tonkatsu Minato",
+      "address": "2-9-26 Shimanochi, Chuo-ku, Osaka, 542-0082, Japan",
+      "area_scope": "in_area",
+      "reason": "Shimanouchi 2-chome adjacent to Nippombashi/Dotonbori. English Michelin literally spells Shimanochi; Japanese Michelin confirms 島之内 2-9-26. Preserve the literal address.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tonkatsu-minato",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-9-26 Shimanochi, Chuo-ku, Osaka, 542-0082, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "In Namba/Nippombashi area, but Tuesday dinner hours conflict; not shortlisted."
+    },
+    {
+      "name": "Ramen Hayato",
+      "address": "1-2-2 Minamimorimachi, Kita-ku, Osaka, 530-0054, Japan",
+      "area_scope": "outside",
+      "reason": "Minamimorimachi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ramen-hayato",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-2-2 Minamimorimachi, Kita-ku, Osaka, 530-0054, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sobakiri Gaku",
+      "address": "7-1-54 Tanimachi, Chuo-ku, Osaka, 542-0012, Japan",
+      "area_scope": "boundary",
+      "reason": "Tanimachi 7-chome east/Karahori fringe, not silently excluded.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobakiri-gaku",
+      "source_kind": "official_venue_page",
+      "excerpt": "7-1-54 Tanimachi, Chuo-ku, Osaka, 542-0012, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "Outer fringe, not Namba proper; not promoted without comparable menu/photo/policy verification and a radius decision. See recorded schedule/conflict evidence."
+    },
+    {
+      "name": "DIVA",
+      "address": "6-1-29 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "area_scope": "outside",
+      "reason": "Tenjimbashi 6-chome in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/diva-1242557",
+      "source_kind": "official_venue_page",
+      "excerpt": "6-1-29 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Naniwa Okina",
+      "address": "4-1-18 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "area_scope": "outside",
+      "reason": "Nishitemma in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/naniwa-okina",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-1-18 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sobakiri Arabompu",
+      "address": "4-1-11 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "area_scope": "outside",
+      "reason": "Nishitemma in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobakiri-arabompu",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-1-11 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Suigyo Murabayashi",
+      "address": "B1F, 1-2-17 Dojima, Kita-ku, Osaka, 530-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Dojima/Kitashinchi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/suigyo-murabayashi",
+      "source_kind": "official_venue_page",
+      "excerpt": "B1F, 1-2-17 Dojima, Kita-ku, Osaka, 530-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sushitsune",
+      "address": "2-4-3 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "area_scope": "outside",
+      "reason": "Tenjimbashi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/sushitsune",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-4-3 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Aozora blue",
+      "address": "4-5-8 Hiranomachi, Chuo-ku, Osaka, 541-0046, Japan",
+      "area_scope": "outside",
+      "reason": "Hiranomachi/Yodoyabashi district north of Hommachi, outside core and fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/aozora-blue",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-5-8 Hiranomachi, Chuo-ku, Osaka, 541-0046, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sobakiri Karani",
+      "address": "2-11-26 Sagisu, Fukushima-ku, Osaka, 553-0002, Japan",
+      "area_scope": "outside",
+      "reason": "Sagisu/Fukushima-ku, separate northwestern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobakiri-karani",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-11-26 Sagisu, Fukushima-ku, Osaka, 553-0002, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Benikurage",
+      "address": "5-4 Hommachibashi, Chuo-ku, Osaka, 540-0029, Japan",
+      "area_scope": "outside",
+      "reason": "Hommachibashi district north of Shinsaibashi/eastern fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/benikurage",
+      "source_kind": "official_venue_page",
+      "excerpt": "5-4 Hommachibashi, Chuo-ku, Osaka, 540-0029, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "gastroteka bimendi",
+      "address": "1-5-9 Utsubohommachi, Nishi-ku, Osaka, 550-0004, Japan",
+      "area_scope": "outside",
+      "reason": "Utsubohommachi/Utsubo district, north of requested core and fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/gastroteka-bimendi",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-5-9 Utsubohommachi, Nishi-ku, Osaka, 550-0004, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "au soleil couchant",
+      "address": "1-14-25 Shitennoji, Tennoji-ku, Osaka, 543-0051, Japan",
+      "area_scope": "boundary",
+      "reason": "Yuhigaoka/Shitennoji southeastern outer fringe; retained conservatively for boundary decision.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/au-soleil-couchant",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-14-25 Shitennoji, Tennoji-ku, Osaka, 543-0051, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "Outer fringe, not Namba proper; not promoted without comparable menu/photo/policy verification and a radius decision. See recorded schedule/conflict evidence."
+    },
+    {
+      "name": "Osteria La Cicerchia",
+      "address": "3F, 2-3-4 Kyomachibori, Nishi-ku, Osaka, 550-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Kyomachibori/Utsubo district, north of core and fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/osteria-la-cicerchia",
+      "source_kind": "official_venue_page",
+      "excerpt": "3F, 2-3-4 Kyomachibori, Nishi-ku, Osaka, 550-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sakeya Sakana Yoshimura",
+      "address": "1-13-21 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "area_scope": "outside",
+      "reason": "Tenjimbashi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sakeya-sakana-yoshimura",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-13-21 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Ayamedo",
+      "address": "2-2-26 Andojimachi, Chuo-ku, Osaka, 542-0061, Japan",
+      "area_scope": "boundary",
+      "reason": "Andojimachi/Matsuyamachi-Karahori northeastern fringe; not silently excluded.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/ayamedo",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-2-26 Andojimachi, Chuo-ku, Osaka, 542-0061, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "alternative",
+      "disposition_reason": "Explicit Shimmachi/Tanimachi expansion; supporting evidence retained in the output."
+    },
+    {
+      "name": "Udondokoro Shigemi",
+      "address": "4-7-7 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "area_scope": "outside",
+      "reason": "Nishitemma in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/udondokoro-shigemi",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-7-7 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Mendokoro Subete",
+      "address": "2-17-12 Momodani, Ikuno-ku, Osaka, 544-0034, Japan",
+      "area_scope": "outside",
+      "reason": "Momodani/Ikuno-ku, separate eastern Osaka district.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/mendokoro-subete",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-17-12 Momodani, Ikuno-ku, Osaka, 544-0034, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "bistrot neuf",
+      "address": "1-4-17 Tohei, Chuo-ku, Osaka, 542-0063, Japan",
+      "area_scope": "boundary",
+      "reason": "Tohei/Tanimachi 9-chome eastern fringe; not silently excluded.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/bistrot-neuf-1242628",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-4-17 Tohei, Chuo-ku, Osaka, 542-0063, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Outside strict core and published Tuesday-closed schedule; not a dinner alternative."
+    },
+    {
+      "name": "Tenboshi",
+      "address": "7-10-9 Tenjimbashi, Kita-ku, Osaka, 531-0041, Japan",
+      "area_scope": "outside",
+      "reason": "Tenjimbashi 7-chome in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tenboshi",
+      "source_kind": "official_venue_page",
+      "excerpt": "7-10-9 Tenjimbashi, Kita-ku, Osaka, 531-0041, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Oryori Amenimomakezu",
+      "address": "4-10-17 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "area_scope": "outside",
+      "reason": "Nishitemma in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/oryori-amenimomakezu",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-10-17 Nishitemma, Kita-ku, Osaka, 530-0047, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Izakaya Tokitame",
+      "address": "6-9-17 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Fukushima-ku, separate northwestern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/izakaya-tokitame",
+      "source_kind": "official_venue_page",
+      "excerpt": "6-9-17 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Sobadokoro Toki",
+      "address": "1-3-4 Dojima, Kita-ku, Osaka, 530-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Dojima/Kitashinchi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sobadokoro-toki",
+      "source_kind": "official_venue_page",
+      "excerpt": "1-3-4 Dojima, Kita-ku, Osaka, 530-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Donostia",
+      "address": "1F, Daibiruhonkan, 3-6-32 Nakanoshima, Kita-ku, Osaka, 530-0005, Japan",
+      "area_scope": "outside",
+      "reason": "Nakanoshima in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/donostia-1193223",
+      "source_kind": "official_venue_page",
+      "excerpt": "1F, Daibiruhonkan, 3-6-32 Nakanoshima, Kita-ku, Osaka, 530-0005, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Chukasoba Uemachi",
+      "address": "A-22 Uemachi, Chuo-ku, Osaka, 540-0005, Japan",
+      "area_scope": "boundary",
+      "reason": "Uemachi/Tanimachi 6-chome eastern outer fringe; retained conservatively for boundary decision.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/chukasoba-uemachi",
+      "source_kind": "official_venue_page",
+      "excerpt": "A-22 Uemachi, Chuo-ku, Osaka, 540-0005, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "Outer fringe, not Namba proper; not promoted without comparable menu/photo/policy verification and a radius decision. See recorded schedule/conflict evidence."
+    },
+    {
+      "name": "Mugito Mensuke",
+      "address": "3-4-12 Toyosaki, Kita-ku, Osaka, 531-0072, Japan",
+      "area_scope": "outside",
+      "reason": "Toyosaki/Nakatsu in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/mugito-mensuke",
+      "source_kind": "official_venue_page",
+      "excerpt": "3-4-12 Toyosaki, Kita-ku, Osaka, 531-0072, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "via del emme",
+      "address": "7-7-10 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "area_scope": "outside",
+      "reason": "Fukushima-ku, separate northwestern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/via-del-emme",
+      "source_kind": "official_venue_page",
+      "excerpt": "7-7-10 Fukushima, Fukushima-ku, Osaka, 553-0003, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "JIBUNDOKI",
+      "address": "4-5-11 Minamikyuhojimachi, Chuo-ku, Osaka, 541-0058, Japan",
+      "area_scope": "boundary",
+      "reason": "Minamikyuhojimachi/north Shinsaibashi-Hommachi outer fringe; retained conservatively, not core Namba.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/jibundoki",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-5-11 Minamikyuhojimachi, Chuo-ku, Osaka, 541-0058, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "Outer fringe, not Namba proper; not promoted without comparable menu/photo/policy verification and a radius decision. See recorded schedule/conflict evidence."
+    },
+    {
+      "name": "Nikomi Kimura",
+      "address": "6-18-6 Tanimachi, Chuo-ku, Osaka, 542-0012, Japan",
+      "area_scope": "boundary",
+      "reason": "Western Tanimachi 6-chome/Matsuyamachi-Karahori northeastern fringe; not silently excluded.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/nikomi-kimura",
+      "source_kind": "official_venue_page",
+      "excerpt": "6-18-6 Tanimachi, Chuo-ku, Osaka, 542-0012, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "unverified_lead",
+      "disposition_reason": "Outer fringe, not Namba proper; not promoted without comparable menu/photo/policy verification and a radius decision. See recorded schedule/conflict evidence."
+    },
+    {
+      "name": "Ogimachi Udonya Asuro",
+      "address": "3-8-3 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "area_scope": "outside",
+      "reason": "Ogimachi/Tenjimbashi in Kita-ku, northern Osaka.",
+      "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/ogimachi-udonya-asuro",
+      "source_kind": "official_venue_page",
+      "excerpt": "3-8-3 Tenjimbashi, Kita-ku, Osaka, 530-0041, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Tempura Kozaki",
+      "address": "4-11-38 Matsuzakicho, Abeno-ku, Osaka, 545-0053, Japan",
+      "area_scope": "outside",
+      "reason": "Matsuzakicho/Abeno-ku, separate southern Osaka district.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tempura-kozaki",
+      "source_kind": "official_venue_page",
+      "excerpt": "4-11-38 Matsuzakicho, Abeno-ku, Osaka, 545-0053, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    },
+    {
+      "name": "Kushikatsu Gojoya",
+      "address": "2-1-11 Uchihiranomachi, Chuo-ku, Osaka, 540-0037, Japan",
+      "area_scope": "outside",
+      "reason": "Uchihiranomachi/Temmabashi district north of the eastern fringe.",
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/kushikatsu-gojoya",
+      "source_kind": "official_venue_page",
+      "excerpt": "2-1-11 Uchihiranomachi, Chuo-ku, Osaka, 540-0037, Japan",
+      "collection_started_utc": "2026-10-27T08:07:32Z",
+      "method": "web_extract",
+      "disposition": "exclusion",
+      "disposition_reason": "Address outside declared Namba/Nippombashi/Dotonbori core and retained wider suggestions; not a quality or closed-status judgment."
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "type": "hours_conflict",
+      "name": "Tonkatsu Minato",
+      "status": "unresolved",
+      "impact": "Only in-area match cannot be certified for Tuesday 18:30; do not select."
+    },
+    {
+      "type": "exact_hours_conflict",
+      "name": "JIBUNDOKI",
+      "status": "unresolved",
+      "impact": "Secondary sources disagree on exact opening/closing, although both cover 18:30."
+    },
+    {
+      "type": "evening_service_conflict_and_sellout",
+      "name": "Chukasoba Uemachi",
+      "status": "unresolved",
+      "impact": "Official published dinner schedule exists, but third-party lunch-only hours and sell-out risk prevent actual service assurance."
+    },
+    {
+      "type": "secondary_only_hours",
+      "name": "Nikomi Kimura",
+      "status": "explicitly_labelled",
+      "impact": "Address official; Tuesday hours only opened secondary source."
+    },
+    {
+      "type": "geographic_boundary",
+      "status": "requires_parent_scope_decision",
+      "impact": "No numeric radius supplied. Boundary deliberately conservatively includes Shinsaibashi, Shimmachi, Minamisemba, Karahori/Tanimachi and outer Uehommachi/Yuhigaoka candidates; not an approved radius expansion."
+    },
+    {
+      "type": "date_specific_opening_and_seats",
+      "status": "not_checked",
+      "impact": "Published weekly schedules only. No date-specific holiday, seat availability, booking, queue or contact verification."
+    },
+    {
+      "type": "official_site_internal_last_order_discrepancy",
+      "name": "PRESTAU",
+      "status": "unresolved_nonblocking_for_18_30",
+      "impact": "Official access table dinner L.O.20:00; footer L.O.21:00. Dinner window 18:00-22:00 agrees."
+    }
+  ],
+  "in_area_findings": [
+    {
+      "name": "Tonkatsu Minato",
+      "area_scope": "in_area",
+      "address": "2-9-26 Shimanochi, Chuo-ku, Osaka, 542-0082, Japan",
+      "tuesday_hours_local": "Conflicting: Michelin Tuesday 11:00-15:00 only; desktop Tabelog 10:30-14:50 and 17:30-20:50; mobile indexed Tabelog Tuesday 10:30-16:00 only.",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "hold_unverified_not_a_dinner_pick",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/jp/ja/osaka-region/osaka/restaurant/tonkatsu-minato",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "火曜\n\n11:00-15:00",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        },
+        {
+          "url": "https://tabelog.com/osaka/A2701/A270202/27141118/",
+          "source_kind": "secondary_listing_page",
+          "method": "web_extract",
+          "excerpt": "月・火・水・木・金・土・日・祝日 10:30 - 14:50 17:30 - 20:50",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        },
+        {
+          "url": "https://s.tabelog.com/osaka/A2701/A270202/27141118/",
+          "source_kind": "search_snippet",
+          "method": "web_search",
+          "excerpt": "火\n\n- 10:30 - 16:00",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "The only strict-core address match. In-area category membership must not be mistaken for Tuesday dinner eligibility. Mobile body was opened but its hours were not visible in returned head/tail; the hours evidence here is explicitly the separately retrieved search snippet.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Chukashunsai Morimoto",
+      "area_scope": "boundary",
+      "address": "B1F, 1-4-14 Shinsaibashisuji, Chuo-ku, Osaka, 542-0085, Japan",
+      "tuesday_hours_local": "11:30-15:00; 18:00-22:00",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/chukashunsai-morimoto",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday 11:30-15:00 18:00-22:00",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Closest obvious Shinsaibashi-fringe candidate to carry to parent; schedule evidence only, not availability.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "PRESTAU",
+      "area_scope": "boundary",
+      "address": "2-17-17 Shimmachi, Nishi-ku, Osaka, 550-0013, Japan",
+      "tuesday_hours_local": "12:00-15:00; 18:00-22:00",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://prestau-osaka.net/access/",
+          "source_kind": "official_restaurant_page",
+          "method": "web_extract",
+          "excerpt": "ディナー:18:00～22:00(L.O:20:00)",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        },
+        {
+          "url": "https://prestau-osaka.net/access/",
+          "source_kind": "official_restaurant_page",
+          "method": "web_extract",
+          "excerpt": "月曜日 ※日曜日:4日間のうちいずれか1日定休日あり",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Tuesday inferred from regular Monday closure. Same page footer gives dinner L.O.21:00 instead of table L.O.20:00; both permit 18:30. Irregular/date-specific closure not verified.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Ueroku wine",
+      "area_scope": "boundary",
+      "address": "4-15 Higashikozucho, Tennoji-ku, Osaka, 543-0021, Japan",
+      "tuesday_hours_local": "18:00-00:00",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ueroku-wine",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday\n\n18:00-00:00",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Conservative eastern outer-fringe flag; do not present as Namba proper.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Oribe",
+      "area_scope": "boundary",
+      "address": "1-6-18 Shimmachi, Nishi-ku, Osaka, 550-0013, Japan",
+      "tuesday_hours_local": "18:00-22:00; last order 21:00; last entry 20:30",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://o-ri-be.com/home/booking-notice/",
+          "source_kind": "official_restaurant_page",
+          "method": "web_extract",
+          "excerpt": "18:00-22:00 (last order 21:00) ※Last entry time is 20:30.",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        },
+        {
+          "url": "https://o-ri-be.com/home/booking-notice/",
+          "source_kind": "official_restaurant_page",
+          "method": "web_extract",
+          "excerpt": "Every Monday, irregular holidays",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Tuesday inferred from regular Monday closure; irregular/date-specific closure and actual seats not checked. Restaurant warns food takes time and discourages time-constrained reservations.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Tonkatsu KATSU Hana",
+      "area_scope": "boundary",
+      "address": "2-2-11 Kitakyuhojimachi, Chuo-ku, Osaka, 541-0057, Japan",
+      "tuesday_hours_local": "closed",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_excludes_18_30",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tonkatsu-katsu-hana",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday\n\nclosed",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Retained as north-fringe address but not Tuesday dinner eligible under Michelin schedule.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Sobakiri Gaku",
+      "area_scope": "boundary",
+      "address": "7-1-54 Tanimachi, Chuo-ku, Osaka, 542-0012, Japan",
+      "tuesday_hours_local": "11:30-14:00; 18:00-20:30",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/jp/ja/osaka-region/osaka/restaurant/sobakiri-gaku",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "火曜 11:30-14:00 18:00-20:30",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Eastern fringe; Japanese official page supplied the missing English-page schedule.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "au soleil couchant",
+      "area_scope": "boundary",
+      "address": "1-14-25 Shitennoji, Tennoji-ku, Osaka, 543-0051, Japan",
+      "tuesday_hours_local": "11:30-14:00; 18:00-21:00",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/au-soleil-couchant",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday 11:30-14:00 18:00-21:00",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Conservative southeastern outer fringe, not Namba proper.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Ayamedo",
+      "area_scope": "boundary",
+      "address": "2-2-26 Andojimachi, Chuo-ku, Osaka, 542-0061, Japan",
+      "tuesday_hours_local": "11:30-14:30; 17:30-20:30",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/ayamedo",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday 11:30-14:30 17:30-20:30",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Matsuyamachi/Karahori northeast fringe.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "bistrot neuf",
+      "area_scope": "boundary",
+      "address": "1-4-17 Tohei, Chuo-ku, Osaka, 542-0063, Japan",
+      "tuesday_hours_local": "closed",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_excludes_18_30",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/bistrot-neuf-1242628",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday\n\nclosed",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Tohei eastern-fringe address; Tuesday closed on opened Michelin page.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Chukasoba Uemachi",
+      "area_scope": "boundary",
+      "address": "A-22 Uemachi, Chuo-ku, Osaka, 540-0005, Japan",
+      "tuesday_hours_local": "Michelin Tuesday 11:00-14:30; 18:00-21:00. Metro lists same dinner window, or until sold out.",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedule_covers_18_30_but_service_uncertain",
+      "evidence": [
+        {
+          "url": "https://guide.michelin.com/en/osaka-region/osaka/restaurant/chukasoba-uemachi",
+          "source_kind": "official_venue_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday 11:00-14:30 18:00-21:00",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        },
+        {
+          "url": "https://metronine.osaka/en/spot-details/?spot_id=16045365351537",
+          "source_kind": "secondary_transit_operator_page",
+          "method": "web_extract",
+          "excerpt": "11:00am - 2:30pm 6:00pm – 9:00pm or until sold out",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        },
+        {
+          "url": "https://exa.ai/library/place/s37y6y251dy",
+          "source_kind": "search_snippet",
+          "method": "web_search",
+          "excerpt": "| Tuesday | 11 AM–2:30 PM |",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Michelin and transit-operator page support dinner; lunch-only indexed third-party hours conflict. Metro information explicitly current as of 1 October 2025. Hold actual evening service unverified, especially sell-out risk; outer eastern fringe only.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "JIBUNDOKI",
+      "area_scope": "boundary",
+      "address": "4-5-11 Minamikyuhojimachi, Chuo-ku, Osaka, 541-0058, Japan",
+      "tuesday_hours_local": "Gnavi Tue-Sat 17:00-23:00; Inside Osaka 17:30-00:00.",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "published_schedules_cover_18_30_but_exact_hours_conflict",
+      "evidence": [
+        {
+          "url": "https://r.gnavi.co.jp/aw04m3rw0000/",
+          "source_kind": "secondary_listing_page",
+          "method": "web_extract",
+          "excerpt": "火～土 17:00～23:00",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        },
+        {
+          "url": "https://insideosaka.com/jibundoki/",
+          "source_kind": "secondary_travel_page",
+          "method": "web_extract",
+          "excerpt": "Opening hours: 5:30pm-12am Closed Sunday, 1st and 2nd Monday, and national holidays",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Both published schedules include Tuesday 18:30, but exact hours differ; Michelin opened English page gave no schedule. North outer fringe, not core Namba.",
+      "live_availability_verified": false
+    },
+    {
+      "name": "Nikomi Kimura",
+      "area_scope": "boundary",
+      "address": "6-18-6 Tanimachi, Chuo-ku, Osaka, 542-0012, Japan",
+      "tuesday_hours_local": "18:00-23:00",
+      "timezone": "Asia/Tokyo",
+      "target_time_local": "18:30",
+      "schedule_eligibility": "secondary_published_schedule_covers_18_30",
+      "evidence": [
+        {
+          "url": "https://www.byfood.com/restaurant/nikomi-kimura-2632",
+          "source_kind": "secondary_listing_page",
+          "method": "web_extract",
+          "excerpt": "Tuesday\n\n06:00 PM\n\n11:00 PM",
+          "collection_started_utc": "2026-10-27T08:07:32Z"
+        }
+      ],
+      "note": "Karahori/Matsuyamachi northeast fringe. Michelin English and Japanese pages opened but supplied no hours; dinner schedule is explicitly secondary, not Michelin-verified.",
+      "live_availability_verified": false
+    }
+  ],
+  "counts": {
+    "total_entries": 59,
+    "unique_names": 59,
+    "official_address_pages_opened": 59,
+    "address_coverage_gaps": 0,
+    "boundary": 12,
+    "outside": 46,
+    "in_area": 1,
+    "unknown": 0
+  },
+  "audit_scope": {
+    "core": "Namba / Nippombashi / Dotonbori, including immediately adjoining Shimanouchi 2-chome",
+    "boundary_policy": "Conservative qualitative neighborhood judgement from literal official addresses; outer-fringe flags are not assertions that venues are inside a numeric radius. Owner must settle boundary before expansion.",
+    "findings_scope": "in_area_findings includes every in_area and boundary entry, identified separately by area_scope.",
+    "timestamp_note": "accessed_utc is evidence-consolidation UTC. Public retrieval window began 2026-10-27T08:02:40Z and ended before this stamp.",
+    "method": "Public unauthenticated web_extract; web_search only for failed slugs and labelled supplementary snippets. No direct curl repeats.",
+    "recommendation_widgets": "Excluded everything after The areas covered... in both official category pages."
+  },
+  "access_failures": [
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sushidokoro-kaihara",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tanpopo",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/az",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sakamoto-sushi",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/pitak-gohan",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/diva",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sushitsune",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ayamedo",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/udondokoro-shigemi",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/mendokoro-subete",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/bistrot-neuf",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/donostia",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/ogimachi-udonya-asuro",
+      "method": "web_extract",
+      "observed": "URL omitted from initial batch response; not counted as opened.",
+      "resolution": "Searched Michelin once, then opened returned alternate locale or corrected numeric slug. All addresses recovered."
+    },
+    {
+      "urls": [
+        "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/sushidokoro-kaihara",
+        "https://guide.michelin.com/jp/en/osaka-region/osaka/restaurant/tanpopo"
+      ],
+      "method": "web_extract",
+      "observed": "Content was inaccessible or not found",
+      "resolution": "Alternate /en/ locale found by search and opened."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/ja/osaka-region/osaka/restaurant/jibundoki",
+      "method": "web_extract",
+      "observed": "Requested URL omitted; backend instead returned duplicate Sobakiri Gaku item with Extract backend returned no result for this URL.",
+      "resolution": "English Michelin address already opened; dinner hours sourced separately from opened Gnavi and Inside Osaka."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/ja/osaka-region/osaka/restaurant/sobakiri-gaku",
+      "method": "web_extract",
+      "observed": "Backend returned both full successful content and a duplicate empty error item.",
+      "resolution": "Address and Tuesday schedule quoted only from successful content."
+    },
+    {
+      "url": "https://guide.michelin.com/jp/ja/osaka-region/osaka/restaurant/chukasoba-uemachi",
+      "method": "web_extract",
+      "observed": "Extract backend returned no result for this URL",
+      "resolution": "English /en/ official page opened successfully with Tuesday dinner hours."
+    },
+    {
+      "urls": [
+        "https://guide.michelin.com/jp/ja/osaka-region/restaurants/bib-gourmand",
+        "https://guide.michelin.com/jp/ja/osaka-region/restaurants/bib-gourmand/page/2"
+      ],
+      "method": "parent_curl_evidence_read_locally",
+      "observed": "category-raw.json records HTTP 202 with empty body and venues: []. These were not successful category reads.",
+      "resolution": "Did not repeat direct scraping. Independently opened both supplied English category URLs via web_extract."
+    }
+  ],
+  "timestamp_note": "Audit collection clock recorded at the start of the bounded research call; shared collection_started_utc is NOT a per-page retrieval timestamp.",
+  "geography_decision": "Author comparison core: named Namba/Nippombashi/Dotonbori locality, including Shimanouchi Minato as locally classified by Tabelog. Twelve conservatively flagged fringe addresses remain visible; they are not claimed to be within a numeric radius or all walkable. No hotel/start point supplied. Retaining Morimoto/Oribe/Ayamedo is an explicitly wider-area fallback, not strict-location satisfaction."
+}

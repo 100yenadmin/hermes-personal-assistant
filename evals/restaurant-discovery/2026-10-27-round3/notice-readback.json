@@ -1,0 +1,24 @@
+{
+  "source_url": "https://www.mutton.com.tw/shop194/index.php?action=news",
+  "proof_boundary": "Bounded observations from real public retrievals, not a same-day closure or verified-latest-notice certificate. Earlier extraction disagrees with ordinary GET; no login or provider action.",
+  "observations": [
+    {
+      "method": "web_extract",
+      "phase": "original timed eval",
+      "timestamp": null,
+      "clock_bracket_utc": ["2026-10-27T10:39:33Z", "2026-10-27T10:40:48Z"],
+      "timestamp_boundary": "Exact tool execution timestamp was not exposed; bracket comes from adjacent recorded clock calls. Text below is quoted from the actual returned tool content, not a newly synthesized response.",
+      "excerpt": "- 2026/09/11\n- 10/16起宅配包裝重新調整，暫停出貨\n\n- 2026/06/24\n- 6/30-7/12宅配暫停出貨",
+      "interpretation": "Extractor showed a September-listed shipping notice; direct GET did not reproduce it. Do not claim this is the verified latest official notice."
+    },
+    {
+      "method": "terminal urllib.request ordinary public GET",
+      "phase": "post-eval independent-review correction",
+      "access_utc": "2026-10-27T10:54:40.286324+00:00",
+      "excerpt": "首頁 - 最新消息 2026/06/24 6/30-7/12宅配暫停出貨 2026/01/07 2026春節店休 2026/01/07 2026春節宅配出貨時間",
+      "contains_10_16": false,
+      "interpretation": "Newest visible entry in this direct response is June 24; no inference about October 28 dining-room closure or available seats."
+    }
+  ],
+  "resolution": "Preserve the retrieval-version discrepancy, retract the verified-latest-notice implication, retain scheduled-open/temporary-closure uncertainty. Research clock remains frozen at the original output; later publication corrections are explicitly outside that interval."
+}

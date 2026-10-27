@@ -33,6 +33,14 @@ python3 ./skills/travel-ledger/scripts/travel_ledger.py <command>
 The helper requires the active Hermes profile/workspace binding or an explicit
 `TRAVEL_LEDGER_DB`; it must not use a host-specific skill path.
 
+## Dining routing
+
+For “where should we eat”, cuisine/award searches, photos, menus or a restaurant
+shortlist, load `personal-assistant:restaurant-discovery`. Discovery is read-only
+and does not require a reservation action or checkpoint. After the user chooses
+a place, load `personal-assistant:restaurant-reservations` to prepare it under
+the existing approval, ledger and Browserbase boundaries.
+
 ## Default Workflow
 
 1. Identify or create the active trip record: traveler, destination, dates, timezone, lodging, flights, addresses, budget, source confidence, and known constraints.
