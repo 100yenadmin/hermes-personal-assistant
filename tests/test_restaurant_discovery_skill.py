@@ -51,3 +51,54 @@ def test_discovery_contract_keeps_unknowns_and_freshness_explicit():
     platforms = (SKILL.parent / "references/local-platforms.md").read_text()
     for phrase in ("Tabelog", "Naver", "Kakao", "Blue Ribbon", "iFoodie", "羊肉爐", "ビブグルマン", "블루리본"):
         assert phrase in platforms
+
+
+def test_saved_live_evals_have_resolvable_citations_and_dated_photo_provenance():
+    """Artifact integrity only: the separate reviewer still checks source truth."""
+    directory = ROOT / "evals/restaurant-discovery/2026-10-27"
+    ledger = json.loads((directory / "sources.json").read_text())
+    sources = {item["id"]: item["url"] for item in ledger["sources"]}
+    photos = json.loads((directory / "photos.json").read_text())
+    assert len(photos) == 9
+    assert sum(len(items) for items in photos.values()) == 18
+    cases = {
+        "luodong-tuesday-lamb.md": ("tw-pick", "tw-alt1", "tw-alt2"),
+        "osaka-namba-bib.md": ("jp-pick", "jp-alt1", "jp-alt2"),
+        "seoul-local-platforms.md": ("kr-pick", "kr-alt1", "kr-alt2"),
+    }
+    for filename, groups in cases.items():
+        text = (directory / filename).read_text()
+        assert "{{photos:" not in text
+        assert "## Condensed live tool transcript" in text
+        assert "## Recovery readback" in text
+        assert "## Self-grade against #71" in text
+        body, block = text.split("## Sources", 1)
+        cited = {int(value) for value in re.findall(r"\[(\d+)\]", body)}
+        rendered = {int(key): url for key, url in re.findall(r"^\[(\d+)\] (\S+)$", block, re.M)}
+        assert rendered == {key: sources[key] for key in cited}
+        output = body.split("## Final user-facing output", 1)[1].split("## Self-grade", 1)[0]
+        for line in output.splitlines():
+            if line.startswith("- "):
+                assert re.search(r"\[\d+\]", line), (filename, line)
+        for group in groups:
+            for photo in photos[group]:
+                assert photo["url"] in output
+                assert photo["source"] in output
+                assert photo["date"] in output
+                assert photo["citation"] in cited
+        assert "not visually inspected" in output
+        assert "personal-assistant:restaurant-reservations" in output
+
+
+def test_saved_hour_and_photo_readbacks_preserve_real_failures():
+    directory = ROOT / "evals/restaurant-discovery/2026-10-27"
+    hours = json.loads((directory / "hours-evidence.json").read_text())
+    assert {item["source_id"] for item in hours} == {37, 47, 48}
+    assert all(not item["authenticated"] and item["hours"] for item in hours)
+    probes = json.loads((directory / "photo-probes.json").read_text())
+    fallbacks = json.loads((directory / "photo-curl-fallback.json").read_text())
+    failed = {item["requested_url"] for item in probes if item["error"]}
+    assert len(probes) == 18
+    assert len(failed) == 2
+    assert failed == {item["url"] for item in fallbacks}
+    assert all(item["returncode"] == 0 and item["result"].startswith("200 image/") for item in fallbacks)
