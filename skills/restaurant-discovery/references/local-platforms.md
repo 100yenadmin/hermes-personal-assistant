@@ -1,7 +1,9 @@
 # Local dining sources and query recipes
 
 These are public entry points and search strategies, not proof of a venue's
-current award, hours, prices or booking availability. Open the exact matched
+current award, hours, prices or booking availability. Replace example years with
+the destination-local year being researched; a year in a query never dates the
+returned review or photo. Open the exact matched
 branch and inspect the page on each run. Do not scrape behind logins, sign up,
 or use Instagram login; public posts are optional evidence, never a dependency.
 
