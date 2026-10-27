@@ -41,6 +41,21 @@ def test_legacy_inventories_include_discovery_without_version_change():
         manifest = json.loads(path.read_text())
         assert "restaurant-discovery" in {Path(item).name for item in manifest["skills"]}
         assert manifest["version"] == (ROOT / "VERSION").read_text().strip()
+    from scripts import probe_installed_version, validate_pack
+    component = json.loads((ROOT / "support-control/component.json").read_text())
+    for inventory in (probe_installed_version.REQUIRED_SKILLS,
+                      validate_pack.REQUIRED_SKILLS, component["required_skills"]):
+        assert "restaurant-discovery" in inventory
+
+
+def test_discovery_reads_saved_preferences_without_owner_record_id_coupling():
+    text = SKILL.read_text()
+    assert 'pa(operation="profile", data={"action":"list","kind":"preference"})' in text
+    assert "active" in text and "filed" in text and "proposed" in text
+    assert "before searching" in text
+    assert "runtime lacks" in text
+    assert "pref:loves-lamb" not in text
+    assert "pref:restaurant-photos-menu" not in text
 
 
 def test_discovery_contract_keeps_unknowns_and_freshness_explicit():

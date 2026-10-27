@@ -57,6 +57,20 @@ prompts and no private owner/stay information:
 3. **Seoul or Songdo:** use Naver/Kakao or Blue Ribbon public evidence and native
    Korean queries, not an English-only roundup.
 
+For the preference-fit case, read active preferences from the authorized PA
+binding rather than merely copying the prompt into a fabricated profile. Record
+which relevant rules were in force and how they changed ranking/presentation,
+without publishing raw owner records or private context. A synthetic preference
+fixture tests integration only; it does not prove a live profile read. If a
+runtime/version gap forces a specifically authorized read-only backend path,
+label that path and its scope rather than calling it the native `pa` tool.
+
+For blocked retrieval, stop after two failures with the same cause; use a
+materially different public source or retain an explicit gap. Save and reuse
+already retrieved evidence after interruption instead of repeating a search loop.
+No fresh timestamp, repeated query or fallback refreshes the underlying source's
+menu/photo date.
+
 For each run save: timestamp/timezone, skill revision, exact prompt and declared
 assumptions, ordered queries, tool names, returned URLs and short relevant
 verbatim excerpts, blocked/failed attempts and fallbacks, final user-facing

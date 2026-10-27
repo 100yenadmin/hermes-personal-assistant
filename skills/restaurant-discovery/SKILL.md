@@ -21,11 +21,20 @@ liking a recommendation is not permission to transact.
 
 - Read `references/local-platforms.md` for country-specific sources and queries.
 - Read `references/evidence-and-evals.md` for the card format and live-eval rubric.
-- Use `personal-assistant:personal-assistant` for focused PA context: owner loves,
-  avoids, dietary constraints, budget, current stay and recent meals. Use only
-  context accessible in this session; never read another profile or expose the
-  stay's private address in search. Do not turn a temporary craving into a saved
-  preference without the owner's request.
+- Read `personal-assistant:personal-assistant`, then call
+  `pa(operation="profile", data={"action":"list","kind":"preference"})`
+  in the current authorized owner's PA binding **before searching**. Apply
+  returned food, dietary, budget and presentation preferences in force
+  (`active`/`filed`); proposed inferences are not confirmed constraints and
+  retired/superseded rules are not in force. Honour an explicit current-meal
+  exception without changing the stored rule. Retrieve the current stay and
+  recent meals only through the available focused PA context.
+  Read preference text, not fixed record IDs: never bake a particular owner's
+  loves, avoids or photo/menu choices into this skill. If the runtime lacks the
+  profile operation or the intended binding is unavailable, state that gap;
+  do not silently read another profile, change runtime/config or call a fixture
+  a live preference read. Do not expose private owner/stay records in searches
+  or public citations. A temporary craving is not a preference write.
 - Bind destination, local calendar date, timezone and meal/arrival time first.
   Resolve “today” from the live clock in the destination, not the host timezone.
   Use available context for party size, budget, distance and recent meals. Ask
