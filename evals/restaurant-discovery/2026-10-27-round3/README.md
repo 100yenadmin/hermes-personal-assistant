@@ -33,8 +33,14 @@ This is an additive follow-up to Eva's live-test findings on draft PR #72 at
 ## Verification and limits
 
 - New policy guards against unchanged `626c60cd`: **7 failed, 11 passed**.
-- Candidate focused suite: **44 passed** (discovery, inventory parity, installed
+- Candidate focused suite: **45 passed** (discovery, inventory parity, installed
   version probes). `scripts/validate_pack.py` and `git diff --check` pass.
+- The new standalone-output guard also failed on the unfixed `45f3724` photo
+  artifact before correction. Captions now link their original article directly.
+- Independent review found the extractor's shipping notice could not be
+  reproduced by ordinary GET. `notice-readback.json` preserves the discrepancy;
+  no verified latest-notice claim remains. These evidence/provenance corrections
+  occurred after the original timed eval; its end time was not moved.
 - These are static/artifact/packaging guards, **not behavioral proof**. The live
   output self-grade remains **PARTIAL overall**: recent reviews unverified,
   current order-total discrepancy, no native PA-profile path, northward

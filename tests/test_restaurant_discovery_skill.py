@@ -348,3 +348,37 @@ def test_round3_review_fallback_is_bounded_independent_and_visit_dated():
                     "“no complaints” from an empty sample")
     protocol = _policy_block(EVIDENCE, "## Repeatable live-eval protocol")
     _has_policy(protocol, "guardrails, not behavioural proof", "separate non-author reviewer")
+
+
+def test_round3_taipei_outputs_have_standalone_provenance_and_bounded_receipts():
+    """Saved-output integrity, not an assertion of restaurant quality or live delivery."""
+    from datetime import datetime
+
+    directory = ROOT / "evals/restaurant-discovery/2026-10-27-round3"
+    compact = (directory / "telegram.md").read_text()
+    photos = (directory / "telegram-photos.md").read_text()
+    # These two files are independently shareable: numeric refs cannot rely on
+    # a Sources block available only in the separate full report.
+    for standalone in (compact, photos):
+        assert not re.search(r"\[\d+\](?!\()", standalone), "unresolved standalone source reference"
+        assert not re.search(r"/Users/|[?&]origin=|start_latitude=", standalone)
+    assert len(compact.splitlines()) == 10
+    assert len(compact.encode("utf-16-le")) // 2 <= 4096
+    assert compact.index("Recent reviews unchecked") < compact.index("Pick:")
+    inspection = json.loads((directory / "photo-inspection.json").read_text())
+    viewed = inspection["viewed_candidates"]
+    assert inspection["batch_calls"] == 1
+    assert len(viewed) == inspection["candidate_count"] == 6
+    for group in ("pick", "alt1", "alt2"):
+        assert sum(item["id"].startswith(group + "-") for item in viewed) == 2
+    for image in viewed:
+        assert image["visually_inspected"] and image["decision"] == "keep"
+        assert image["sha256"] and image["capture_date"] is None
+        assert image["url"] in photos
+        assert "](" + image["source"] + ")" in photos, "photo source page must be linked directly"
+    timing = json.loads((directory / "run-timing.json").read_text())
+    start = datetime.fromisoformat(timing["start_utc"].replace("Z", "+00:00"))
+    end = datetime.fromisoformat(timing["finish_utc"].replace("Z", "+00:00"))
+    elapsed = (end - start).total_seconds()
+    assert 0 < elapsed <= timing["budget_seconds"] == 900
+    assert abs(elapsed - timing["elapsed_seconds"]) < 0.001

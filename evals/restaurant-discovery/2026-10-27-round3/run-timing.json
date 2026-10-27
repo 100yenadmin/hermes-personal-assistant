@@ -18,5 +18,11 @@
   "compact_utf16_units": 1913,
   "photo_groups": 3,
   "photo_count": 6,
-  "scope": "research plus saved recommendation, photo evidence and self-grade; subsequent review/CI/archive are outside eval budget"
+  "scope": "original research plus saved recommendation, photo evidence and self-grade; subsequent review/CI/archive are outside eval budget",
+  "post_eval_corrections": {
+    "trigger": "Independent non-author REJECT at 45f3724cf72cf0d46e716a4c5bf90f18f90990ec",
+    "notice_recheck_at_utc": "2026-10-27T10:54:40.286324+00:00",
+    "changes": ["Retracted verified-latest-notice implication and preserved extractor/direct-GET discrepancy", "Made photo captions standalone with direct original-article links; added artifact regression guard"],
+    "boundary": "Corrections occurred after the frozen original eval end; the final publication revision is not claimed to have existed before the 15-minute deadline. No new candidate search or image inspection was added."
+  }
 }

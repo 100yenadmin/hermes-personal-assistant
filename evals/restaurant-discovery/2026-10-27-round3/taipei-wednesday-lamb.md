@@ -23,9 +23,9 @@ Travel times unverified; check the linked street addresses before choosing. No p
 
 All six originals were actually pixel-inspected in one helper call, two candidates per finalist, all kept; no extra gallery viewing. **Dates below are publication proxies within 12 months of the meal, not verified capture dates.** Capture dates are unknown; these are not claimed as October photographs. No image bytes are committed or rehosted.
 
-- **大黑屋:** [1 — pale pink folded slices in a black bowl](https://dm0520.com/wp-content/uploads/2026/02/daikokuya-105.jpg); [2 — glossy pink-brown slices in a black bowl](https://dm0520.com/wp-content/uploads/2026/02/daikokuya-147.jpg). Credit **DAVID & MILLY**, published **11 Feb 2026**, capture dates unknown. Both are plated-food views, not a verified grill-action photo or visually proven meat species.[20]
-- **阿財:** [1 — pale broth with green pieces/red flecks and a filled ladle](https://upssmile.com/wp-content/uploads/2026/01/20000101-IMG_1149.jpg); [2 — red slices over green leaves on a white plate](https://upssmile.com/wp-content/uploads/2026/01/20000101-IMG_1132.jpg). Credit **upssmile**, published **18 Jan 2026**, capture dates unknown. `20000101` in the filename is not treated as a capture date.[9]
-- **下港吔:** [1 — broth-filled pot with browned chunks, leaves, white rounds and golden sheets](https://hanblog.tw/wp-content/uploads/2026/08/DSC03032.jpg); [2 — glossy browned bone-in pieces on a square plate](https://hanblog.tw/wp-content/uploads/2026/08/DSC03062.jpg). Credit **涵的足跡**, published **27 Aug 2026**, capture dates unknown; pictured pot is the source's larger shared serving, not a promise of the proposed one-pot order's portion.[16]
+- **大黑屋:** [1 — pale pink folded slices in a black bowl](https://dm0520.com/wp-content/uploads/2026/02/daikokuya-105.jpg); [2 — glossy pink-brown slices in a black bowl](https://dm0520.com/wp-content/uploads/2026/02/daikokuya-147.jpg). Credit **DAVID & MILLY**, published **11 Feb 2026**, capture dates unknown. Both are plated-food views, not a verified grill-action photo or visually proven meat species. [Original article](https://dm0520.com/blog/post/daikokuya).[20]
+- **阿財:** [1 — pale broth with green pieces/red flecks and a filled ladle](https://upssmile.com/wp-content/uploads/2026/01/20000101-IMG_1149.jpg); [2 — red slices over green leaves on a white plate](https://upssmile.com/wp-content/uploads/2026/01/20000101-IMG_1132.jpg). Credit **upssmile**, published **18 Jan 2026**, capture dates unknown. `20000101` in the filename is not treated as a capture date. [Original article](https://upssmile.com/267483/a-cai-mutton-hotpot).[9]
+- **下港吔:** [1 — broth-filled pot with browned chunks, leaves, white rounds and golden sheets](https://hanblog.tw/wp-content/uploads/2026/08/DSC03032.jpg); [2 — glossy browned bone-in pieces on a square plate](https://hanblog.tw/wp-content/uploads/2026/08/DSC03062.jpg). Credit **涵的足跡**, published **27 Aug 2026**, capture dates unknown; pictured pot is the source's larger shared serving, not a promise of the proposed one-pot order's portion. [Original article](https://hanblog.tw/mutton/).[16]
 
 ## Condensed live tool transcript
 
@@ -74,7 +74,7 @@ TVBS says **four or more only for advance reservation; three must walk in**. The
 
 ### Alternative 2 — 下港吔羊肉專賣店
 
-Exact branch: 天祥路18號; official phone **+886 2 2536 7922** and schedule **11:30–01:00**, with August original-blog support for the same interval. The latest listed **10/16 packaging/shipping pause** is a **宅配** notice, not proof the dining room is closed. No October 28 closure or seats guarantee is made.[16][17]
+Exact branch: 天祥路18號; official phone **+886 2 2536 7922** and schedule **11:30–01:00**, with August original-blog support for the same interval. Re-review's ordinary public GET at **10:54:40Z** showed **2026/06/24 — 6/30-7/12宅配暫停出貨** as its newest visible news entry. Earlier `web_extract` output had returned **2026/09/11 — 10/16起宅配包裝重新調整，暫停出貨**; that entry could not be reproduced by direct GET. This is an extraction/source-version discrepancy, **not a verified latest-notice check**. Both texts concern shipping, not proof the dining room is closed. The bounded observations are retained in `notice-readback.json`; October 28 temporary closure and seats remain unconfirmed.[16][17]
 
 Dine-in example uses the **27 Aug** blog, not the official e-commerce basket: pot **600** + ribs **360** + noodles **120** + stir-fry **180** = **NT$1,260 / 3 = NT$420/person before unverified fees/drinks**. The site's **500** pot is on a shipping/shopping surface, so it is **not** substituted for the dine-in price. Current October prices, last order, payment/time limit and whether a three-person booking is accepted remain unverified; official phone is a route to ask, not proof of eligibility.[13][16][17]
 
@@ -90,7 +90,7 @@ Dine-in example uses the **27 Aug** blog, not the official e-commerce basket: po
 
 | Criterion | Grade | Evidence / honest limit |
 |---|---|---|
-| End-to-end 15-minute budget | PASS if timing receipt <=900s | Clock measured from first search batch to saved output/photo evidence/self-grade; not tool-only latency. |
+| End-to-end 15-minute budget | PASS for original timed run; later corrections disclosed | 507.814s from first search batch to saved output/photo evidence/self-grade; two provenance/notice defects were corrected after independent review, outside the frozen eval interval. Not a claim the publication revision existed before the deadline. |
 | Curated/native-language source use | PASS | Official scope and lamb Guide lead checked; Chinese and English searches. No false Michelin/category-exhaustion claim. |
 | Exact branch / owner fit | PARTIAL | Lamb is explicit prompt context and branch matches are sourced; live PA-profile path unavailable, no claim of a saved-preference read. |
 | Geography | PARTIAL | Zhongshan-side branches; northward alternative explicitly expanded, no invented walk time or three strict-core matches. |
