@@ -13,7 +13,10 @@ metadata:
 
 Every `references/...` path in this skill is relative to this skill directory.
 
-Find dining options, prepare a reservation, and ask before final reservation submit.
+Prepare a reservation for a chosen place, and ask before final reservation submit.
+For choosing where to eat, comparing options, dated photos, menus and actual-day
+hours, load `personal-assistant:restaurant-discovery` first. Reuse its sourced
+branch/date/party/preferences handoff; recheck changeable facts before booking.
 
 ## Read
 
@@ -28,7 +31,8 @@ Use `phone-calls` when a phone call is needed.
 ## Workflow
 
 1. Identify location, date/time, party size, cuisine, budget, accessibility, and calendar constraints.
-2. Search reservation platforms, restaurant sites, maps, and local guides.
+2. If no venue is selected, use `personal-assistant:restaurant-discovery`; once
+   selected, verify that exact branch on the reservation platform or venue site.
 3. Compare at least three options when practical.
    Quote a price, price range, fee or deposit only as a page or tool result you saw shows it for that restaurant (a cart or checkout counts), with its currency and basis such as per person. Report a symbol tier such as $$$ as a tier, never as an amount; call a missing amount unknown.
 4. Prepare the selected reservation with party size, seating, special requests, and contact details.
