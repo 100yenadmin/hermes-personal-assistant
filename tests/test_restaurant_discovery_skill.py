@@ -89,7 +89,7 @@ def test_saved_live_evals_have_resolvable_citations_and_dated_photo_provenance()
         assert "## Self-grade against #71" in text
         body, block = text.split("## Sources", 1)
         cited = {int(value) for value in re.findall(r"\[(\d+)\]", body)}
-        rendered = {int(key): url for key, url in re.findall(r"^\[(\d+)\] (\S+)$", block, re.M)}
+        rendered = {int(key): url for key, url in re.findall(r"^\[(\d+)\] (\S+)(?: — .*)?$", block, re.M)}
         assert rendered == {key: sources[key] for key in cited}
         output = body.split("## Final user-facing output", 1)[1].split("## Self-grade", 1)[0]
         for line in output.splitlines():

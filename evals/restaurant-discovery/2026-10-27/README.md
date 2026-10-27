@@ -57,6 +57,14 @@ pages. Full HTML and isolated browser state stay outside source control.
   Python TLS verification, then succeeded with the system-TLS `curl` fallback.
   TLS verification was not disabled. Serving an image proves neither its content
   nor its date; those remain source-provenance claims with explicit limits.
+- [preference-read-attestation.json](preference-read-attestation.json): derivative
+  proof of the operator-authorized two-food-record read for the Luodong follow-up.
+  Both were active. Khan's installed native PA surface lacks the profile API;
+  the existing repository's `Ledger.get(read_only=True)` read only those named
+  records. This is not a native `pa` tool transcript, a fixture, a full owner
+  profile export or a runtime/config change. The follow-up prompt omits lamb;
+  the saved rule drives the renewed Chinese lamb query. Ordinary bound-native
+  profile retrieval remains to be live-tested in a supporting runtime.
 - [hours-evidence.json](hours-evidence.json): bounded exact-branch Google Maps
   hour readbacks. Original results without embedded times say so; no invented
   access timestamp. These prove a published weekly schedule, not temporary
@@ -68,9 +76,12 @@ pages. Full HTML and isolated browser state stay outside source control.
   A failed direct GET does not contradict a separately identified `web_extract`
   read of public indexed text; those are different retrieval paths.
 
-Only public business/review sources and synthetic prompts are included. No live
-owner profile, stay address, customer ledger, authenticated provider response,
-booking, queue entry, call, message, sign-up or preference write was used.
+Public business/review sources and synthetic prompts are included, plus the
+redacted derivative attestation of the two food preferences explicitly named in
+operator steering. No raw owner profile, stay address, customer ledger,
+authenticated provider response, booking, queue entry, call, message, sign-up or
+preference write is published. Japan/Korea remain separate synthetic cases and
+do not claim the Taiwan follow-up's scoped profile personalization.
 
 ## Local and hosted checks
 
@@ -81,6 +92,13 @@ original focused tests failed on unchanged base
 `1564e079e221df6c6036dad3818c56180ea888e7` and passed with the skill.
 Full package/archive/release-contract/two-pin native lifecycle checks belong to
 hosted CI, per repository guidance.
+
+Hosted CI caught the initial omission of discovery from the three matching
+required-skill inventories. The exact parity failure was reproduced locally;
+all three inventories were corrected rather than weakening the check. The final
+targeted rerun (discovery contracts, that parity test, installed-version probe
+tests) passed **33 tests**. Seven of those are discovery-specific checks; this
+does not replace the hosted full suite or non-author semantic review.
 
 ## Independent review and next iteration
 

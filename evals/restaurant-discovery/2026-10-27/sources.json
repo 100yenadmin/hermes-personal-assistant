@@ -324,6 +324,12 @@
       "url": "https://tabelog.com/osaka/A2701/A270201/27086074",
       "title": "",
       "accessed": "2026-10-27"
+    },
+    {
+      "id": 55,
+      "url": "./preference-read-attestation.json",
+      "title": "Operator-authorized scoped read-only PA food-preference attestation",
+      "accessed": "2026-10-27"
     }
   ]
 }

@@ -3,9 +3,9 @@
 ## Run contract
 
 - Author-executed, real-web, read-only eval in Kanban `t_f9316036`, 2026-10-27; not a simulated provider run or an independent model evaluation.
-- Candidate skill revision for recovery: `f3b0b005765f6148e88aadced48a1c85eafbb2ee`. The initial content was exercised before interruption; the evidence-date and query-year clarifications were applied during the author run.
+- Initial retrieval/recovery skill revision: `f3b0b005765f6148e88aadced48a1c85eafbb2ee`. Preference-aware follow-up candidate: `a6a8f59cceb96cfc3bf35e8fc06b12381ce5b364`; the skill now explicitly calls the bound PA profile API rather than naming owner-specific IDs.
 - Exact synthetic prompt: **“Luodong, Tuesday dinner. I love lamb. Find a pick and two alternatives for tonight; show photos, menu/prices and hours. Don't book.”**
-- Declared assumptions: 2026-10-27, arrival 18:30 Asia/Taipei, two adults for comparison only; no known hotel, budget, dietary restrictions or recent-meal history. No live PA profile read or preference write.
+- Declared assumptions: 2026-10-27, arrival 18:30 Asia/Taipei, two adults for comparison only; no known hotel, budget, dietary restrictions or recent-meal history. The initial pass had no PA profile read; the follow-up below read only the two operator-authorized food records. No preference write.
 - Recovery clock recheck (`TZ=... date`): `Asia/Taipei 2026-10-27 Tuesday 15:05:57 CST`; `Asia/Tokyo 2026-10-27 Tuesday 16:05:57 JST`; `Asia/Seoul 2026-10-27 Tuesday 16:05:57 KST`. Initial research was interleaved across locales.
 
 ## Condensed live tool transcript
@@ -33,9 +33,26 @@ Access limitations: Facebook public GET returned no usable notice text; Google M
 
 The interrupted run's draft and public HTTP/browser evidence were recovered, not silently relabelled as a fresh independent-agent run. Current `web_extract` rechecks read the January lamb-buffet article, the August article's explicit 2024-05 menu date, and iFoodie's `今日休息` plus `週二公休`; these support the dated price caveat and Tuesday exclusion.[1][5][12] A fresh isolated no-login `browse` visit followed the exact 李家莊 place ID, rejected optional cookies and opened its hours control: `Tuesday, 4 to 10:30 pm, Copy open hours`. The timestamp and exact resolved branch URL are in [hours-evidence.json](hours-evidence.json).[37]
 
+## Preference-aware follow-up (operator steering)
+
+Follow-up prompt: **“Luodong, Tuesday dinner. Use my saved food preferences to choose a pick and two alternatives, with photos, menu prices and what to order. Don't book.”** Unlike the first prompt, this does not supply the lamb preference in the request.
+
+The real scoped read at **2026-10-27T07:25:38.101665+00:00** verified `pref:loves-lamb` and `pref:restaurant-photos-menu` as **active**, owner-stated food preferences. Only a derivative attestation is published; no raw profile record or private path is copied.[55]
+
+Khan's exposed native `pa` schema omits `operation="profile"`, so this is **not** a successful native `pa` tool transcript. Under the operator's explicit two-record read scope, the existing repository `Ledger.get(..., read_only=True)` backend read those identities only, with no environment rebinding, schema/config/runtime change or profile write. Ordinary use of the new skill still requires the correctly bound native profile API; that live native path is **not proven by this fallback**.[55]
+
+| Actual follow-up step | Observed result / effect |
+| --- | --- |
+| `Ledger.get("action", <operator-named identity>)`, `read_only=True`, twice | Both records in force (`active`, `category=food`, `source=said`); applied the saved lamb priority and the photos/menu/prices/order presentation rule, rather than a canned owner preference in the skill.[55] |
+| `web_search`: `羅東 羊肉爐 星期二 晚餐 菜單 價格 2026 正老林 羊排` | The preference-led Chinese query returned the exact ayuulife branch article first; the older place proxy was only corroboration.[1][2] |
+| `web_extract`: `https://ayuulife.com/mutton-hot-pot/` | Re-read `2026 年 1 月 31 日`, `大人每人580元`, `用餐時間120分鐘`, and the lamb ribs/bones/tendons description. This did not refresh the menu or photos to October.[1] |
+| Reuse checked branch hours, dated original photos and exclusion evidence | Same lamb-led pick remains the judgment below; stale/current-price and review gaps remain disclosed, so the preference for **recent** photos is only partially satisfied.[1][47][12] |
+
 ## Final user-facing output
 
-**My pick is 正老林羊肉爐 羅東店:** the lamb buffet is the closest match to your stated craving; the article lists lamb ribs, big bones and tendons.[1]
+**My pick is 正老林羊肉爐 羅東店:** the lamb buffet is the closest match to your saved lamb preference; the article lists lamb ribs, big bones and tendons.[1][55]
+
+I applied your saved **lamb preference** and your saved request for **photos, menu prices and what to order**. The links below have dated provenance, but not all are recent, and none is visually inspected; that part of the preference is not fully met.[55]
 
 I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel distance, budget and recent meals are unknown, so I have not invented a walking time or a reason to avoid another night market.
 
@@ -79,7 +96,7 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 
 | Criterion | Grade | Evidence / limitation |
 | --- | --- | --- |
-| Lamb-focused option + owner fit | PASS | Pick and both alternatives are lamb-led; only the supplied “love lamb” preference used.[1][9][5] |
+| Lamb-focused option + owner fit | PASS for scoped saved-preference read | The follow-up prompt omits lamb; two actual active food records were read and used before the follow-up query. Native bound `pa profile list` is not proven by the labelled backend fallback.[55] Lamb-led picks are sourced.[1][9][5] |
 | Tuesday exclusions / actual-day hours | PASS for scheduled hours | Direct exact-branch Google Maps weekly hours.[37][47][48] 羊舖子 excluded.[12] Not a same-day closure/seat guarantee. |
 | Dated photos + menu/price line | PASS for dated provenance; PARTIAL for freshness | Two real image links each; article dates explicit. All six image GETs succeeded. Current October dine-in prices were not established.[1][9][5] |
 | Curated + local-language/platform search | PARTIAL | Chinese queries, TVBS/iFoodie and direct Google Maps used.[6][12][47] No exact local Michelin result established.[52] |
@@ -88,7 +105,7 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 | Every factual output line cited | PASS, author check | Restaurant facts have inline sources; unknowns remain explicit. Citation checker validates mapping, not truth. |
 | Reservation handoff / no actions | PASS | Offer only; no reservation form, booking, queue, message, call, account or preference change. |
 
-**Overall: Taiwan's specific live acceptance behavior demonstrated, with material freshness gaps.** This is not a claim that every broader #71 quality goal is complete. Next improvement: fresh branch-owned menus and a readable recent-review sample, plus visual inspection/captioning rather than source-photo links alone.
+**Overall: Taiwan's specific live acceptance behavior and a scoped live saved-preference read demonstrated, with material freshness/runtime-path gaps.** This is not a claim that every broader #71 quality goal is complete or that Khan's native `pa` surface supports the new profile API. Next improvement: a correctly bound native-profile live run, fresh branch-owned menus and a readable recent-review sample, plus visual inspection/captioning rather than source-photo links alone.
 
 ## Sources
 
@@ -107,3 +124,4 @@ I used **Tuesday 2026-10-27, 18:30 Asia/Taipei** for this comparison. Hotel dist
 [48] https://www.google.com/maps/search/?api=1&query=阿灶伯當歸羊肉湯+羅東
 [52] https://guide.michelin.com/tw/zh_TW/restaurants
 [53] https://tw.news.yahoo.com/%E7%8D%A8%E5%AE%B6-%E7%BE%85%E6%9D%B1%E9%98%BF%E7%81%B6%E4%BC%AF%E7%BE%8A%E8%82%89%E6%B9%AF%E8%AA%BF%E6%BC%B2-%E7%BE%8A%E8%82%89%E6%B9%AF-%E9%BA%B5-%E7%A0%B4%E7%99%BE%E5%85%83-051200418.html
+[55] ./preference-read-attestation.json — Operator-authorized scoped read-only PA food-preference attestation
