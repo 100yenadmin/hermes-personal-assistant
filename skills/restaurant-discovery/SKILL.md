@@ -40,6 +40,12 @@ liking a recommendation is not permission to transact.
   Use available context for party size, budget, distance and recent meals. Ask
   only for a missing constraint that would change the search; otherwise show
   assumptions (for example, dinner near Namba station, hotel unknown).
+- Before research, declare an **end-to-end deadline** in destination-local time
+  and an elapsed-time budget. For a requested quick dinner, default to a
+  **15 minutes** timebox unless the user supplies another limit. Reserve time
+  within it for hours/identity checks, finalist photos and the final response;
+  research must stop early enough to deliver by that deadline. Report unfinished
+  checks as gaps, never silently extend the budget to complete a list.
 
 ## Find candidates in this order
 
@@ -47,14 +53,19 @@ liking a recommendation is not permission to transact.
    stars, **Bib Gourmand** and Selected. Follow with Tabelog Award / Hyakumeiten
    in Japan, Blue Ribbon Survey in Korea, Michelin and local food media in
    Taiwan. Record the edition/year when shown; a historical award is not a
-   current one. For a category/location request, check the address or area of
+   current one. First open the official dated guide's geographic scope: record
+   the **scope URL, edition/year and caveat**. If that scope excludes the city,
+   skip the out-of-scope national category sweep and continue with local sources;
+   this is a guide-scope limitation, not proof that local restaurants are absent.
+   For an **in-scope category/location request**, check the address or area of
    **every entry** on the official category list, including **pagination**,
    **before widening** the radius. Record the list's declared total, unique
    entries checked and each entry's area evidence. Account for every in-area
    match as a **pick, an exclusion or an unverified lead**, with a reason;
    conflicting dinner hours do not justify silently omitting a nearby match.
-   If pages or addresses are inaccessible, report the coverage gap and do not
-   claim the local category is exhausted. Any wider-area suggestions must be
+   If pages or addresses are inaccessible or the timebox prevents completion,
+   report the coverage gap and do not claim the local category is exhausted.
+   Partial accounting is not a complete sweep. Any wider-area suggestions must be
    labelled as an expansion, not a satisfied strict-location request.
    No exact local guide match? Say so and continue locally; do not label a
    food-blog favourite Michelin or quietly widen the geography.
@@ -69,8 +80,15 @@ liking a recommendation is not permission to transact.
    and sample size where available. Look for repeated complaints about queues,
    portion/value, service, smoke or cleanliness across independent visits,
    rather than ranking by mean score. One complaint is an anecdote, not a trend;
-   copied roundups are not independent. If recent reviews cannot be read, say
-   the recency check is incomplete. No “no complaints” claim from an empty sample.
+   copied roundups are not independent. If blocked, stop after at most **two
+   failures with the same cause** and try **one materially different public
+   no-login fallback** within the deadline: another local platform's exact-branch
+   dated visit records or opened original independent visit posts (Taiwan:
+   iFoodie → original blog; Japan: Tabelog; Korea: public Naver/Kakao). Verify the
+   **visit date**, not an article update date. Sponsored, press and venue posts
+   are not independent visits. If the fallback cannot establish recent visits,
+   put **“Recent reviews unchecked”** up front in the compact recommendation.
+   No “no complaints” claim from an empty sample; one visit is not a trend.
 4. **Menu and visual pre-filter.** Use the venue's own current menu, then recent dated
    local blogs or public no-login social posts. Quote currency and basis (per
    person, set, portion, buffet), menu/publication date, tax/service/deposit
@@ -83,7 +101,16 @@ liking a recommendation is not permission to transact.
    finalist-only procedure below after ranking, linking each selected original
    image and source page. Label each
    with capture date if known; otherwise publication date and “capture date
-   unknown”. Retrieval date is not photo date. Old/undated imagery is labelled
+   unknown”. Target photos dated **within 12 months before the local meal date**
+   unless the user asks for a stricter window. A known capture date establishes
+   capture recency; a qualifying publication date is only a **publication proxy**
+   when capture is unknown, not verified recent capture. Prefer qualifying
+   candidates before historical ones within the same cap and deadline. Never
+   manufacture capture dates from filenames, upload dates or retrieval time.
+   If no photo meets the window on a documented capture/publication-proxy basis,
+   say exactly **“No verified recent photo found”**; optional historical/undated
+   useful images stay labelled with their dates and uncertainty.
+   Retrieval date is not photo date. Old/undated imagery is labelled
    historical/undated, never “current”; do not fill a gap with stock/generated
    imagery. At this stage collect/pre-filter links only; **defer pixel inspection
    until after steps 5–6 have selected the supported finalists**.
@@ -92,8 +119,8 @@ liking a recommendation is not permission to transact.
      after hours/identity screening and ranking. Never inspect during broad
      search or spend this budget on unverified/excluded leads.
    - **Pre-filter before viewing:** choose candidates next to relevant dish/menu
-     text in the source article, using alt text and file names as leads, not
-     proof. Skip logos, maps, staircases and storefront-only shots unless the
+     text in the source article, using adjacency, alt text and filenames only as
+     leads, not proof of image content. Skip logos, maps, staircases and storefront-only shots unless the
      venue itself is the point of the recommendation.
    - **Cap and stop:** at most **3 candidate images per finalist** (about **9
      total** for a three-option response). Stop for that finalist once **2 good
@@ -107,7 +134,8 @@ liking a recommendation is not permission to transact.
      delegation, inspect inline under the same cap.
    - Prefer the recommended dish, then useful menu/prices or venue views;
      **caption only what is visible**. Do not infer meat species, ingredients,
-     exact dish names or tiny menu text. Source context is not a visual finding.
+     exact dish names or tiny menu text from neighbouring article text or image
+     position. Source context is not a visual finding; pixels alone ground captions.
      HTTP 200, filenames, alt text and page extracts are not visual inspection.
    - Save the pre-filter rationale, candidate count, viewed IDs, captions and
      keep/reject results in eval evidence. If nothing passes, say **“no verified
@@ -123,7 +151,13 @@ liking a recommendation is not permission to transact.
    a guide award or old blog alone does not prove tonight's opening. Record
    source and access time; distinguish “scheduled open” from live confirmation
    or seat availability. Drop closed-today, dinner-ineligible, sold-out or
-   relocated/closed branches from tonight's picks. Put unresolved hours,
+   relocated/closed branches from tonight's picks. Gate source conflicts on the
+   **requested arrival and entire meal interval**, relevant last order/entry,
+   closures, address and essential dietary suitability. A lunch-opening
+   discrepancy is immaterial when all credible sources support the entire
+   dinner window: disclose it without silently choosing a source; do not exclude
+   that dinner candidate for lunch alone. A **dinner-overlapping conflict** is
+   unresolved and quarantines the candidate. Put unresolved meal-window hours,
    address conflicts or essential dietary suitability in a separate
    **unverified leads** section, not the bookable shortlist. Say “unknown” for
    last order, fees or other missing fields; do not invent them. Never resolve
@@ -134,17 +168,39 @@ liking a recommendation is not permission to transact.
    your taste recommendation as judgment. Do not promise allergen safety from
    a dish name or assume a preference, a prior meal or a hotel location.
 
+## Private route evidence
+
+An authorized stay may be used privately for a route check, never in a public or
+broad query. Never expose the hotel/origin in a public map URL or shared artifact.
+Shared links must be **destination-only Maps/search/place links**; strip
+origin-bearing route URLs and redact private data from screenshots before any
+sharing. Cite the safe destination separately from private route evidence.
+Private route evidence does not prove travel time unless actually routed; if no
+route was checked, say distance/travel time unknown rather than guessing.
+
 ## Show, then hand off
 
-Return **one pick plus two alternatives** when supported, each with native name
-and exact branch/address, why it fits, what to order, sourced price per person
-(or an honest unknown), hours for the stated date, last order/entry and practical
-terms, two verified dated photo links when available (or the explicit gap), and
-a verified booking route or “route unknown”.
-Cite every factual line, including hours, prices, award status and photo
-provenance. Separate unknowns and source conflicts beside the relevant field.
-Fewer supported options are better than invented completeness; report which
-checks could not be completed. Closed exclusions are not alternatives.
+**Telegram/default chat: compact FIRST.** Return **one pick plus two alternatives**
+when supported in **about 10 lines of recommendation text**, plus credited/dated
+photo group captions. Start with local meal date, timezone, assumed arrival and
+party size; put “Recent reviews unchecked” up front when applicable. Each option
+needs native name/exact branch, brief fit/order advice, sourced price per person
+or unknown, and relevant dinner schedule/last order or entry (or unknown).
+Include critical caveats: material conflicts, unchecked closure/review evidence,
+essential dietary gaps and **no seats guarantee**. Cite factual lines with source
+links, using only safe destination links. Fewer supported options are permitted;
+closed exclusions are not alternatives. Keep missing-photo caveats explicit.
+
+Use **2 photos per finalist** when suitable, within the existing cap; a third
+only if already justified under the cap, never a quota or reason to keep viewing.
+Photo group captions carry credit, capture date or publication proxy/capture
+unknown, visible-content caption and original image/source links. Label optional
+historical/undated images, and say “No verified recent photo found” when applicable.
+
+Full evidence cards/details (exact address, menu/order math, practical terms,
+coverage/audit and photo provenance) are **on request or in a separate attachment**.
+Do not dump all cards after compact text unsolicited. Retain the supporting
+evidence for handoff without publishing private owner/stay context.
 
 End with a concrete choice: “My pick is X for Y. Want me to prepare a reservation?”
 On selection, load `personal-assistant:restaurant-reservations` and pass the exact
