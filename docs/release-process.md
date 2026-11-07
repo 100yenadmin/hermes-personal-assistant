@@ -136,7 +136,8 @@ bash scripts/package_release.sh --output-dir dist
 On an exact `main` merge of a valid release pull request, the publication job
 builds without write credentials, re-runs archive and download verification, and
 then grants only `contents: write` to the final publication step. It creates the
-immutable `v<VERSION>` tag and GitHub prerelease. A retry may resume a partial
+immutable `v<VERSION>` tag and GitHub release, a prerelease when VERSION has a
+suffix (`-rc.N`) and a stable release otherwise. A retry may resume a partial
 draft only when the existing tag target, approved title, approved release-note
 body, prerelease setting, and every existing asset byte-for-byte match. It
 refuses unknown or edited draft metadata and never clobbers a mismatched tag or
@@ -151,7 +152,7 @@ digests twice, then uses the corrected publisher from reviewed `main` to resume
 the existing draft. It cannot rebuild, retag, or select another artifact or
 version.
 
-The pilot release is `v0.4.1-rc.2`. Release selection is a separate PR after
+The first stable release is `v0.9.0`; earlier releases were prereleases. Release selection is a separate PR after
 implementation acceptance. Main requires CI and resolved conversations, but no
 mandatory non-author GitHub approval. Independent semantic review evidence for
 changed installation/release paths is retained. Support Control stays at

@@ -187,3 +187,20 @@ def test_create_draft_rejects_a_readback_that_is_not_a_draft(tmp_path):
         with pytest.raises(publish_release.PublishError, match="could not be read back"):
             publish_release.create_draft("owner/repo", "v0.4.0-rc.1", "0.4.0-rc.1", notes)
     sleep.assert_not_called()
+
+
+def test_stable_version_creates_and_requires_a_non_prerelease(tmp_path):
+    # 0.9.0 is the first stable release: no --prerelease flag, and a prerelease draft is refused as edited metadata.
+    _, notes = assets(tmp_path, version="0.9.0")
+    draft = release([], name="Personal Assistant v0.9.0", prerelease=False, tag_name="v0.9.0")
+    with mock.patch.object(publish_release, "call") as create, \
+         mock.patch.object(publish_release, "release_for_tag", return_value=draft):
+        assert publish_release.create_draft("owner/repo", "v0.9.0", "0.9.0", notes) == draft
+    assert "--prerelease" not in create.call_args.args[0]
+    publish_release.validate_release_metadata(draft, "0.9.0", notes)
+    with pytest.raises(publish_release.PublishError, match="prerelease"):
+        publish_release.validate_release_metadata({**draft, "prerelease": True}, "0.9.0", notes)
+    with mock.patch.object(publish_release, "call") as create, \
+         mock.patch.object(publish_release, "release_for_tag", return_value=release([])):
+        publish_release.create_draft("owner/repo", "v0.4.0-rc.1", "0.4.0-rc.1", notes)
+    assert "--prerelease" in create.call_args.args[0]

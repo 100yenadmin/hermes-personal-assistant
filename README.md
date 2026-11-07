@@ -80,6 +80,51 @@ Daily Ops and conversation delivery are separately configured. Protected
 provider actions retain their workflow-specific confirmation and readback
 requirements. Unknown submission outcomes remain blocked until reconciled.
 
+## What it touches
+
+What you would want to know before installing. Nothing on this list runs on install. Anything marked opt-in stays off until you configure it or ask for it.
+
+**Stored data.** PA keeps its records in one SQLite ledger in your Hermes profile, `state/travel-ledger/travel.sqlite`. The records cover:
+- trips, flight facts and prepared actions;
+- setup answers;
+- preferences, people, SOPs and trust levels;
+- call cards and call transcripts;
+- task evidence;
+- action receipts.
+
+Recognised card numbers, credentials and labelled account numbers are refused, but the filter is pattern-based, not a guarantee. Nothing is deleted automatically: "forget" retires a record, and disabling the plugin erases nothing.
+
+**Hooks.**
+- `pre_tool_call` sees every tool call. It blocks only a tool that a PA exact-action approval or the policy deny list covers. If the ledger cannot be opened, it also blocks most tools until storage is readable again.
+- `pre_llm_call` adds short notes to your own turns: the one-time `/pa setup` offer, setup and mode reminders, and active preferences. On cron, subagent and unattended turns it adds nothing, except a note that cancels a Chief of Staff wake while that mode is off.
+
+**Tools.** `pa` (ledger operations), `pa_call` (call cards, an offline brief compiler and a loopback simulator; nothing dials) and the `/pa` command. `pa_delivery_ack` registers only when conversation delivery is enabled.
+
+**Reads outside the ledger, when you ask.**
+- During `/pa setup`, with your consent, the agent reads USER.md, SOUL.md, its memory and a context file you name, and lists your cron jobs and skills.
+- Trip import reads the `.ics` or guide file you give it.
+- Observer, precheck and mode reads use the profile's `config.yaml`.
+- Read-only lookups use Hermes's kanban database and cron job and suggestion stores.
+
+**Network, only when you ask or opt in.**
+- **Browserbase** (`api.browserbase.com`): when you ask for a cloud browser session. It uses your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` from the profile's secret scope. Sessions are created with recording and logging off.
+- **Google Calendar API:** for `calendar_sync`, and for Daily Ops calendar reads. It uses the profile's existing Google token file, `google_token.json`, from Hermes's Google Workspace sign-in. PA reads that file and refreshes the access token in memory. It never starts a sign-in and never writes the file. (Moving this onto a plugin-declared OAuth client is tracked in #74.)
+- **Open-Meteo** (geocoding and forecasts): only after you accept a trip watch. It receives your departure airport or city, then coordinates. It can be set to `off`.
+- **ElevenLabs** (`api.elevenlabs.io`, read-only): only from the manual `python -m personal_assistant.phone_poll` command. That command reads `ELEVENLABS_API_KEY` from the shell you run it in.
+- **Daily Ops (opt-in):**
+  - mail and calendar reads through the `gog` CLI;
+  - OpenStreetMap Nominatim and OSRM through `curl`, only after you give geo consent;
+  - client sync through the Stripe and Supabase CLIs, only after you give consent.
+
+**Background work, only after a yes.**
+- **Trip watch.** If you accept one, the agent arms a HeartBeat 2.0 watcher. Once you allowlist its command, the watcher runs `scripts/pa_observe.py` every 15 minutes and stops shortly after the trip, at most 14 days later.
+- **Conversation delivery (opt-in).** It runs one gateway background task that injects packets into one verified session.
+- **Routine suggestions.** These write small precheck scripts into your profile's `scripts/` folder and add Hermes cron suggestions. Nothing runs until you accept a suggestion. Turning Chief of Staff mode off removes PA's own Chief of Staff jobs.
+
+**Telemetry and approvals.**
+- PA sends no telemetry.
+- Bookings, payments, reservations, orders and cancellations stop for your explicit yes for that exact action. A prepared booking stops at the provider's final page.
+
 ## Chief of Staff
 
 Chief of Staff helps turn your priorities into useful next actions. It is off
