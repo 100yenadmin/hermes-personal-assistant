@@ -306,7 +306,8 @@ VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:
         r"(?:criteria|criterion|weights?|weighting|filters?|rules?|scoring|rubric|formula|priorit(?:y|ies)|requirements?|constraints?|"
         r"thresholds?|caps?|limits?|assumptions?|discounts?|rates?|conversion|exchange)\b)|submitted|"
         r"sent(?!\s+(?:you\s+)?(?:the|this|that|an?|my|our)\s+(?:(?:full|short|updated|final)\s+)?"
-        r"(?:comparison|summary|table|recommendation|answer|breakdown|list|notes|overview|report|shortlist)\b)|emailed|messaged|texted"
+        r"(?:comparison|summary|table|recommendation|answer|breakdown|list|notes|overview|report|shortlist)\b"
+        r"(?!\s+(?:over\s+)?to\s+(?!you\b|yourself\b)\w))|emailed|messaged|texted"
         r"|called(?!\s+(?:(?:it|this|that|these|those|them)\s+)?out\b)|phoned|rang|wrote\s+to|reached\s+out|contacted|requested|asked\s+(?!(?:you|me|us)\b)\w+(?:\s+\w+)?\s+for"
         r"|(?:scheduled|arranged|set\s+up)\s+(?:an?\s+|the\s+)?(?:\w+\s+)?(?:demo|call|meeting|trial))")
 # Subject, up to three words such as "also", "already" or "gone ahead and", then the verb.

@@ -1045,3 +1045,9 @@ def test_indented_line_under_a_source_entry_still_needs_its_source():
     appendix = "[1] Cedar pricing, https://cedar.invalid/pricing, read 2026-10-21\n  - Enterprise: S$99 per employee per month\n"
     answer = ANSWER[:ANSWER.index("## Appendix")] + "## Appendix\n" + appendix
     assert evaluate(answer)["factual_errors"][0]["amount"] == "S$99"
+
+
+@pytest.mark.parametrize("text,claim", [("I sent the comparison to Cedar.", True), ("I sent the summary over to Birch's sales team.", True),
+                                        ("I sent the summary to you.", False), ("I sent the comparison above.", False)])
+def test_research_claims_sending_the_answer_depends_on_who_gets_it(text, claim):
+    assert research_checks.claims_done(text) is claim
