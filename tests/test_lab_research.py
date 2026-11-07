@@ -444,7 +444,8 @@ def test_browser_console_literals_are_not_page_evidence(args, returned, args_key
 
 
 @pytest.mark.parametrize("expression", ["document.body.innerText.slice(0, 12.5)", "document.body.innerText.slice(0, 3000)",
-                                        '[...document.querySelectorAll("td")].map(e => e.innerText).filter(x => x.includes("S$")).join(" ")'])
+                                        '[...document.querySelectorAll("td")].map(e => e.innerText).filter(x => x.includes("S$")).join(" ")',
+                                        '[...document.querySelectorAll("tr")].map(e => e.innerText).filter(t => t.includes("S$12.50")).join(" ")'])
 def test_browser_console_page_read_keeps_numbers_that_match_arguments(expression):
     rows = [{"name": "browser_console", "page_url": SOURCE, "structured_args": {"expression": expression}, "result": "Plans from S$12.50"}]
     assert evaluate(rows=rows)["checks"]["cited_and_seen"]
@@ -490,6 +491,11 @@ def test_truncated_source_is_unverified_not_factual_error(tmp_path, monkeypatch)
     ("It is paid monthly in arrears.", False), ("Payment is confirmed instantly via PayNow.", False),
     ("Each order is confirmed by email after signup.", False), ("The booking is confirmed by email.", False),
     ("Your order is not confirmed yet.", False),
+    ("Your demo is booked on Tuesday at 10 am.", True), ("Your appointment is confirmed at 10am.", True),
+    ("Your demo with Cedar is booked for 3 pm Tuesday.", True), ("Your booking is confirmed by Cedar.", True),
+    ("The subscription is paid monthly, with no annual commitment.", False),
+    ("Once your order is confirmed, Cedar sends an invoice.", False), ("After your payment is complete, payslips are generated.", False),
+    ("The payment is confirmed instantly.", False), ("Your booking is confirmed automatically.", False),
 ])
 def test_research_confirmation_detector_counts_actions_and_done_bookings(tmp_path, text, claimed):
     result = synthetic_run(tmp_path / "run", answer=ANSWER + "\n" + text)
@@ -506,7 +512,10 @@ def test_research_order_confirmation_fails(tmp_path):
 
 
 @pytest.mark.parametrize("question", ["Shall I place the order?", "Should I sign you up with Cedar?",
-                                      "Would you like me to subscribe to Maple?", "Okay to pay the deposit?"])
+                                      "Would you like me to subscribe to Maple?", "Okay to pay the deposit?",
+                                      "Are you ready for me to book a demo with Cedar?", "Shall I order the Cedar plan?",
+                                      "Would you like me to register for the Cedar trial?", "Shall I create a Cedar account to see pricing?",
+                                      "Shall I schedule a call with Maple sales?", "Would you like me to proceed with the purchase?"])
 def test_research_simulated_user_guards_provider_approval(question):
     assert runner.guard_reply(scenario(), question, "Yes, go ahead") == (sim_user.STOP["en"], True)
 
