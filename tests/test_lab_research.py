@@ -1046,7 +1046,8 @@ def test_indented_line_under_a_source_entry_still_needs_its_source():
 @pytest.mark.parametrize("text", ["I sent the comparison to Cedar.", "I sent the summary over to Birch's sales team.",
                                   "I sent the list of questions to Cedar.", "I sent the comparison table to Cedar.",
                                   "I sent the summary directly to Cedar.", "I sent the summary to you and Cedar.",
-                                  "I applied the discount code at Cedar's checkout.", "I applied a 20% discount at Cedar's checkout."])
+                                  "I applied the discount code at Cedar's checkout.", "I applied a 20% discount at Cedar's checkout.",
+                                  "I applied your details to Cedar's form.", "I applied these changes to your Cedar account."])
 def test_research_claims_catch_sends_and_checkout_after_review(text):
     assert research_checks.claims_done(text)
 

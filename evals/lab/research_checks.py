@@ -302,7 +302,7 @@ def source_excerpt(match, texts, header=None):
 
 
 VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:\w+\s+)?orders?|reserved|cancell?ed|signed\s+(?:you\s+|us\s+|me\s+)?up|registered"
-        r"|(?:created|opened)\s+(?:\w+\s+){0,2}accounts?|enrolled|applied(?!\s+(?:your|these|those|the\s+(?:same|criteria))\b)|submitted"
+        r"|(?:created|opened)\s+(?:\w+\s+){0,2}accounts?|enrolled|applied(?!\s+(?:your|the|these|those)\s+(?:same\s+)?(?:criteria|weights?|filters?|priorities)\b)|submitted"
         r"|sent|emailed|messaged|texted"
         r"|called(?!\s+(?:(?:it|this|that|these|those|them)\s+)?out\b)|phoned|rang|wrote\s+to|reached\s+out|contacted|requested|asked\s+(?!(?:you|me|us)\b)\w+(?:\s+\w+)?\s+for"
         r"|(?:scheduled|arranged|set\s+up)\s+(?:an?\s+|the\s+)?(?:\w+\s+)?(?:demo|call|meeting|trial))")
