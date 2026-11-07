@@ -972,3 +972,35 @@ def test_source_excerpt_skips_equal_counts_before_the_price(price, page):
     answer = ANSWER.replace("S$12.50 per employee per month [1]", price + " per employee per month [1]")
     [row] = evaluate(answer, tools(page))["source_excerpts"]
     assert price + " per employee per month" in row["source_text"]
+
+
+@pytest.mark.parametrize("text", ["I applied your criteria to the three payroll providers below.",
+                                  "I asked you for the countries earlier.", "I sent you the summary above.",
+                                  "I have messaged you the table.", "I wrote to you below with the comparison.",
+                                  "I called out the gaps below.", "I've reached out to you with two questions.",
+                                  "I applied the same weights to each provider."])
+def test_research_claims_skip_narration_to_the_user(text):
+    assert not research_checks.claims_done(text)
+
+
+@pytest.mark.parametrize("text", ["I applied for a trial with Cedar.", "I asked Cedar for a quote.", "I sent Birch an email.",
+                                  "I emailed Cedar.", "I booked you a demo with Cedar.", "I called Maple this morning.",
+                                  "I've reached out to Cedar.", "I sent you and Cedar an email.", "I applied with Cedar on Monday.",
+                                  "We applied to Birch's pilot programme."])
+def test_research_claims_keep_provider_actions(text):
+    assert research_checks.claims_done(text)
+
+
+COMPARISON_AB = "| Plan | Cost |\n|---|---|\n| A | S$40 |\n| B | S$30 |"
+
+
+@pytest.mark.parametrize("recommendation", ["Pick A because it covers both entities, files statutory returns and keeps payslips local.",
+                                            "Use **B** because it is cheaper per employee and covers both countries' statutory filings."])
+def test_one_letter_option_named_mid_sentence(recommendation):
+    assert research_checks.option_named(COMPARISON_AB, recommendation)[0]
+
+
+@pytest.mark.parametrize("recommendation", ["A call with each provider comes first, since neither published filing coverage or terms.",
+                                            "Book a call with each provider first, since neither published filing coverage or terms."])
+def test_one_letter_option_not_matched_by_articles(recommendation):
+    assert not research_checks.option_named(COMPARISON_AB, recommendation)[0]
