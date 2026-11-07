@@ -1076,3 +1076,9 @@ def test_new_section_start_waits_for_an_open_review(tmp_path):
         setup.start(ledger, "profile")
     assert setup.state(ledger) == prior
     assert setup.start(ledger, "core")["status"] == "proposed"  # The same section continues its review.
+
+
+def test_status_without_progress_has_no_empty_segment(tmp_path):
+    reply = make_pa_command(tmp_path)("status")
+    assert reply.startswith("Setup: ") and ". ." not in reply and ".  " not in reply
+    assert reply.split(". ", 1)[1].startswith("Assistant:") and "_" not in reply.split(". ", 1)[0]

@@ -46,7 +46,7 @@ def make_pa_command(root, get_config=None, set_config=None):
                         skipped = f" ({counts['skipped']} skipped)" if counts["skipped"] else ""
                         label = "Chief of Staff" if section == "chief_of_staff" else section.title()
                         progress.append(f"{label} {counts['answers'] + counts['covered'] + counts['skipped']} of {counts['total']}{skipped}{suffix}")
-                return f"Setup: {current['status']}. " + " · ".join(progress) + ". " + modes_text() + (" Changes not yet applied." if current['pending_changes'] else "")
+                return f"Setup: {current['status'].replace('_', ' ')}. " + (" · ".join(progress) + ". " if progress else "") + modes_text() + (" Changes not yet applied." if current['pending_changes'] else "")
             if parts and parts[0] == "setup":
                 from .onboarding_hook import command_chat_key
                 here = command_chat_key()  # Setup moves to the chat the command was said in.
