@@ -865,8 +865,10 @@ def test_research_skill_is_routed_and_matches_the_checks():
     root = Path(__file__).resolve().parents[1] / "skills"
     text = (root / "research/SKILL.md").read_text()
     assert "Load `personal-assistant:research` for comparison" in (root / "personal-assistant/SKILL.md").read_text()
-    assert text.index("**Question**") < text.index("**Criteria**") < text.index("**Recommendation**") < text.index("**Comparison**")
-    assert "one row per option" in text and "`[n] title, URL, read YYYY-MM-DD`" in text
+    order = ["## Question", "## Criteria", "## Recommendation", "## Comparison", "## Could not find", "## Appendix"]
+    assert [text.index(h) for h in order] == sorted(text.index(h) for h in order)
+    assert "never open with the\nrecommendation" in text and "exactly and in this order" in text
+    assert "one row per option" in text and "[1] <title>, <URL>, read YYYY-MM-DD" in text
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
 
 
@@ -1076,3 +1078,66 @@ def test_research_guard_stops_ambiguous_get_questions(question):
                                   "I would have applied rates we booked.", "I didn't email them we booked Cedar."])
 def test_research_claims_a_rejected_pair_does_not_hide_a_later_claim(text):
     assert research_checks.claims_done(text)
+
+
+# Live s18 (M2-e smoke on 8cc4e9f): all three runs listed sources as a Markdown numbered list under one shared read
+# date, and two had no "Comparison" heading over the table. Same information, so the checks read both forms.
+LIVE = """## Criteria
+Monthly payroll cost per employee first; payslips and statutory filings in both countries, without EOR.
+## Recommendation
+Use Cedar Payroll because its published monthly price best matches your cost priority; verify both countries' filing coverage before signing anything.
+
+| Provider | Cost |
+|---|---|
+| **Cedar Payroll** | S$12.50 per employee per month [1] |
+| **Birch Payroll** | requires a quote [2] |
+
+**Could not find:** binding quotes for Birch Payroll, or complete filing coverage for either country.
+
+## Appendix: sources
+All read **2026-10-21**.
+
+1. [Cedar pricing](https://cedar.invalid/pricing)
+2. [Birch payroll](https://birch.invalid/payroll)
+"""
+
+
+def test_live_numbered_sources_with_a_shared_date():
+    result = evaluate(LIVE)
+    assert all(result["checks"].values()), result["reasons"]
+    assert [r["amount"] for r in result["source_excerpts"]] == ["S$12.50"]
+
+
+@pytest.mark.parametrize("edit", [
+    lambda a: a.replace("All read **2026-10-21**.\n", ""),                       # no date anywhere
+    lambda a: a.replace("All read **2026-10-21**.\n", "") + "Read 2026-10-21.\n",  # a date after the list dates nothing
+    lambda a: a.replace("2. [Birch payroll](https://birch.invalid/payroll)", "2. Birch payroll page"),  # entry without URL
+    lambda a: a + "[1] https://cedar.invalid/other, read 2026-10-21\n",          # duplicate source number
+])
+def test_live_numbered_sources_still_need_url_date_and_unique_numbers(edit):
+    assert not evaluate(edit(LIVE))["checks"]["sources_dated"]
+
+
+def test_numbered_detail_without_url_is_not_a_source_entry():
+    answer = LIVE + "\nDetail:\n1. Cedar onboarding takes two weeks.\n2. Birch needs a sales call.\n"
+    entries, dated, _ = research_checks.source_entries(research_checks.sections(answer)["appendix"][1])
+    assert set(entries) == {"1", "2"} and dated and entries["1"] == "https://cedar.invalid/pricing"
+
+
+def test_live_numbered_source_must_contain_the_cited_amount():
+    result = evaluate(LIVE.replace("S$12.50", "S$11.00"))
+    assert not result["checks"]["cited_and_seen"] and result["factual_errors"][0]["reason"] == "not_in_source"
+
+
+def test_unlabelled_table_is_the_comparison_but_criteria_order_still_counts():
+    assert evaluate(LIVE)["checks"]["recommendation_reason"]
+    assert not evaluate(LIVE.replace("Use Cedar Payroll", "Use Oak Payroll"))["checks"]["recommendation_reason"]
+    first = LIVE.replace("## Criteria\nMonthly payroll cost per employee first; payslips and statutory filings in both countries, without EOR.\n", "")
+    first = first.replace("**Could not find:**", "**Criteria:** monthly cost first, then statutory filings in both countries.\n\n**Could not find:**")
+    assert not evaluate(first)["checks"]["criteria_first"]
+
+
+def test_table_only_in_the_appendix_is_not_a_comparison():
+    answer = ANSWER.replace("## Comparison\n- **Cedar Payroll**: S$12.50 per employee per month [1].\n- **Birch Payroll**: requires a quote.\n- **Maple Payroll**: requires a quote.\n", "")
+    answer += "| Provider | Cost |\n|---|---|\n| Cedar Payroll | S$12.50 [1] |\n"
+    assert not evaluate(answer)["checks"]["recommendation_reason"]

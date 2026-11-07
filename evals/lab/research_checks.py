@@ -159,24 +159,50 @@ def numeric(value):
     return Decimal(value.rstrip("k")) * (1000 if value.endswith("k") else 1)
 
 
+# A source entry starts "[n]" or, when that line carries a URL, a Markdown numbered item "n." / "n)".
+# Numbered detail lines without a URL stay detail. Seen live in s18: "1. [Deel pricing](https://…)".
+ENTRY = re.compile(r"\s*(?:[-*]\s*)?(?:\[(\d+)\]|(\d+)[.)](?=\s))")
+
+
+def entry_number(line):
+    match = ENTRY.match(line.replace("**", ""))
+    if not match:
+        return None, None
+    if match[1]:
+        return match[1], match
+    return (match[2], match) if URL.search(line[match.end():]) else (None, None)
+
+
+def iso_dates(text):
+    found = []
+    for stamp in re.findall(r"\b\d{4}-\d{2}-\d{2}\b", URL.sub("", text)):
+        try:
+            date.fromisoformat(stamp)
+            found.append(stamp)
+        except ValueError:
+            pass
+    return found
+
+
 def source_entries(appendix):
     entries, titles, valid = {}, [], True
     text = appendix.replace("**", "")
-    starts = list(re.finditer(r"(?m)^\s*(?:[-*]\s*)?\[(\d+)\]", text))
-    for i, match in enumerate(starts):
-        end = starts[i + 1].start() if i + 1 < len(starts) else len(text)
-        entry = text[match.end():end]
+    starts, offset = [], 0
+    for line in text.splitlines(keepends=True):
+        number, match = entry_number(line)
+        if number:
+            starts.append((number, offset, offset + match.end()))  # text has no "**", so match offsets are line offsets
+        offset += len(line)
+    # One read date stated before the first entry ("All read 2026-11-08.") dates every entry that has none of its own.
+    shared = bool(starts) and bool(iso_dates(text[:starts[0][1]]))
+    for i, (number, start, body) in enumerate(starts):
+        end = starts[i + 1][1] if i + 1 < len(starts) else len(text)
+        entry = text[body:end]
         links = urls(entry)
         titles.append(URL.sub("", entry.split("\n", 1)[0]))
-        dated = False
-        for stamp in re.findall(r"\b\d{4}-\d{2}-\d{2}\b", URL.sub("", entry)):
-            try:
-                date.fromisoformat(stamp)
-                dated = True
-            except ValueError:
-                pass
-        valid &= bool(links) and dated and match[1] not in entries
-        entries[match[1]] = links[0] if links else None
+        dated = bool(iso_dates(entry)) or shared
+        valid &= bool(links) and dated and number not in entries
+        entries[number] = links[0] if links else None
     return entries, bool(entries) and valid, "\n".join(titles)
 
 
@@ -212,6 +238,17 @@ def amount_markers(line, amount, amounts=None, row_sources=""):
     spare = [c for c in clusters if c not in own.values()]
     chosen = min(spare, key=lambda c: distance(amount, c), default=None)
     return MARKER.findall(chosen[0]) if chosen else []
+
+
+def first_table(text):
+    lines = text.splitlines()
+    for i in range(len(lines) - 1):
+        if lines[i].strip().startswith("|") and re.fullmatch(r"[| :\t-]+", lines[i + 1].strip()) and "---" in lines[i + 1]:
+            end = i
+            while end < len(lines) and lines[end].strip().startswith("|"):
+                end += 1
+            return "\n".join(lines[i:end])
+    return ""
 
 
 def option_named(comparison, recommendation):
@@ -361,7 +398,13 @@ def evaluate(answer, tools):
     labels = {k: v for k, v in labels.items() if not appendix or v[0] < appendix[0]}
     sources, dated, titles = source_entries(appendix[1] if appendix else "")
     recommendation = labels.get("recommendation", (None, ""))[1]
-    named, options = option_named(labels.get("comparison", (None, ""))[1], recommendation)
+    comparison = labels.get("comparison", (None, ""))[1]
+    if not comparison:
+        # An unlabelled comparison is the first Markdown table before the appendix (seen live in s18). The table
+        # then sits inside another section's span, so it never counts as the recommendation naming an option.
+        comparison = first_table(main)
+        recommendation = recommendation.replace(comparison, "") if comparison else recommendation
+    named, options = option_named(comparison, recommendation)
     gaps = next((labels[k][1] for k in ("could not find", "not found", "gaps") if k in labels), "")
     checks = {}
     reasons = {}
@@ -389,9 +432,9 @@ def evaluate(answer, tools):
     lines = main.splitlines() + [""]
     entry, inherited = None, {}  # An indented line under "[1] Cedar pricing" ("  - Growth: S$12.50") is cited by [1].
     for line in (appendix[1] if appendix else "").splitlines():
-        start = re.match(r"\s*(?:[-*]\s*)?\[(\d+)\]", line.replace("**", ""))
-        if start:
-            entry = start[1]
+        number, _ = entry_number(line)
+        if number:
+            entry = number
             continue
         if entry and line[:1].isspace() and line.strip():
             inherited[len(lines)] = f"[{entry}]"

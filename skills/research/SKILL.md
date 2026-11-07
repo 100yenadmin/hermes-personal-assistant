@@ -37,21 +37,37 @@ sign up, request a quote with the owner's details, or contact a vendor without a
 
 ## The answer (one page, then the appendix)
 
-Keep everything before "Appendix" under about 350 words:
+Keep everything before "Appendix" under about 350 words. Use these five
+headings, exactly and in this order, even when you are confident of the answer.
+The owner reads the criteria before the pick, so never open with the
+recommendation:
 
-1. **Question**, restated in one line.
-2. **Criteria**, as a short list.
-3. **Recommendation**: the option and the reason, tied to the criteria, in two
-   or three sentences.
-4. **Comparison**: a compact table with one row per option, the option's name in
-   the first column, and one column per criterion. Every number carries its
-   source number, like `$29 per employee/month [2]`.
-5. **Could not find**: what is unknown and why (not published, needs a quote,
-   conflicting sources). Never leave this out; write "nothing material" only
-   when that is true.
+```
+## Question
+<the question in one line, with the facts that change the answer>
+## Criteria
+- <criterion 1>
+- <criterion 2>
+## Recommendation
+<the option and the reason, tied to the criteria, in two or three sentences>
+## Comparison
+| Option | <criterion 1> | <criterion 2> |
+|---|---|---|
+| <option name> | $29 per employee/month [2] | ... |
+## Could not find
+<what is unknown and why: not published, needs a quote, conflicting sources>
+## Appendix
+[1] <title>, <URL>, read YYYY-MM-DD
+[2] <title>, <URL>, read YYYY-MM-DD
+<then any detail the owner may want>
+```
 
-**Appendix**: numbered sources, each as `[n] title, URL, read YYYY-MM-DD`, then
-any detail the owner may want.
+- **Comparison**: one row per option, the option's name in the first column,
+  one column per criterion. Every number carries the source number of the page
+  that shows it.
+- **Could not find**: never leave it out; write "nothing material" only when
+  that is true.
+- **Appendix**: one `[n]` line per source, each with its own read date.
 
 No padding, no generic advice, no claims you did not check. If the sources
 disagree, show both and say which you trust and why.
