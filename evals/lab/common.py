@@ -31,7 +31,8 @@ def read(path, default=None):
 
 def lines(path):
     p = Path(path)
-    return [json.loads(s) for s in p.read_text().splitlines() if s.strip()] if p.exists() else []
+    # split("\n"), not splitlines(): page text keeps raw U+2028/U+2029 inside JSON strings (ensure_ascii=False).
+    return [json.loads(s) for s in p.read_text(encoding="utf-8").split("\n") if s.strip()] if p.exists() else []
 
 
 def append(path, value):

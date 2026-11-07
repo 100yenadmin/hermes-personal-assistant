@@ -1141,3 +1141,12 @@ def test_l26_times_next_to_japanese_text_still_match():
         [{'step': 0, 'name': 'browser_snapshot', 'result': '出発08:30\n到着11:20'}]) == [
             {'step': 0, 'figure': '08:30', 'seen': '出発08:30'},
             {'step': 0, 'figure': '11:20', 'seen': '到着11:20'}]
+
+
+def test_jsonl_lines_keep_unicode_line_separators(tmp_path):
+    # Live s18 (M2-e smoke): a web page's text carried U+2028; str.splitlines() cut the record and crashed the run.
+    path = tmp_path / "tools.jsonl"
+    rows = [{"name": "web_extract", "result": "Payroll pricing per employee\x85monthly\x0cfees"}, {"name": "next"}]
+    for row in rows:
+        common.append(path, row)
+    assert common.lines(path) == rows
