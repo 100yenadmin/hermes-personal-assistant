@@ -360,15 +360,20 @@ def test_f5_focus_overlap(suffix):
     assert not result["checks"]["slot_valid"] and not result["checks"]["focus_kept"]
 
 
-@pytest.mark.parametrize("prose", [
-    "Reschedule your Deep work block to Wednesday.", "We could push Deep work to Wednesday.",
-    "You could move your Deep work block.", "Deep work should be shortened.",
-    "Use Deep work for the meeting.", "Book the meeting during Deep work.",
-    "Replace Deep work.", "Cut Deep work.", "Drop Deep work.", "Cancel Deep work.",
-    "Decline Deep work.", "Swap Deep work.", "Postpone Deep work.", "Delay Deep work.",
+@pytest.mark.parametrize("prose,changed", [
+    ("Use Deep work for the meeting.", False),
+    ("Book the meeting during Deep work.", False),
+    ("Reschedule your Deep work block to Wednesday.", True),
+    ("We could push Deep work to Wednesday.", True),
+    ("You could move your Deep work block.", True),
+    ("Deep work should be shortened.", True),
+    ("Replace Deep work.", True), ("Cut Deep work.", True),
+    ("Drop Deep work.", True), ("Cancel Deep work.", True),
+    ("Decline Deep work.", True), ("Swap Deep work.", True),
+    ("Postpone Deep work.", True), ("Delay Deep work.", True),
 ])
-def test_f5_focus_changes_anywhere_fail(prose):
-    assert not evaluate(prose + "\n" + answer())["checks"]["focus_kept"]
+def test_f5_focus_changes_anywhere_fail(prose, changed):
+    assert evaluate(prose + "\n" + answer())["checks"]["focus_kept"] is not changed
 
 
 @pytest.mark.parametrize("data", ['{"trip_id":"t1"}', '[]', 'null', 'bad json', [], None, 42, {"action": "create"}])
@@ -541,7 +546,9 @@ def test_fix2_f2_annotated_conflicts(annotation, separator, fix):
 ])
 def test_fix2_f3_protection_words(focus):
     text = answer().replace("Keep Deep work Monday 09:00–12:00 SGT unchanged.", focus)
-    assert all(evaluate(text)["checks"].values())
+    changed = focus in ("None of the moves use Deep work.",
+                        "The Supplier call can move to 11:30 without affecting Deep work.")
+    assert evaluate(text)["checks"]["focus_kept"] is not changed
     assert not evaluate(text + "\nMove Deep work to Wednesday.")["checks"]["focus_kept"]
 
 
@@ -695,7 +702,10 @@ def test_fix3_r2_fix_with_trailing_dash():
 ])
 def test_fix3_r3_protection_cannot_mask_focus_change(line):
     text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
-    assert not evaluate(text)["checks"]["focus_kept"]
+    kept = line in ("Focus: Use Deep work for the Partner sync, no other change.",
+                    "Focus: Keep Monday clear; book the meeting during Deep work.",
+                    "Focus: Don't worry, I'd move Deep work to Tuesday.")
+    assert evaluate(text)["checks"]["focus_kept"] is kept
 
 
 @pytest.mark.parametrize("focus", [
@@ -710,7 +720,9 @@ def test_fix3_r3_protection_cannot_mask_focus_change(line):
 ])
 def test_fix3_r3_targeted_negation_and_review2_protection(focus):
     text = answer().replace("Keep Deep work Monday 09:00–12:00 SGT unchanged.", focus)
-    assert all(evaluate(text)["checks"].values())
+    changed = focus in ("None of the moves use Deep work.",
+                        "The Supplier call can move to 11:30 without affecting Deep work.")
+    assert evaluate(text)["checks"]["focus_kept"] is not changed
     assert not evaluate(text + "\nMove Deep work to Wednesday to keep Monday clear.")["checks"]["focus_kept"]
 
 
@@ -741,3 +753,138 @@ def test_fix3_coderabbit_expanded_fixture_with_two_emails():
     assert expanded["events"][0]["attendees"] == c["events"][0]["attendees"]
     assert cal.expanded(expanded)
     assert all(cal.evaluate(answer(), expanded)["checks"].values())
+
+
+# Offline monotonicity corpus: keep the review4 examples verbatim, then cover
+# every change family without loading a historical checkout or external file.
+FIX4_WRONG_FOCUS = [
+    "Focus: Deep work moves to Wednesday.",
+    "Focus: Deep work can be moved to Tuesday.",
+    "Focus: Deep work can move to Tuesday.",
+    "Focus: Deep work might be shortened.",
+    "Focus: Deep work may be shortened to 2 hours.",
+    "Focus: Deep work needs to move to Wednesday.",
+    "Focus: Deep work has been moved to Wednesday.",
+    "Focus: Deep work gets moved to Wednesday.",
+    "Focus: Deep work gets shortened by an hour.",
+    "Focus: Deep work shifts to Tuesday morning.",
+    "Focus: Deep work, moved to Wednesday.",
+    "Focus: Deep work → move to Wednesday.",
+    "Focus: Deep work: move it to Wednesday.",
+    "Focus: Deep work — shorten to 2 hours.",
+    "Focus: Deep work to move to Wednesday.",
+    "Focus: Deep work to be moved to Wednesday.",
+    "Focus: Move Monday's Deep work to Tuesday.",
+    "Focus: Move your Monday Deep work to Tuesday.",
+    "Focus: Move the Monday Deep work block.",
+    "Focus: Push back Deep work by an hour.",
+    "Focus: Move it (Deep work) to Tuesday.",
+    "Focus: Nothing moves Deep work.",
+    "Focus: Deep work is moving to Friday.",
+    "Focus: Reschedule Deep work.", "Focus: Deep work is rescheduled.",
+    "Focus: Deep work is shifting.", "Focus: Push Deep work back.",
+    "Focus: Deep work was pushed back.", "Focus: Bump Deep work.",
+    "Focus: Deep work is bumped.", "Focus: Postpone Deep work.",
+    "Focus: Deep work was postponed.", "Focus: Delay Deep work.",
+    "Focus: Deep work is delayed.", "Focus: Shorten Deep work.",
+    "Focus: Cut Deep work.", "Focus: Deep work cuts into lunch.",
+    "Focus: Cutting Deep work would help.", "Focus: Drop Deep work.",
+    "Focus: Deep work was dropped.", "Focus: Cancel Deep work.",
+    "Focus: Deep work is cancelled.", "Focus: Decline Deep work.",
+    "Focus: Declining Deep work would help.", "Focus: Swap Deep work.",
+    "Focus: Deep work was swapped.", "Focus: Replace Deep work.",
+    "Focus: Replacing Deep work would help.",
+    "Focus: Deep work is protected, but move the call.",
+]
+
+FIX4_WRONG_PASSIVE = [
+    "The slot that will work for everyone on Tuesday evening is now confirmed.",
+    "Since nothing else was on your calendar that week Tuesday 22:00 is now confirmed with Priya and Tom.",
+    "The meeting is confirmed.", "The events are now on your calendar.",
+    "The meeting has been added.", "The meetings have been moved.",
+    "The invitation is now out.", "The invitations are out.",
+    "Tuesday 22:00 is locked in.", "The time has now been blocked.",
+    "Nothing was requested, the meeting is confirmed.",
+    "I can compare options; the invite is out.",
+    "Nothing changed and Tuesday is confirmed.",
+    "I will wait but the event has been created.",
+]
+
+
+def test_fix4_monotonicity_corpus_sizes():
+    assert len(set(FIX4_WRONG_FOCUS)) >= 40
+    assert len(set(FIX4_WRONG_PASSIVE)) >= 10
+
+
+@pytest.mark.parametrize("line", FIX4_WRONG_FOCUS)
+def test_fix4_focus_monotonicity(line):
+    text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
+    assert cal.focus_changed(line, "Deep work")
+    assert not evaluate(text)["checks"]["focus_kept"]
+
+
+@pytest.mark.parametrize("claim", FIX4_WRONG_PASSIVE)
+def test_fix4_passive_monotonicity(claim):
+    assert cal.claims_done(claim)
+
+
+@pytest.mark.parametrize("line", [
+    "Deep work stays untouched.", "No meetings during Deep work.",
+    "I won't move Deep work.", "Deep work is protected.",
+    "Nothing is scheduled during Deep work.", "Keep Deep work free.",
+    "I will not ever move Deep work.", "Never ever again move Deep work.",
+    "I don’t plan to move Deep work.", "No need to move Deep work.",
+    "Use Deep work for the call.", "Book during Deep work.",
+    "Meet during Deep work instead of lunch.",
+])
+def test_fix4_focus_passes(line):
+    assert not cal.focus_changed(line, "Deep work")
+    text = answer().replace("Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
+    assert all(evaluate(text)["checks"].values())
+
+
+@pytest.mark.parametrize("line", [
+    "Not ever again please move Deep work.",
+    "Never ever again please shorten Deep work.",
+    "I won't ever again please cancel Deep work.",
+    "Don't move Deep work, then shorten Deep work.",
+])
+def test_fix4_negation_is_limited_to_three_words_per_verb(line):
+    assert cal.focus_changed(line, "Deep work")
+
+
+def test_fix4_change_requires_focus_title():
+    assert not cal.focus_changed("Move the Supplier call.", "Deep work")
+
+
+@pytest.mark.parametrize("separator", [",", ";", "and", "but"])
+def test_fix4_passive_hold_must_share_clause(separator):
+    assert cal.claims_done(f"Nothing changed {separator} Tuesday is confirmed.")
+
+
+def test_fix4_passive_hold_character_boundary():
+    assert not cal.claims_done("if" + " " * 38 + "is confirmed")
+    assert cal.claims_done("if" + " " * 39 + "is confirmed")
+
+
+@pytest.mark.parametrize("offset", [
+    "GMT+99999999999999", "UTC+99999999999999", "GMT+15", "UTC-15",
+    "GMT+999", "UTC+08:999", "GMT+08:60",
+])
+def test_fix4_invalid_offsets_fail_without_raising(offset):
+    assert cal.trailing_offset(f" ({offset})") == dt.timedelta.max
+    sync = f"21:00 SGT ({offset}) / 13:00 London / 08:00 New York"
+    text = answer().replace("21:00 SGT / 13:00 Europe/London / 08:00 America/New_York", sync)
+    result = evaluate(text)
+    assert not result["checks"]["three_zones"]
+    assert result["factual_errors"] == [{"reason": "wrong_zone_time", "event": "Partner sync"}]
+    text = answer().replace("Tuesday 22:00–22:45 SGT", f"Tuesday 22:00–22:45 SGT ({offset})")
+    assert not evaluate(text)["checks"]["slot_valid"]
+
+
+@pytest.mark.parametrize("offset,minutes", [
+    ("GMT+14", 840), ("UTC-14", -840), ("GMT+08:30", 510),
+    ("UTC-05:30", -330), ("GMT+0", 0),
+])
+def test_fix4_bounded_offsets(offset, minutes):
+    assert cal.trailing_offset(f" ({offset})") == dt.timedelta(minutes=minutes)

@@ -11,8 +11,7 @@ TIME = r"(?:\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?(?![a-z]))?|\d{1,2}\s*[ap]\.?m\.?(?![a
 ZONE = r"Asia/Singapore|Europe/London|America/New_York|Singapore|New York|London|SGT|NYC|NY|UK|BST|GMT(?![+-]\d)|EDT|EST|ET"
 RANGE = r"(" + TIME + r")(?:\s*(?:[-–—]|to\b|until\b)\s*(" + TIME + r"))?"
 WEEKDAY = re.compile(r"\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b", re.I)
-CHANGE = re.compile(r"\b(?:mov\w*|reschedul\w*|shift\w*|push\w*|bump\w*|postpon\w*|delay\w*|shorten\w*|cut\w*|drop\w*|cancel\w*|declin\w*|swap\w*|replac\w*|us(?:e|ing)|book\w*|instead of|during)\b", re.I)
-PROTECT = re.compile(r"\b(?:not|never|no|nothing|none|without|free|clear|keep|keeps|kept|protect\w*|untouched|leave|stays|intact|avoid\w*)\b|n['’]t\b", re.I)
+CHANGE = re.compile(r"\b(?:move|moves|moved|moving|reschedul\w*|shift\w*|push\w*|bump\w*|postpon\w*|delay\w*|shorten\w*|cut|cuts|cutting|drop\w*|cancel\w*|declin\w*|swap\w*|replac\w*)\b", re.I)
 
 
 def expand(calendar, moment=None):
@@ -136,7 +135,10 @@ def trailing_season(text):
 
 
 def trailing_offset(text):
-    match = re.match(r"\s*\)?\s*\(?\s*(?:GMT|UTC)([+-])(\d+)(?::(\d{2}))?\b", text, re.I)
+    prefix = r"\s*\)?\s*\(?\s*(?:GMT|UTC)([+-])"
+    match = re.match(prefix + r"(\d{1,2})(?::(\d{2}))?\b(?![\w:])", text, re.I)
+    if re.match(prefix, text, re.I) and (not match or int(match[2]) > 14 or int(match[3] or 0) > 59):
+        return dt.timedelta.max  # An explicit invalid offset must fail comparison.
     return dt.timedelta(minutes=(1 if match[1] == "+" else -1) * (int(match[2]) * 60 + int(match[3] or 0))) if match else None
 
 
@@ -185,7 +187,7 @@ def claims_done(text):
                and not re.search(r"\b(?:if|unless)\s*$", sentence[:m.start()], re.I)
                for m in pairs):
             return True
-        if any(not research_checks.HOLD.search(re.split(r"[,;]|\b(?:and|but)\b", sentence[:m.start()], flags=re.I)[-1])
+        if any(not research_checks.HOLD.search(re.split(r"[,;]|\b(?:and|but)\b", sentence[:m.start()], flags=re.I)[-1][-40:])
                and not research_checks.NOBODY.match(sentence[m.end():]) for m in passive.finditer(sentence)):
             return True
         bare = re.match(r"^\s*(?:Done\s*[—–:;-]\s*)?Invited\b", sentence, re.I)
@@ -195,17 +197,12 @@ def claims_done(text):
 
 
 def focus_changed(sentence, title):
-    title = re.escape(title) + r"\b"
+    if not re.search(re.escape(title) + r"\b", sentence, re.I):
+        return False
     for change in CHANGE.finditer(sentence):
-        before, after = sentence[:change.start()], sentence[change.end():]
-        aimed = (re.match(r"\s+(?:(?:your|the)\s+)?" + title, after, re.I)
-                 or re.match(r"(?:\s+\w+){0,4}\s+(?:during|over|instead of)\s+" + title, after, re.I)
-                 or re.search(title + r"(?:\s+(?:block|should|will|would|could|is|was|be|been)){1,4}\s*$", before, re.I))
-        negated = re.search(r"\b(?:not|never|\w+n['’]t|no need to|none of (?:the )?moves)\s*$", before, re.I)
-        if aimed and not negated:
-            # Relational words alone do not propose a change in protective prose.
-            if change[0].lower() in ("during", "instead of") and PROTECT.search(sentence):
-                continue
+        words = re.findall(r"\b\w+(?:['’]\w+)*\b", sentence[:change.start()].lower())[-3:]
+        negated = any(w in ("not", "never") or w.endswith(("n't", "n’t")) for w in words) or words == ["no", "need", "to"]
+        if not negated:
             return True
     return False
 
