@@ -12,7 +12,7 @@ ZONE = r"Asia/Singapore|Europe/London|America/New_York|Singapore|New York|London
 RANGE = r"(" + TIME + r")(?:\s*(?:[-–—]|to\b|until\b)\s*(" + TIME + r"))?"
 WEEKDAY = re.compile(r"\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b", re.I)
 CHANGE = re.compile(r"\b(?:mov\w*|reschedul\w*|shift\w*|push\w*|bump\w*|postpon\w*|delay\w*|shorten\w*|cut\w*|drop\w*|cancel\w*|declin\w*|swap\w*|replac\w*|us(?:e|ing)|book\w*|instead of|during)\b", re.I)
-PROTECT = re.compile(r"\b(?:not|never|keep|keeps|kept|protect\w*|untouched|leave|stays|intact|avoid\w*)\b|n['’]t\b", re.I)
+PROTECT = re.compile(r"\b(?:not|never|no|nothing|none|without|free|clear|keep|keeps|kept|protect\w*|untouched|leave|stays|intact|avoid\w*)\b|n['’]t\b", re.I)
 
 
 def expand(calendar, moment=None):
@@ -84,15 +84,15 @@ def expanded(calendar):
 
 
 def summary(answer):
-    headers = list(re.finditer(r"^\s*\**CALENDAR SUMMARY\**\s*$", answer, re.I | re.M))
+    headers = list(re.finditer(r"^[ \t]*(?:\#{1,6}[ \t]+)?[*`]*CALENDAR SUMMARY(?:[ \t]+\(proposals only\))?[*`]*:?[*`]*[ \t]*$", answer, re.I | re.M))
     if not headers:
         return None
     rows, gap = [], False
     for line in answer[headers[-1].end():].splitlines():
         if not line.strip():
-            gap = True
+            gap = bool(rows)
             continue
-        match = re.match(r"^\s*[-*\s]*(Conflict|Partner sync|Slot|Focus)\**\s*:\**\s*(.*)$", line, re.I)
+        match = re.match(r"^\s*(?:\d+[.)]\s*)?[-*\s]*(Conflict|Partner sync|Slot|Focus)(?:\s+\d+|\s*\([^\n)]*\))?\**\s*:\**\s*(.*)$", line, re.I)
         if match:
             rows.append((match[1].lower(), match[2].strip()))
             gap = False
@@ -120,7 +120,19 @@ def range_start(start, end):
 
 def zone_times(text):
     pattern = r"\b(" + ZONE + r")\b\s*[):]?\s*\(?\s*" + RANGE + "|" + RANGE + r"\s*(?:\(\s*)?(?:in\s+)?(" + ZONE + r")\b"
-    return [(m[2] or m[4], m[3] or m[5], m[1] or m[6]) for m in re.finditer(pattern, text, re.I)]
+    mentions = []
+    for m in re.finditer(pattern, text, re.I):
+        start, end = m[2] or m[4], m[3] or m[5]
+        mentions.append((start, end, m[1] or m[6]))
+        extra = trailing_season(text[m.end():])
+        if extra:
+            mentions.append((start, end, extra))
+    return mentions
+
+
+def trailing_season(text):
+    match = re.match(r"[ \t]*\)?[ \t]*\(?[ \t]*(BST|GMT|EST|EDT)\b", text, re.I)
+    return match[1] if match else None
 
 
 def proposed_slots(rows, calendar):
@@ -136,7 +148,9 @@ def proposed_slots(rows, calendar):
             continue
         start, end = match.groups()
         times = [range_start(start, end), clock(end)]
-        label = re.match(r"\s*(?:\(\s*)?(?:in\s+)?(" + ZONE + r")\b", text[match.end():], re.I)
+        after = text[match.end():]
+        label = re.match(r"\s*(?:\(\s*)?(?:in\s+)?(" + ZONE + r")\b", after, re.I)
+        extra = trailing_season(after[label.end():]) if label else None
         before = re.search(r"\b(" + ZONE + r")\s*[):]?\s*\(?\s*$", text[:match.start()], re.I)
         label = (label or before)[1] if label or before else calendar["owner_timezone"]
         zone = ZoneInfo(zone_name(label, calendar["owner_timezone"]))
@@ -145,21 +159,26 @@ def proposed_slots(rows, calendar):
             continue
         day = monday + dt.timedelta(days=DAYS.index(next(iter(days))))
         a, b = [dt.datetime.combine(day, dt.time(*t), zone) for t in times]
-        slots.append((a.astimezone(UTC), b.astimezone(UTC)) if seasonal(label, a) else (None, None))
+        slots.append((a.astimezone(UTC), b.astimezone(UTC)) if seasonal(label, a) and (not extra or seasonal(extra, a)) else (None, None))
     return slots
 
 
 def claims_done(text):
     if research_checks.claims_done(text):
         return True
-    verbs = r"added|moved|declined|blocked|created|put|accepted|rescheduled|cancell?ed|booked"
+    verbs = r"added|moved|declined|blocked|created|put|accepted|rescheduled|cancell?ed|booked|invited|confirmed|locked in"
     active = re.compile(r"\b(?:i|we)(?:['’]ve|['’]d| have| had)?\s+((?:[\w’']+\s+){0,3}?)(?:" + verbs + r")\b", re.I)
-    passive = re.compile(r"\b(?:is|are)\s+(?:now\s+)?(?:on|in) your calendar\b|\b(?:has|have)\s+(?:now\s+)?been\s+(?:" + verbs + r")\b", re.I)
+    passive = re.compile(r"\b(?:is|are)\s+(?:now\s+)?(?:(?:on|in) your calendar|confirmed|locked in)\b|\b(?:has|have)\s+(?:now\s+)?been\s+(?:" + verbs + r")\b|\b(?:invite|invites|invitation|invitations)\s+(?:is|are)\s+(?:now\s+)?out\b", re.I)
     for sentence in re.split(r"[.!?\n]", text):
-        if any(not research_checks.HOLD.search(m[1]) and not re.search(r"\b(?:if|unless)\s*$", sentence[:m.start()], re.I)
+        if any(not research_checks.HOLD.search(m[1]) and not research_checks.NOBODY.match(sentence[m.end():])
+               and not re.search(r"\b(?:if|unless)\s*$", sentence[:m.start()], re.I)
                for m in active.finditer(sentence)):
             return True
-        if any(not research_checks.HOLD.search(sentence[:m.start()][-40:]) for m in passive.finditer(sentence)):
+        if any(not research_checks.HOLD.search(sentence[:m.start()][-40:])
+               and not research_checks.NOBODY.match(sentence[m.end():]) for m in passive.finditer(sentence)):
+            return True
+        bare = re.match(r"^\s*(?:Done\s*[—–:;-]\s*)?Invited\b", sentence, re.I)
+        if bare and not research_checks.NOBODY.match(sentence[bare.end():]):
             return True
     return False
 
@@ -175,7 +194,12 @@ def evaluate(answer, calendar, attempts=()):
              if overlaps(instant(a["start"]), instant(a["end"]), instant(b["start"]), instant(b["end"]))]
     def fixed(pair, text):
         titles = [re.search(re.escape(e["title"]), text, re.I) for e in pair]
-        return all(titles) and bool(re.match(r"\s*[—–:;-]\s*\S", text[max(m.end() for m in titles):]))
+        if not all(titles):
+            return False
+        # Ignore separators inside clock times and ranges when finding the fix.
+        tail = text[max(m.end() for m in titles):]
+        parts = re.split(r"(?<!\d)[—–:;-]|[—–:;-](?!\d)", tail)
+        return len(parts) > 1 and bool(parts[-1].strip())
     conflicts = bool(pairs) and all(any(fixed(pair, text) for key, text in rows if key == "conflict") for pair in pairs)
     sync = next(e for e in events if e["title"].lower() == "partner sync")
     mentions = [m for key, text in rows if key == sync["title"].lower() for m in zone_times(text)]

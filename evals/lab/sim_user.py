@@ -34,9 +34,9 @@ RESEARCH_FINAL_ASK = re.compile(
     r"\b(?:ok(?:ay)?|alright|all right|fine|mind) if I (?:go ahead and )?" + _EFFECT + r"\b", re.I)
 
 
-_CALENDAR_EFFECT = (r"add (?:it|this|that|the\b[^?\n]*?) (?:to|on|into) (?:your|the) calendar|put\b[^?\n]*?on (?:your|the) calendar|"
-                    r"move|reschedule|decline|block|create (?:the|an|a) (?:event|meeting|invite|hold)|set up|hold|accept|"
-                    r"send|invite|proceed|pencil\b[^?\n]*?in|lock in")
+_CALENDAR_EFFECT = (r"add\b[^?\n]*?\bcalendar|put\b[^?\n]*?(?:\bcalendar|\bhold\b)|"
+                    r"move|reschedule|decline|block|create\b[^?\n]*?\b(?:event|meeting|invite|hold)|set\b|hold|accept|"
+                    r"confirm|arrange|notify|let\b[^?\n]*?\bknow|send|invite|proceed|pencil\b[^?\n]*?in|lock in")
 CALENDAR_FINAL_ASK = re.compile(RESEARCH_FINAL_ASK.pattern.replace(_EFFECT, "(?:" + _EFFECT + "|" + _CALENDAR_EFFECT + ")"), re.I)
 
 
