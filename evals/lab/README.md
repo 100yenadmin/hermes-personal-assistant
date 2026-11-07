@@ -1,3 +1,16 @@
+# Calendar checks
+
+s19 checks reasoning over a seeded week: conflicts and proposed fixes, three-zone
+times, a valid 45-minute window and preserved focus. `lab_calendar_events` and
+`lab_calendar_freebusy` are read-only lab stand-ins for the provider read. They
+do not prove PA's profile Google or gog calendar read path. Relative local times
+are frozen at run start with zoneinfo; the fixture explicitly extends everyone's
+working hours to 09:00-23:00, since 09:00-18:00 has no three-zone overlap.
+The judge receives the expanded fixture, computed valid windows and check results.
+English checks recognize day/time proposals and labelled zone times; named event
+statements are excluded from slot parsing. Semantic ambiguities remain for the
+judge. Synthetic passes prove neither live calendar access nor customer readiness.
+
 # Research checks
 
 Research checks run offline against the final answer and kept tool results.

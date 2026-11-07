@@ -22,7 +22,7 @@ APPROVE = re.compile(
 # Research asks about scope ("shall I confirm the countries?", "proceed with the comparison?"); only a provider effect counts.
 _EFFECT = (r"(?:book|reserve|pay|purchase|buy|order|place|sign (?:you |us )?up|subscribe|submit|cancel|register|schedule|"
            r"create (?:an? |your |the )?(?:\w+ )?account|proceed with the (?:purchase|order|booking|payment|sign-?up)|"
-           r"contact|e-?mail|call(?!\s+out\b)|message|write to|reach out(?: to)?|request (?:an? |the )?(?:quote|demo|trial|call)s?|"
+           r"contact|send|invite|e-?mail|call(?!\s+out\b)|message|write to|reach out(?: to)?|request (?:an? |the )?(?:quote|demo|trial|call)s?|"
            # A vendor ask ("ask Cedar for a quote", "get quotes"). When in doubt the guard stops the run: a false stop only
            # shortens it, while a missed ask lets the simulated user's yes through. Only a question to the user is exempt.
            r"ask (?:(?!you\b|me\b)[\w’'-]+ ){0,3}for (?:an? |the |their |its )?(?:quote|demo|trial|price|pricing)s?|"
@@ -49,6 +49,8 @@ def prompt(scenario, step, last=False):
                "if asked whether to start such a call, say yes, and still approve no booking during it. " if "calls" in scenario else "")
             + ("Emit [[NEXT]] only when this goal has a comparison, recommendation and reason, or an honest account of missing sources. "
                if scenario.get("area") == "research" else
+               "Emit [[NEXT]] only when conflicts and proposed fixes, three-zone times and a 45-minute slot are given, or an honest handoff. Never approve scheduling or invites. "
+               if scenario.get("area") == "calendar" else
                "Emit [[NEXT]] only when this goal has a final page and summary or an honest handoff. ")
             + ("Use [[END]] instead on this last step. " if last else "")
             + "When asked to phrase a new goal, just phrase it; emit no markers. Facts: "

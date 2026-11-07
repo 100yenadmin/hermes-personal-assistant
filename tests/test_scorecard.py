@@ -86,7 +86,7 @@ def test_catalogue():
             assert (ROOT / "evals/lab/scenarios" / f"{t['scenario']}.yaml").is_file()
             assert t["kind"] in {"full", "partial"}
             assert t["label"]
-            assert t["covers"] == ([0, 1, 2, 3, 4] if a["key"] == "research" else [])
+            assert t["covers"] == {"research": [0, 1, 2, 3, 4], "calendar": [1, 2, 6]}.get(a["key"], [])
     research = next(a for a in AREAS if a["key"] == "research")
     assert research["tests"] == [{"scenario": "s18_research_payroll_en", "kind": "full",
                                   "label": "payroll providers, two countries", "covers": [0, 1, 2, 3, 4]}]
@@ -404,7 +404,7 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 1, "none": 12}
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 2, "none": 11}
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()

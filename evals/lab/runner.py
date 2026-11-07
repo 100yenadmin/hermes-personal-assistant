@@ -15,7 +15,7 @@ from pathlib import Path
 import yaml
 from . import common, checks, judge, sim_user, cos
 from .common import MODEL, read, write, append
-from .scenario import load_catalog
+from .scenario import load_catalog, READ_ONLY_AREAS
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -139,10 +139,16 @@ def user_view(transcript):
 
 
 def guard_reply(scenario, reply, simulated):
-    return sim_user.guard(reply, simulated, scenario["language"], research=scenario.get("area") == "research")
+    return sim_user.guard(reply, simulated, scenario["language"], research=scenario.get("area") in READ_ONLY_AREAS)
 
 
 def system_prompt(scenario):
+    if scenario.get("area") == "calendar":
+        return ("You are the user's personal assistant in a read-only calendar demo. Use lab_calendar_events and lab_calendar_freebusy "
+                "to inspect the seeded week. Propose fixes and 45-minute meeting windows only; never book, schedule, send invites, "
+                "or change events. No logins or payment methods. Reply in " + scenario["language"] + ". Calendar context: "
+                + json.dumps({k: scenario["calendar"][k] for k in ("owner_timezone", "working_hours", "week_start")})
+                + ". The user's details: " + json.dumps(scenario["persona"], ensure_ascii=False))
     research = scenario.get("area") == "research"
     demo = "demo" if research else "demo trip"
     return ("You are the user's personal assistant. This is a " + demo + ": real websites, but you must never complete a booking, payment, reservation, order, change or cancellation. "
@@ -189,6 +195,10 @@ def ledger(hh):
 def one(args):
     root, hermes = Path(args.out).resolve(), Path(args.hermes).resolve()
     s, meta = read(root / "scenario.json"), read(root / "run.json")
+    if "calendar" in s:
+        from .calendar_checks import expand
+        s["calendar"] = expand(s["calendar"], dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc))
+        write(root / "scenario.json", s)  # Freeze once, before plugin discovery and dialogue.
     home, hh = root / "home", root / "home/.hermes"
     sys.path.insert(0, str(hermes))
     api_key = token()  # Before HOME changes; no refresh or auth writes.
@@ -236,6 +246,8 @@ def one(args):
                 dispatch(hh, seed)
         plugin_sets = {registry.get_entry(n, scope=str(hh)).toolset for p in manager._plugins.values() if p.enabled for n in p.tools_registered}
         allowed = sorted(plugin_sets | {n for n in ("browser", "skills", "todo", "vision", "web") if n in TOOLSETS})
+        if "calendar" not in s:
+            allowed = [n for n in allowed if n != "lab_calendar"]
         names = sorted({t for n in allowed for t in resolve_toolset(n)})
         forbidden = {"terminal", "file", "code_execution", "delegation", "cronjob", "send_message"}
         if cos.enabled(s):

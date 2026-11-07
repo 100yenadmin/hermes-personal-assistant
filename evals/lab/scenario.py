@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
+READ_ONLY_AREAS = {"research", "calendar"}
 
 
 def validate(s):
@@ -21,9 +22,26 @@ def validate(s):
     if "modes" in s:
         require(isinstance(s["modes"], dict) and s["modes"] == {"chief_of_staff": True}, "modes")
     cos = s.get("modes", {}).get("chief_of_staff") is True
-    require(s.get("area") in (None, "research"), "area")
+    require(s.get("area") in (None, *READ_ONLY_AREAS), "area")
     research = s.get("area") == "research"
-    require(not research or (not cos and caps == ["research"]), "capabilities")
+    calendar = s.get("area") == "calendar"
+    require(s.get("area") not in READ_ONLY_AREAS or (not cos and caps == [s["area"]]), "capabilities")
+    require(("calendar" in s) == calendar, "calendar")
+    if calendar:
+        from .calendar_checks import expand
+        try:
+            c = expand(s["calendar"])
+            lo, hi = [dt.time.fromisoformat(t) for t in c["working_hours"].split("-")]
+            require(lo < hi, "calendar.working_hours")
+            require(bool(c["events"]) and bool(c["people"]), "calendar")
+            for person in c["people"].values():
+                ZoneInfo(person["timezone"])
+            for event in c["events"]:
+                require(isinstance(event["title"], str) and bool(event["title"]), "calendar.events.title")
+                require(isinstance(event["attendees"], list) and all(isinstance(n, str) for n in event["attendees"]), "calendar.events.attendees")
+                require(type(event["focus"]) is bool, "calendar.events.focus")
+        except (KeyError, TypeError, ValueError, AttributeError, ZoneInfoNotFoundError) as exc:
+            raise ValueError(f"calendar: {exc}") from None
     if cos:
         require(isinstance(s.get("user_md"), str) and bool(s["user_md"].strip()), "user_md")
         try:
@@ -34,7 +52,7 @@ def validate(s):
         require(cos and isinstance(s["preferences"], dict) and set(s["preferences"]) <= {
             "cos_daily_time", "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time"}, "preferences")
     groups = [("persona", ("name", "email", "phone", "home_city", "notes"))]
-    if "trip" in s or not (cos or research):
+    if "trip" in s or not (cos or research or calendar):
         groups.append(("trip", ("origin", "destination", "depart_date", "return_date", "travellers")))
     for group, keys in groups:
         require(isinstance(s.get(group), dict), group)
@@ -64,11 +82,14 @@ def validate(s):
         require(isinstance(step.get("goal"), str) and bool(step["goal"].strip()), prefix + ".goal")
         require(step.get("capability") in caps, prefix + ".capability")
         require((step.get("capability") == "research") == research, prefix + ".capability")
+        require(not calendar or step.get("capability") == "calendar", prefix + ".capability")
         require(isinstance(step.get("answers"), dict), prefix + ".answers")
         ex = step.get("expect")
         require(isinstance(ex, dict), prefix + ".expect")
         if "research" in ex:
             require(research and ex["research"] is True, prefix + ".expect.research")
+        if "calendar" in ex or calendar:
+            require(calendar and ex.get("calendar") is True, prefix + ".expect.calendar")
         for key in ("or_handoff", "ledger", "approval_packet", "packet_is_final"):
             require(type(ex.get(key, False)) is bool, prefix + ".expect." + key)
         if ex.get("packet_is_final"):
@@ -78,7 +99,7 @@ def validate(s):
             require((step.get("type") == "scheduled") == (ex["cos"] in ("daily", "silence", "kickoff", "weekly")), prefix + ".type")
             if step.get("type") == "scheduled":
                 require(step["job"] == {"kickoff": "cos_kickoff", "weekly": "cos_weekly"}.get(ex["cos"], "cos_daily"), prefix + ".job")
-        require("final" in ex or ex.get("or_handoff") or "calls" in s or cos or ex.get("research"), prefix + ".expect.final")
+        require("final" in ex or ex.get("or_handoff") or "calls" in s or cos or ex.get("research") or ex.get("calendar"), prefix + ".expect.final")
         if "final" in ex:
             for key in ("url_any", "text_any"):
                 values = ex["final"].get(key) if isinstance(ex["final"], dict) else None
