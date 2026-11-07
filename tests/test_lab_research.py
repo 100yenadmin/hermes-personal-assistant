@@ -900,3 +900,8 @@ def test_source_excerpts_mark_what_the_cap_cut():
 def test_source_excerpts_match_across_currency_spellings():
     [row] = evaluate(rows=tools("Cedar: SGD 12.50 per employee per year"))["source_excerpts"]
     assert row["amount"] == "S$12.50" and "per year" in row["source_text"]
+
+
+def test_one_letter_option_is_not_matched_by_an_article():
+    comparison = "| Provider | Cost |\n|---|---|\n| A | S$40 |\n| B | S$30 |"
+    assert not research_checks.option_named(comparison, "Pick a provider after a call with each, since neither published both countries' filing coverage or onboarding terms.")[0]

@@ -221,8 +221,9 @@ def option_named(comparison, recommendation):
     else:
         options = [m[1] or m[2] for m in re.finditer(r"(?m)^\s*(?:[-*+] |\d+[.)] )\s*(?:\*\*([^*]+)\*\*|([A-Z][\w-]*(?: [A-Z][\w-]*)*))", comparison)]
     # Distinctive capitalised words, hyphenated short names such as "G-P", and the complete option name.
-    tokens = [set(re.findall(r"\b[A-Z](?:[A-Za-z]+|(?:-[A-Z0-9][A-Za-z0-9]*)+)\b", name)) | ({name.strip(" *")} if name.strip(" *") else set())
-              for name in options]
+    # A one-letter name is never matched on its own: "A" would match the article "a".
+    tokens = [set(re.findall(r"\b[A-Z](?:[A-Za-z]+|(?:-[A-Z0-9][A-Za-z0-9]*)+)\b", name))
+              | ({name.strip(" *")} if len(name.strip(" *")) > 1 else set()) for name in options]
     counts = [sum(len(re.findall(r"\b" + re.escape(t) + r"\b", recommendation, re.I))
                   for t in own if not any(t.lower() in {v.lower() for v in other} for j, other in enumerate(tokens) if j != i))
               for i, own in enumerate(tokens)]
