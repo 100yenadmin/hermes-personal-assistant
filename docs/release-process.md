@@ -152,7 +152,7 @@ digests twice, then uses the corrected publisher from reviewed `main` to resume
 the existing draft. It cannot rebuild, retag, or select another artifact or
 version.
 
-The first stable release is `v0.9.0`; earlier releases were prereleases. Release selection is a separate PR after
+`v0.9.0` is the first stable release since 0.3.0; the releases between them were prereleases. Release selection is a separate PR after
 implementation acceptance. Main requires CI and resolved conversations, but no
 mandatory non-author GitHub approval. Independent semantic review evidence for
 changed installation/release paths is retained. Support Control stays at

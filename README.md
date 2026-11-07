@@ -84,7 +84,7 @@ requirements. Unknown submission outcomes remain blocked until reconciled.
 
 What you would want to know before installing. Nothing on this list runs on install. Anything marked opt-in stays off until you configure it or ask for it.
 
-**Stored data.** PA keeps its records in one SQLite ledger in your Hermes profile, `state/travel-ledger/travel.sqlite`. The records cover:
+**Stored data.** PA's main store is one SQLite ledger in your Hermes profile, `state/travel-ledger/travel.sqlite`. Its records cover:
 - trips, flight facts and prepared actions;
 - setup answers;
 - preferences, people, SOPs and trust levels;
@@ -92,34 +92,50 @@ What you would want to know before installing. Nothing on this list runs on inst
 - task evidence;
 - action receipts.
 
-Recognised card numbers, credentials and labelled account numbers are refused, but the filter is pattern-based, not a guarantee. Nothing is deleted automatically: "forget" retires a record, and disabling the plugin erases nothing.
+Optional features keep their own stores:
+- conversation delivery keeps a packet queue (`queue.sqlite3`);
+- Daily Ops keeps `state/daily-ops/state.json`;
+- client sync keeps `clients.json`, with client names, emails and domains.
+
+Owner-memory and evidence records refuse recognised card numbers, credentials and labelled account numbers. Other ledger records pass a lighter filter that drops private fields and redacts some patterns. Both filters are pattern-based, not a guarantee. After you approve a setup review, the agent also writes your USER.md, a marked PA section of SOUL.md, a manual skill and any context file you named. That file can be outside the profile. A trip export writes `Trip.ics` and `Trip-Reference.md` to the folder you choose. Nothing is deleted automatically: "forget" retires a record, and disabling the plugin erases nothing.
 
 **Hooks.**
 - `pre_tool_call` sees every tool call. It blocks only a tool that a PA exact-action approval or the policy deny list covers. If the ledger cannot be opened, it also blocks most tools until storage is readable again.
-- `pre_llm_call` adds short notes to your own turns: the one-time `/pa setup` offer, setup and mode reminders, and active preferences. On cron, subagent and unattended turns it adds nothing, except a note that cancels a Chief of Staff wake while that mode is off.
+- `pre_llm_call` adds short notes to your own turns. They cover:
+  - the one-time `/pa setup` offer;
+  - setup, mode and "grill me" routing;
+  - a one-time fresh-session check;
+  - active preferences;
+  - a note asking the agent to save a stated preference or correction in PA's owner memory instead of Hermes memory. On cron, subagent and unattended turns it adds nothing, except a note that cancels a Chief of Staff wake while that mode is off.
 
 **Tools.** `pa` (ledger operations), `pa_call` (call cards, an offline brief compiler and a loopback simulator; nothing dials) and the `/pa` command. `pa_delivery_ack` registers only when conversation delivery is enabled.
 
 **Reads outside the ledger, when you ask.**
-- During `/pa setup`, with your consent, the agent reads USER.md, SOUL.md, its memory and a context file you name, and lists your cron jobs and skills.
+- During `/pa setup`, with your consent, the agent:
+  - reads USER.md, SOUL.md, its memory, the calendar, past itineraries and a context file you name;
+  - lists your cron jobs and skills;
+  - for the "grill me" profile, reads up to 20 recent sent emails through a mail read path you have already authorised, to learn tone and key contacts. It stores no raw mail text.
 - Trip import reads the `.ics` or guide file you give it.
 - Observer, precheck and mode reads use the profile's `config.yaml`.
 - Read-only lookups use Hermes's kanban database and cron job and suggestion stores.
 
 **Network, only when you ask or opt in.**
+- **The provider sites you choose.** Errands drive Hermes's browser tools on the provider's own site, for example a restaurant, hotel, airline or delivery site. That can be the local browser, or `agent-browser` attached to a Browserbase session. If you give provider sign-in details in chat, the checkout skill saves them in the agent's credential lane and signed-in browser profile, where available.
 - **Browserbase** (`api.browserbase.com`): when you ask for a cloud browser session. It uses your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` from the profile's secret scope. Sessions are created with recording and logging off.
-- **Google Calendar API:** for `calendar_sync`, and for Daily Ops calendar reads. It uses the profile's existing Google token file, `google_token.json`, from Hermes's Google Workspace sign-in. PA reads that file and refreshes the access token in memory. It never starts a sign-in and never writes the file. (Moving this onto a plugin-declared OAuth client is tracked in #74.)
+- **Google Calendar API:** `calendar_bind` checks the account and the destination calendar, and `calendar_sync` creates and updates PA's trip events in the one calendar you bind. Daily Ops only reads. It uses the profile's existing Google token file, `google_token.json`, from Hermes's Google Workspace sign-in. PA reads that file and refreshes the access token in memory, which contacts Google's token endpoint. It never starts a sign-in and never writes the file. (Moving this onto a plugin-declared OAuth client is tracked in #74.)
 - **Open-Meteo** (geocoding and forecasts): only after you accept a trip watch. It receives your departure airport or city, then coordinates. It can be set to `off`.
 - **ElevenLabs** (`api.elevenlabs.io`, read-only): only from the manual `python -m personal_assistant.phone_poll` command. That command reads `ELEVENLABS_API_KEY` from the shell you run it in.
 - **Daily Ops (opt-in):**
-  - mail and calendar reads through the `gog` CLI;
+  - mail and calendar reads through the `gog` CLI. Selected, redacted mail and calendar content goes to your configured model provider to write the brief, and the brief goes to your delivery target;
   - OpenStreetMap Nominatim and OSRM through `curl`, only after you give geo consent;
   - client sync through the Stripe and Supabase CLIs, only after you give consent.
 
 **Background work, only after a yes.**
-- **Trip watch.** If you accept one, the agent arms a HeartBeat 2.0 watcher. Once you allowlist its command, the watcher runs `scripts/pa_observe.py` every 15 minutes and stops shortly after the trip, at most 14 days later.
-- **Conversation delivery (opt-in).** It runs one gateway background task that injects packets into one verified session.
+- **Trip watch.** If you accept one, the agent arms a HeartBeat 2.0 watcher. Once you allowlist its command, the watcher runs `scripts/pa_observe.py` every 15 minutes and stops shortly after the trip, at most 14 days later. If you agree, the trip watch also schedules one-off wakes at the check-in window and on arrival, each of which runs an agent turn.
+- **Conversation delivery (opt-in).** It runs one gateway background task that injects packets into one verified session, through a gateway startup hook you install yourself. Its operator-run priority-mail collector reads Gmail through the `gog` CLI.
 - **Routine suggestions.** These write small precheck scripts into your profile's `scripts/` folder and add Hermes cron suggestions. Nothing runs until you accept a suggestion. Turning Chief of Staff mode off removes PA's own Chief of Staff jobs.
+
+**Developer scripts.** The `evals/` harness and the `scripts/evaluate_*` tools call the model provider (and, for the voice check, Fish Audio) only when you run them by hand. The plugin never loads them.
 
 **Telemetry and approvals.**
 - PA sends no telemetry.
