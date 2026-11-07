@@ -143,7 +143,7 @@ class Observer:
                 try:
                     key = bt._last_session_key(task_id or "default")
                     if key in bt._active_sessions:
-                        data = session._run_browser_command(key, "get", ["url"], timeout=10)
+                        data = session._run_browser_command(key, "get", ["url"], timeout=3)  # Counts toward the run budget.
                         url = (data.get("data") or {}).get("url")
                         page["page_url"] = scrub(url) if isinstance(url, str) else None
                 except Exception:

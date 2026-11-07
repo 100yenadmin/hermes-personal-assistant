@@ -107,7 +107,18 @@ def fetched_sources(tools):
                     aliases.append((current, data["url"]))
                     current = data["url"]
             if current:
-                link(current, result_text(value))
+                text = result_text(value)
+                if name == "browser_console":
+                    expression = "\n".join(args[k] for k in ("expression", "code", "script") if isinstance(args.get(k), str))
+                    literals = [m[2] for m in re.finditer(r"(['\"`])((?:\\.|(?!\1).)*)\1", expression, re.S) if len(m[2]) >= 2]
+                    for literal in sorted(set(literals), key=len, reverse=True):
+                        text = text.replace(literal, " ")
+                    # A page read such as innerText.slice(0, 3000) keeps every number; only a computed value loses its literals.
+                    reads_page = re.search(r"\b(?:document|window|innerText|textContent|innerHTML|querySelector\w*|getElement\w*|location)\b", expression)
+                    numbers = set() if reads_page else {Decimal(m[0]) for m in re.finditer(r"(?<![\w.])(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", expression)}
+                    text = re.sub(r"\d+(?:,\d{3})*(?:\.\d+)?(?:[eE][+-]?\d+)?",
+                                  lambda m: " " if Decimal(m[0].replace(",", "")) in numbers else m[0], text)
+                link(current, text)
             continue
 
         records = []

@@ -139,7 +139,7 @@ def user_view(transcript):
 
 
 def guard_reply(scenario, reply, simulated):
-    return (simulated, False) if scenario.get("area") == "research" else sim_user.guard(reply, simulated, scenario["language"])
+    return sim_user.guard(reply, simulated, scenario["language"])
 
 
 def system_prompt(scenario):

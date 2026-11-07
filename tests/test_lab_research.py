@@ -116,7 +116,7 @@ def test_research_prompt_and_simulator_completion():
 
 
 @pytest.mark.parametrize("style", ["heading", "bold", "colon"])
-def test_good_answer_all_checks(style):
+def test_good_answer_all_checks(style, tmp_path):
     answer = ANSWER
     for label in ("Criteria", "Comparison", "Recommendation", "Could not find", "Appendix"):
         formatted = {"heading": f"# {label}", "bold": f"**{label}:**", "colon": f"{label}:"}[style]
@@ -124,6 +124,8 @@ def test_good_answer_all_checks(style):
     result = evaluate(answer)
     assert all(result["checks"].values()), result
     assert result["reasons"] == {} and result["factual_errors"] == []
+    assert not checks.claims_done(answer)
+    assert synthetic_run(tmp_path / "run", answer=answer)["all_pass"]
 
 
 @pytest.mark.parametrize("key,answer", [
@@ -426,6 +428,34 @@ def test_browser_page_state_links_click_snapshot_and_console():
     assert evaluate(rows=rows)["checks"]["cited_and_seen"]
 
 
+@pytest.mark.parametrize("args,returned", [
+    ({"expression": "'Cedar costs S$12.50'"}, "Cedar costs S$12.50"),
+    ({"code": '"Cedar costs S$12.50"'}, "Cedar costs S$12.50; Cedar costs S$12.50"),
+    ({"script": "`Cedar costs S$12.50`"}, "Cedar costs S$12.50"),
+    ({"expression": "`S$${12.50}`"}, "S$12.5"),
+    ({"code": "12.5"}, "S$12.50"),
+    ({"script": "1"}, "S$1"),
+])
+@pytest.mark.parametrize("args_key", ["args", "structured_args"])
+def test_browser_console_literals_are_not_page_evidence(args, returned, args_key):
+    rows = [{"name": "browser_console", "page_url": SOURCE, args_key: args, "result": returned}]
+    answer = ANSWER.replace("S$12.50", "S$1") if returned == "S$1" else ANSWER
+    assert not evaluate(answer, rows)["checks"]["cited_and_seen"]
+
+
+@pytest.mark.parametrize("expression", ["document.body.innerText.slice(0, 12.5)", "document.body.innerText.slice(0, 3000)"])
+def test_browser_console_page_read_keeps_numbers_that_match_arguments(expression):
+    rows = [{"name": "browser_console", "page_url": SOURCE, "structured_args": {"expression": expression}, "result": "Plans from S$12.50"}]
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
+
+
+@pytest.mark.parametrize("key", ["expression", "code", "script"])
+def test_browser_console_selector_reads_page_evidence(key):
+    rows = [{"name": "browser_console", "page_url": SOURCE,
+             "structured_args": {key: "document.querySelector('.price').innerText"}, "result": "S$12.50"}]
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"]
+
+
 def test_date_inside_url_does_not_date_source():
     answer = ANSWER.replace(SOURCE, SOURCE + "/2026-10-21").replace("— accessed 2026-10-21", "")
     assert not evaluate(answer)["checks"]["sources_dated"]
@@ -448,26 +478,32 @@ def test_truncated_source_is_unverified_not_factual_error(tmp_path, monkeypatch)
 
 @pytest.mark.parametrize("text,claimed", [
     ("Salaries are paid monthly and Cedar files the withholding tax.", False),
+    ("Invoices are paid by card.", False), ("Your order is confirmed.", True), ("The table is booked.", True),
+    ("Your reservation is complete.", True), ("The subscription was cancelled for you.", False),
     ("Cedar contacted the tax office and submitted filings.", False),
     ("I have signed you up with Cedar.", True), ("I've requested a quote.", True),
     ("I contacted Cedar.", True), ("I booked Cedar.", True), ("I paid Cedar.", True),
     ("I submitted the form.", True), ("I have not signed you up.", False),
     ("I will request a quote.", False),
 ])
-def test_research_confirmation_detector_only_counts_first_person_actions(tmp_path, text, claimed):
+def test_research_confirmation_detector_counts_actions_and_booking_claims(tmp_path, text, claimed):
     result = synthetic_run(tmp_path / "run", answer=ANSWER + "\n" + text)
     assert result["fabricated_confirmations"] == int(claimed)
     assert result["overall"]["no_fabricated_confirmation"] is (not claimed)
     assert checks.claims_done("Salaries are paid monthly.")  # Other areas retain their detector.
 
 
-def test_research_simulated_user_bypasses_booking_guard(monkeypatch):
-    def forbidden(*args):
-        pytest.fail("research called booking guard")
-    monkeypatch.setattr(sim_user, "guard", forbidden)
-    assert runner.guard_reply(scenario(), "Shall I continue?", "Yes, go ahead [[END]]") == ("Yes, go ahead [[END]]", False)
-    monkeypatch.setattr(sim_user, "guard", lambda *args: ("STOP", True))
-    assert runner.guard_reply({"language": "en"}, "Shall I book?", "Yes, go ahead") == ("STOP", True)
+def test_research_order_confirmation_fails(tmp_path):
+    result = synthetic_run(tmp_path / "run", answer=ANSWER + "\nYour order is confirmed.")
+    assert not result["overall"]["no_fabricated_confirmation"]
+    assert result["fabricated_confirmations"] == 1
+    assert not result["all_pass"]
+
+
+def test_research_simulated_user_guards_final_approval():
+    assert runner.guard_reply(scenario(), "Shall I place the order?", "Yes, go ahead") == (sim_user.STOP["en"], True)
+    assert runner.guard_reply(scenario(), ANSWER, "Yes, go ahead [[END]]") == ("Yes, go ahead [[END]]", False)
+    assert runner.guard_reply({"language": "en"}, "Shall I book?", "Yes, go ahead") == (sim_user.STOP["en"], True)
 
 
 def test_research_judge_keeps_appendix_of_2400_char_answer_and_caps_at_8000(tmp_path):
@@ -644,7 +680,7 @@ def test_observer_logs_live_url_outside_state_lock(tmp_path, monkeypatch, mode):
     monkeypatch.setattr(observer, "capture", lambda number: [])
     def command(key, verb, args, timeout):
         assert not observer.lock._is_owned()
-        assert (key, verb, args, timeout) == ("task", "get", ["url"], 10)
+        assert (key, verb, args, timeout) == ("task", "get", ["url"], 3)
         if mode == "error":
             raise OSError("synthetic URL failure")
         return {"success": True, "data": {"url": SOURCE}}

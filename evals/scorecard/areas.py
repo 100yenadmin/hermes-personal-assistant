@@ -33,7 +33,7 @@ AREAS = [
                 "Lead with a one-page answer, recommendation and reason, then detail",
                 "Source and date every number", "Declare what could not be found", "No padding"],
      "tests": [{"scenario": "s18_research_payroll_en", "kind": "full",
-                "label": "payroll providers, two countries", "covers": [0, 1, 2, 3, 4]}]},
+                "label": "payroll providers, two countries", "covers": [0, 1, 2, 3, 4, 5]}]},
     {"key": "documents", "title": "Documents and data", "closes_in": "M6",
      "duties": ["Clean briefs, agendas and minutes with owners and dates on every action",
                 "Prepare proposals and slide skeletons", "Use spreadsheet formulas, not pasted numbers",
