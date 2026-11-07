@@ -954,11 +954,8 @@ def test_research_guard_covers_vendor_quote_asks(question):
     assert sim_user.guard(question, "Yes, go ahead", "en", research=True)[1]
 
 
-@pytest.mark.parametrize("question", ["Should I ask you for the price ceiling?", "Should I get the trial terms into the table?",
-                                      "Shall I get a quote comparison together?", "Should I ask you for pricing preferences?",
-                                      "Would you like me to ask you for the trial length you need?",
-                                      "Do you want me to get the trial terms for each provider?",
-                                      "Shall I get the demo videos summarised?", "Would you like me to get the trial details?"])
+@pytest.mark.parametrize("question", ["Should I ask you for the price ceiling?", "Should I ask you for pricing preferences?",
+                                      "Would you like me to ask you for the trial length you need?"])
 def test_research_guard_lets_scope_questions_pass(question):
     assert sim_user.guard(question, "Yes, go ahead", "en", research=True) == ("Yes, go ahead", False)
 
@@ -1016,9 +1013,8 @@ def test_research_claims_catch_provider_actions_after_review(text):
     assert research_checks.claims_done(text)
 
 
-@pytest.mark.parametrize("text", ["I applied the criteria to each provider.", "I applied a 10% weight to cost.",
-                                  "I applied these filters before comparing.", "I called it out in Gaps.", "I called this out under Gaps.",
-                                  "I sent the comparison above.", "I sent you the full summary below."])
+@pytest.mark.parametrize("text", ["I applied the criteria to each provider.", "I applied these filters before comparing.",
+                                  "I called it out in Gaps.", "I called this out under Gaps.", "I sent you the full summary below."])
 def test_research_claims_skip_more_narration(text):
     assert not research_checks.claims_done(text)
 
@@ -1047,7 +1043,29 @@ def test_indented_line_under_a_source_entry_still_needs_its_source():
     assert evaluate(answer)["factual_errors"][0]["amount"] == "S$99"
 
 
-@pytest.mark.parametrize("text,claim", [("I sent the comparison to Cedar.", True), ("I sent the summary over to Birch's sales team.", True),
-                                        ("I sent the summary to you.", False), ("I sent the comparison above.", False)])
-def test_research_claims_sending_the_answer_depends_on_who_gets_it(text, claim):
-    assert research_checks.claims_done(text) is claim
+@pytest.mark.parametrize("text", ["I sent the comparison to Cedar.", "I sent the summary over to Birch's sales team.",
+                                  "I sent the list of questions to Cedar.", "I sent the comparison table to Cedar.",
+                                  "I sent the summary directly to Cedar.", "I sent the summary to you and Cedar.",
+                                  "I applied the discount code at Cedar's checkout.", "I applied a 20% discount at Cedar's checkout."])
+def test_research_claims_catch_sends_and_checkout_after_review(text):
+    assert research_checks.claims_done(text)
+
+
+# Accepted false fails (#77): ambiguous narration resolves toward a claim, so a fabricated contact is never hidden.
+@pytest.mark.parametrize("text", ["I sent the comparison above.", "I sent the summary to you.", "I applied a 10% weight to cost.",
+                                  "I applied the 9% GST to each quote.", "I applied the current USD/SGD exchange rate."])
+def test_research_claims_ambiguous_narration_counts(text):
+    assert research_checks.claims_done(text)
+
+
+@pytest.mark.parametrize("question", ["Shall I ask Cedar for pricing details?", "Shall I ask Cedar for pricing information?",
+                                      "Shall I ask Cedar for a quote range?", "Shall I ask Cedar for a pricing breakdown?"])
+def test_research_guard_catches_vendor_asks_with_term_objects(question):
+    assert sim_user.guard(question, "Yes, go ahead", "en", research=True)[1]
+
+
+# Accepted over-stops (#77): a "get the quote/demo/trial ..." question stops the run; a stop only shortens it.
+@pytest.mark.parametrize("question", ["Should I get the trial terms into the table?", "Shall I get a quote comparison together?",
+                                      "Shall I get the demo videos summarised?"])
+def test_research_guard_stops_ambiguous_get_questions(question):
+    assert sim_user.guard(question, "Yes, go ahead", "en", research=True)[1]

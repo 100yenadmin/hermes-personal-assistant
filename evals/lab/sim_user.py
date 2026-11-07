@@ -19,15 +19,14 @@ APPROVE = re.compile(
     r"^\W*(?:네|예|좋아요|진행해|예약해|결제해|그렇게)|(?:예약|결제|주문|진행)해\s*주세요", re.I)
 
 
-_OBJECT_END = (r"(?!\s+(?:comparison|terms|length|details|table|summary|period|tiers?|videos?|options|info|information|pages?|"
-               r"links?|notes|figures|numbers|data|breakdown|matrix|overview|sheet|preferences|ceiling|range)\b)")
 # Research asks about scope ("shall I confirm the countries?", "proceed with the comparison?"); only a provider effect counts.
 _EFFECT = (r"(?:book|reserve|pay|purchase|buy|order|place|sign (?:you |us )?up|subscribe|submit|cancel|register|schedule|"
            r"create (?:an? |your |the )?(?:\w+ )?account|proceed with the (?:purchase|order|booking|payment|sign-?up)|"
            r"contact|e-?mail|call(?!\s+out\b)|message|write to|reach out(?: to)?|request (?:an? |the )?(?:quote|demo|trial|call)s?|"
-           # A vendor ask ("ask Cedar for a quote", "get quotes from each provider"), not a question to the user or a term.
-           r"ask (?:(?!you\b|me\b)[\w’'-]+ ){0,3}for (?:an? |the |their |its )?(?:quote|demo|trial|price|pricing)s?" + _OBJECT_END + "|"
-           r"get (?:you )?(?:an? |the |their )?(?:quote|demo|trial)s?" + _OBJECT_END + ")")
+           # A vendor ask ("ask Cedar for a quote", "get quotes"). When in doubt the guard stops the run: a false stop only
+           # shortens it, while a missed ask lets the simulated user's yes through. Only a question to the user is exempt.
+           r"ask (?:(?!you\b|me\b)[\w’'-]+ ){0,3}for (?:an? |the |their |its )?(?:quote|demo|trial|price|pricing)s?|"
+           r"get (?:you )?(?:an? |the |their )?(?:quote|demo|trial)s?)")
 RESEARCH_FINAL_ASK = re.compile(
     r"\b(?:shall|should|can|may) I (?:go ahead and )?" + _EFFECT + r"\b|(?:want|like) me to (?:go ahead and )?" + _EFFECT + r"\b|"
     r"\bready (?:for me )?to " + _EFFECT + r"\b|\bok(?:ay)? to " + _EFFECT + r"\b|"
