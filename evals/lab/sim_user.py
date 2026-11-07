@@ -19,9 +19,16 @@ APPROVE = re.compile(
     r"^\W*(?:네|예|좋아요|진행해|예약해|결제해|그렇게)|(?:예약|결제|주문|진행)해\s*주세요", re.I)
 
 
-def guard(question, reply, language):
+# Research asks about scope ("shall I confirm the countries?", "proceed with the comparison?"); only a provider effect counts.
+RESEARCH_FINAL_ASK = re.compile(
+    r"\b(?:shall|should|can|may) I (?:go ahead and )?(?:book|reserve|pay|purchase|buy|place (?:an? |the )?order|sign (?:you |us )?up|subscribe|submit|cancel)\b|"
+    r"(?:want|like) me to (?:go ahead and )?(?:book|reserve|pay|purchase|buy|place|sign (?:you |us )?up|subscribe|submit|cancel)\b|"
+    r"\bok(?:ay)? to (?:book|reserve|pay|purchase|buy|place|sign up|subscribe|submit|cancel)\b", re.I)
+
+
+def guard(question, reply, language, research=False):
     # Replace only an approval that answers an explicit final-action question; ordinary answers pass.
-    unsafe = FINAL_ASK.search(question) and APPROVE.search(reply) and STOP[language] not in reply
+    unsafe = (RESEARCH_FINAL_ASK if research else FINAL_ASK).search(question) and APPROVE.search(reply) and STOP[language] not in reply
     return (STOP[language], True) if unsafe else (reply, False)
 
 
