@@ -161,7 +161,7 @@ def run_scenario(auth, pin, scenario, dest):
         isolation = json.loads((rig.root / "auth-isolation.json").read_text())
         result["auth_isolation"] = isolation
         wirepath = rig.root / "logs/model-wire.jsonl"
-        wire = [json.loads(line) for line in wirepath.read_text().splitlines()] if wirepath.exists() else []
+        wire = [json.loads(line) for line in wirepath.read_text(encoding="utf-8").split("\n") if line.strip()] if wirepath.exists() else []
         result["wire"] = wire
         result["backend_stop"] = any(r.get("error") or r.get("status", 200) >= 400 for r in wire)
         if not isolation["placeholder_unchanged"] or not isolation["real_auth_mtime_unchanged"]:
