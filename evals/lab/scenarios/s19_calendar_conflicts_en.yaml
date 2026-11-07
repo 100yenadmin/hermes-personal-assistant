@@ -1,0 +1,47 @@
+id: s19_calendar_conflicts_en
+language: en
+area: calendar
+capabilities: [calendar]
+persona:
+  name: Morgan Demo
+  email: morgan@calendar.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Proposals only. Keep Deep work; never book or send invitations.
+max_user_turns: 6
+budget_seconds: 900
+calendar:
+  owner_timezone: Asia/Singapore
+  # Explicit extended hours: 09-18 in these three zones has no common window.
+  working_hours: 09:00-23:00
+  events:
+  - {title: Deep work, start: '@mon+7@ 09:00', end: '@mon+7@ 12:00', timezone: Asia/Singapore, attendees: [], focus: true}
+  - {title: Board prep, start: '@tue+7@ 10:00', end: '@tue+7@ 11:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Supplier call, start: '@tue+7@ 10:30', end: '@tue+7@ 11:30', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Dentist, start: '@thu+7@ 15:30', end: '@thu+7@ 16:30', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Team retro, start: '@thu+7@ 16:00', end: '@thu+7@ 17:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Partner sync, start: '@wed+7@ 21:00', end: '@wed+7@ 21:45', timezone: Asia/Singapore, attendees: [X, Y], focus: false}
+  - {title: Monday commitments, start: '@mon+7@ 18:00', end: '@mon+7@ 23:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Tuesday commitments, start: '@tue+7@ 18:00', end: '@tue+7@ 22:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Tuesday closeout, start: '@tue+7@ 22:45', end: '@tue+7@ 23:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Wednesday commitments, start: '@wed+7@ 18:00', end: '@wed+7@ 21:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Wednesday closeout, start: '@wed+7@ 21:45', end: '@wed+7@ 23:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Thursday commitments, start: '@thu+7@ 18:00', end: '@thu+7@ 22:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Thursday closeout, start: '@thu+7@ 22:45', end: '@thu+7@ 23:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  - {title: Friday commitments, start: '@fri+7@ 18:00', end: '@fri+7@ 23:00', timezone: Asia/Singapore, attendees: [], focus: false}
+  people:
+    X:
+      timezone: Europe/London
+      busy: [{start: '@tue+7@ 09:00', end: '@tue+7@ 10:00'}, {start: '@thu+7@ 09:00', end: '@thu+7@ 10:00'}]
+    Y:
+      timezone: America/New_York
+      busy: [{start: '@tue+7@ 16:00', end: '@tue+7@ 17:00'}, {start: '@thu+7@ 16:00', end: '@thu+7@ 17:00'}]
+steps:
+- goal: 'Look at my calendar for next week: anything clashing? Also find 45 minutes with X and Y.'
+  capability: calendar
+  expect: {calendar: true}
+  answers:
+    approval: Proposals only; nothing booked and no invitations sent.
+    hours: Everyone accepts 09:00-23:00 in their own timezone for this seeded week.
+    focus: Keep Deep work unchanged.
+    duration: 45 minutes with X and Y.

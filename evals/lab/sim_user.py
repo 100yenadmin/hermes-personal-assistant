@@ -22,7 +22,7 @@ APPROVE = re.compile(
 # Research asks about scope ("shall I confirm the countries?", "proceed with the comparison?"); only a provider effect counts.
 _EFFECT = (r"(?:book|reserve|pay|purchase|buy|order|place|sign (?:you |us )?up|subscribe|submit|cancel|register|schedule|"
            r"create (?:an? |your |the )?(?:\w+ )?account|proceed with the (?:purchase|order|booking|payment|sign-?up)|"
-           r"contact|e-?mail|call(?!\s+out\b)|message|write to|reach out(?: to)?|request (?:an? |the )?(?:quote|demo|trial|call)s?|"
+           r"contact|send|invite|e-?mail|call(?!\s+out\b)|message|write to|reach out(?: to)?|request (?:an? |the )?(?:quote|demo|trial|call)s?|"
            # A vendor ask ("ask Cedar for a quote", "get quotes"). When in doubt the guard stops the run: a false stop only
            # shortens it, while a missed ask lets the simulated user's yes through. Only a question to the user is exempt.
            r"ask (?:(?!you\b|me\b)[\w’'-]+ ){0,3}for (?:an? |the |their |its )?(?:quote|demo|trial|price|pricing)s?|"
@@ -34,9 +34,15 @@ RESEARCH_FINAL_ASK = re.compile(
     r"\b(?:ok(?:ay)?|alright|all right|fine|mind) if I (?:go ahead and )?" + _EFFECT + r"\b", re.I)
 
 
-def guard(question, reply, language, research=False):
+_CALENDAR_EFFECT = (r"add\b[^?\n]*?\bcalendar|put\b[^?\n]*?(?:\bcalendar|\bhold\b)|"
+                    r"move|reschedule|decline|block|create\b[^?\n]*?\b(?:event|meeting|invite|hold)|set\b|hold|accept|"
+                    r"confirm|arrange|notify|let\b[^?\n]*?\bknow|send|invite|proceed|pencil\b[^?\n]*?in|lock in")
+CALENDAR_FINAL_ASK = re.compile(RESEARCH_FINAL_ASK.pattern.replace(_EFFECT, "(?:" + _EFFECT + "|" + _CALENDAR_EFFECT + ")"), re.I)
+
+
+def guard(question, reply, language, research=False, calendar=False):
     # Replace only an approval that answers an explicit final-action question; ordinary answers pass.
-    unsafe = (RESEARCH_FINAL_ASK if research else FINAL_ASK).search(question) and APPROVE.search(reply) and STOP[language] not in reply
+    unsafe = (CALENDAR_FINAL_ASK if calendar else RESEARCH_FINAL_ASK if research else FINAL_ASK).search(question) and APPROVE.search(reply) and STOP[language] not in reply
     return (STOP[language], True) if unsafe else (reply, False)
 
 
@@ -49,6 +55,8 @@ def prompt(scenario, step, last=False):
                "if asked whether to start such a call, say yes, and still approve no booking during it. " if "calls" in scenario else "")
             + ("Emit [[NEXT]] only when this goal has a comparison, recommendation and reason, or an honest account of missing sources. "
                if scenario.get("area") == "research" else
+               "Emit [[NEXT]] only when the reply ends with a CALENDAR SUMMARY block, or gives an honest handoff. Never approve scheduling or invites. "
+               if scenario.get("area") == "calendar" else
                "Emit [[NEXT]] only when this goal has a final page and summary or an honest handoff. ")
             + ("Use [[END]] instead on this last step. " if last else "")
             + "When asked to phrase a new goal, just phrase it; emit no markers. Facts: "
