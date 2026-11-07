@@ -119,7 +119,7 @@ def fetched_sources(tools):
                         text = text.replace(literal, " ")
                     numbers = set() if reads_page else {Decimal(m[0]) for m in re.finditer(r"(?<![\w.])(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", expression)}
                     text = re.sub(r"\d+(?:,\d{3})*(?:\.\d+)?(?:[eE][+-]?\d+)?",
-                                  lambda m: " " if Decimal(m[0].replace(",", "")) in numbers else m[0], text)
+                                  lambda m, numbers=numbers: " " if Decimal(m[0].replace(",", "")) in numbers else m[0], text)
                 link(current, text)
             continue
 
