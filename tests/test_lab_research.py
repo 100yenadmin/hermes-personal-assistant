@@ -517,7 +517,8 @@ def test_research_order_confirmation_fails(tmp_path):
                                       "Would you like me to register for the Cedar trial?", "Shall I create a Cedar account to see pricing?",
                                       "Shall I schedule a call with Maple sales?", "Would you like me to proceed with the purchase?",
                                       "Shall I email Cedar to request a quote?", "Would you like me to contact Maple sales?",
-                                      "Should I reach out to Birch?", "Shall I request a demo from Cedar?"])
+                                      "Should I reach out to Birch?", "Shall I request a demo from Cedar?",
+                                      "Should I ask Cedar for a quote?", "Shall I get a quote from Maple?"])
 def test_research_simulated_user_guards_provider_approval(question):
     assert runner.guard_reply(scenario(), question, "Yes, go ahead") == (sim_user.STOP["en"], True)
 
@@ -867,3 +868,23 @@ def test_research_skill_is_routed_and_matches_the_checks():
     assert text.index("**Question**") < text.index("**Criteria**") < text.index("**Recommendation**") < text.index("**Comparison**")
     assert "one row per option" in text and "`[n] title, URL, read YYYY-MM-DD`" in text
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
+
+
+def test_recommendation_names_hyphenated_option():
+    comparison = "| Provider | Cost |\n|---|---|\n| G-P | S$40 |\n| ADP | S$30 |\n| Deel | S$45 |"
+    recommendation = "Use G-P because it covers both entities with one contract, local payslips, statutory filings and a named account manager in each country."
+    assert research_checks.option_named(comparison, recommendation)
+
+
+def test_source_excerpts_give_the_judge_the_unit_and_period():
+    answer = ANSWER.replace("S$12.50 per employee per month [1]", "SGD 12.50 per employee per month [1]")
+    result = evaluate(answer, tools("Cedar: SGD 12.50 per employee per year, billed annually"))
+    assert result["checks"]["cited_and_seen"]
+    [row] = result["source_excerpts"]
+    assert row["amount"] == "SGD 12.50" and "per month" in row["claim"]
+    assert "per year, billed annually" in row["source_text"]
+
+
+def test_source_excerpts_skip_amounts_missing_from_sources():
+    result = evaluate(rows=tools("Cedar pricing on request"))
+    assert result["factual_errors"] and result["source_excerpts"] == []

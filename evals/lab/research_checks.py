@@ -220,7 +220,9 @@ def option_named(comparison, recommendation):
         options = [r for r in rows[1:] if r and not re.fullmatch(r"[-: ]+", r)]
     else:
         options = [m[1] or m[2] for m in re.finditer(r"(?m)^\s*(?:[-*+] |\d+[.)] )\s*(?:\*\*([^*]+)\*\*|([A-Z][\w-]*(?: [A-Z][\w-]*)*))", comparison)]
-    tokens = [set(re.findall(r"\b[A-Z][A-Za-z]+\b", name)) for name in options]
+    # Distinctive capitalised words, hyphenated short names such as "G-P", and the complete option name.
+    tokens = [set(re.findall(r"\b[A-Z](?:[A-Za-z]+|(?:-[A-Z0-9][A-Za-z0-9]*)+)\b", name)) | ({name.strip(" *")} if name.strip(" *") else set())
+              for name in options]
     counts = [sum(len(re.findall(r"\b" + re.escape(t) + r"\b", recommendation, re.I))
                   for t in own if not any(t.lower() in {v.lower() for v in other} for j, other in enumerate(tokens) if j != i))
               for i, own in enumerate(tokens)]
@@ -269,6 +271,19 @@ def source_matches(match, texts, header=None):
     currency_ok = bool(families & {"$", "USD", "SGD"}) if family == "$" else family in families or (family in {"USD", "SGD"} and "$" in families)
     seen = {numeric(m[0]) for m in NUMBERS.finditer(text)} | {numeric(m[1] or m[2]) for m in ATTACHED.finditer(text)}
     return currency_ok and numeric(match[0] if header else groups["prefix"] or groups["suffix"]) in seen
+
+
+def source_excerpt(match, texts, header=None):
+    """Source text around the cited number, so the judge can check its unit and conditions."""
+    groups = match.groupdict()
+    value = numeric(match[0] if header else groups["prefix"] or groups["suffix"])
+    for text, _ in texts:
+        spans = [m.span() for m in NUMBERS.finditer(text)] + [m.span(1 if m[1] else 2) for m in ATTACHED.finditer(text)]
+        for start, end in spans:
+            if numeric(text[start:end]) == value:
+                begin = max(0, (start + end) // 2 - 100)
+                return " ".join(text[begin:begin + 200].split())
+    return None
 
 
 VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:\w+\s+)?orders?|reserved|cancell?ed|signed\s+(?:you\s+|us\s+|me\s+)?up|registered"
@@ -341,7 +356,7 @@ def evaluate(answer, tools):
           "Every source needs a URL and ISO date; every citation needs an entry")
 
     fetched = fetched_sources(tools)
-    errors, uncited, unverified = [], [], []
+    errors, uncited, unverified, excerpts = [], [], [], []
     headers, source_column = [], None
     lines = main.splitlines()
     for index, line in enumerate(lines):
@@ -362,10 +377,13 @@ def evaluate(answer, tools):
                 uncited.append(amount)
             cited = [sources.get(marker) or f"[{marker}]" for marker in markers]
             seen = [fetched[url_key(s)] for s in cited if url_key(s) in fetched]
-            if markers and not any(source_matches(match, texts, header) for texts in seen):
+            matched = [texts for texts in seen if source_matches(match, texts, header)]
+            if matched and len(excerpts) < 12:
+                excerpts.append({"amount": amount, "claim": line.strip()[:200], "source_text": source_excerpt(match, matched[0], header)})
+            if markers and not matched:
                 truncated = any(cut for texts in seen for _, cut in texts)
                 reason = "source_truncated" if truncated else "not_in_source" if seen else "source_not_fetched"
                 (unverified if truncated else errors).append({"amount": amount, "source": cited[0], "sources": cited, "reason": reason})
     check("amounts_cited", not uncited, "Currency amount without a same-line citation")
     check("cited_and_seen", not errors, "Cited amounts missing from fetched sources")
-    return {"checks": checks, "reasons": reasons, "factual_errors": errors, "unverified": unverified}
+    return {"checks": checks, "reasons": reasons, "factual_errors": errors, "unverified": unverified, "source_excerpts": excerpts}
