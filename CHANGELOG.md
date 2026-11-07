@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.9.0 — 2026-11-08
+
+The first stable release since 0.3.0. It contains every change in the 0.4.0 to 0.9.0 release candidates below, plus the first part of roadmap M2, "Measured" (#48): the tools that will measure PA against the VA bar.
+
+- **Real tasks become evidence (#67).** A new `evidence` operation (`pa(operation="evidence")`) records real owner tasks: area, title, start and due dates, outcome, the owner's acceptance, corrections and fact checks. It also records the owner's baseline week of minutes by task type and the day-30 answer: minutes now, and the task types the agent gets right first time.
+  - Closing a task needs `closed_on`, the owner's local date, so a pass is never counted on time by mistake east of UTC.
+  - Free text goes through the existing private-data check: card numbers and secrets are refused, ordinary URLs are accepted.
+  - Evidence rows stay out of action lists and the ledger summary. `scripts/export_va_evidence.py` exports them, read-only, for the scorecard.
+  - The `personal-assistant` skill says when to record a real task and the baseline. Once an evidence task is 28 or more days old, the agent asks the day-30 time question at most once a week until it is answered: in the weekly closeout, or in the daily brief when Chief of Staff mode is off. The trust review no longer asks it.
+- **VA scorecard builder (#64, #67).** `python -m evals.scorecard` reads Capability Lab runs and exported evidence and writes `scorecard.json` and `scorecard.md` for one release commit. It covers the 12 VA bar areas plus onboarding and working norms. Each area reads pass, fail or unproven on three conditions: real work, facts and day-30. Missing evidence is unproven, never a pass, and the headline has no parity percentage. A run counts only when PA's installed ref is the release commit. It reports and does not gate.
+- **Release rules (#66, #69).** From 0.10.0, every release must ship its measured scorecard for the exact reviewed commit. Release notes drop HTML comments, and CodeRabbit no longer writes its summary into PR bodies.
+- **Hermes floor declared.** `plugin.yaml` now declares `requires_hermes: ">=0.21.1"`, the oldest Hermes that CI runs PA on. An install from the Hermes plugin catalog refuses an older Hermes. The Python dependency ranges were already bounded.
+
 ## 0.9.0-rc.2 — 2026-10-21
 
 - **Stated preferences reach owner memory (#62, #47).** When an owner message looks like a lasting preference, a correction or a rule about a person ("from now on…", "always…", "correction:…"), PA adds a short routing note. The note tells the agent to record the message with the `profile` operation rather than Hermes' memory tool. The agent judges whether the message really is one. During an active setup interview, setup records the answers itself, so no note is added.
