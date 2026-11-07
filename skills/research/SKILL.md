@@ -20,9 +20,12 @@ sign up, request a quote with the owner's details, or contact a vendor without a
 1. Restate the question in one sentence, including the facts that change the
    answer (who, where, how many, by when, budget).
 2. Know what matters most to the owner (lowest cost, coverage, service, speed).
-   It almost always changes the pick, so if they have not said it, ask it first
-   in one short question, together with any other fact that would change the
-   choice (a country, a headcount, a budget). Do not search until they answer.
+   It almost always changes the pick, so if they have not said it, here or in
+   their saved preferences, ask it first in one short question, together with
+   any other fact that would change the choice (a country, a headcount, a
+   budget), and wait for the answer before searching. If they have no
+   preference, take lowest total cost, say so, and go. For a missing fact that
+   would not change the pick, state your assumption and go.
 3. Fix three to six comparison criteria, with the owner's top priority first,
    before looking at any option, and say them.
 
@@ -35,7 +38,7 @@ sign up, request a quote with the owner's details, or contact a vendor without a
   page you cite for it, in the same currency and unit, with any condition it
   carries ("from", "per employee per month", "billed annually", "plus tax").
   Name what the price is for in the page's own words; never relabel a fee
-  (a benefits add-on is not a payments add-on).
+  (a setup fee is not a monthly fee, and an add-on is not the base price).
 - Before you write "Could not find" for something, check the pages you already
   read for it (setup fees, minimums and terms often sit lower on a pricing page).
 - Note the date you read each page. A price without a date is not usable.
@@ -71,8 +74,9 @@ recommendation:
 
 - **Comparison**: one row per option, the option's name in the first column,
   one column per criterion.
-- **Every amount anywhere in the answer**, appendix detail included, carries the
-  `[n]` of the page that shows it.
+- **Every amount from a source**, anywhere in the answer and in the appendix
+  detail, carries the `[n]` of the page that shows it. Amounts the owner gave
+  you, such as a budget, need no `[n]`.
 - **Could not find**: never leave it out; write "nothing material" only when
   that is true.
 - **Appendix**: one `[n]` line per source, each carrying its own read date on
