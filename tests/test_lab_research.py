@@ -515,7 +515,9 @@ def test_research_order_confirmation_fails(tmp_path):
                                       "Would you like me to subscribe to Maple?", "Okay to pay the deposit?",
                                       "Are you ready for me to book a demo with Cedar?", "Shall I order the Cedar plan?",
                                       "Would you like me to register for the Cedar trial?", "Shall I create a Cedar account to see pricing?",
-                                      "Shall I schedule a call with Maple sales?", "Would you like me to proceed with the purchase?"])
+                                      "Shall I schedule a call with Maple sales?", "Would you like me to proceed with the purchase?",
+                                      "Shall I email Cedar to request a quote?", "Would you like me to contact Maple sales?",
+                                      "Should I reach out to Birch?", "Shall I request a demo from Cedar?"])
 def test_research_simulated_user_guards_provider_approval(question):
     assert runner.guard_reply(scenario(), question, "Yes, go ahead") == (sim_user.STOP["en"], True)
 

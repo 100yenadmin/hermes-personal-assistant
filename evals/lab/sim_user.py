@@ -21,7 +21,8 @@ APPROVE = re.compile(
 
 # Research asks about scope ("shall I confirm the countries?", "proceed with the comparison?"); only a provider effect counts.
 _EFFECT = (r"(?:book|reserve|pay|purchase|buy|order|place|sign (?:you |us )?up|subscribe|submit|cancel|register|schedule|"
-           r"create (?:an? |your |the )?(?:\w+ )?account|proceed with the (?:purchase|order|booking|payment|sign-?up))")
+           r"create (?:an? |your |the )?(?:\w+ )?account|proceed with the (?:purchase|order|booking|payment|sign-?up)|"
+           r"contact|e-?mail|call|message|write to|reach out(?: to)?|request (?:an? |the )?(?:quote|demo|trial|call)s?)")
 RESEARCH_FINAL_ASK = re.compile(
     r"\b(?:shall|should|can|may) I (?:go ahead and )?" + _EFFECT + r"\b|(?:want|like) me to (?:go ahead and )?" + _EFFECT + r"\b|"
     r"\bready (?:for me )?to " + _EFFECT + r"\b|\bok(?:ay)? to " + _EFFECT + r"\b", re.I)
