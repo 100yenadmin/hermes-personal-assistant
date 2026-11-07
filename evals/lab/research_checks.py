@@ -278,8 +278,17 @@ def source_excerpt(match, texts, header=None):
     """Source text around the cited number, so the judge can check its unit and conditions."""
     groups = match.groupdict()
     value = numeric(match[0] if header else groups["prefix"] or groups["suffix"])
+    family = currency_family(header or groups["pcurrency"] or groups["scurrency"])
+    same = {"$", "USD", "SGD"} if family == "$" else {family, "$"} if family in {"USD", "SGD"} else {family}
+
+    def rank(found):  # The cited currency first, then any amount, then a bare number ("12 countries").
+        group = 1 if found[1] else 2
+        sign = (found[0][:found.start(group) - found.start()] + found[0][found.end(group) - found.start():]).strip()
+        return 0 if currency_family(sign) in same else 1
+
     for text, _ in texts:
-        spans = [m.span() for m in NUMBERS.finditer(text)] + [m.span(1 if m[1] else 2) for m in ATTACHED.finditer(text)]
+        attached = sorted(ATTACHED.finditer(text), key=rank)
+        spans = [m.span(1 if m[1] else 2) for m in attached] + [m.span() for m in NUMBERS.finditer(text)]
         for start, end in spans:
             if numeric(text[start:end]) == value:
                 begin = max(0, (start + end) // 2 - 100)
@@ -359,7 +368,10 @@ def evaluate(answer, tools):
     fetched = fetched_sources(tools)
     errors, uncited, unverified, excerpts, excerpts_cut = [], [], [], [], 0
     headers, source_column = [], None
-    lines = main.splitlines()
+    # The appendix's detail is part of the answer: check its amounts too, but not the source-entry lines.
+    detail = [line for line in (appendix[1] if appendix else "").splitlines()
+              if not re.match(r"\s*(?:[-*]\s*)?\[\d+\]", line.replace("**", ""))]
+    lines = main.splitlines() + [""] + detail
     for index, line in enumerate(lines):
         cells = line.split("|")[1:-1] if line.strip().startswith("|") else []
         if cells and index + 1 < len(lines) and re.fullmatch(r"[| :\t-]+", lines[index + 1]) and "---" in lines[index + 1]:

@@ -905,3 +905,70 @@ def test_source_excerpts_match_across_currency_spellings():
 def test_one_letter_option_is_not_matched_by_an_article():
     comparison = "| Provider | Cost |\n|---|---|\n| A | S$40 |\n| B | S$30 |"
     assert not research_checks.option_named(comparison, "Pick a provider after a call with each, since neither published both countries' filing coverage or onboarding terms.")[0]
+
+
+def test_appendix_detail_amounts_are_checked_against_sources():
+    answer = ANSWER + "Detailed pricing: Cedar costs SGD 999.99 per employee per month [1].\n"
+    result = evaluate(answer)
+    assert not result["checks"]["cited_and_seen"] and result["factual_errors"][0]["amount"] == "SGD 999.99"
+
+
+def test_appendix_detail_true_amount_and_source_lines_pass():
+    answer = ANSWER + "Detailed pricing: Cedar lists S$12.50 per employee per month [1].\n"
+    result = evaluate(answer)
+    assert all(result["checks"].values()) and [r["amount"] for r in result["source_excerpts"]] == ["S$12.50", "S$12.50"]
+
+
+def test_appendix_uncited_amount_needs_a_citation():
+    assert not evaluate(ANSWER + "Cedar quoted S$12.50 on the phone.\n")["checks"]["amounts_cited"]
+
+
+def test_source_excerpt_prefers_the_price_over_an_equal_count():
+    text = "Cedar serves 12 countries. " + "x " * 150 + "Cedar costs SGD 12.00 per employee per month."
+    answer = ANSWER.replace("S$12.50 per employee per month [1]", "SGD 12.00 per employee per month [1]")
+    [row] = evaluate(answer, tools(text))["source_excerpts"]
+    assert "SGD 12.00 per employee per month" in row["source_text"]
+
+
+@pytest.mark.parametrize("question", ["Do I have your permission to email Cedar?", "Am I allowed to contact Birch?",
+                                      "Is it okay if I call Maple?", "Would it be fine to reach out to Cedar?"])
+def test_research_guard_covers_permission_questions(question):
+    assert sim_user.guard(question, "Yes, go ahead", "en", research=True)[1]
+
+
+@pytest.mark.parametrize("question", ["Should I call out the risks in the summary?", "Shall I call out where pricing is missing?"])
+def test_research_guard_lets_call_out_pass(question):
+    assert sim_user.guard(question, "Yes, please", "en", research=True) == ("Yes, please", False)
+
+
+def test_source_excerpt_prefers_the_cited_currency():
+    text = "Cedar US: USD 12.50 per employee per month. " + "x " * 150 + "Cedar Singapore: SGD 12.50 per employee per year."
+    answer = ANSWER.replace("S$12.50 per employee per month [1]", "SGD 12.50 per employee per year [1]")
+    [row] = evaluate(answer, tools(text))["source_excerpts"]
+    assert "SGD 12.50 per employee per year" in row["source_text"]
+
+
+@pytest.mark.parametrize("question", ["Shall I ask for a quote?", "Should I get quotes from each provider?",
+                                      "Should I ask Birch and Maple for their pricing?"])
+def test_research_guard_covers_vendor_quote_asks(question):
+    assert sim_user.guard(question, "Yes, go ahead", "en", research=True)[1]
+
+
+@pytest.mark.parametrize("question", ["Should I ask you for the price ceiling?", "Should I get the trial terms into the table?",
+                                      "Shall I get a quote comparison together?", "Should I ask you for pricing preferences?",
+                                      "Would you like me to ask you for the trial length you need?",
+                                      "Do you want me to get the trial terms for each provider?",
+                                      "Shall I get the demo videos summarised?", "Would you like me to get the trial details?"])
+def test_research_guard_lets_scope_questions_pass(question):
+    assert sim_user.guard(question, "Yes, go ahead", "en", research=True) == ("Yes, go ahead", False)
+
+
+@pytest.mark.parametrize("price,page", [
+    ("S$12", "Cedar Payroll pricing. Starter: free for teams of up to 12 employees, includes 50 payslips per year. "
+             "Trusted by 1,000+ companies. " + "x " * 60 + "Growth: S$12 per employee per month, billed monthly."),
+    ("S$5", "Rated 4.8/5 from 5,000 reviews. Set up in 5 minutes. Starter plan for teams up to 5 people. "
+            + "x " * 60 + "Pro plan: S$5 per employee per month.")])
+def test_source_excerpt_skips_equal_counts_before_the_price(price, page):
+    answer = ANSWER.replace("S$12.50 per employee per month [1]", price + " per employee per month [1]")
+    [row] = evaluate(answer, tools(page))["source_excerpts"]
+    assert price + " per employee per month" in row["source_text"]
