@@ -888,3 +888,27 @@ def test_fix4_invalid_offsets_fail_without_raising(offset):
 ])
 def test_fix4_bounded_offsets(offset, minutes):
     assert cal.trailing_offset(f" ({offset})") == dt.timedelta(minutes=minutes)
+
+
+# Live s19 (M2-e smoke on 8cc4e9f): "Focus: … no proposed moves or meeting slots touch it." fails focus_kept. Two review
+# rounds showed every "no <change>" exemption opens a false pass, so the check stays conservative (an accepted false
+# fail, #79) and the lab prompt asks for a fixed Focus line instead.
+@pytest.mark.parametrize("line", [
+    "Focus: Monday Deep work stays protected at 09:00–12:00 SGT; no proposed moves or meeting slots touch it.",
+    "Focus: Deep work goes to Friday 09:00–12:00 SGT; no other moves or meeting slots touch it.",
+    "Focus: Deep work → Friday 09:00–12:00 SGT; no other moves or slots touch it.",
+    "Focus: No proposed moves other than Deep work to Friday.",
+])
+def test_live_no_change_wording_still_fails(line):
+    text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
+    assert not evaluate(text)["checks"]["focus_kept"]
+
+
+def test_focus_template_line_passes():
+    text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", "Focus: Deep work Monday 09:00–12:00 SGT unchanged")
+    assert all(evaluate(text)["checks"].values())
+    assert "Focus: <focus block title> <weekday> <HH:MM>–<HH:MM> SGT unchanged" in runner.system_prompt(scenario())
+
+
+def test_slot_instruction_asks_for_new_free_times():
+    assert "proposed new slot (a free time, not an existing event)" in runner.system_prompt(scenario())
