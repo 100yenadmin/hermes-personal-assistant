@@ -356,7 +356,7 @@ def evaluate(answer, tools):
           "Every source needs a URL and ISO date; every citation needs an entry")
 
     fetched = fetched_sources(tools)
-    errors, uncited, unverified, excerpts = [], [], [], []
+    errors, uncited, unverified, excerpts, excerpts_cut = [], [], [], [], 0
     headers, source_column = [], None
     lines = main.splitlines()
     for index, line in enumerate(lines):
@@ -380,10 +380,14 @@ def evaluate(answer, tools):
             matched = [texts for texts in seen if source_matches(match, texts, header)]
             if matched and len(excerpts) < 12:
                 excerpts.append({"amount": amount, "claim": line.strip()[:200], "source_text": source_excerpt(match, matched[0], header)})
+            elif matched:
+                excerpts_cut += 1
             if markers and not matched:
                 truncated = any(cut for texts in seen for _, cut in texts)
                 reason = "source_truncated" if truncated else "not_in_source" if seen else "source_not_fetched"
                 (unverified if truncated else errors).append({"amount": amount, "source": cited[0], "sources": cited, "reason": reason})
+    if excerpts_cut:
+        excerpts.append({"note": f"lab cut {excerpts_cut} source excerpts"})
     check("amounts_cited", not uncited, "Currency amount without a same-line citation")
     check("cited_and_seen", not errors, "Cited amounts missing from fetched sources")
     return {"checks": checks, "reasons": reasons, "factual_errors": errors, "unverified": unverified, "source_excerpts": excerpts}

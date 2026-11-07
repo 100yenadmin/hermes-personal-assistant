@@ -888,3 +888,15 @@ def test_source_excerpts_give_the_judge_the_unit_and_period():
 def test_source_excerpts_skip_amounts_missing_from_sources():
     result = evaluate(rows=tools("Cedar pricing on request"))
     assert result["factual_errors"] and result["source_excerpts"] == []
+
+
+def test_source_excerpts_mark_what_the_cap_cut():
+    rows = "\n".join(f"- **Cedar Payroll** plan {n}: S${n}.50 per employee per month [1]." for n in range(1, 15))
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].", rows)
+    result = evaluate(answer, tools(" ".join(f"S${n}.50" for n in range(1, 15))))
+    assert len(result["source_excerpts"]) == 13 and result["source_excerpts"][-1] == {"note": "lab cut 2 source excerpts"}
+
+
+def test_source_excerpts_match_across_currency_spellings():
+    [row] = evaluate(rows=tools("Cedar: SGD 12.50 per employee per year"))["source_excerpts"]
+    assert row["amount"] == "S$12.50" and "per year" in row["source_text"]
