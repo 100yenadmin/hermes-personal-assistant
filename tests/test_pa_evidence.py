@@ -38,15 +38,15 @@ def time_records(root, week_ending="2026-10-21"):
 
 
 def test_record_defaults_and_duplicate(tmp_path):
-    row = record(tmp_path)
+    row = record(tmp_path, due="2099-12-31")  # due in the future, so started defaults to today
     assert row["started"] == datetime.now(timezone.utc).date().isoformat()
     assert re.fullmatch(r"va-task:compare-options-[0-9a-f]{6}-" + row["started"], row["identity"])
     assert row["status"] == "pending" and row["owner_accepted"] is None
     assert row["facts"] == [] and row["correction"] == "none" and row["cohort"] == "default"
     assert row["created_at"]
     with pytest.raises(ValueError, match="exists .*same task use update.*different task.*title or its own task_id"):
-        record(tmp_path)
-    other = record(tmp_path, task_id="compare-options-second")  # A different task with the same title.
+        record(tmp_path, due="2099-12-31")
+    other = record(tmp_path, due="2099-12-31", task_id="compare-options-second")  # A different task with the same title.
     assert other["identity"] == "va-task:compare-options-second"
     assert AREAS == [a["key"] for a in SCORECARD_AREAS[:12]]
 
