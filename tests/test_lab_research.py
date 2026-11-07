@@ -867,9 +867,10 @@ def test_research_skill_is_routed_and_matches_the_checks():
     assert "Load `personal-assistant:research` for comparison" in (root / "personal-assistant/SKILL.md").read_text()
     order = ["## Question", "## Criteria", "## Recommendation", "## Comparison", "## Could not find", "## Appendix"]
     assert [text.index(h) for h in order] == sorted(text.index(h) for h in order)
-    assert "Use these six\nheadings, exactly and in this order" in text and "never open with the\nrecommendation" in text
-    assert "one row per option" in text and "[1] <title>, <URL>, read YYYY-MM-DD" in text
-    assert 'Do not use one shared "All sources read" line' in text
+    flat = " ".join(text.split())
+    assert "Use these six headings, exactly and in this order" in flat and "never open with the recommendation" in flat
+    assert "one row per option" in flat and "[1] <title>, <URL>, read YYYY-MM-DD" in text
+    assert 'Do not use one shared "All sources read" line' in flat and "Every amount anywhere in the answer" in flat
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
 
 
@@ -1131,7 +1132,7 @@ def test_live_numbered_sources_and_unlabelled_table_are_accepted_false_fails():
 
 
 def test_shared_read_date_line_does_not_date_the_entries():
-    # Live s18 on the template build: "All sources read 2026-11-08" above "[n]" lines that carry no date.
+    # Live s18 on the template build wrote one "All sources read <date>" line above "[n]" lines that carry no date.
     shared = TEMPLATE.replace("## Appendix\n", "## Appendix\nAll sources read 2026-10-21.\n").replace(", read 2026-10-21", "")
     assert not evaluate(shared, tools() + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll"))["checks"]["sources_dated"]
 

@@ -63,8 +63,9 @@ recommendation:
 ```
 
 - **Comparison**: one row per option, the option's name in the first column,
-  one column per criterion. Every number carries the source number of the page
-  that shows it.
+  one column per criterion.
+- **Every amount anywhere in the answer**, appendix detail included, carries the
+  `[n]` of the page that shows it.
 - **Could not find**: never leave it out; write "nothing material" only when
   that is true.
 - **Appendix**: one `[n]` line per source, each carrying its own read date on
