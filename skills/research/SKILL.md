@@ -19,9 +19,12 @@ sign up, request a quote with the owner's details, or contact a vendor without a
 
 1. Restate the question in one sentence, including the facts that change the
    answer (who, where, how many, by when, budget).
-2. Fix three to six comparison criteria before looking at any option, and say
-   them. If one missing fact would change the choice (a country, a headcount,
-   a budget), ask that one question first; otherwise state your assumption and go.
+2. Know what matters most to the owner (lowest cost, coverage, service, speed).
+   It almost always changes the pick, so if they have not said it, ask it first
+   in one short question, together with any other fact that would change the
+   choice (a country, a headcount, a budget). Do not search until they answer.
+3. Fix three to six comparison criteria, with the owner's top priority first,
+   before looking at any option, and say them.
 
 ## Searching
 
@@ -31,6 +34,10 @@ sign up, request a quote with the owner's details, or contact a vendor without a
 - Read each page you cite. A number goes in the answer only if it appears on the
   page you cite for it, in the same currency and unit, with any condition it
   carries ("from", "per employee per month", "billed annually", "plus tax").
+  Name what the price is for in the page's own words; never relabel a fee
+  (a benefits add-on is not a payments add-on).
+- Before you write "Could not find" for something, check the pages you already
+  read for it (setup fees, minimums and terms often sit lower on a pricing page).
 - Note the date you read each page. A price without a date is not usable.
 - When a price is behind a sales call or a login, do not guess or estimate it as
   if it were published: record it as not published.

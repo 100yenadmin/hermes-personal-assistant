@@ -871,6 +871,9 @@ def test_research_skill_is_routed_and_matches_the_checks():
     assert "Use these six headings, exactly and in this order" in flat and "never open with the recommendation" in flat
     assert "one row per option" in flat and "[1] <title>, <URL>, read YYYY-MM-DD" in text
     assert 'Do not use one shared "All sources read" line' in flat and "Every amount anywhere in the answer" in flat
+    # Live s18 judge failures on the template build: an assumed priority, a relabelled fee, a missed setup fee.
+    assert "ask it first in one short question" in flat and "with the owner's top priority first" in flat
+    assert "never relabel a fee" in flat and 'Before you write "Could not find"' in flat
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
 
 
