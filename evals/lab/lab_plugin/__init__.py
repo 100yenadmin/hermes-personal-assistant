@@ -100,8 +100,16 @@ class Observer:
         self.calendar = read(self.out / "scenario.json", {}).get("calendar")
 
     def pre(self, tool_name, args, task_id="", **kw):
+        args = args if isinstance(args, dict) else {}
+        data = args.get("data")
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except ValueError:
+                data = {}
+        data = data if isinstance(data, dict) else {}
         operation = str(args.get("operation", ""))
-        cal_action = (args.get("data") or {}).get("action", args.get("action", ""))
+        cal_action = data.get("action", args.get("action", ""))
         if self.calendar and ((tool_name == "pa" and (operation.startswith("calendar") or operation == "trip_import"))
                               or ((tool_name == "cal" or tool_name == "pa" and operation == "cal")
                                   and cal_action not in ("list", "get", "read", "events", "freebusy", "search"))):

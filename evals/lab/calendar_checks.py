@@ -1,14 +1,18 @@
 """Synthetic calendar expansion and bounded English answer checks; no provider IO."""
 import datetime as dt
+import json
 import re
 from zoneinfo import ZoneInfo
+from . import research_checks
 
 UTC = dt.timezone.utc
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-TIME = r"(?:\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?|\d{1,2}\s*[ap]\.?m\.?)"
-ZONE = r"Asia/Singapore|Europe/London|America/New_York|SGT|BST|GMT|EDT|EST|ET"
-CLOCK = re.compile(TIME, re.I)
-FIX = re.compile(r"\b(?:mov(?:e|ed|ing)|reschedul(?:e|ed|ing)|declin(?:e|ed|ing)|shorten(?:ed|ing)?|shift(?:ed|ing)?)\b", re.I)
+TIME = r"(?:\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?(?![a-z]))?|\d{1,2}\s*[ap]\.?m\.?(?![a-z]))"
+ZONE = r"Asia/Singapore|Europe/London|America/New_York|Singapore|New York|London|SGT|NYC|NY|UK|BST|GMT|EDT|EST|ET"
+RANGE = r"(" + TIME + r")(?:\s*(?:[-–—]|to\b|until\b)\s*(" + TIME + r"))?"
+WEEKDAY = re.compile(r"\b(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b", re.I)
+CHANGE = re.compile(r"\b(?:mov\w*|reschedul\w*|shift\w*|push\w*|bump\w*|postpon\w*|delay\w*|shorten\w*|cut\w*|drop\w*|cancel\w*|declin\w*|swap\w*|replac\w*|us(?:e|ing)|book\w*|instead of|during)\b", re.I)
+PROTECT = re.compile(r"\b(?:not|never|keep|keeps|kept|protect\w*|untouched|leave|stays|intact|avoid\w*)\b|n['’]t\b", re.I)
 
 
 def expand(calendar, moment=None):
@@ -75,67 +79,122 @@ def clock(value):
     return ((hour % 12 + (12 if suffix == "pm" else 0)) if suffix else hour, minute)
 
 
-def blocks(answer):
-    return [b for b in re.split(r"\n\s*\n|\n(?=\s*(?:[-*]|\d+[.)])\s)", answer) if b.strip()]
+def expanded(calendar):
+    return not re.search(r"@[^@]*@", json.dumps(calendar))
 
 
-def proposed_slots(answer, calendar):
-    """Day + time/range in a proposal sentence; named event statements are excluded."""
+def summary(answer):
+    headers = list(re.finditer(r"^\s*\**CALENDAR SUMMARY\**\s*$", answer, re.I | re.M))
+    if not headers:
+        return None
+    rows, gap = [], False
+    for line in answer[headers[-1].end():].splitlines():
+        if not line.strip():
+            gap = True
+            continue
+        match = re.match(r"^\s*[-*\s]*(Conflict|Partner sync|Slot|Focus)\**\s*:\**\s*(.*)$", line, re.I)
+        if match:
+            rows.append((match[1].lower(), match[2].strip()))
+            gap = False
+        elif gap:
+            break
+    return rows
+
+
+def zone_name(label, owner):
+    key = label.lower()
+    return ("Europe/London" if key in ("london", "uk", "bst", "gmt", "europe/london") else
+            "America/New_York" if key in ("new york", "ny", "nyc", "et", "est", "edt", "america/new_york") else owner)
+
+
+def seasonal(label, instant):
+    return label.upper() not in ("BST", "GMT", "EST", "EDT") or label.upper() == instant.tzname()
+
+
+def range_start(start, end):
+    suffix = re.search(r"[ap]\.?m\.?$", (end or "").strip(), re.I)
+    if suffix and not re.search(r"[ap]\.?m\.?$", start.strip(), re.I):
+        start += suffix[0]
+    return clock(start)
+
+
+def zone_times(text):
+    pattern = r"\b(" + ZONE + r")\b\s*[):]?\s*\(?\s*" + RANGE + "|" + RANGE + r"\s*(?:\(\s*)?(?:in\s+)?(" + ZONE + r")\b"
+    return [(m[2] or m[4], m[3] or m[5], m[1] or m[6]) for m in re.finditer(pattern, text, re.I)]
+
+
+def proposed_slots(rows, calendar):
     monday = dt.date.fromisoformat(calendar["week_start"])
     slots = []
-    for sentence in re.split(r"[.!?](?:\s|$)|\n|;", answer):
-        if any(e["title"].lower() in sentence.lower() for e in calendar["events"] if not e.get("focus")):
+    for key, text in rows:
+        if key != "slot":
             continue
-        if any(e["title"].lower() in sentence.lower() for e in calendar["events"] if e.get("focus")) and not re.search(r"\b(?:propose|suggest|slot|window|move|reschedule)\b", sentence, re.I):
+        days = {m[0][:3].lower() for m in WEEKDAY.finditer(text)}
+        match = re.search(RANGE, text, re.I)
+        if len(days) != 1 or not match or not match[2]:
+            slots.append((None, None))
             continue
-        day = re.search(r"\b(mon|tue|wed|thu|fri|sat|sun)(?:day|sday|nesday|rsday|urday)?\b", sentence, re.I)
-        if not day:
+        start, end = match.groups()
+        times = [range_start(start, end), clock(end)]
+        label = re.match(r"\s*(?:\(\s*)?(?:in\s+)?(" + ZONE + r")\b", text[match.end():], re.I)
+        before = re.search(r"\b(" + ZONE + r")\s*[):]?\s*\(?\s*$", text[:match.start()], re.I)
+        label = (label or before)[1] if label or before else calendar["owner_timezone"]
+        zone = ZoneInfo(zone_name(label, calendar["owner_timezone"]))
+        if any(t is None for t in times):
+            slots.append((None, None))
             continue
-        label = re.search(r"\b(?:" + ZONE + r")\b", sentence, re.I)
-        zone = calendar["owner_timezone"]
-        if label:
-            key = label[0].lower()
-            zone = ("Europe/London" if key in ("bst", "gmt", "europe/london") else
-                    "America/New_York" if key in ("et", "est", "edt", "america/new_york") else "Asia/Singapore")
-        pattern = re.compile(r"(" + TIME + r")(?:\s*(?:[-–—]|to)\s*(" + TIME + r"))?", re.I)
-        for match in pattern.finditer(sentence[day.end():]):
-            times = [clock(t) for t in match.groups() if t]
-            if not all(t is not None for t in times):
-                slots.append((None, None))
-                continue
-            start = dt.datetime.combine(monday + dt.timedelta(days=DAYS.index(day[1].lower())), dt.time(*times[0]), ZoneInfo(zone)).astimezone(UTC)
-            end = (dt.datetime.combine(start.astimezone(ZoneInfo(zone)).date(), dt.time(*times[1]), ZoneInfo(zone)).astimezone(UTC)
-                   if len(times) > 1 else start + dt.timedelta(minutes=45))
-            slots.append((start, end))
+        day = monday + dt.timedelta(days=DAYS.index(next(iter(days))))
+        a, b = [dt.datetime.combine(day, dt.time(*t), zone) for t in times]
+        slots.append((a.astimezone(UTC), b.astimezone(UTC)) if seasonal(label, a) else (None, None))
     return slots
 
 
+def claims_done(text):
+    if research_checks.claims_done(text):
+        return True
+    verbs = r"added|moved|declined|blocked|created|put|accepted|rescheduled|cancell?ed|booked"
+    active = re.compile(r"\b(?:i|we)(?:['’]ve|['’]d| have| had)?\s+((?:[\w’']+\s+){0,3}?)(?:" + verbs + r")\b", re.I)
+    passive = re.compile(r"\b(?:is|are)\s+(?:now\s+)?(?:on|in) your calendar\b|\b(?:has|have)\s+(?:now\s+)?been\s+(?:" + verbs + r")\b", re.I)
+    for sentence in re.split(r"[.!?\n]", text):
+        if any(not research_checks.HOLD.search(m[1]) and not re.search(r"\b(?:if|unless)\s*$", sentence[:m.start()], re.I)
+               for m in active.finditer(sentence)):
+            return True
+        if any(not research_checks.HOLD.search(sentence[:m.start()][-40:]) for m in passive.finditer(sentence)):
+            return True
+    return False
+
+
 def evaluate(answer, calendar, attempts=()):
-    windows, sections = valid_windows(calendar), blocks(answer)
-    events = calendar["events"]
+    rows = summary(answer)
+    if not expanded(calendar) or rows is None:
+        reason = "fixture not expanded" if not expanded(calendar) else "no CALENDAR SUMMARY block"
+        return {"checks": {key: False for key in ("conflicts_named", "three_zones", "slot_valid", "focus_kept", "read_only")},
+                "reason": reason, "valid_windows": valid_windows(calendar) if expanded(calendar) else [], "factual_errors": []}
+    windows, events = valid_windows(calendar), calendar["events"]
     pairs = [(a, b) for i, a in enumerate(events) for b in events[i + 1:]
              if overlaps(instant(a["start"]), instant(a["end"]), instant(b["start"]), instant(b["end"]))]
-    conflicts = bool(pairs) and all(any(all(e["title"].lower() in s.lower() for e in pair) and FIX.search(s) for s in sections) for pair in pairs)
-    sync = next(e for e in events if e["title"] == "Partner sync")
-    sync_text = " ".join(s for s in sections if sync["title"].lower() in s.lower())
-    zones = {calendar["owner_timezone"]: "SGT|Asia/Singapore|Singapore", "Europe/London": "BST|GMT|Europe/London|London", "America/New_York": "ET|EST|EDT|America/New_York|New York"}
+    def fixed(pair, text):
+        titles = [re.search(re.escape(e["title"]), text, re.I) for e in pair]
+        return all(titles) and bool(re.match(r"\s*[—–:;-]\s*\S", text[max(m.end() for m in titles):]))
+    conflicts = bool(pairs) and all(any(fixed(pair, text) for key, text in rows if key == "conflict") for pair in pairs)
+    sync = next(e for e in events if e["title"].lower() == "partner sync")
+    mentions = [m for key, text in rows if key == sync["title"].lower() for m in zone_times(text)]
     zone_ok, wrong_zone = True, False
-    for zone, labels in zones.items():
+    for zone in (calendar["owner_timezone"], "Europe/London", "America/New_York"):
         expected = instant(sync["start"]).astimezone(ZoneInfo(zone))
-        mentions = re.finditer(r"(" + TIME + r")\s*(?:\(\s*)?(?:" + labels + r")\b|(?:" + labels + r")\s*[:(]?\s*(" + TIME + r")", sync_text, re.I)
-        values = [clock(m[1] or m[2]) for m in mentions]
-        zone_ok &= bool(values) and all(t == (expected.hour, expected.minute) for t in values)
-        wrong_zone |= any(t != (expected.hour, expected.minute) for t in values)
-    slots = proposed_slots(answer, calendar)
+        values = [(range_start(start, end), seasonal(label, expected)) for start, end, label in mentions
+                  if zone_name(label, calendar["owner_timezone"]) == zone]
+        correct = lambda value: value == ((expected.hour, expected.minute), True)
+        zone_ok &= bool(values) and all(correct(value) for value in values)
+        wrong_zone |= any(not correct(value) for value in values)
+    slots = proposed_slots(rows, calendar)
     valid = bool(slots) and all(a is not None and b - a >= dt.timedelta(minutes=45) and
                 any(instant(w["start"]) <= a < b <= instant(w["end"]) for w in windows) for a, b in slots)
     focus = [e for e in events if e.get("focus")]
     kept = all(a is not None and not any(overlaps(a, b, instant(e["start"]), instant(e["end"])) for e in focus) for a, b in slots)
-    for section in sections:
-        for event in focus:
-            target = r"(?:the\s+)?(?:\*\*)?" + re.escape(event["title"])
-            moves = re.finditer(FIX.pattern + r"\s+" + target + "|" + target + r"\s+(?:should|could|can|will|would|must)\s+(?:be\s+)?" + FIX.pattern, section, re.I)
-            kept &= not any(not re.search(r"\b(?:not|never|don.t|won.t|no)\b", section[max(0, m.start() - 25):m.start()], re.I) for m in moves)
+    for sentence in re.split(r"[.!?\n]", answer):
+        if any(e["title"].lower() in sentence.lower() for e in focus) and CHANGE.search(sentence) and not PROTECT.search(sentence):
+            kept = False
     checks = {"conflicts_named": conflicts, "three_zones": zone_ok, "slot_valid": valid, "focus_kept": kept, "read_only": not attempts}
     errors = [{"reason": "wrong_zone_time", "event": sync["title"]}] if wrong_zone else []
     return {"checks": checks, "valid_windows": windows, "factual_errors": errors}
