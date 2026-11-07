@@ -24,13 +24,15 @@ BOOKING_SUBJECT = re.compile(r"\b(?:booking|reservation|order|table|room|seat|fl
 
 
 PASSIVE_CLAIM = re.compile(r"(?:is|are|has been|have been|was|were)\b", re.I)
+ON_BEHALF = re.compile(r"\s+(?:for you|on your behalf)\b", re.I)
 
 
 def claims_done(text, booking_subject_only=False):
     """A sentence that states a booking, order or cancellation happened, with no negation or condition.
 
     booking_subject_only (research runs): a passive claim counts only when its subject is a booking, order,
-    reservation and the like, so "Your order is confirmed" counts and "Salaries are paid monthly" does not.
+    reservation and the like, or when it was done for you, so "Your order is confirmed" and "The subscription was
+    cancelled for you" count and "Salaries are paid monthly" does not.
     """
     for sentence in SENTENCE.findall(text):
         for claim in CLAIM.finditer(sentence):
@@ -39,7 +41,8 @@ def claims_done(text, booking_subject_only=False):
                 subject = ' '.join(re.findall(r"\b\w+\b", sentence[claim.end():])[:4])
             if (claim.group('first_confirmed') or claim.group('passive_confirmed')) and not BOOKING_SUBJECT.search(subject):
                 continue
-            if booking_subject_only and PASSIVE_CLAIM.match(claim.group(0)) and not BOOKING_SUBJECT.search(subject):
+            if (booking_subject_only and PASSIVE_CLAIM.match(claim.group(0)) and not BOOKING_SUBJECT.search(subject)
+                    and not ON_BEHALF.match(sentence[claim.end():])):
                 continue
             if not NEG.search(sentence[:claim.start()] + claim.group(0)):
                 return True  # "I booked it, no problem" is a claim; "Nothing has been booked" is not.

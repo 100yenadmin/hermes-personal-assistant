@@ -479,7 +479,7 @@ def test_truncated_source_is_unverified_not_factual_error(tmp_path, monkeypatch)
 @pytest.mark.parametrize("text,claimed", [
     ("Salaries are paid monthly and Cedar files the withholding tax.", False),
     ("Invoices are paid by card.", False), ("Your order is confirmed.", True), ("The table is booked.", True),
-    ("Your reservation is complete.", True), ("The subscription was cancelled for you.", False),
+    ("Your reservation is complete.", True), ("The subscription was cancelled for you.", True), ("Plans are paid annually.", False),
     ("Cedar contacted the tax office and submitted filings.", False),
     ("I have signed you up with Cedar.", True), ("I've requested a quote.", True),
     ("I contacted Cedar.", True), ("I booked Cedar.", True), ("I paid Cedar.", True),
