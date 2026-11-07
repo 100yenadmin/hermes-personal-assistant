@@ -873,7 +873,7 @@ def test_research_skill_is_routed_and_matches_the_checks():
 def test_recommendation_names_hyphenated_option():
     comparison = "| Provider | Cost |\n|---|---|\n| G-P | S$40 |\n| ADP | S$30 |\n| Deel | S$45 |"
     recommendation = "Use G-P because it covers both entities with one contract, local payslips, statutory filings and a named account manager in each country."
-    assert research_checks.option_named(comparison, recommendation)
+    assert research_checks.option_named(comparison, recommendation)[0]
 
 
 def test_source_excerpts_give_the_judge_the_unit_and_period():
