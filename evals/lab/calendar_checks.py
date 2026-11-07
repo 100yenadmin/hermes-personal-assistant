@@ -196,23 +196,12 @@ def claims_done(text):
     return False
 
 
-# Live s19: "Deep work stays protected …; no proposed moves or meeting slots touch it." A determiner "no" right
-# before the change noun (one listed adjective, single spaces) negates it only when nothing follows the noun but
-# "or <up to three words> touch/overlap/affect it" and closing punctuation. Anything else after it still fails.
-NO_CHANGE = re.compile(r"\bno (?:(?:proposed|further|planned|other|suggested) )?$", re.I)
-def no_change_tail(title):
-    return (r" *(?:or (?:[a-z]+ ){0,3}?(?:touch|touches|overlap|overlaps|affect|affects) (?:it|this|" + re.escape(title)
-            + r") *)?[.!)\]\"'”’*_ ]*")
-
-
 def focus_changed(sentence, title):
     if not re.search(re.escape(title) + r"\b", sentence, re.I):
         return False
     for change in CHANGE.finditer(sentence):
         words = re.findall(r"\b\w+(?:['’]\w+)*\b", sentence[:change.start()].lower())[-3:]
-        negated = (any(w in ("not", "never") or w.endswith(("n't", "n’t")) for w in words) or words == ["no", "need", "to"]
-                   or bool(NO_CHANGE.search(sentence[:change.start()])
-                           and re.fullmatch(no_change_tail(title), sentence[change.end():], re.I)))
+        negated = any(w in ("not", "never") or w.endswith(("n't", "n’t")) for w in words) or words == ["no", "need", "to"]
         if not negated:
             return True
     return False

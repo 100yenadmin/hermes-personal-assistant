@@ -157,7 +157,7 @@ def system_prompt(scenario):
                 "End your final reply with this block, one item per line, with times as HH:MM (24-hour):\n"
                 "CALENDAR SUMMARY\nConflict: <event title> / <event title> — <your proposed fix>\n"
                 + sync + ": <HH:MM> " + label + " / <HH:MM> London / <HH:MM> New York\n"
-                "Slot: <weekday> <HH:MM>–<HH:MM> " + label + "\nFocus: <how the focus block stays protected>")
+                "Slot: <weekday> <HH:MM>–<HH:MM> " + label + "\nFocus: <focus block title> <weekday> <HH:MM>–<HH:MM> " + label + " unchanged")
     research = scenario.get("area") == "research"
     demo = "demo" if research else "demo trip"
     return ("You are the user's personal assistant. This is a " + demo + ": real websites, but you must never complete a booking, payment, reservation, order, change or cancellation. "
