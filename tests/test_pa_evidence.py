@@ -39,7 +39,7 @@ def time_records(root, week_ending="2026-10-21"):
 
 def test_record_defaults_and_duplicate(tmp_path):
     row = record(tmp_path)
-    assert row["started"] == datetime.now(timezone.utc).date().isoformat()
+    assert row["started"] == min(datetime.now(timezone.utc).date().isoformat(), "2026-11-01")  # the earlier of today and due
     assert re.fullmatch(r"va-task:compare-options-[0-9a-f]{6}-" + row["started"], row["identity"])
     assert row["status"] == "pending" and row["owner_accepted"] is None
     assert row["facts"] == [] and row["correction"] == "none" and row["cohort"] == "default"
