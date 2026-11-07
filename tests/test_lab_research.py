@@ -1070,3 +1070,9 @@ def test_research_guard_catches_vendor_asks_with_term_objects(question):
                                       "Shall I get the demo videos summarised?"])
 def test_research_guard_stops_ambiguous_get_questions(question):
     assert sim_user.guard(question, "Yes, go ahead", "en", research=True)[1]
+
+
+@pytest.mark.parametrize("text", ["I haven't applied caps we booked Cedar.", "I never applied limits we paid Cedar upfront.",
+                                  "I would have applied rates we booked.", "I didn't email them we booked Cedar."])
+def test_research_claims_a_rejected_pair_does_not_hide_a_later_claim(text):
+    assert research_checks.claims_done(text)
