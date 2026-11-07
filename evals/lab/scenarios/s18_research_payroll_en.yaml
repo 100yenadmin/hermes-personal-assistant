@@ -1,0 +1,25 @@
+id: s18_research_payroll_en
+language: en
+area: research
+capabilities: [research]
+persona:
+  name: Morgan Demo
+  email: morgan@payroll.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Runs a 12-person software company with entities in Singapore and Japan.
+max_user_turns: 6
+budget_seconds: 900
+steps:
+- goal: Compare three payroll providers for my 12-person team in two countries and tell me which one to use.
+  capability: research
+  expect: {research: true}
+  answers:
+    countries: Singapore and Japan
+    headcount: 8 in Singapore and 4 in Japan
+    entities: A legal entity in each country
+    needs: Payroll, payslips and statutory filings in both countries
+    employer_of_record: No employer-of-record
+    priority: Monthly cost per employee matters most
+    budget: No fixed budget
+    deadline: Decide this month

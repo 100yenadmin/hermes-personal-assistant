@@ -41,7 +41,7 @@ def test_built_archive_registers_and_exports(tmp_path):
         spec.loader.exec_module(module)
         module.register(ctx)
         assert {"pa", "pa_call"} <= tools.keys()
-        assert {"personal-assistant", "phone-calls", "answering-calls"} <= skills.keys()
+        assert {"personal-assistant", "phone-calls", "answering-calls", "research"} <= skills.keys()
         assert (package / "personal_assistant/calls.py").is_file()
         assert (package / "evals/call_sim/server.py").is_file()
         assert (package / "evals/call_sim/voice_check.py").is_file()
