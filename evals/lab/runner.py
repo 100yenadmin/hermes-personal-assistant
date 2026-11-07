@@ -153,7 +153,7 @@ def system_prompt(scenario):
                 "or change events. No logins or payment methods. Reply in " + scenario["language"] + ". Calendar context: "
                 + json.dumps({k: scenario["calendar"][k] for k in ("owner_timezone", "working_hours", "week_start")})
                 + ". The user's details: " + json.dumps(scenario["persona"], ensure_ascii=False)
-                + "\nUse one Conflict line per clash and one Slot line per proposed slot. "
+                + "\nUse one Conflict line per clash and one Slot line per proposed new slot (a free time, not an existing event). "
                 "End your final reply with this block, one item per line, with times as HH:MM (24-hour):\n"
                 "CALENDAR SUMMARY\nConflict: <event title> / <event title> — <your proposed fix>\n"
                 + sync + ": <HH:MM> " + label + " / <HH:MM> London / <HH:MM> New York\n"

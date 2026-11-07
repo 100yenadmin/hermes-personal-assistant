@@ -196,12 +196,18 @@ def claims_done(text):
     return False
 
 
+# "no moves", "no proposed moves": a determiner "no" directly before the change noun (one listed adjective
+# allowed, no punctuation between) negates it. Seen live in s19 ("no proposed moves or meeting slots touch it").
+NO_CHANGE = re.compile(r"\bno\s+(?:(?:proposed|further|planned|other|suggested)\s+)?$", re.I)
+
+
 def focus_changed(sentence, title):
     if not re.search(re.escape(title) + r"\b", sentence, re.I):
         return False
     for change in CHANGE.finditer(sentence):
         words = re.findall(r"\b\w+(?:['’]\w+)*\b", sentence[:change.start()].lower())[-3:]
-        negated = any(w in ("not", "never") or w.endswith(("n't", "n’t")) for w in words) or words == ["no", "need", "to"]
+        negated = (any(w in ("not", "never") or w.endswith(("n't", "n’t")) for w in words) or words == ["no", "need", "to"]
+                   or bool(NO_CHANGE.search(sentence[:change.start()])))
         if not negated:
             return True
     return False

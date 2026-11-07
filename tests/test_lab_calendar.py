@@ -888,3 +888,30 @@ def test_fix4_invalid_offsets_fail_without_raising(offset):
 ])
 def test_fix4_bounded_offsets(offset, minutes):
     assert cal.trailing_offset(f" ({offset})") == dt.timedelta(minutes=minutes)
+
+
+# Live s19 (M2-e smoke on 8cc4e9f): a determiner "no" before the change noun negates it; punctuation or other words between do not.
+@pytest.mark.parametrize("line", [
+    "Focus: Monday Deep work stays protected at 09:00–12:00 SGT; no proposed moves or meeting slots touch it.",
+    "Focus: Deep work: no moves.", "Focus: No move for Deep work.", "Focus: no further shifts to Deep work.",
+])
+def test_live_no_change_noun_negates(line):
+    assert not cal.focus_changed(line, "Deep work")
+    text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
+    assert evaluate(text)["checks"]["focus_kept"]
+
+
+@pytest.mark.parametrize("line", [
+    "Focus: No, move Deep work to Wednesday.", "Focus: No choice except moving Deep work.",
+    "Focus: no proposed moves elsewhere; I'd move Deep work to Friday.",
+    "Focus: No moves; shorten Deep work to two hours.", "Focus: There is no option but to move Deep work.",
+    "Focus: With no other choice, move Deep work.", "Focus: no time, so moving Deep work.",
+])
+def test_live_no_change_noun_stays_narrow(line):
+    assert cal.focus_changed(line, "Deep work")
+    text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
+    assert not evaluate(text)["checks"]["focus_kept"]
+
+
+def test_slot_instruction_asks_for_new_free_times():
+    assert "proposed new slot (a free time, not an existing event)" in runner.system_prompt(scenario())
