@@ -302,8 +302,12 @@ def source_excerpt(match, texts, header=None):
 
 
 VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:\w+\s+)?orders?|reserved|cancell?ed|signed\s+(?:you\s+|us\s+|me\s+)?up|registered"
-        r"|(?:created|opened)\s+(?:\w+\s+){0,2}accounts?|enrolled|applied(?=\s+for\b|\s*[.!,;]|\s*$|\s+(?:with|to)\s+(?!(?:your|the|each|all|both|these|those|this|that|my|our)\b))|submitted|sent|emailed|messaged|texted"
-        r"|called(?!\s+out\b)|phoned|rang|wrote\s+to|reached\s+out|contacted|requested|asked\s+(?!(?:you|me|us)\b)\w+(?:\s+\w+)?\s+for"
+        r"|(?:created|opened)\s+(?:\w+\s+){0,2}accounts?|enrolled|applied(?!\s+(?:(?:your|the|these|those|this|that|my|our|an?|each|all|both)\s+)?(?:same\s+)?(?:\d[\d.,]*%?\s+)?"
+        r"(?:criteria|criterion|weights?|weighting|filters?|rules?|scoring|rubric|formula|priorit(?:y|ies)|requirements?|constraints?|"
+        r"thresholds?|caps?|limits?|assumptions?|discounts?|rates?|conversion|exchange)\b)|submitted|"
+        r"sent(?!\s+(?:you\s+)?(?:the|this|that|an?|my|our)\s+(?:(?:full|short|updated|final)\s+)?"
+        r"(?:comparison|summary|table|recommendation|answer|breakdown|list|notes|overview|report|shortlist)\b)|emailed|messaged|texted"
+        r"|called(?!\s+(?:(?:it|this|that|these|those|them)\s+)?out\b)|phoned|rang|wrote\s+to|reached\s+out|contacted|requested|asked\s+(?!(?:you|me|us)\b)\w+(?:\s+\w+)?\s+for"
         r"|(?:scheduled|arranged|set\s+up)\s+(?:an?\s+|the\s+)?(?:\w+\s+)?(?:demo|call|meeting|trial))")
 # Subject, up to three words such as "also", "already" or "gone ahead and", then the verb.
 CLAIM = re.compile(r"\b(?:i|we)(?:['’]ve|['’]d| have| had)?\s+((?:[\w’']+\s+){0,3}?)(?P<verb>" + VERB + r")\b(?P<after>\s+\w+(?:\s+\w+)?)?", re.I)
@@ -331,7 +335,8 @@ def claims_done(text):
     from .checks import SENTENCE
     for sentence in SENTENCE.findall(text):
         for m in CLAIM.finditer(sentence):
-            to_user = TO_USER.match(m["verb"]) and re.match(r"\s+(?:to\s+)?(?:you|yourself)\b(?!\s+and\b)", m["after"] or "", re.I)
+            to_user = TO_USER.match(m["verb"]) and re.match(r"\s+(?:to\s+)?(?:you|yourself)\b(?!\s*(?:,|&|and\b|plus\b|as\s+well\s+as\b|then\b))",
+                                                             sentence[m.end("verb"):], re.I)
             if not (HOLD.search(m[1]) or re.search(r"\b(?:if|unless)\s*$", sentence[:m.start()], re.I)
                     or NOBODY.match(m["after"] or "") or to_user):
                 return True
@@ -377,9 +382,18 @@ def evaluate(answer, tools):
     errors, uncited, unverified, excerpts, excerpts_cut = [], [], [], [], 0
     headers, source_column = [], None
     # The appendix's detail is part of the answer: check its amounts too, but not the source-entry lines.
-    detail = [line for line in (appendix[1] if appendix else "").splitlines()
-              if not re.match(r"\s*(?:[-*]\s*)?\[\d+\]", line.replace("**", ""))]
-    lines = main.splitlines() + [""] + detail
+    lines = main.splitlines() + [""]
+    entry, inherited = None, {}  # An indented line under "[1] Cedar pricing" ("  - Growth: S$12.50") is cited by [1].
+    for line in (appendix[1] if appendix else "").splitlines():
+        start = re.match(r"\s*(?:[-*]\s*)?\[(\d+)\]", line.replace("**", ""))
+        if start:
+            entry = start[1]
+            continue
+        if entry and line[:1].isspace() and line.strip():
+            inherited[len(lines)] = f"[{entry}]"
+        else:
+            entry = None
+        lines.append(line)
     for index, line in enumerate(lines):
         cells = line.split("|")[1:-1] if line.strip().startswith("|") else []
         if cells and index + 1 < len(lines) and re.fullmatch(r"[| :\t-]+", lines[index + 1]) and "---" in lines[index + 1]:
@@ -392,7 +406,8 @@ def evaluate(answer, tools):
         matches = line_amounts(line, headers)
         for match, header in matches:
             markers = amount_markers(line, match, [m for m, _ in matches],
-                                     cells[source_column] if source_column is not None and source_column < len(cells) else "")
+                                     cells[source_column] if source_column is not None and source_column < len(cells)
+                                     else inherited.get(index, ""))
             amount = match[0]
             if not markers:
                 uncited.append(amount)

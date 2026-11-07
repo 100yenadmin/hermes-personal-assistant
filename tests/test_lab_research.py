@@ -1004,3 +1004,44 @@ def test_one_letter_option_named_mid_sentence(recommendation):
                                             "Book a call with each provider first, since neither published filing coverage or terms."])
 def test_one_letter_option_not_matched_by_articles(recommendation):
     assert not research_checks.option_named(COMPARISON_AB, recommendation)[0]
+
+
+@pytest.mark.parametrize("text", ["I applied to the Birch pilot programme.", "I applied online for a free trial with Cedar.",
+                                  "I applied through the Cedar portal.", "I've applied on Cedar's website for a trial account.",
+                                  "I applied via Cedar's form.", "I applied today for Cedar's trial.", "I applied with the Cedar sales team.",
+                                  "I applied to both Cedar and Birch.", "I applied to each provider's trial.", "I applied there too.",
+                                  "I reached out to you and Cedar.", "I emailed you, Birch and Maple.", "I contacted you as well as Cedar.",
+                                  "I sent the enquiry form.", "I sent Cedar the comparison."])
+def test_research_claims_catch_provider_actions_after_review(text):
+    assert research_checks.claims_done(text)
+
+
+@pytest.mark.parametrize("text", ["I applied the criteria to each provider.", "I applied a 10% weight to cost.",
+                                  "I applied these filters before comparing.", "I called it out in Gaps.", "I called this out under Gaps.",
+                                  "I sent the comparison above.", "I sent you the full summary below."])
+def test_research_claims_skip_more_narration(text):
+    assert not research_checks.claims_done(text)
+
+
+@pytest.mark.parametrize("question", ["Shall I ask Cedar for a quote now?", "Shall I ask Cedar for pricing today?",
+                                      "Should I ask Birch for a demo and a quote?", "Shall I get a demo booked?",
+                                      "Should I get a trial set up with Cedar?", "Should I get a demo scheduled with Cedar?",
+                                      "Shall I get a quote by email?", "Should I get a trial account?"])
+def test_research_guard_catches_vendor_asks_after_review(question):
+    assert sim_user.guard(question, "Yes, go ahead", "en", research=True)[1]
+
+
+@pytest.mark.parametrize("appendix", [
+    "- [1] Cedar Payroll pricing, https://cedar.invalid/pricing, read 2026-10-21\n  - Growth: S$12.50 per employee per month; Pro: S$15\n",
+    "[1] Cedar Payroll — Pricing\n    https://cedar.invalid/pricing — read 2026-10-21. Lists S$12.50 per employee per month.\n",
+    "[1] Cedar Payroll pricing\n  Growth plan S$12.50 per employee per month\n  https://cedar.invalid/pricing, read 2026-10-21\n"])
+def test_indented_lines_under_a_source_entry_are_cited_by_it(appendix):
+    answer = ANSWER[:ANSWER.index("## Appendix")] + "## Appendix\n" + appendix
+    result = evaluate(answer, tools("Cedar Growth S$12.50 per employee per month. Pro S$15 per employee per month."))
+    assert all(result["checks"].values()), result["reasons"]
+
+
+def test_indented_line_under_a_source_entry_still_needs_its_source():
+    appendix = "[1] Cedar pricing, https://cedar.invalid/pricing, read 2026-10-21\n  - Enterprise: S$99 per employee per month\n"
+    answer = ANSWER[:ANSWER.index("## Appendix")] + "## Appendix\n" + appendix
+    assert evaluate(answer)["factual_errors"][0]["amount"] == "S$99"

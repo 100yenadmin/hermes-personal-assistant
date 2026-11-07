@@ -19,7 +19,8 @@ APPROVE = re.compile(
     r"^\W*(?:네|예|좋아요|진행해|예약해|결제해|그렇게)|(?:예약|결제|주문|진행)해\s*주세요", re.I)
 
 
-_OBJECT_END = r"(?=\s*(?:from|for|with|on|to)\b|\s*[?.,;:!)]|\s*$)"
+_OBJECT_END = (r"(?!\s+(?:comparison|terms|length|details|table|summary|period|tiers?|videos?|options|info|information|pages?|"
+               r"links?|notes|figures|numbers|data|breakdown|matrix|overview|sheet|preferences|ceiling|range)\b)")
 # Research asks about scope ("shall I confirm the countries?", "proceed with the comparison?"); only a provider effect counts.
 _EFFECT = (r"(?:book|reserve|pay|purchase|buy|order|place|sign (?:you |us )?up|subscribe|submit|cancel|register|schedule|"
            r"create (?:an? |your |the )?(?:\w+ )?account|proceed with the (?:purchase|order|booking|payment|sign-?up)|"
