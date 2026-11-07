@@ -190,7 +190,7 @@ def test_create_draft_rejects_a_readback_that_is_not_a_draft(tmp_path):
 
 
 def test_stable_version_creates_and_requires_a_non_prerelease(tmp_path):
-    # 0.9.0 is the first stable release since 0.3.0: no --prerelease flag, and a prerelease draft is refused as edited metadata.
+    # 0.9.0 is the first stable GitHub release of this repository: no --prerelease flag, and a prerelease draft is refused as edited metadata.
     _, notes = assets(tmp_path, version="0.9.0")
     draft = release([], name="Personal Assistant v0.9.0", prerelease=False, tag_name="v0.9.0")
     with mock.patch.object(publish_release, "call") as create, \

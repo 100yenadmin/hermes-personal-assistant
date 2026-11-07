@@ -97,7 +97,7 @@ Optional features keep their own stores:
 - Daily Ops keeps `state/daily-ops/state.json`;
 - client sync keeps `clients.json`, with client names, emails and domains.
 
-Owner-memory and evidence records refuse recognised card numbers, credentials and labelled account numbers. Other ledger records pass a lighter filter that drops private fields and redacts some patterns. Both filters are pattern-based, not a guarantee. After you approve a setup review, the agent also writes your USER.md, a marked PA section of SOUL.md, a manual skill and any context file you named. That file can be outside the profile. A trip export writes `Trip.ics` and `Trip-Reference.md` to the folder you choose. Nothing is deleted automatically: "forget" retires a record, and disabling the plugin erases nothing.
+Owner-memory and evidence records refuse recognised card numbers, credentials and labelled account numbers. Most other ledger records pass a lighter filter that drops private fields and redacts some patterns. Approval records keep their metadata as given, for example an expected read-back reference. Both filters are pattern-based, not a guarantee. After you approve a setup review, the agent also writes your USER.md, a marked PA section of SOUL.md, a manual skill and any context file you named. That file can be outside the profile. A trip export writes `Trip.ics` and `Trip-Reference.md` to the folder you choose. Nothing is deleted automatically: "forget" retires a record, and disabling the plugin erases nothing.
 
 **Hooks.**
 - `pre_tool_call` sees every tool call. It blocks only a tool that a PA exact-action approval or the policy deny list covers. If the ledger cannot be opened, it also blocks most tools until storage is readable again.
@@ -106,27 +106,30 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
   - setup, mode and "grill me" routing;
   - a one-time fresh-session check;
   - active preferences;
-  - a note asking the agent to save a stated preference or correction in PA's owner memory instead of Hermes memory. On cron, subagent and unattended turns it adds nothing, except a note that cancels a Chief of Staff wake while that mode is off.
+  - a note asking the agent to save a stated preference or correction in PA's owner memory instead of Hermes memory.
 
-**Tools.** `pa` (ledger operations), `pa_call` (call cards, an offline brief compiler and a loopback simulator; nothing dials) and the `/pa` command. `pa_delivery_ack` registers only when conversation delivery is enabled.
+  On cron, subagent and unattended turns it adds nothing, except a note that cancels a Chief of Staff wake while that mode is off.
+
+**Tools.** `pa` (ledger operations), `pa_call` (call cards, an offline brief compiler and a loopback simulator; nothing dials) and the `/pa` command. `pa_delivery_ack` registers only when conversation delivery is enabled. Some skills also run PA's local ledger helper (`skills/travel-ledger/scripts/travel_ledger.py`) through the shell, for example for connectivity and payment-readiness records. It reads and writes the same profile ledger.
 
 **Reads outside the ledger, when you ask.**
 - During `/pa setup`, with your consent, the agent:
   - reads USER.md, SOUL.md, its memory, the calendar, past itineraries and a context file you name;
   - lists your cron jobs and skills;
   - for the "grill me" profile, reads up to 20 recent sent emails through a mail read path you have already authorised, to learn tone and key contacts. It stores no raw mail text.
+- Inbox and travel-mail work you ask for reads messages and their attachments through the mail integration your agent already has, and can write drafts in your mail provider. Sending is a separate action that needs your yes.
 - Trip import reads the `.ics` or guide file you give it.
-- Observer, precheck and mode reads use the profile's `config.yaml`.
+- Observer, precheck and mode reads use the profile's `config.yaml`. `/pa mode` also writes the plugin's mode setting there.
 - Read-only lookups use Hermes's kanban database and cron job and suggestion stores.
 
 **Network, only when you ask or opt in.**
 - **The provider sites you choose.** Errands drive Hermes's browser tools on the provider's own site, for example a restaurant, hotel, airline or delivery site. That can be the local browser, or `agent-browser` attached to a Browserbase session. If you give provider sign-in details in chat, the checkout skill saves them in the agent's credential lane and signed-in browser profile, where available.
-- **Browserbase** (`api.browserbase.com`): when you ask for a cloud browser session. It uses your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` from the profile's secret scope. Sessions are created with recording and logging off.
+- **Browserbase** (`api.browserbase.com`): only if it is configured. It is used when you ask for a cloud browser session, and the agent can also pick it during an errand you asked for, when a sign-in or verification step is likely or the site blocks the local browser. It uses your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` from the profile's secret scope. Sessions are created with recording and logging off.
 - **Google Calendar API:** `calendar_bind` checks the account and the destination calendar, and `calendar_sync` creates and updates PA's trip events in the one calendar you bind. Daily Ops only reads. It uses the profile's existing Google token file, `google_token.json`, from Hermes's Google Workspace sign-in. PA reads that file and refreshes the access token in memory, which contacts Google's token endpoint. It never starts a sign-in and never writes the file. (Moving this onto a plugin-declared OAuth client is tracked in #74.)
 - **Open-Meteo** (geocoding and forecasts): only after you accept a trip watch. It receives your departure airport or city, then coordinates. It can be set to `off`.
 - **ElevenLabs** (`api.elevenlabs.io`, read-only): only from the manual `python -m personal_assistant.phone_poll` command. That command reads `ELEVENLABS_API_KEY` from the shell you run it in.
 - **Daily Ops (opt-in):**
-  - mail and calendar reads through the `gog` CLI. Selected, redacted mail and calendar content goes to your configured model provider to write the brief, and the brief goes to your delivery target;
+  - mail and calendar reads through the `gog` CLI. Selected mail (subjects, senders, snippets) and calendar items go to your configured model provider to write the brief, with email addresses replaced by aliases. The brief goes to your delivery target;
   - OpenStreetMap Nominatim and OSRM through `curl`, only after you give geo consent;
   - client sync through the Stripe and Supabase CLIs, only after you give consent.
 

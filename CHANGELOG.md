@@ -4,7 +4,7 @@
 
 ## 0.9.0 — 2026-11-08
 
-The first stable release since 0.3.0. It contains every change in the 0.4.0 to 0.9.0 release candidates below, plus the first part of roadmap M2, "Measured" (#48): the tools that will measure PA against the VA bar.
+The first stable GitHub release of this repository. It contains every change in the 0.4.0 to 0.9.0 release candidates below, plus the first part of roadmap M2, "Measured" (#48): the tools that will measure PA against the VA bar.
 
 - **Real tasks become evidence (#67).** A new `evidence` operation (`pa(operation="evidence")`) records real owner tasks: area, title, start and due dates, outcome, the owner's acceptance, corrections and fact checks. It also records the owner's baseline week of minutes by task type and the day-30 answer: minutes now, and the task types the agent gets right first time.
   - Closing a task needs `closed_on`, the owner's local date, so a pass is never counted on time by mistake east of UTC.
