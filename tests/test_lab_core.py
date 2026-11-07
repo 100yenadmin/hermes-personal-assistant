@@ -1146,7 +1146,8 @@ def test_l26_times_next_to_japanese_text_still_match():
 def test_jsonl_lines_keep_unicode_line_separators(tmp_path):
     # Live s18 (M2-e smoke): a web page's text carried U+2028; str.splitlines() cut the record and crashed the run.
     path = tmp_path / "tools.jsonl"
-    rows = [{"name": "web_extract", "result": "Payroll pricing per employee\x85monthly\x0cfees"}, {"name": "next"}]
+    rows = [{"name": "web_extract", "result": "Payroll\u2028pricing"}, {"name": "x", "result": "per\u2029employee"},
+            {"name": "y", "result": "monthly\x85fees"}, {"name": "next"}]
     for row in rows:
         common.append(path, row)
     assert common.lines(path) == rows

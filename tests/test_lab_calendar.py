@@ -893,7 +893,7 @@ def test_fix4_bounded_offsets(offset, minutes):
 # Live s19 (M2-e smoke on 8cc4e9f): a determiner "no" before the change noun negates it; punctuation or other words between do not.
 @pytest.mark.parametrize("line", [
     "Focus: Monday Deep work stays protected at 09:00–12:00 SGT; no proposed moves or meeting slots touch it.",
-    "Focus: Deep work: no moves.", "Focus: No move for Deep work.", "Focus: no further shifts to Deep work.",
+    "Focus: Deep work: no moves.", "Focus: Deep work stays free; no moves or new slots overlap Deep work.",
 ])
 def test_live_no_change_noun_negates(line):
     assert not cal.focus_changed(line, "Deep work")
@@ -906,6 +906,14 @@ def test_live_no_change_noun_negates(line):
     "Focus: no proposed moves elsewhere; I'd move Deep work to Friday.",
     "Focus: No moves; shorten Deep work to two hours.", "Focus: There is no option but to move Deep work.",
     "Focus: With no other choice, move Deep work.", "Focus: no time, so moving Deep work.",
+    # Review of #80: exceptions, an unknown verb after the noun, and an interjection "no" must still fail.
+    "Focus: No proposed moves other than Deep work to Friday.", "Focus: No other moves besides Deep work to Thursday.",
+    "Focus: No further moves beyond Deep work to 14:00.", "Focus: Deep work has no other move except Friday 09:00.",
+    "Focus: No other moves needed; Deep work now starts at 10:00.", "Focus: With no other swaps possible, Deep work goes to Friday.",
+    "Focus: No move Deep work to Friday instead.", "Focus: no cancel Deep work.",
+    "Focus: No suggested shift: Deep work to Friday 09:00.", "Focus: No move for Deep work.",
+    "Focus: no\u2028move Deep work to Friday.", "Focus: no\tproposed moves for Deep work.",
+    "Focus: Deep work stays protected; no proposed moves or slots touch it, except moving Deep work.",
 ])
 def test_live_no_change_noun_stays_narrow(line):
     assert cal.focus_changed(line, "Deep work")
