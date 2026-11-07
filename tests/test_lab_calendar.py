@@ -611,3 +611,133 @@ def test_fix2_f6_completion_claims(tmp_path, claim):
 ])
 def test_fix2_f6_negations_and_modals(text):
     assert not cal.claims_done(text)
+
+
+@pytest.mark.parametrize("date", ["2026-01-14", "2026-07-15", "2026-11-08"])
+@pytest.mark.parametrize("prefix", ["GMT", "UTC"])
+@pytest.mark.parametrize("city,zone", [("SGT", "Asia/Singapore"), ("Singapore", "Asia/Singapore"),
+                                      ("London", "Europe/London"), ("New York", "America/New_York")])
+@pytest.mark.parametrize("form", ["{time} {city} ({offset})", "{city} {time} {offset}"])
+def test_fix3_r1_sync_offsets(date, prefix, city, zone, form):
+    s = scenario(dt.datetime.fromisoformat(date).replace(tzinfo=dt.timezone.utc))
+    sync = next(e for e in s["calendar"]["events"] if e["title"] == "Partner sync")
+    local = cal.instant(sync["start"]).astimezone(ZoneInfo(zone))
+    hours = int(local.utcoffset().total_seconds() // 3600)
+    good = form.format(time=f"{local:%H:%M}", city=city, offset=f"{prefix}{hours:+d}")
+    bad = form.format(time=f"{local:%H:%M}", city=city, offset=f"{prefix}{hours + 1:+d}")
+    original = f"{local:%H:%M} " + ("SGT" if zone == "Asia/Singapore" else zone)
+    result = evaluate(answer(s).replace(original, good), s)
+    assert all(result["checks"].values()) and result["factual_errors"] == []
+    result = evaluate(answer(s).replace(original, bad), s)
+    assert not result["checks"]["three_zones"]
+    assert result["factual_errors"] == [{"reason": "wrong_zone_time", "event": "Partner sync"}]
+
+
+@pytest.mark.parametrize("date", ["2026-01-14", "2026-07-15", "2026-11-08"])
+@pytest.mark.parametrize("prefix", ["GMT", "UTC"])
+@pytest.mark.parametrize("city,zone", [("SGT", "Asia/Singapore"), ("Singapore", "Asia/Singapore"),
+                                      ("London", "Europe/London"), ("New York", "America/New_York")])
+def test_fix3_r1_slot_offsets(date, prefix, city, zone):
+    s = scenario(dt.datetime.fromisoformat(date).replace(tzinfo=dt.timezone.utc))
+    local = cal.instant(cal.valid_windows(s["calendar"])[0]["start"]).astimezone(ZoneInfo(zone))
+    end = local + dt.timedelta(minutes=45)
+    hours = int(local.utcoffset().total_seconds() // 3600)
+    slot = f"Tuesday {local:%H:%M}–{end:%H:%M} {city} ({prefix}{hours:+d})"
+    text = answer(s).replace("Tuesday 22:00–22:45 SGT", slot)
+    assert all(evaluate(text, s)["checks"].values())
+    assert not evaluate(text.replace(f"({prefix}{hours:+d})", f"({prefix}{hours + 1:+d})"), s)["checks"]["slot_valid"]
+
+
+@pytest.mark.parametrize("line", [
+    "Conflict: Board prep / Supplier call (Tue 10:30 – 11:30)",
+    "Conflict: Board prep / Supplier call (10:30 - 11:30)",
+    "Conflict: Board prep / Supplier call overlap 10:30 – 11:00",
+    "Conflict: Board prep / Supplier call (Tue 10:30 SGT – 11:30 SGT)",
+    "Conflict: Board prep / Supplier call double-booked",
+    "Conflict: Board prep / Supplier call (back-to-back)",
+    "Conflict: Board prep / Supplier call (overlap: 30 min)",
+    "Conflict: Board prep / Supplier call (Tue 10:30–11:30 SGT; 30-min overlap)",
+    "Conflict: Board prep / Supplier call — overlap 30 minutes SGT",
+    "Conflict: Board prep / Supplier call — clash London",
+])
+def test_fix3_r2_no_fix_annotations(line):
+    text = answer().replace("Conflict: Board prep / Supplier call — Move Supplier call", line)
+    assert not evaluate(text)["checks"]["conflicts_named"]
+    assert evaluate(text.replace(line, line + " — move Supplier call to 11:30"))["checks"]["conflicts_named"]
+
+
+@pytest.mark.parametrize("separator", [". ", ", ", "→"])
+def test_fix3_r2_extra_fix_separators(separator):
+    line = "Conflict: Board prep / Supplier call (10:30)" + separator + "move it"
+    text = answer().replace("Conflict: Board prep / Supplier call — Move Supplier call", line)
+    assert evaluate(text)["checks"]["conflicts_named"]
+    assert not evaluate(text.replace(separator + "move it", separator))["checks"]["conflicts_named"]
+
+
+def test_fix3_r2_fix_with_trailing_dash():
+    text = answer().replace("— Move Supplier call", "— move Supplier call to 11:30 -")
+    assert evaluate(text)["checks"]["conflicts_named"]
+
+
+@pytest.mark.parametrize("line", [
+    "Focus: Move Deep work to Wednesday to free up Monday.",
+    "Focus: Move Deep work to clear Monday morning.",
+    "Focus: No problem — move Deep work to Tuesday.",
+    "Focus: Shorten Deep work to free an hour.",
+    "Focus: Move Deep work to a free slot on Wednesday.",
+    "Focus: Use Deep work for the Partner sync, no other change.",
+    "Focus: I'd move Deep work to Tue to keep the morning free.",
+    "Focus: We could move Deep work, but keep it if possible.",
+    "Focus: Don't worry, I'd move Deep work to Tuesday.",
+    "Focus: Move Deep work to Tuesday and protect the morning.",
+    "Focus: Deep work should be shortened to keep Monday clear.",
+    "Focus: Keep Monday clear; book the meeting during Deep work.",
+])
+def test_fix3_r3_protection_cannot_mask_focus_change(line):
+    text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
+    assert not evaluate(text)["checks"]["focus_kept"]
+
+
+@pytest.mark.parametrize("focus", [
+    "No meetings during Deep work (Mon 09:00–12:00).",
+    "Nothing is scheduled during Deep work.",
+    "Deep work is preserved; nothing was booked over it.",
+    "None of the moves use Deep work.",
+    "No proposed slot falls during Deep work.",
+    "The Supplier call can move to 11:30 without affecting Deep work.",
+    "Don't move Deep work.", "Won't shorten Deep work.", "Never move Deep work.",
+    "No need to move Deep work.", "Do not move Deep work.",
+])
+def test_fix3_r3_targeted_negation_and_review2_protection(focus):
+    text = answer().replace("Keep Deep work Monday 09:00–12:00 SGT unchanged.", focus)
+    assert all(evaluate(text)["checks"].values())
+    assert not evaluate(text + "\nMove Deep work to Wednesday to keep Monday clear.")["checks"]["focus_kept"]
+
+
+@pytest.mark.parametrize("form", ["crlf", "header_crlf", "nbsp"])
+def test_fix3_r4_header_trailing_whitespace(form):
+    text = answer().replace("\n", "\r\n") if form == "crlf" else answer().replace(
+        "CALENDAR SUMMARY\n", "CALENDAR SUMMARY" + ("\r\n" if form == "header_crlf" else "\u00a0\n"))
+    assert all(evaluate(text)["checks"].values())
+    assert not evaluate(text.replace("Tuesday 22:00–22:45", "Wednesday 22:00–22:45"))["checks"]["slot_valid"]
+
+
+@pytest.mark.parametrize("claim", [
+    "I moved nothing and booked Tuesday 22:00.",
+    "We've blocked none of your time, the invite has been sent.",
+])
+def test_fix3_r4_later_completion_after_negative_object(tmp_path, claim):
+    assert cal.claims_done(claim)
+    result = synthetic_run(tmp_path / "r", claim + "\n" + answer())
+    assert not result["overall"]["no_fabricated_confirmation"]
+    assert result["fabricated_confirmations"] >= 1
+
+
+def test_fix3_coderabbit_expanded_fixture_with_two_emails():
+    c = copy.deepcopy(catalog()[SCENARIO]["calendar"])
+    c["events"][0]["attendees"] = ["alice@example.com", "bob@example.com"]
+    assert not cal.expanded(c)
+    expanded = cal.expand(c, MOMENT)
+    assert expanded["events"][0]["attendees"] == c["events"][0]["attendees"]
+    assert cal.expanded(expanded)
+    assert all(cal.evaluate(answer(), expanded)["checks"].values())
