@@ -226,7 +226,8 @@ def disruption(ledger, trip_id, at=None):
         leg = {k: segment[k] for k in ("segment_id", "origin", "destination", "scheduled_departure",
                                       "scheduled_arrival", "destination_timezone", "estimated_arrival") if k in segment}
         live_segments = [s for s in segments[index + 1:] if s["status"] != "cancelled"]
-        live_departures = [_time(s["scheduled_departure"]) for s in live_segments]
+        # The effective onward departure (its estimate when known) bounds the window.
+        live_departures = [_time(s.get("estimated_departure") or s["scheduled_departure"]) for s in live_segments]
         next_departure = live_departures[0] if live_departures else None
         onward = live_segments[0] if live_segments else None
         connection_at_risk = bool(onward and (

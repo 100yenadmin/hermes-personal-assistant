@@ -375,6 +375,16 @@ def test_onward_estimated_departure_prevents_false_missed_connection(ledger):
     assert result["affected"] == []
 
 
+def test_booking_before_a_late_onward_estimate_is_still_checked(ledger):
+    flight(ledger, destination="ITM", estimated_arrival="2026-11-10T14:00:00Z")
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", "origin": "ITM",
+        "scheduled_departure": "2026-11-10T13:00:00Z", "estimated_departure": "2026-11-10T15:00:00Z",
+        "scheduled_arrival": "2026-11-10T16:00:00Z"}], source="user")
+    booking(ledger, "transfer", "2026-11-10T14:00:00Z")
+    booking(ledger, "dinner", "2026-11-10T18:00:00Z")
+    affected = {item["booking_action_id"]: item["reason"] for item in read(ledger)["affected"]}
+    assert set(affected) == {"transfer"} and affected["transfer"] in {"unreachable", "tight"}
+
 def test_concierge_disruption_trigger_includes_reschedules():
     from pathlib import Path
     skill = (Path(__file__).resolve().parents[1] / "skills/trip-concierge/SKILL.md").read_text()
