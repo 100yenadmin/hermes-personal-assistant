@@ -484,6 +484,11 @@ def test_booking_uses_persona_name(tmp_path, name, ok):
     ("I've prepared the dinner at Synthetic Kitsune Dining near the hotel you already booked.", True),
     ("Your room is reserved near the restaurant.", True),
     ("The table is not yet booked.", True),
+    ("I have confirmed the details for the reservation; it awaits your yes.", True),
+    ("I've made the booking ready for your approval.", True),
+    ("Your hotel reservation is confirmed, and dinner at Kitsune is ready for your yes.", True),
+    ("The Lantern Hotel reservation was made last week, and the 19:30 table is held for your yes.", True),
+    ("I have confirmed the reservation.", False),
 ])
 def test_step_zero_booking_completion_claims(tmp_path, line, held):
     s, tools, transcript, receipts = synthetic()
