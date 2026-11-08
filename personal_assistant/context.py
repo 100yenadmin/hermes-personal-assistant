@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import sqlite3
 from typing import Any, Callable
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .profile import KINDS as _PROFILE_TYPES
 from .evidence import EVIDENCE_TYPES
 
@@ -14,6 +16,11 @@ MAX_STRING_CHARS = 2000
 MAX_GUIDE_CHARS = 4000
 _COMMITMENT_TYPES = {"commitment", "transaction", "refund", "return"}
 _KANBAN_DONE = {"done", "archived"}
+LOOP_KINDS = {"ask_owner", "delegated", "our_promise", "waiting_on_them"}
+NEXT_ACTORS = {"owner", "us", "them"}
+CHASE_LADDER = (("day2", 2), ("day5", 5), ("day10", 10), ("escalate", 11))
+MAX_CHASE_LOG = 10
+_LOOP_SUMMARY = ("loop_kind", "counterparty", "next_actor", "opened_at", "next_step", "last_chased_at", "confirmation")
 
 
 def _paging(data: dict[str, Any]) -> tuple[int, int]:
@@ -81,7 +88,110 @@ def _action_summary(row: dict[str, Any]) -> dict[str, Any]:
         "title": fields.get("title") or fields.get("summary"),
         "due_at": fields.get("due_at"), "next_action": fields.get("next_action"),
         "kanban_task_id": fields.get("kanban_task_id"), "updated_at": row.get("updated_at"),
+        **({key: fields.get(key) for key in _LOOP_SUMMARY} if fields.get("loop_kind") else {}),
     }
+
+
+def loop_fields(fields: dict[str, Any]) -> dict[str, Any]:
+    """Validate open-loop enums on write and keep only the latest chase_log entries."""
+
+    if not isinstance(fields, dict):
+        return fields
+    if "loop_kind" in fields and fields["loop_kind"] not in LOOP_KINDS:
+        raise ValueError("loop_kind must be ask_owner, delegated, our_promise or waiting_on_them")
+    if "next_actor" in fields and fields["next_actor"] not in NEXT_ACTORS:
+        raise ValueError("next_actor must be owner, us or them")
+    if "confirmation" in fields and not isinstance(fields["confirmation"], dict):
+        raise ValueError("confirmation must be an object with by, at and evidence")
+    if isinstance(fields.get("chase_log"), list):
+        fields = {**fields, "chase_log": fields["chase_log"][-MAX_CHASE_LOG:]}
+    return fields
+
+
+def owner_zone(ledger) -> dt.tzinfo:
+    """The profile timezone that quiet hours and briefs use; UTC when unset."""
+
+    name = ((ledger.get("action", "pa:preferences") or {}).get("fields") or {}).get("timezone")
+    try:
+        return ZoneInfo(name) if name else dt.timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        return dt.timezone.utc
+
+
+def evaluation_moment(data: dict[str, Any]) -> dt.datetime:
+    at = data.get("at")
+    if not at:
+        return dt.datetime.now(dt.timezone.utc)
+    moment = dt.datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+    if moment.tzinfo is None:
+        raise ValueError("at must be a timezone-aware timestamp")
+    return moment
+
+
+def local_time(value: Any, zone: dt.tzinfo) -> dt.datetime | None:
+    """An ISO timestamp or date in ``zone``; a naive value is read as owner-local."""
+
+    try:
+        parsed = dt.datetime.fromisoformat(str(value or "").strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=zone)).astimezone(zone)
+
+
+def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.datetime,
+               zone: dt.tzinfo) -> dict[str, Any]:
+    """Chase ladder on owner-local calendar days from opened_at: day 2, 5, 10, then escalate.
+
+    A chase recorded in ``last_chased_at`` completes every chase step due by its local date.
+    Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
+    """
+
+    today = moment.astimezone(zone).date()
+    opened = local_time(fields.get("opened_at"), zone) or local_time(created_at, zone)
+    if opened is None:
+        return {"step": "none", "next_chase_at": None, "age_days": None, "escalated": False}
+    chased = local_time(fields.get("last_chased_at"), zone)
+    log = fields.get("chase_log") if isinstance(fields.get("chase_log"), list) else []
+    escalated = any(isinstance(entry, dict) and entry.get("step") == "escalate" for entry in log)
+    pending = []
+    for step, days in CHASE_LADDER:
+        due = opened.date() + dt.timedelta(days=days)
+        done = escalated or (step != "escalate" and chased is not None and chased.date() >= due)
+        if not done:
+            pending.append((step, due))
+    due_now = [entry for entry in pending if entry[1] <= today]
+    target = due_now[-1] if due_now else (pending[0] if pending else None)
+    step = due_now[-1][0] if due_now else "none"
+    next_at = dt.datetime.combine(target[1], dt.time(), zone) if target else None
+    snoozed = local_time(fields.get("snoozed_until"), zone) if fields.get("snoozed_until") else None
+    if snoozed and snoozed > moment:
+        step, next_at = "none", max(next_at, snoozed) if next_at else None
+    return {"step": step, "next_chase_at": next_at.isoformat() if next_at else None,
+            "age_days": (today - opened.date()).days, "escalated": escalated}
+
+
+def _confirmed(fields: dict[str, Any]) -> bool:
+    confirmation = fields.get("confirmation")
+    return isinstance(confirmation, dict) and bool(confirmation.get("by")) and bool(confirmation.get("evidence"))
+
+
+def _loop_step(fields: dict[str, Any], item: dict[str, Any]) -> str | None:
+    who = fields.get("counterparty") or "the other side"
+    step = item["chase"]["step"]
+    if item["loop_state"] == "done_unconfirmed":
+        return (f"Kanban or status shows done, but {who} has not confirmed; ask for confirmation and "
+                "record fields.confirmation {by, at, evidence} before treating the loop as closed.")
+    if step == "escalate":
+        return ("Escalate to the owner with problem, options (2-3), recommendation and decision_deadline; "
+                "load personal-assistant:follow-through.")
+    if step == "none":
+        return None
+    how = {"them": f"draft a nudge to {who} and hold it for the owner's yes",
+           "us": "do our next step now, or tell the owner it has slipped"}.get(
+        fields.get("next_actor"), "remind the owner of the open ask")
+    planned = fields.get("next_step") or fields.get("next_action")
+    return (f"Chase {step}: {how}; then record last_chased_at and chase_log."
+            + (f" Next step: {planned}" if planned else ""))
 
 
 def status_snapshot(ledger, data: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -198,22 +308,33 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
     data = data or {}
     limit, offset = _paging(data)
     reader = kanban_reader or read_kanban_task
+    moment, zone = evaluation_moment(data), owner_zone(ledger)
+    loops_only = data.get("loops_only") is True
     candidates = []
     excluded_completed = 0
     excluded_terminal_unlinked = 0
+    excluded_closed_loops = 0
     for action in ledger.list("action"):
         if action.get("action_type") not in _COMMITMENT_TYPES:
             continue
         if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
             continue
         fields = action.get("fields", {})
+        loop = fields.get("loop_kind") in LOOP_KINDS
+        if loops_only and not loop:
+            continue
         task_id = fields.get("kanban_task_id")
         kanban = reader(task_id, fields.get("kanban_board"))
-        if kanban.get("status") in _KANBAN_DONE:
+        status = action.get("status")
+        if loop:
+            # Only the other side's confirmation closes a loop; an owner cancellation withdraws it.
+            if _confirmed(fields) or status == "cancelled":
+                excluded_closed_loops += 1
+                continue
+        elif kanban.get("status") in _KANBAN_DONE:
             excluded_completed += 1
             continue
-        status = action.get("status")
-        if not task_id and status in {"completed", "confirmed", "failed", "cancelled"}:
+        elif not task_id and status in {"completed", "confirmed", "failed", "cancelled"}:
             excluded_terminal_unlinked += 1
             continue
         item = _action_summary(action)
@@ -239,13 +360,23 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             item["next_step"] = "Present the current material details for explicit confirmation."
         elif status == "authorized":
             item["next_step"] = "Recheck details, then claim immediately before one provider submission."
-        elif status in {"confirmed", "failed"}:
+        elif status in {"confirmed", "failed"} and not loop:
             item["next_step"] = "Reconcile the provider result with the linked Kanban commitment."
         else:
-            item["next_step"] = fields.get("next_action") or fields.get("blocked_reason") or "Review current source facts and choose one action."
+            item["next_step"] = (fields.get("next_action") or (loop and fields.get("next_step"))
+                                 or fields.get("blocked_reason") or "Review current source facts and choose one action.")
+        if loop:
+            done = kanban.get("status") in _KANBAN_DONE or status in {"completed", "confirmed"}
+            item["loop_state"] = "done_unconfirmed" if done else "open"
+            item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
+            guidance = None if status == "paused" or stale else _loop_step(fields, item)
+            if guidance:
+                item["next_step"] = guidance
         candidates.append(item)
     candidates.sort(key=lambda row: (row.get("due_at") is None, row.get("due_at") or "", row["action_id"]))
     page = _page(candidates, limit, offset)
     return {"candidates": page.pop("items"), "excluded_completed": excluded_completed,
-            "excluded_terminal_unlinked": excluded_terminal_unlinked, **page,
+            "excluded_terminal_unlinked": excluded_terminal_unlinked,
+            "excluded_closed_loops": excluded_closed_loops, **page,
+            "owner_timezone": str(zone),
             "commitment_authority": "native Hermes Kanban; unknown when readback is unavailable"}

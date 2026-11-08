@@ -1,3 +1,4 @@
+import datetime as dt
 import sqlite3
 import sys
 import tempfile
@@ -7,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from personal_assistant.context import next_actions, read_kanban_task, retrieve, status_snapshot
+from personal_assistant.entry import dispatch
 from personal_assistant.state import Ledger
 from personal_assistant.trips import import_trip
 
@@ -125,6 +127,128 @@ class ContextTests(unittest.TestCase):
             self.assertIn("do not execute now", by_id["paused"]["next_step"])
             self.assertIn("do not execute now", by_id["snoozed"]["next_step"])
             self.assertEqual(result["excluded_terminal_unlinked"], 1)
+
+
+AT = "2026-11-20T10:00:00+09:00"
+UNKNOWN = {"status": "unknown", "evidence": "fixture adapter unavailable"}
+
+
+def _loop(ledger, action_id, age_days, **fields):
+    opened = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=age_days)).isoformat()
+    ledger.put("action", action_id, {"title": action_id, "loop_kind": "waiting_on_them", "counterparty": "Landlord",
+                                     "next_actor": "them", "opened_at": opened, **fields}, action_type="commitment")
+
+
+class OpenLoopTests(unittest.TestCase):
+    def _read(self, ledger, states=None, **data):
+        return next_actions(ledger, {"at": AT, "limit": 20, **data},
+                            kanban_reader=lambda task_id, board: (states or {}).get(task_id, UNKNOWN))
+
+    def test_chase_ladder_steps_by_age_in_owner_timezone(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"}, action_type="preferences")
+            for age in (1, 2, 5, 10, 11):
+                _loop(ledger, f"loop-{age:02d}", age)
+            result = self._read(ledger, loops_only=True)
+            steps = {item["action_id"]: item["chase"]["step"] for item in result["candidates"]}
+            self.assertEqual(steps, {"loop-01": "none", "loop-02": "day2", "loop-05": "day5",
+                                     "loop-10": "day10", "loop-11": "escalate"})
+            by_id = {item["action_id"]: item for item in result["candidates"]}
+            self.assertEqual(by_id["loop-01"]["chase"]["age_days"], 1)
+            self.assertEqual(by_id["loop-01"]["chase"]["next_chase_at"], "2026-11-21T00:00:00+09:00")
+            self.assertEqual(result["owner_timezone"], "Asia/Tokyo")
+            self.assertIn("hold it for the owner's yes", by_id["loop-05"]["next_step"])
+            self.assertIn("decision_deadline", by_id["loop-11"]["next_step"])
+
+    def test_age_counts_owner_local_days(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"}, action_type="preferences")
+            # 23:30 Tokyo two days earlier is 14:30 UTC; local days give day2, UTC hours alone would not.
+            _loop(ledger, "late-evening", 0, opened_at="2026-11-18T14:30:00+00:00")
+            item = self._read(ledger, loops_only=True)["candidates"][0]
+            self.assertEqual((item["chase"]["age_days"], item["chase"]["step"]), (2, "day2"))
+
+    def test_recorded_chase_moves_the_step_on(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            chased = (dt.datetime.fromisoformat(AT) - dt.timedelta(hours=1)).isoformat()
+            _loop(ledger, "chased-day5", 5, last_chased_at=chased,
+                  chase_log=[{"at": chased, "step": "day5", "how": "nudge draft approved"}])
+            _loop(ledger, "chased-day2-only", 6,
+                  last_chased_at=(dt.datetime.fromisoformat(AT) - dt.timedelta(days=4)).isoformat())
+            _loop(ledger, "escalated", 12, last_chased_at=chased,
+                  chase_log=[{"at": chased, "step": "escalate", "how": "packet in brief"}])
+            by_id = {item["action_id"]: item["chase"] for item in self._read(ledger)["candidates"]}
+            self.assertEqual(by_id["chased-day5"]["step"], "none")
+            self.assertEqual(by_id["chased-day5"]["next_chase_at"], "2026-11-25T00:00:00+00:00")
+            self.assertEqual(by_id["chased-day2-only"]["step"], "day5")
+            self.assertEqual((by_id["escalated"]["step"], by_id["escalated"]["escalated"]), ("none", True))
+            self.assertIsNone(by_id["escalated"]["next_chase_at"])
+
+    def test_snooze_holds_the_ladder(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            _loop(ledger, "snoozed", 5, snoozed_until="2026-11-22T09:00:00+00:00")
+            chase = self._read(ledger)["candidates"][0]["chase"]
+            self.assertEqual((chase["step"], chase["next_chase_at"]), ("none", "2026-11-22T09:00:00+00:00"))
+
+    def test_only_confirmation_closes_a_loop(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            _loop(ledger, "done-unconfirmed", 3, kanban_task_id="done-task")
+            _loop(ledger, "completed-unconfirmed", 3, status_note="no reply")
+            ledger.put("action", "completed-unconfirmed", {}, status="completed")
+            _loop(ledger, "confirmed", 3, kanban_task_id="done-task2",
+                  confirmation={"by": "Landlord", "at": AT, "evidence": "email reply read back"})
+            _loop(ledger, "withdrawn", 3)
+            ledger.put("action", "withdrawn", {}, status="cancelled")
+            ledger.put("action", "plain-done", {"kanban_task_id": "done-task3"}, action_type="commitment")
+            states = {f"done-task{n}": {"status": "done", "evidence": "fixture"} for n in ("", "2", "3")}
+            result = self._read(ledger, states)
+            by_id = {item["action_id"]: item for item in result["candidates"]}
+            self.assertEqual(set(by_id), {"done-unconfirmed", "completed-unconfirmed"})
+            self.assertEqual(by_id["done-unconfirmed"]["loop_state"], "done_unconfirmed")
+            self.assertEqual(by_id["done-unconfirmed"]["commitment_status"], "done")
+            self.assertEqual(by_id["completed-unconfirmed"]["loop_state"], "done_unconfirmed")
+            self.assertIn("record fields.confirmation", by_id["done-unconfirmed"]["next_step"])
+            self.assertEqual((result["excluded_closed_loops"], result["excluded_completed"]), (2, 1))
+
+    def test_non_loop_commitments_are_unchanged(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "r7-renewal", {"title": "Renew insurance", "due_at": "2026-11-25",
+                                                "next_action": "Decide renew or cancel", "kanban_task_id": "t1"},
+                       action_type="commitment")
+            ledger.put("action", "r5-done", {"kanban_task_id": "t2"}, action_type="commitment")
+            _loop(ledger, "a-loop", 2)
+            result = self._read(ledger, {"t1": {"status": "ready", "evidence": "fixture"},
+                                         "t2": {"status": "done", "evidence": "fixture"}})
+            plain = next(item for item in result["candidates"] if item["action_id"] == "r7-renewal")
+            self.assertEqual(plain["next_step"], "Decide renew or cancel")
+            self.assertNotIn("chase", plain)
+            self.assertNotIn("loop_kind", plain)
+            self.assertEqual(result["excluded_completed"], 1)
+            only = self._read(ledger, {"t1": {"status": "ready", "evidence": "fixture"}}, loops_only=True)
+            self.assertEqual([item["action_id"] for item in only["candidates"]], ["a-loop"])
+
+    def test_upsert_validates_loop_enums_and_bounds_chase_log(self):
+        with tempfile.TemporaryDirectory() as root:
+            log = [{"at": f"2026-11-{day:02d}T09:00:00+00:00", "step": "day2", "how": "reminder"} for day in range(1, 16)]
+            saved = dispatch(root, {"operation": "action_upsert", "data": {
+                "action_id": "ask-1", "action_type": "commitment", "fields": {
+                    "loop_kind": "ask_owner", "counterparty": "owner", "next_actor": "owner",
+                    "opened_at": "2026-11-01T09:00:00+00:00", "next_step": "Book once the owner picks a date",
+                    "chase_log": log}}})
+            self.assertEqual(len(saved["fields"]["chase_log"]), 10)
+            self.assertEqual(saved["fields"]["chase_log"][-1], log[-1])
+            for bad in ({"loop_kind": "someday"}, {"next_actor": "anyone"}, {"confirmation": "yes"}):
+                with self.subTest(bad=bad), self.assertRaises(ValueError):
+                    dispatch(root, {"operation": "action_upsert", "data": {
+                        "action_id": "ask-2", "action_type": "commitment", "fields": bad}})
+            listed = dispatch(root, {"operation": "next_action", "data": {"loops_only": True, "at": AT}})
+            self.assertEqual(listed["candidates"][0]["loop_kind"], "ask_owner")
 
 
 if __name__ == "__main__":
