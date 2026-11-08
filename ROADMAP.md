@@ -254,7 +254,7 @@ its own open asks as "unknown".
   - a deliberately broken routine is caught within one cycle;
   - at least two SOP improvements are recorded.
 
-### M4: Runs the inbox and calendar (target 0.12.0)
+### M4: Runs the inbox and calendar (target 0.11.0, shipped with M3)
 
 **Why.** The inbox and calendar take up most of a VA's day, and a Chief of Staff
 needs both.
@@ -279,7 +279,7 @@ needs both.
   digest is delivered, an owner-approved draft in the owner's voice is sent, and
   an invite is sent.
 
-### M5: Finishes the job: transactions, calls and vendors (target 0.13.0)
+### M5: Finishes the job: transactions, calls and vendors (target 0.12.0)
 
 **Why.** A VA finishes errands. PA still stops at the handoff.
 
