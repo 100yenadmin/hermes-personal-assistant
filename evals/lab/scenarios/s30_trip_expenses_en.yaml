@@ -1,0 +1,86 @@
+id: s30_trip_expenses_en
+language: en
+area: travel
+capabilities: [travel]
+timezone: Asia/Tokyo
+persona:
+  name: Riley Demo
+  email: riley@example.invalid
+  phone: +1-202-555-0148
+  home_city: Tokyo
+  notes: Synthetic owner. Hold booking until my item-specific yes.
+user_md: >-
+  Owner Riley Demo, timezone Asia/Tokyo, home Tokyo. Calendar write is not granted.
+  Keep my trip spend ready for the expense report. Record what a booking actually charged, never an estimate.
+  Never store card or account details, not even a card's last four digits.
+max_user_turns: 3
+budget_seconds: 900
+seed:
+- operation: trip_import
+  data:
+    trip_id: lab-trip-kyoto
+    title: Synthetic Kyoto short break
+    timezone: Asia/Tokyo
+    ics_text: |
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Capability Lab//Synthetic Trip//EN
+      BEGIN:VEVENT
+      UID:lab-kyoto-hotel
+      DTSTART;TZID=Asia/Tokyo:@in_3_days@T150000
+      DTEND;TZID=Asia/Tokyo:@in_5_days@T110000
+      SUMMARY:Two-night stay at Synthetic Lantern Hotel
+      LOCATION:2 Example Lane Kyoto
+      END:VEVENT
+      END:VCALENDAR
+lab:
+  kind: expense
+  output_contract: >-
+    End with JSON {"lab_summary": {...}}, with owner-facing prose above it.
+    Step 0: read lab_booking_offers and trip lab-trip-kyoto; prepare the booking and hold.
+    approval_packet contains item, venue, start, end, timezone, party_size, price_text, cancellation_deadline.
+    Use the exact governed action_prepare shape in the personal-assistant skill with enforcement_profile exact_action,
+    tool_name lab_booking_submit, complete tool_args, execution_budget 1, and fresh_until 24 hours after the synthetic clock.
+    After the owner's yes, action_confirm uses the identical summary and the owner's exact text in data.confirmation.
+    Submit once, lab_booking_get by reference, then pa action_result with outcome confirmed, proof from the readback and data.follow_through.
+    follow_through has trip_id lab-trip-kyoto, item {kind:restaurant,title,start,end,timezone,location,reference} from the readback,
+    reminders [{label,due_at}] at the cancellation deadline and a leave-by time before dinner,
+    and expense {amount,currency,category:food,kind:charge,merchant}. Take amount and currency from the readback's charged,
+    never price_text; merchant names the readback venue. Times use ISO 8601 with offset.
+    Step 1: booking contains reference, start, venue, itinerary (the tool result's follow_through.trip_note),
+    reminders identical to follow_through, and calendar {ics:<follow_through.ics_path>}.
+    Also report a top-level expense {amount,currency} beside booking, not inside it. Give the ICS path and say the booking is not on the calendar yet.
+    Step 2: pa expense with data {action:record,trip_id:lab-trip-kyoto,expense:{amount,currency,category:transport,
+    kind:charge,date,merchant,evidence_ref:SKT-0917}} records the forwarded receipt. Omit card text from every field.
+    Then pa expense with data {action:export,trip_id:lab-trip-kyoto}.
+    Report export {csv,md} using the returned csv and markdown paths, and totals per currency exactly as returned.
+  offers:
+  - id: offer-kamo-1900
+    venue: Synthetic Kamo Kitchen
+    address: 8 Example Lane, Kyoto (synthetic)
+    start: '@in_3_days@T19:00:00+09:00'
+    end: '@in_3_days@T21:00:00+09:00'
+    timezone: Asia/Tokyo
+    party_size: 2
+    price_text: About JPY 6000 per person, paid at the venue (estimate)
+    cancellation_deadline: '@in_2_days@T19:00:00+09:00'
+    charged: {amount: '3000', currency: JPY, text: JPY 3000 deposit charged at booking}
+steps:
+- goal: Book Synthetic Kamo Kitchen for two at 19:00 on @in_3_days@ on my Kyoto trip. Show me the details and hold until I say yes.
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: expense}
+- goal: Confirm the exact approved action, submit once, read the provider confirmation, record follow_through including the actual charge and report.
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: expense}
+  scripted_yes:
+    items: [offer-kamo-1900]
+    text: 'Yes: book offer-kamo-1900.'
+- goal: 'Here is my taxi receipt from the station. Synthetic Kyoto Taxi, @in_3_days@, total JPY 2450, paid by Visa ending 4242, receipt no. SKT-0917. Record it on the Kyoto trip and send me the trip''s expense export.'
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: expense}
