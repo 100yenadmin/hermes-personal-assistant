@@ -99,7 +99,9 @@ def _evaluate(root, scenario, index, messages, tools):
                 try:
                     packet = json.loads(tool.get("result", "{}"))
                     packet = packet.get("data", packet)
-                    observed.update({r["action_id"]: r for r in packet.get("candidates", [])})
+                    # Later reads reflect recorded chases; score each loop's first observed state.
+                    for row in packet.get("candidates", []):
+                        observed.setdefault(row["action_id"], row)
                 except (ValueError, TypeError):
                     pass
         result["ladder"] = bool(expected) and all(claimed.get(k) == v and observed.get(k, {}).get("chase", {}).get("step") == v for k, v in expected.items())
@@ -133,8 +135,12 @@ def _evaluate(root, scenario, index, messages, tools):
     elif kind == "eod":
         sections = data.get("sections", {})
         result["sections"] = all(isinstance(sections.get(k), list) and sections[k] for k in ("Done", "In progress", "Blocked with questions"))
-        actual = {item.get("action_id"): (section, item) for section, items in sections.items() if isinstance(items, list) for item in items if isinstance(item, dict)}
-        result["grounded_tasks"] = set(actual) == set(lab["tasks"]) and all(actual[k][0] == v and str(fields(rows.get(k, {})).get("evidence") or "\0") in str(actual[k][1].get("evidence") or "") for k, v in lab["tasks"].items() if k in actual)
+        entries = [(section, item) for section, items in sections.items() if isinstance(items, list) for item in items if isinstance(item, dict)]
+        actual = {item.get("action_id"): (section, item) for section, item in entries}
+        result["grounded_tasks"] = (set(lab["tasks"]) <= set(actual)
+                                    and all(actual[k][0] == v and str(fields(rows.get(k, {})).get("evidence") or "\0") in str(actual[k][1].get("evidence") or "") for k, v in lab["tasks"].items() if k in actual)
+                                    and all(item.get("action_id") in rows and (section != "Done" or rows[item["action_id"]].get("status") in {"completed", "confirmed", "verified"})
+                                            for section, item in entries if item.get("action_id") not in lab["tasks"]))
         result["blocked_questions"] = bool(sections.get("Blocked with questions")) and all(str(i.get("question", "")).strip().endswith("?") for i in sections.get("Blocked with questions", []))
     elif kind == "health":
         result["exception_this_cycle"] = lab["broken_routine"].lower() in str(data.get("exception", "")).lower() and data.get("missing_receipt") == "synthetic-missing-receipt"
@@ -185,8 +191,14 @@ def _evaluate(root, scenario, index, messages, tools):
             try:
                 local_times = packet.get("local_times", {})
                 # A participant's local time may be the start string or an object with its start (and zone, end).
-                local = {k: (v.get("start") if isinstance(v, dict) else v) for k, v in local_times.items()}
-                result["packet_zones"] = all(dt.datetime.fromisoformat(local[email]).isoformat() == instant(lab["approved_slot"]["start"]).astimezone(ZoneInfo(person["timezone"])).isoformat() for email, person in lab["people"].items())
+                def local_start_matches(email, person):
+                    value = local_times[email]
+                    if isinstance(value, dict):
+                        if "timezone" in value and value["timezone"] != person["timezone"]:
+                            return False
+                        value = value["start"]
+                    return dt.datetime.fromisoformat(value).isoformat() == instant(lab["approved_slot"]["start"]).astimezone(ZoneInfo(person["timezone"])).isoformat()
+                result["packet_zones"] = isinstance(local_times, dict) and all(local_start_matches(email, person) for email, person in lab["people"].items())
             except (KeyError, TypeError, ValueError):
                 result["packet_zones"] = False
         result["no_early_write"] = not [c for c in lines(root / "calendar-writes.jsonl") if c.get("step", -1) == 0]

@@ -16,7 +16,7 @@ budget_seconds: 900
 seed: []
 lab:
   kind: invite
-  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. approval_packet contains attendees (emails), notification:"all", start, end, timezone, and participant local_times. After yes use lab_calendar_create with item approved-slot and send_updates:all, then lab_calendar_get before claiming invited.'
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. approval_packet contains attendees (emails), notification:"all", start, end, timezone, and participant local_times. local_times maps each attendee email to that attendee''s local start as ISO 8601 with offset. After yes use lab_calendar_create with item approved-slot and send_updates:all, then lab_calendar_get before claiming invited.'
   events:
   - {id: focus, summary: Deep work, start: '@in_1_days@T09:00:00+08:00', end: '@in_1_days@T11:00:00+08:00', timezone: Asia/Singapore, focus: true, attendees: []}
   - {id: existing, summary: Earlier meeting, start: '@in_1_days@T15:00:00+08:00', end: '@in_1_days@T16:00:00+08:00', timezone: Asia/Singapore, focus: false, attendees: []}

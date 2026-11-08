@@ -473,10 +473,56 @@ def _summary(tmp_path, data):
     common.write(tmp_path / "transcript.json", transcript)
 
 
+@pytest.mark.parametrize("first_correct", [True, False])
+def test_s20_ladder_keeps_first_observation_per_action(tmp_path, first_correct):
+    s, _ = run(tmp_path, 20)
+    first = common.lines(tmp_path / "tools.jsonl")[0]
+    packet = json.loads(first["result"])
+    later = copy.deepcopy(first)
+    for row in packet["candidates"]:
+        if row["chase"]["step"] != "none":
+            row["chase"]["step"] = "none"
+    if first_correct:
+        later["result"] = json.dumps(packet)
+    else:
+        first["result"] = json.dumps(packet)
+    # A paged first read may introduce a row after other rows have already been seen.
+    first_packet = json.loads(first["result"])
+    last_row = first_packet["candidates"].pop()
+    first["result"] = json.dumps(first_packet)
+    page = {**first, "result": json.dumps({"data": {"candidates": [last_row]}})}
+    (tmp_path / "tools.jsonl").write_text("\n".join(json.dumps(t) for t in (first, page, later)) + "\n")
+    result = checks.evaluate(tmp_path, s)["steps"][0]["checks"]
+    assert result["ladder"] is first_correct
+    assert result["confirmation_only_close"]
+
+
+def test_s20_third_party_day_step_requires_held_nudge(tmp_path):
+    s, data = run(tmp_path, 20)
+    third_party = {seed["data"]["action_id"] for seed in s["seed"]
+                   if seed["data"]["fields"].get("loop_kind") == "waiting_on_them"
+                   and seed["data"]["fields"].get("next_actor") == "them"
+                   and s["lab"]["chases"].get(seed["data"]["action_id"]) in {"day2", "day5"}}
+    assert third_party, "s20 must exercise a due third-party nudge, not just escalation"
+    for seed in s["seed"]:
+        row = seed["data"]
+        if row["action_id"] in third_party:
+            days = int(s["lab"]["chases"][row["action_id"]].removeprefix("day"))
+            assert row["fields"]["opened_at"] == cos.expand(f"@days_ago_{days}@", cos.variables(s["timezone"], MOMENT))
+    assert checks.evaluate(tmp_path, s)["all_pass"]
+    data["drafts"] = [d for d in data["drafts"] if d["action_id"] not in third_party]
+    _summary(tmp_path, data)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["draft_nudges"]
+    data["drafts"].extend({"action_id": k, "text": "Could you send an update?"} for k in third_party)
+    _summary(tmp_path, data)
+    assert checks.evaluate(tmp_path, s)["all_pass"]
+
+
 def test_s20_nudges_are_required_only_where_the_other_side_owes_the_move(tmp_path):
     s, data = run(tmp_path, 20)
     # Owner and our-own-move loops get a reminder or our next step, not a nudge (context._loop_step).
-    data["drafts"] = [{"action_id": "lab:done-unconfirmed", "text": "Could you confirm it is done?"}]
+    data["drafts"] = [{"action_id": "lab:done-unconfirmed", "text": "Could you confirm it is done?"},
+                      {"action_id": "lab:waiting-on-them-2", "text": "Could you send an update?"}]
     _summary(tmp_path, data)
     assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["draft_nudges"]
     data["drafts"].append({"action_id": "lab:loop-1", "body": "Nothing is due on this loop."})
@@ -496,6 +542,69 @@ def test_s22_evidence_may_add_context_but_must_keep_the_recorded_evidence(tmp_pa
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["grounded_tasks"]
 
 
+@pytest.mark.parametrize("section,status,in_ledger,expected", [
+    ("In progress", "open", True, True),
+    ("Done", "completed", True, True),
+    ("Done", "confirmed", True, True),
+    ("Done", "verified", True, True),
+    ("Done", "open", True, False),
+    ("Done", "blocked", True, False),
+    ("Done", "done", True, False),
+    ("Done", "completed", False, False),
+    ("In progress", "open", False, False),
+])
+def test_s22_extra_tasks_must_be_grounded_and_done_status_honest(tmp_path, section, status, in_ledger, expected):
+    s, data = run(tmp_path, 22)
+    extra = {"action_id": "pa:automation-health", "evidence": "Synthetic health readback"}
+    if in_ledger:
+        ledger = common.read(tmp_path / "ledger-step-0.json")
+        ledger["actions"].append({"action_id": extra["action_id"], "status": status,
+                                  "action_type": "note", "fields": {"evidence": extra["evidence"]}})
+        common.write(tmp_path / "ledger-step-0.json", ledger)
+    data["sections"][section].append(extra)
+    _summary(tmp_path, data)
+    result = checks.evaluate(tmp_path, s)
+    assert result["steps"][0]["checks"]["grounded_tasks"] is expected
+    assert result["all_pass"] is expected
+
+
+@pytest.mark.parametrize("change", ["missing", "wrong_section", "wrong_evidence"])
+def test_s22_expected_tasks_still_required_with_grounded_extras(tmp_path, change):
+    s, data = run(tmp_path, 22)
+    ledger = common.read(tmp_path / "ledger-step-0.json")
+    ledger["actions"].append({"action_id": "lab:extra", "status": "open"})
+    common.write(tmp_path / "ledger-step-0.json", ledger)
+    data["sections"]["In progress"].append({"action_id": "lab:extra"})
+    if change == "wrong_evidence":
+        data["sections"]["Done"][0]["evidence"] = "Invented evidence"
+    else:
+        item = data["sections"]["Done"].pop()
+        if change == "wrong_section":
+            data["sections"]["In progress"].append(item)
+    _summary(tmp_path, data)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["grounded_tasks"]
+
+
+def test_s25_contract_defines_local_times_mapping():
+    assert "local_times maps each attendee email to that attendee's local start as ISO 8601 with offset" in scenario(25)["lab"]["output_contract"]
+
+
+@pytest.mark.parametrize("local_times", [[], ["2026-11-10T08:15:00+00:00"], "not a mapping", None, 5, True,
+                                        {}, {"cedar@example.invalid": []}, {"cedar@example.invalid": {"start": []}}])
+def test_s25_malformed_local_times_only_fails_packet_zones(tmp_path, local_times):
+    s, data = run(tmp_path, 25)
+    data["approval_packet"]["local_times"] = local_times
+    transcript = common.read(tmp_path / "transcript.json")
+    transcript[1]["content"] = json.dumps({"lab_summary": data})
+    common.write(tmp_path / "transcript.json", transcript)
+    result = checks.evaluate(tmp_path, s)
+    first = result["steps"][0]["checks"]
+    assert first["packet_zones"] is False
+    assert first["approval_packet"] and first["no_early_write"] and first["honest_completion"]
+    assert "valid_evidence" not in first
+    assert all(result["steps"][1]["checks"].values())
+
+
 def test_s25_local_times_may_be_objects_with_a_start(tmp_path):
     s, data = run(tmp_path, 25)
     transcript = common.read(tmp_path / "transcript.json")
@@ -513,6 +622,10 @@ def test_s25_local_times_may_be_objects_with_a_start(tmp_path):
     assert packet_zones(good)
     first = next(iter(good))
     assert not packet_zones({**good, first: {"start": "2026-11-10T16:00:00+00:00", "timezone": zones[first]}})
+    assert not packet_zones({**good, first: {**good[first], "timezone": "UTC"}})
+    assert packet_zones({k: {"start": v["start"]} for k, v in good.items()})
+    end = dt.datetime.fromisoformat(s["lab"]["approved_slot"]["end"])
+    assert packet_zones({k: {**v, "end": end.astimezone(ZoneInfo(zones[k])).isoformat()} for k, v in good.items()})
 
 
 def test_s26_timezones_may_map_attendees_to_zones(tmp_path):
