@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.10.0-rc.1 — 2026-11-08
+
+The first measured release (roadmap M2, #48). It ships `releases/0.10.0-rc.1/scorecard.md`, built from Capability Lab runs pinned to this release's reviewed commit: real Hermes v0.22.2, real web pages through Browserbase, and `gpt-6.1-sol`. SCORECARD_HEADLINE
+
+- **General research (#70, #81, #83, #84).** A new research lab scenario (s18) asks PA to compare real providers on the live web. The `research` skill now:
+  - asks the owner's top priority first when the answer is a choice, and takes lowest total cost if they have none;
+  - writes six fixed headings: Question, Criteria, Recommendation, Comparison, Could not find, Appendix;
+  - cites each sourced amount with its own `[n]` right after it, one per amount even inside a table cell, and dates each source on its own line;
+  - names each fee in the page's own words without widening its terms (an annual price is not monthly billing; a one-time fee is not per entity unless the page says so);
+  - gives prices as the pages print them and compares cost in words, leaving the all-in total to a written quote.
+- **Calendar (#78, #80).** A new calendar lab scenario (s19) checks clashes across three time zones, one valid new slot, and a protected focus block left in place.
+- **Lab scoring (#70, #78, #80, #82).** Offline research and calendar checks score each run. The judge sees the source passage behind each claim, not the first match on the page. JSONL files with Unicode line separators now load.
+- **`/pa status` (#75, #76).** No empty segment before setup progress; the calendar visibility note is precise.
+
 ## 0.9.0 — 2026-11-08
 
 The first stable GitHub release of this repository. It contains every change in the 0.4.0 to 0.9.0 release candidates below, plus the first part of roadmap M2, "Measured" (#48): the tools that will measure PA against the VA bar.
