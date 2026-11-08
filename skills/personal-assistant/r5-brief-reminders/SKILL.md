@@ -23,17 +23,30 @@ Load `personal-assistant:personal-assistant` for the exact tool argument and sta
 
 The native precheck supplies an already claimed `occurrence_id`. Use that exact
 identity; never create another claim or resend to repair a missing receipt.
-After verifying delivery through the accepted provider, call:
+In a scheduled context, record `unknown` before returning the final response:
 
 ```json
-{"operation":"automations","data":{"action":"receipt","occurrence_id":"<precheck occurrence_id>","receipt":"delivered","proof":{"provider":"<delivery provider>","receipt_reference":"<verified provider receipt reference>"}}}
+{"operation":"automations","data":{"action":"receipt","occurrence_id":"<precheck occurrence_id>","receipt":"unknown","note":"Final response handed to Hermes cron delivery"}}
 ```
 
-For an explicitly accepted local file destination, read the saved file back,
-use `provider: "local-file"`, and use its absolute path as `receipt_reference`.
-`receipt` is `delivered`, `suppressed`, or `unknown`; it is not `status` or
-`outcome`. Provider evidence belongs inside `proof`, not alongside `receipt`.
-If delivery is uncertain, record `receipt: "unknown"` and do not resend.
-If a previous write succeeded but receipt recording failed, recover by reading
-the existing provider result and recording the same occurrence. A saved draft or
-an unverified send does not establish delivery.
+Hermes cron delivers the final response; never use a message tool or record
+`delivered` for that hand-off. If nothing is useful, record `suppressed` and reply
+exactly `[SILENT]`. An uncertain outcome is never a reason to resend. A later
+verified provider receipt can resolve `unknown` through the receipt operation.
+
+## End of day and health exceptions
+
+Read `../references/reporting.md` for reporting, one corrected tool_call retry,
+progress notes, escalation and pre-send checks. For `routine_health`, report the
+precheck's findings immediately in the scheduled final response; never repair jobs.
+For `end_of_day`, skip the gog morning collector. Read `pa evidence action=list`,
+`pa next_action`, and `pa automations action=health`. Page relevant evidence using
+focused context; missing evidence stays unknown. Write the owner's note with all
+three sections: **Done / In progress / Blocked with questions**. Every blocked
+item ends in a question; nothing is invented. Save a `pa:eod:<local date>` note
+with `occurrence_id`, `sections` (those exact three keys, each a list), and `evidence_refs`
+before recording the scheduled receipt as `unknown`.
+The evening run lists `meetings_to_confirm` for tomorrow's R4 24h confirmation
+and brief. Preserve `attendees_known: false` and `attendees_omitted` as gaps;
+never infer all attendees were checked. Point the brief to the twice-daily R6
+inbox triage digest; do not duplicate or invent inbox results.

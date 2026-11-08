@@ -7,6 +7,7 @@ from .state import Ledger, stable_id
 
 DEFAULTS = {
     "brief_time": "08:00",
+    "eod_time": "18:00",
     "cos_daily_time": "09:30",
     "cos_kickoff_day": "mon",
     "cos_kickoff_time": "11:00",
@@ -26,12 +27,18 @@ _SKILLS = {
     "daily_brief": [
         "personal-assistant:r5-brief-reminders",
         "personal-assistant:daily-ops",
+        "personal-assistant:r4-calendar-meeting",
+        "personal-assistant:r6-inbox-replies",
     ],
     "due_source_check": [
         "personal-assistant:itinerary-intake",
         "personal-assistant:travel-email-calendar",
         "personal-assistant:provider-message-refund",
         "personal-assistant:daily-ops",
+        "personal-assistant:follow-through",
+        "personal-assistant:r5-brief-reminders",
+        "personal-assistant:r4-calendar-meeting",
+        "personal-assistant:r6-inbox-replies",
     ],
 }
 COS_JOBS = {"cos_daily": "personal-assistant-cos-daily", "cos_kickoff": "personal-assistant-cos-kickoff",
@@ -114,7 +121,7 @@ def source_rule_fields(rule):
     for key in (
         "source_type", "last_checked_at", "due_at", "on_request",
         "refresh_interval_minutes", "paused", "profile_id", "account",
-        "accepted_at", "verified_at", "receipt_reference", "rule_revision", "revision",
+        "quiet_hours_exceptions", "accepted_at", "verified_at", "receipt_reference", "rule_revision", "revision",
     ):
         if key in data:
             canonical[key] = data[key]
@@ -182,7 +189,7 @@ def _due_actions(actions, current):
     for action in actions or []:
         fields = action.get("fields", action) if isinstance(action, dict) else {}
         if action.get("status") in terminal or fields.get("status") in terminal: continue
-        due_at = fields.get("due_at", action.get("due_at")); zone = fields.get("timezone", "UTC")
+        due_at = (fields.get("next_chase_at") if fields.get("loop_kind") else None) or fields.get("due_at", action.get("due_at")); zone = fields.get("timezone", "UTC")
         if fields.get("due") is True or (due_at and _value_time(due_at, zone) and _value_time(due_at, zone) <= current): return True
     return False
 def suggest_automation_jobs(source=None, *, destination=None, destination_verified=False,
@@ -244,11 +251,11 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
             prompt = f"Load skill {skills[0]} and run it. Your final response is the owner message, or exactly [SILENT]; record the receipt with pa automations receipt as the skill says before you reply."
         elif kind == "daily_brief":
             schedule, name = "0 8 * * *", "personal-assistant-daily-brief"
-            prompt = "Run the accepted PA daily brief using the qualified skills; respect the local precheck and quiet hours."
+            prompt = "Run the accepted PA daily brief or end-of-day note indicated by the local precheck using the qualified skills; respect quiet hours."
             skills = _SKILLS[kind]
         else:
             schedule, name = "*/5 * * * *", "personal-assistant-due-source-check"
-            prompt = "Check accepted PA due actions and refresh only accepted sources reported due by the local precheck. Preserve valid facts on failures. Do not create or modify cron jobs."
+            prompt = "Check accepted PA due actions and chase steps, and refresh only accepted sources reported due by the local precheck. Preserve valid facts on failures. Do not create or modify cron jobs."
             skills = _SKILLS[kind]
             settings["due_interval_minutes"] = DEFAULTS["due_interval_minutes"]
             settings["accepted_sources"] = entry["sources"]
@@ -417,3 +424,64 @@ def canonical_notification_payload(*, profile_id, account, timezone, destination
     if any(not isinstance(value, str) or not value.strip() for value in values.values()):
         raise ValueError("notification verification payload fields are required")
     return clean(values)
+
+
+def routine_occurrence(kind, logical, rules):
+    """Share the native claim identity with read-only health and scorecards."""
+    rule = rules[0] if len(rules) == 1 else {}
+    rule_id = str(rule.get("automation_rule_id", kind))
+    revision = rule.get("rule_revision", rule.get("revision"))
+    complete = all(isinstance(v, str) and v.strip() for v in (rule.get("profile_id"), rule.get("account"), revision))
+    return notification_occurrence_id(kind, logical) if kind in COS_JOBS else notification_occurrence_id(rule_id, logical, revision if complete else None)
+
+
+def routine_slots(ledger, *, now=None, date=None):
+    """Known calendar slots for accepted rules, without claiming or repairing."""
+    prefs = (ledger.get("action", "pa:preferences") or {}).get("fields", {})
+    current = _now(now, "UTC")
+    grouped = {}
+    for row in ledger.list("action"):
+        rule = _rule_data(row)
+        if row["action_type"] == "automation_rule" and rule.get("accepted") and not rule.get("paused"):
+            grouped.setdefault(rule.get("kind"), []).append(rule)
+    slots = []
+    for kind, rules in grouped.items():
+        if kind not in {"daily_brief", *COS_JOBS}: continue
+        zone = rules[0].get("timezone") or prefs.get("timezone")
+        try:
+            local = current.astimezone(ZoneInfo(zone))
+        except (ValueError, TypeError, KeyError):
+            continue
+        day = dt.date.fromisoformat(date) if date else local.date()
+        clocks = [("brief_time", ""), ("eod_time", ":eod")] if kind == "daily_brief" else [(kind + "_time", "")]
+        for key, suffix in clocks:
+            if kind in {"cos_kickoff", "cos_weekly"} and day.weekday() != ("mon", "tue", "wed", "thu", "fri", "sat", "sun").index(prefs.get(kind + "_day", DEFAULTS[kind + "_day"])): continue
+            at = dt.datetime.combine(day, dt.time.fromisoformat(prefs.get(key, DEFAULTS[key])), ZoneInfo(zone))
+            if at > current or any(_value_time(r.get("accepted_at"), zone) and _value_time(r["accepted_at"], zone) > at for r in rules): continue
+            logical = day.isoformat() + suffix if kind in {"daily_brief", "cos_daily"} else "%04d-W%02d" % day.isocalendar()[:2]
+            slots.append({"kind": kind, "logical": logical, "due_at": at.isoformat(),
+                          "occurrence_id": routine_occurrence(kind, logical, rules)})
+    return slots
+
+
+def routine_health(ledger, *, now=None, grace_minutes=60):
+    """Read-only findings; unknown hand-offs are terminal, never delivery proof."""
+    current = _now(now, "UTC")
+    grace = dt.timedelta(minutes=max(0, int(grace_minutes)))
+    rows = ledger.list("action")
+    findings = []
+    for row in rows:
+        fields = row["fields"]
+        if row["action_id"].startswith("pa:routine-health:") and fields.get("reason"):
+            findings.append({"id": stable_id(row["action_id"], fields["reason"], fields["failed_at"]),
+                             "kind": fields.get("kind"), "reason": fields["reason"],
+                             "at": fields["failed_at"], "note_id": row["action_id"], "recovered_at": fields.get("recovered_at")})
+        if row["action_type"] != "notification" or fields.get("notification_state") in _TERMINAL_RECEIPTS: continue
+        claimed = _value_time(fields.get("claimed_at"), "UTC")
+        if claimed and current >= claimed + grace:
+            findings.append({"id": stable_id("receipt_missing", row["action_id"]), "kind": fields.get("routine_kind", fields.get("rule_id")),
+                             "reason": "receipt_missing", "at": claimed.isoformat(), "occurrence_id": fields.get("notification_occurrence_id")})
+    for slot in routine_slots(ledger, now=current):
+        if current >= _value_time(slot["due_at"], "UTC") + grace and not notification_receipt(ledger, slot["occurrence_id"]):
+            findings.append({"id": stable_id("slot_unclaimed", slot["occurrence_id"]), "reason": "slot_unclaimed", **slot})
+    return {"status": "attention" if any(not f.get("recovered_at") for f in findings) else "healthy", "findings": findings, "read_only": True}

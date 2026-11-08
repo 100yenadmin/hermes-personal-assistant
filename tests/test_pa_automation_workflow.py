@@ -144,3 +144,26 @@ class WorkflowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_reporting_routine_skill_lists(tmp_path):
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {'timezone': 'UTC'})
+    for kind in ('daily_brief', 'due_source_check'):
+        upsert_automation_rule(ledger, kind, {'kind': kind, 'accepted': True,
+            'destination': 'fixture-owner', 'destination_verified': True})
+    jobs = {j['kind']: j for j in prepare_suggestions(ledger)['jobs']}
+    assert jobs['daily_brief']['skills'] == [
+        'personal-assistant:r5-brief-reminders', 'personal-assistant:daily-ops',
+        'personal-assistant:r4-calendar-meeting', 'personal-assistant:r6-inbox-replies',
+    ]
+    assert jobs['due_source_check']['skills'] == [
+        'personal-assistant:itinerary-intake', 'personal-assistant:travel-email-calendar',
+        'personal-assistant:provider-message-refund', 'personal-assistant:daily-ops',
+        'personal-assistant:follow-through', 'personal-assistant:r5-brief-reminders',
+        'personal-assistant:r4-calendar-meeting',
+        'personal-assistant:r6-inbox-replies',
+    ]
+
+    assert 'chase_action_ids' in jobs['due_source_check']['due_rule']
+    assert 'end_of_day slot after eod_time' in jobs['daily_brief']['due_rule']

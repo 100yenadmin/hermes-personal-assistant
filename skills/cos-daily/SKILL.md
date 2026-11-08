@@ -67,3 +67,13 @@ Use the same recommendation identity on replies and readbacks.
 Never install software or silently edit SOUL.md, USER.md, skills or the manual.
 Send no proactive message outside this scheduled job or an owner-approved HB2
 `at` follow-up in the same chat naming `personal-assistant:cos-daily`.
+
+## Evening note
+
+When Chief of Staff mode is on, use the same R5 end-of-day note on the existing
+brief job: **Done / In progress / Blocked with questions**, grounded in evidence,
+`next_action` and `automations health`; every blocked item ends in a question.
+Read `reporting.md` in `../personal-assistant/references/` (relative to this skill directory). The evening register lists
+`meetings_to_confirm` for tomorrow's R4 24h confirmation and brief, preserving
+unknown/omitted attendees. Point to the twice-daily R6 inbox triage digest.
+This adds no CoS job or second end-of-day message.
