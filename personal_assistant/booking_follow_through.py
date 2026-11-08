@@ -85,14 +85,17 @@ def validate(ledger, current, value):
         if not dt.timedelta(0) < start - due <= dt.timedelta(days=30):
             raise ValueError(f"{field}.due_at must be before item.start and within 30 days")
     row_trip = (current or {}).get("trip_id")
+    recorded = ((current or {}).get("fields") or {}).get("booking_trip_id")
     supplied = value.get("trip_id")
     if "trip_id" in value:
         _text(supplied, "follow_through.trip_id")
         if row_trip and supplied != row_trip:
             raise ValueError("follow_through.trip_id differs from action.trip_id")
+        if recorded and supplied != recorded:
+            raise ValueError("follow_through.trip_id differs from the trip this booking was recorded on")
         if not ledger.get("trip", supplied):
             raise ValueError("follow_through.trip_id must name an existing trip")
-    trip_id = row_trip or supplied
+    trip_id = row_trip or supplied or recorded
     if trip_id and not ledger.get("trip", trip_id):
         raise ValueError("action.trip_id must name an existing trip")
     return clean(item), clean(reminders), trip_id
@@ -129,15 +132,20 @@ def complete(ledger, identity, item, reminders, trip_id):
     try:
         # pa-setup writes daily_ops.config.json in the profile; the plugin process does not run from there.
         path = os.environ.get("DAILY_OPS_CONFIG") or str(ledger.root / "daily_ops.config.json")
-        allowed = config.load_config(path).get("calendar", {}).get("write_scope", {}).get("accepted") is True
+        cfg = config.load_config(path)
+        scope = cfg.get("calendar", {}).get("write_scope", {})
+        # Only a configuration daily-ops itself accepts grants a write, and only to its consented calendars.
+        allowed = scope.get("accepted") is True and not config.validate_config(cfg)
+        calendar_ids = list(scope["calendar_ids"]) if allowed else []
     except Exception:
         # A missing, malformed or unreadable config never grants calendar scope.
         allowed = False
+        calendar_ids = []
     return {
         "trip_item": trip_item, "trip_note": f"added to {trip_id}" if trip_id else "no trip on this action",
-        "reminders": reminder_ids, "ics_path": ics_path, "calendar_write_allowed": allowed,
+        "reminders": reminder_ids, "ics_path": ics_path, "calendar_write_allowed": allowed, "calendar_ids": calendar_ids,
         "next_step": (
-            "Create a private event on the owner's calendar with these exact fields (no attendees, no notifications), read it back, then record it with action_upsert."
+            "Create a private event on one of calendar_ids with these exact fields (no attendees, no notifications), read it back, then record it with action_upsert."
             if allowed else
             "Calendar write is not granted: give the owner the ICS file and say the booking is not on their calendar yet."
         ),

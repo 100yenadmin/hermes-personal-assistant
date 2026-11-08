@@ -281,6 +281,8 @@ class Ledger:
         fields = {"provider_proof": proof, "verified_at": now() if proof else None}
         if follow_through is not None:
             fields["booked_item"] = item
+            if trip_id:
+                fields["booking_trip_id"] = trip_id
             # Re-recording a confirmed readback refreshes bookkeeping, not provider execution.
             expected = expected | {target}
         result = self.transition(identity, expected, target, fields)

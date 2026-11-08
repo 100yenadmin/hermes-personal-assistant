@@ -13,12 +13,14 @@ from .privacy import safe_text, safe_url
 from .state import legacy, now, stable_id
 
 
-def _booked_event(item, action_id):
+def _booked_event(item, action_id, *, with_reference=False):
+    # Trip events feed shared exports, which never carry booking references (SKILL.md).
+    reference = item.get("reference") if with_reference else None
     return {
         "uid": f"pa-booking:{action_id}", "recurrence_id": "", "summary": item["title"],
         "start": item["start"], "end": item.get("end"), "all_day": False,
         "timezone": item["timezone"], "location": item.get("location", ""),
-        "description": "Booked; provider reference " + item["reference"] if item.get("reference") else "Booked",
+        "description": "Booked; provider reference " + reference if reference else "Booked",
         "url": "", "status": "CONFIRMED", "source_url": "", "warnings": [], "verified_at": now(),
         "source": "provider_readback", "booking_action_id": action_id,
     }
@@ -32,17 +34,18 @@ def add_booked_item(ledger, trip_id, item, action_id):
     event = _booked_event(item, action_id)
     identity = stable_id(trip_id, event["uid"], "master")
     event["source_record_id"] = identity
-    events, replaced = [], False
+    events, replaced, changed = [], False, []
     for old in trip["fields"].get("events", []):
         if old.get("source_record_id") == identity:
             if not replaced:
+                changed = [k for k in ("start", "end", "location", "status", "timezone") if old.get(k) != event.get(k)]
                 events.append(event)
                 replaced = True
         else:
             events.append(old)
     if not replaced:
         events.append(event)
-    ledger.put("trip", trip_id, {"events": events})
+    ledger.put("trip", trip_id, {"events": events}, invalidate={identity: changed} if changed else None)
     return identity
 
 
@@ -53,7 +56,7 @@ def export_booked_item(ledger, action_id, item):
     safe_id = action_id if re.fullmatch(r"[A-Za-z0-9_-]{1,120}", action_id) else stable_id(action_id)
     target = output / f"{safe_id}.ics"
     legacy._validate_existing_path(ledger.root, target)
-    event = _booked_event(item, action_id)
+    event = _booked_event(item, action_id, with_reference=True)
     cal = Calendar()
     cal.add("prodid", "-//Personal Assistant Plugin//Booking snapshot//EN")
     cal.add("version", "2.0")

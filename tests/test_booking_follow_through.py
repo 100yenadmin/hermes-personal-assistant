@@ -29,6 +29,18 @@ OTHER = {"uid": "untouched", "summary": "Existing event", "start": "2026-11-14T1
          "timezone": "Asia/Tokyo", "all_day": False, "source_record_id": "other"}
 
 
+def daily_ops(write):
+    """A configuration daily-ops itself accepts, with the given calendar write scope."""
+    return {"tenant": {"profile_id": "fixture-profile", "owner_email": "owner@example.invalid"},
+            "delivery": {"target": "fixture-topic", "verified": True}, "timezone": "Asia/Tokyo",
+            "accounts": {"work": "owner@example.invalid", "personal": None},
+            "calendar": {"provider": "gog", "read_scope": {"accepted": True, "calendar_ids": ["primary"]},
+                         "write_scope": write}}
+
+
+VALID_WRITE = {"accepted": True, "calendar_ids": ["primary"], "invites": False}
+
+
 @pytest.fixture
 def ledger(tmp_path, monkeypatch):
     monkeypatch.delenv("TRAVEL_LEDGER_DB", raising=False)
@@ -90,7 +102,7 @@ def test_confirmed_bookkeeping_through_dispatch(ledger, governed):
         "uid": f"pa-booking:{ACTION}", "recurrence_id": "", "summary": "Fixture stay",
         "start": READBACK["item"]["start"], "end": READBACK["item"]["end"],
         "all_day": False, "timezone": "Asia/Tokyo", "location": "Fixture hotel",
-        "description": "Booked; provider reference SYNTHETIC-123", "url": "", "status": "CONFIRMED",
+        "description": "Booked", "url": "", "status": "CONFIRMED",
         "source_url": "", "warnings": [], "verified_at": event["verified_at"],
         "source_record_id": source_id, "source": "provider_readback", "booking_action_id": ACTION,
     }
@@ -219,9 +231,13 @@ def test_failed_transition_does_not_bookkeep(ledger):
 
 
 @pytest.mark.parametrize("config,allowed", [
-    ({"calendar": {"write_scope": {"accepted": True}}}, True),
-    ({"calendar": {"write_scope": {"accepted": False}}}, False),
-    ({"calendar": {"write_scope": {"accepted": "true"}}}, False),
+    (daily_ops(VALID_WRITE), True),
+    (daily_ops(dict(VALID_WRITE, accepted=False)), False),
+    (daily_ops(dict(VALID_WRITE, accepted="true")), False),
+    # Accepted but rejected by daily-ops validation: no calendar IDs, or a calendar it cannot read.
+    (daily_ops(dict(VALID_WRITE, calendar_ids=[])), False),
+    (daily_ops(dict(VALID_WRITE, calendar_ids=["elsewhere"])), False),
+    ({"calendar": {"write_scope": {"accepted": True}}}, False),
     ({"calendar": None}, False), (None, False), ("unreadable", False),
 ])
 def test_calendar_scope_is_explicit_and_config_failure_is_safe(ledger, monkeypatch, config, allowed):
@@ -234,8 +250,9 @@ def test_calendar_scope_is_explicit_and_config_failure_is_safe(ledger, monkeypat
     prepare(ledger)
     result = record(ledger)["follow_through"]
     assert result["calendar_write_allowed"] is allowed
+    assert result["calendar_ids"] == (["primary"] if allowed else [])
     if allowed:
-        assert result["next_step"] == "Create a private event on the owner's calendar with these exact fields (no attendees, no notifications), read it back, then record it with action_upsert."
+        assert result["next_step"] == "Create a private event on one of calendar_ids with these exact fields (no attendees, no notifications), read it back, then record it with action_upsert."
 
 
 def test_reminder_wakes_before_trip_starts(ledger):
@@ -310,8 +327,7 @@ def test_rerecord_keeps_handled_reminders(ledger):
 def test_calendar_scope_read_from_the_profile_config(ledger, monkeypatch):
     monkeypatch.delenv("DAILY_OPS_CONFIG", raising=False)
     monkeypatch.chdir(ledger.root.parent)
-    (ledger.root / "daily_ops.config.json").write_text(
-        json.dumps({"calendar": {"write_scope": {"accepted": True}}}), encoding="utf-8")
+    (ledger.root / "daily_ops.config.json").write_text(json.dumps(daily_ops(VALID_WRITE)), encoding="utf-8")
     prepare(ledger)
     assert record(ledger)["follow_through"]["calendar_write_allowed"] is True
 
@@ -328,3 +344,39 @@ def test_trip_reimport_keeps_the_booked_item(ledger):
     booked = [e for e in events if e.get("uid") == f"pa-booking:{ACTION}"]
     assert len(booked) == 1 and not booked[0].get("source_missing")
     assert any(e.get("uid") == "untouched" and e.get("source_missing") for e in events)
+
+
+def test_fallback_trip_sticks_across_rerecords(ledger):
+    ledger.put("trip", "other-trip", {"events": [], "timezone": "Asia/Tokyo"}, status="active")
+    prepare(ledger, trip_id=None)
+    record(ledger, dict(copy.deepcopy(READBACK), trip_id=TRIP))
+    with pytest.raises(ValueError, match="recorded on"):
+        record(ledger, dict(copy.deepcopy(READBACK), trip_id="other-trip"))
+    assert ledger.get("trip", "other-trip")["fields"]["events"] == []
+    # Omitting the trip on a later re-record keeps the booking on its trip.
+    assert record(ledger)["follow_through"]["trip_note"] == f"added to {TRIP}"
+    booked = [e for e in ledger.get("trip", TRIP)["fields"]["events"] if e.get("uid") == f"pa-booking:{ACTION}"]
+    assert len(booked) == 1
+
+
+def test_trip_event_carries_no_booking_reference(ledger):
+    prepare(ledger)
+    follow = record(ledger)["follow_through"]
+    event = next(e for e in ledger.get("trip", TRIP)["fields"]["events"] if e.get("uid") == f"pa-booking:{ACTION}")
+    assert "SYNTHETIC-123" not in json.dumps(event)
+    # The owner's own booking file keeps the reference for their calendar.
+    assert "SYNTHETIC-123" in Path(follow["ics_path"]).read_text()
+
+
+def test_moved_booking_pauses_derived_actions(ledger):
+    prepare(ledger)
+    follow = record(ledger)["follow_through"]
+    ledger.put("action", "fixture-derived", {"title": "Leave for the hotel", "source_record_id": follow["trip_item"],
+               "source_fields": ["start"], "derived_fields": ["leave_by"], "leave_by": "x"}, status="pending")
+    record(ledger)  # Same readback: nothing changed, nothing paused.
+    assert ledger.get("action", "fixture-derived")["status"] == "pending"
+    moved = copy.deepcopy(READBACK)
+    moved["item"]["start"] = "2026-11-12T16:00:00+09:00"
+    record(ledger, moved)
+    derived = ledger.get("action", "fixture-derived")
+    assert derived["status"] == "paused" and "leave_by" not in derived["fields"]
