@@ -14,7 +14,8 @@ metadata:
 When the owner forwards or mentions an invoice or bill, use `pa` operation
 `invoice`, action `record`, with direction `receivable` or `payable`, counterparty,
 reference, amount, currency, issue_date, due_date, category and evidence_ref.
-Ask for missing facts; never invent money facts or evidence. Add description,
+Ask for missing facts; never invent money facts or evidence. Describe the evidence by sender, date and
+subject, not a raw message id. Add description,
 trip_id or remind_days_before (0–60, default 3) when useful.
 
 Receivables follow `personal-assistant:follow-through`: read `next_action`

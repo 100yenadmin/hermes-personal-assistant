@@ -48,11 +48,22 @@ def guarded(identity, action_type=None, existing=None, *, bookkeeping=False):
     return ":loop:" not in str(identity) and not (bookkeeping and str(identity).endswith(":loop"))
 
 
+def _iban(value):
+    """A real IBAN (mod-97 valid), not ordinary words like FY26 or AB12 Studio."""
+    for match in re.finditer(r"\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]){11,30}\b", value):
+        compact = re.sub(r"[ -]", "", match.group())
+        for n in range(15, min(34, len(compact)) + 1):
+            text = compact[4:n] + compact[:4]
+            if int("".join(str(int(c, 36)) for c in text)) % 97 == 1:
+                return True
+    return False
+
+
 def _validate(data):
     if _private(data):
         raise ValueError("PA does not store payment or account numbers or credentials")
     for key, value in data.items():
-        if isinstance(value, str) and (re.search(r"\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]){11,30}\b", value, re.I)
+        if isinstance(value, str) and (_iban(value)
                 or key in {"counterparty", "description", "evidence_ref", "reference"}
                 and re.search(r"\d{%d,}" % (17 if key == "reference" else 8), value)):
             raise ValueError("PA does not store payment or account numbers")
@@ -98,8 +109,9 @@ def _record(conn, data, zone):
     fields = {k: v for k, v in data.items() if k != "action"}
     fields["amount"] = _number(Decimal(fields["amount"]))
     normalized = " ".join(unicodedata.normalize("NFKC", fields["counterparty"]).casefold().split())
+    reference = " ".join(unicodedata.normalize("NFKC", fields["reference"]).casefold().split())
     identity = "invoice:" + fields["direction"] + ":" + stable_id(
-        "invoice", fields["direction"], normalized, fields["reference"])
+        "invoice", fields["direction"], normalized, reference)
     old = _get(conn, identity)
     if old and any(old["fields"].get(k) != fields[k] for k in ("amount", "currency", "issue_date", "due_date")):
         raise ValueError("invoice money facts differ; void it first; void rows revive only with matching money facts")
@@ -109,7 +121,7 @@ def _record(conn, data, zone):
     ref, party, due = fields["reference"], fields["counterparty"], fields["due_date"]
     receivable = fields["direction"] == "receivable"
     reminder = {"radar_kind": "deadline", "event_date": due,
-                "lead_days": fields.get("remind_days_before", 3),
+                "lead_days": fields.get("remind_days_before", ((_get(conn, identity + ":due") or {}).get("fields") or {}).get("lead_days", 3)),
                 "title": f"Invoice {ref} {'to' if receivable else 'from'} {party} due {due}",
                 "next_action": (f"Draft a friendly payment reminder to {party} for {ref}; send only after the owner's yes."
                                 if receivable else f"Remind the owner to pay {party} {fields['amount']} {fields['currency']} by {due}. PA never pays.")}
@@ -121,7 +133,7 @@ def _record(conn, data, zone):
         loop = _get(conn, loop_id)
         loop_fields = {"loop_kind": "waiting_on_them", "counterparty": party, "next_actor": "them",
                        "next_step": f"Payment of {ref}, {fields['amount']} {fields['currency']}, due {due}",
-                       "opened_at": dt.datetime.combine(dt.date.fromisoformat(due), dt.time(), zone).isoformat(),
+                       "opened_at": due,  # A bare date is read as owner-local midnight, whatever the zone later.
                        "source_action_id": identity}
         if not loop or revive:
             loop_fields["chase_log"] = []
@@ -150,7 +162,7 @@ def dispatch(ledger, data):
             row["days_overdue"] = max(0, overdue) if row["status"] == "open" else 0
             if fields["direction"] == "receivable":
                 loop = ledger.get("action", row["action_id"] + ":loop")
-                row["chase"] = loop_chase(loop["fields"], moment=moment, zone=zone) if loop else None
+                row["chase"] = loop_chase(loop["fields"], moment=moment, zone=zone) if loop and row["status"] == "open" else None
             rows.append(row)
         return sorted(rows, key=lambda r: (r["fields"]["due_date"], r["action_id"]))
     with ledger.connect() as conn:
@@ -162,6 +174,8 @@ def dispatch(ledger, data):
             row = _get(conn, identity)
             if not row or row["action_type"] != "invoice":
                 raise ValueError("invoice row not found")
+            if action == "void" and row["status"] == "paid":
+                raise ValueError("a paid invoice cannot be voided")
             if action == "paid" and row["status"] == "void":
                 raise ValueError("record a matching invoice to revive it before marking paid")
             if action == "paid" and data["paid_on"] < row["fields"]["issue_date"]:

@@ -41,7 +41,7 @@ def rows(ledger, identity):
 
 def test_record_identity_idempotency_and_projection_fields(ledger):
     row = record(ledger, trip_id="synthetic-trip", description="Consulting")
-    identity = "invoice:receivable:" + stable_id("invoice", "receivable", "synthetic acme", "DEMO-A")
+    identity = "invoice:receivable:" + stable_id("invoice", "receivable", "synthetic acme", "demo-a")
     assert row["action_id"] == identity and row["action_type"] == "invoice" and row["status"] == "open"
     assert row["fields"]["amount"] == "125.5"
     same = record(ledger, counterparty="  SYNTHETIC   Acme ", amount="125.50")
@@ -58,7 +58,7 @@ def test_record_identity_idempotency_and_projection_fields(ledger):
     assert loop["fields"] == {
         "loop_kind": "waiting_on_them", "counterparty": "  SYNTHETIC   Acme ", "next_actor": "them",
         "next_step": "Payment of DEMO-A, 125.5 USD, due 2026-11-10",
-        "opened_at": "2026-11-10T00:00:00+09:00", "source_action_id": identity, "chase_log": []}
+        "opened_at": "2026-11-10", "source_action_id": identity, "chase_log": []}
 
 
 @pytest.mark.parametrize("status", ["open", "paid", "void"])
@@ -100,7 +100,6 @@ def test_void_and_matching_revive_reset_only_invoice_closure_and_chases(ledger):
     dispatch(ledger.root, {"operation": "action_upsert", "data": {"action_id": identity + ":loop", "fields": {
         "last_chased_at": "2026-11-12T10:00:00+09:00", "snoozed_until": "2026-11-13T10:00:00+09:00",
         "chase_log": [{"at": "2026-11-12T10:00:00+09:00", "step": "day2", "how": "draft held"}]}}})
-    call(ledger, "paid", invoice_id=identity, paid_on="2026-11-12", evidence="Owner evidence")
     voided = call(ledger, "void", invoice_id=identity, reason="Wrong recipient")
     assert voided["status"] == "void" and voided["fields"]["void_reason"] == "Wrong recipient"
     _, due, loop = rows(ledger, identity)
@@ -149,7 +148,8 @@ def test_radar_surfaces_exactly_on_lead_date_and_hides_settled(ledger, direction
         assert item["next_action"] == "Remind the owner to pay Synthetic Acme 125.5 USD by 2026-11-10. PA never pays."
     call(ledger, "paid", invoice_id=identity, paid_on="2026-11-10", evidence="Owner reports payment")
     assert radar(surface)["candidates"] == []
-    call(ledger, "void", invoice_id=identity, reason="Duplicate")
+    with pytest.raises(ValueError, match="paid invoice cannot be voided"):
+        call(ledger, "void", invoice_id=identity, reason="Duplicate")
     assert radar(surface)["candidates"] == []
 
 
@@ -321,3 +321,15 @@ def test_finance_skill_registered_and_routes_with_safe_instructions():
     assert "Never initiate a payment or transfer" in skill
     assert "authorised mail" in skill and "evidence_ref" in skill and "owner's yes" in skill
     assert "personal-assistant:finance-admin" in (root / "skills/personal-assistant/SKILL.md").read_text()
+
+
+@pytest.mark.parametrize("reference", ["DEMO-A", "demo-a", " DEMO-A  "])
+def test_reference_case_and_spacing_name_one_invoice(ledger, reference):
+    first = record(ledger)["action_id"]
+    assert record(ledger, reference=reference)["action_id"] == first
+
+
+@pytest.mark.parametrize("key,value", [("description", "FY26 marketing retainer"), ("counterparty", "AB12 Creative Studio"),
+    ("reference", "PO2026-000123-ABC"), ("description", "SS26 collection samples")])
+def test_ordinary_codes_are_not_ibans(ledger, key, value):
+    assert record(ledger, **{key: value})["status"] == "open"
