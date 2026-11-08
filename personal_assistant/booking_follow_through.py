@@ -181,7 +181,9 @@ def complete(ledger, identity, item, reminders, trip_id, loop=None, expense=None
             events = trip["fields"].get("events", [])
             kept = [e for e in events if e.get("booking_action_id") != replaces]
             if len(kept) != len(events):
-                ledger.put("trip", trip["trip_id"], {"events": kept})
+                invalidated = {e["source_record_id"]: ["status"] for e in events
+                               if e.get("booking_action_id") == replaces and e.get("source_record_id")}
+                ledger.put("trip", trip["trip_id"], {"events": kept}, invalidate=invalidated)
         for n in range(1, 4):
             reminder_id = f"{replaces}:reminder:{n}"
             old = ledger.get("action", reminder_id)

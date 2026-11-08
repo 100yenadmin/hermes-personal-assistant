@@ -178,3 +178,27 @@ def test_replaced_booking_cannot_come_back_by_rerecording_its_readback(ledger):
         record(ledger, copy.deepcopy(READBACK))
     assert ledger.path.read_bytes() == before
     assert ledger.get("action", f"{ACTION}:reminder:1")["status"] == "cancelled"
+
+
+@pytest.mark.parametrize("move", [False, True])
+def test_replaces_invalidates_actions_derived_from_retired_event(ledger, move):
+    booked(ledger)
+    event = next(e for e in ledger.get("trip", TRIP)["fields"]["events"]
+                 if e.get("booking_action_id") == ACTION)
+    ledger.put("action", "derived-transfer", {
+        "source_record_id": event["source_record_id"], "source_fields": ["start"],
+        "derived_fields": ["due_at"], "due_at": READBACK["item"]["start"],
+        "title": "Transfer to retired booking"}, status="pending")
+    ledger.put("action", "other-derived", {"source_record_id": OTHER["source_record_id"],
+        "source_fields": ["start"], "derived_fields": ["due_at"], "due_at": OTHER["start"]}, status="pending")
+    untouched = ledger.get("action", "other-derived")
+    prepare(ledger, action_id=NEW)
+    value = {"replaces": ACTION, **(copy.deepcopy(READBACK) if move else {})}
+    replace(ledger, value)
+    derived = ledger.get("action", "derived-transfer")
+    assert derived["status"] == "paused"
+    assert derived["fields"]["blocked_reason"] == "source details changed; recompute before resuming"
+    assert "due_at" not in derived["fields"]
+    assert ledger.get("action", "other-derived") == untouched
+    replace(ledger, value)
+    assert ledger.get("action", "derived-transfer") == derived

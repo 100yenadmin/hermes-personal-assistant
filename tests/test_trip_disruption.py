@@ -337,3 +337,70 @@ def test_naive_at_is_rejected_without_writes(ledger):
     with pytest.raises(ValueError, match="timezone"):
         read(ledger, at="2026-11-10T08:00:00")
     assert rows(ledger) == before
+
+
+@pytest.mark.parametrize("status", ["cancelled", "diverted"])
+@pytest.mark.parametrize("following_live_leg", [False, True])
+def test_cancelled_or_diverted_connection_includes_downstream_dinner(ledger, status, following_live_leg):
+    first = flight(ledger, destination="ITM", status=status)
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", "origin": "ITM",
+        "scheduled_departure": "2026-11-10T13:00:00Z",
+        "scheduled_arrival": "2026-11-10T15:00:00Z"}], source="user")
+    if following_live_leg:
+        record_facts(ledger, TRIP, [{**SEGMENT, "number": "103", "origin": "CTS", "destination": "HND",
+            "scheduled_departure": "2026-11-11T10:00:00Z",
+            "scheduled_arrival": "2026-11-11T12:00:00Z"}], source="user")
+    booking(ledger, "dinner", "2026-11-10T18:00:00Z")
+    booking(ledger, "at-following-leg", "2026-11-11T10:00:00Z")
+    before = rows(ledger)
+    result = read(ledger)
+    affected = {item["booking_action_id"]: item for item in result["affected"]
+                if item["leg"] == first["segment_id"]}
+    assert "dinner" in affected
+    assert result["changed_legs"][0]["connection_at_risk"] is True
+    assert affected["dinner"]["reason"] == "after_missed_connection"
+    assert set(affected) == {"dinner"} | (set() if following_live_leg else {"at-following-leg"})
+    assert rows(ledger) == before
+
+
+def test_onward_estimated_departure_prevents_false_missed_connection(ledger):
+    first = flight(ledger, destination="ITM", estimated_arrival="2026-11-10T14:00:00Z")
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", "origin": "ITM",
+        "scheduled_departure": "2026-11-10T13:00:00Z", "estimated_departure": "2026-11-10T15:00:00Z",
+        "scheduled_arrival": "2026-11-10T16:00:00Z"}], source="user")
+    booking(ledger, "dinner", "2026-11-10T18:00:00Z")
+    result = read(ledger)
+    assert result["changed_legs"][0]["segment_id"] == first["segment_id"]
+    assert not result["changed_legs"][0].get("connection_at_risk", False)
+    assert result["affected"] == []
+
+
+def test_booking_before_a_late_onward_estimate_is_still_checked(ledger):
+    flight(ledger, destination="ITM", estimated_arrival="2026-11-10T14:00:00Z")
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", "origin": "ITM",
+        "scheduled_departure": "2026-11-10T13:00:00Z", "estimated_departure": "2026-11-10T15:00:00Z",
+        "scheduled_arrival": "2026-11-10T16:00:00Z"}], source="user")
+    booking(ledger, "transfer", "2026-11-10T14:00:00Z")
+    booking(ledger, "dinner", "2026-11-10T18:00:00Z")
+    affected = {item["booking_action_id"]: item["reason"] for item in read(ledger)["affected"]}
+    assert set(affected) == {"transfer"} and affected["transfer"] in {"unreachable", "tight"}
+
+def test_concierge_disruption_trigger_includes_reschedules():
+    from pathlib import Path
+    skill = (Path(__file__).resolve().parents[1] / "skills/trip-concierge/SKILL.md").read_text()
+    sentence = skill.split("For a flight_change whose leg ", 1)[1].split("before offering;", 1)[0]
+    assert "or rescheduled by at least 45 minutes" in sentence
+    assert "call `pa trip_watch_plan action=disruption trip_id=…`" in sentence
+
+
+@pytest.mark.parametrize("onward", [
+    {"origin": "ITM", "destination": "HND", "scheduled_departure": "2026-11-10T13:00:00Z", "scheduled_arrival": "2026-11-10T15:00:00Z"},
+    {"origin": "ITM", "destination": "CTS", "scheduled_departure": "2026-11-13T13:00:00Z", "scheduled_arrival": "2026-11-13T15:00:00Z"},
+])
+def test_return_or_later_flight_from_the_same_airport_is_not_a_connection(ledger, onward):
+    flight(ledger, destination="ITM", status="cancelled")
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", **onward}], source="user")
+    booking(ledger, "home-dinner", "2026-11-14T18:00:00Z")
+    result = read(ledger)
+    assert "connection_at_risk" not in result["changed_legs"][0]
+    assert "home-dinner" not in {item["booking_action_id"] for item in result["affected"]}
