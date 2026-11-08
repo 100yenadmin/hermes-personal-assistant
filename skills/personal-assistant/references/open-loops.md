@@ -34,9 +34,9 @@ third party, `delegated` for work the owner handed to someone else, and
 
 ## Close
 
-- A loop closes only on the other side's confirmation. Record it with the same
+- A loop closes on the other side's confirmation, or when the owner cancels it. Record confirmation with the same
   action: `fields.confirmation = {"by": "<who confirmed>", "at": "<timestamp>", "evidence": "<safe source: reply, receipt, readback>"}`.
-  `by` and `evidence` are required.
+  Non-empty strings `by` and `evidence`, and an ISO timestamp `at`, are required.
 - Kanban done is not confirmation. A loop whose Kanban task is done, or whose
   status is completed, stays in `next_action` with `loop_state: "done_unconfirmed"`
   until `confirmation` is written.

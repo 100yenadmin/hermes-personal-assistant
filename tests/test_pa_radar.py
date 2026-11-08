@@ -152,3 +152,83 @@ def test_radar_text_contract():
         assert f"`{name}`" in reference, name
     assert "never write `passport_expiry`" in reference
     assert "`references/radar.md`" in (root / "skills/personal-assistant/SKILL.md").read_text()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("opened_at", "tomorrow"), ("last_chased_at", "tomorrow"), ("snoozed_until", "tomorrow"),
+    ("loop_kind", []), ("next_actor", []), ("chase_log", "not a list"),
+    ("chase_log", [{"step": "escalate"}]), ("chase_log", ["day2"]),
+    ("chase_log", [{"step": "invalid", "at": AT}]),
+    ("chase_log", [{"step": "day2", "at": "2026-11-08"}]),
+    ("confirmation", {"by": ["Sam"], "evidence": {"ok": True}}),
+    ("confirmation", {"by": "Sam", "at": "tomorrow", "evidence": "reply"}),
+    ("confirmation", {"by": "Sam", "at": "2026-11-08", "evidence": "reply"}),
+    ("confirmation", {"by": " ", "at": AT, "evidence": "reply"}),
+    ("confirmation", {"by": "Sam", "at": AT, "evidence": {"ok": True}}),
+])
+def test_upsert_rejects_malformed_loop_fields(ledger, field, value):
+    with pytest.raises(ValueError, match=field):
+        dispatch(ledger.root, {"operation": "action_upsert", "data": {
+            "action_id": "bad-loop", "action_type": "commitment", "fields": {field: value}}})
+    assert ledger.get("action", "bad-loop") is None
+
+
+def test_upsert_accepts_documented_loop_fields_and_dates(ledger):
+    fields = {"loop_kind": "waiting_on_them", "next_actor": "them", "opened_at": "2026-11-01",
+              "last_chased_at": AT, "snoozed_until": "2026-11-09",
+              "chase_log": [{"step": step, "at": AT, "how": "fixture"}
+                            for step in ("day2", "day5", "day10", "escalate")],
+              "confirmation": {"by": "Sam", "at": AT, "evidence": "reply"}}
+    saved = dispatch(ledger.root, {"operation": "action_upsert", "data": {
+        "action_id": "valid-loop", "action_type": "commitment", "fields": fields}})
+    assert saved["fields"] == fields
+
+
+@pytest.mark.parametrize("confirmation", [
+    {"by": ["Sam"], "evidence": {"ok": True}}, {"by": "Sam", "evidence": "reply"},
+    {"by": "Sam", "at": "tomorrow", "evidence": "reply"},
+])
+def test_old_malformed_loop_fields_remain_readable_and_unconfirmed(ledger, confirmation):
+    _radar(ledger, "old-loop", loop_kind="waiting_on_them", next_actor=[], opened_at="tomorrow",
+           chase_log="not a list", confirmation=confirmation, radar_kind="deadline", event_date="2026-11-09")
+    for radar in (False, True):
+        result = next_actions(ledger, {"radar": radar, "at": AT}, kanban_reader=lambda *_: UNKNOWN)
+        assert result["candidates"][0]["loop_state"] == "open"
+
+
+def test_due_loop_is_not_hidden_by_upcoming_radar(ledger):
+    _radar(ledger, "due-loop", loop_kind="waiting_on_them", opened_at="2026-11-01T23:30:00Z",
+           radar_kind="renewal", expires_on="2027-06-01")
+    result = next_actions(ledger, {"loops_only": True, "at": "2026-11-08T12:00:00Z"},
+                          kanban_reader=lambda *_: UNKNOWN)
+    assert result["candidates"][0]["chase"]["step"] == "day5"
+    assert result["candidates"][0]["radar"]["date"] == "2027-06-01"
+    assert result["excluded_radar_upcoming"] == 0
+
+
+def test_radar_honours_trip_and_loops_only_filters(ledger):
+    for identity, trip, kind in (("plain", "other-trip", None), ("other-loop", "other-trip", "ask_owner"),
+                                 ("requested", "requested-trip", "ask_owner"), ("bad", "requested-trip", [])):
+        fields = {"radar_kind": "deadline", "event_date": "2026-11-09", "loop_kind": kind}
+        ledger.put("action", identity, fields, action_type="commitment", trip_id=trip)
+    ledger.put("action", "offer", {"outcome": "offered", "history": [{"outcome": "offered", "at": "2026-11-01T00:00:00Z"}]},
+               action_type="offer", trip_id="requested-trip")
+    data = {"trip_id": "requested-trip", "at": "2026-11-08T12:00:00Z"}
+    assert {i["action_id"] for i in _read(ledger, **data)["candidates"]} == {"requested", "bad", "offer"}
+    assert [i["action_id"] for i in _read(ledger, loops_only=True, **data)["candidates"]] == ["requested"]
+
+
+@pytest.mark.parametrize("status,task,confirmed,expected", [
+    ("completed", None, False, "done_unconfirmed"), ("pending", "done-task", False, "done_unconfirmed"),
+    ("pending", None, True, None), ("cancelled", None, False, None),
+])
+def test_radar_and_next_actions_share_loop_closure(ledger, status, task, confirmed, expected):
+    fields = {"loop_kind": "waiting_on_them", "opened_at": "2026-11-01T23:30:00Z",
+              "radar_kind": "deadline", "event_date": "2026-11-09", "kanban_task_id": task}
+    if confirmed:
+        fields["confirmation"] = {"by": "Sam", "at": AT, "evidence": "reply"}
+    ledger.put("action", "loop", fields, action_type="commitment", status=status)
+    for radar in (False, True):
+        result = next_actions(ledger, {"radar": radar, "at": "2026-11-08T12:00:00Z"},
+                              kanban_reader=lambda *_: {"status": "done" if task else "unknown"})
+        assert [i["loop_state"] for i in result["candidates"]] == ([expected] if expected else [])

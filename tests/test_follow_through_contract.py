@@ -24,7 +24,7 @@ def test_open_loops_reference_details_fields_and_close():
     for name in LOOP_FIELDS + ("next_chase_at", "day2", "day5", "day10", "escalate"):
         assert f"`{name}`" in text, name
     assert '"done_unconfirmed"' in text
-    assert "closes only on the other side's confirmation" in text
+    assert "closes on the other side's confirmation, or when the owner cancels it" in text
     assert "Kanban done is not confirmation" in text
     assert '"loop_kind":"ask_owner"' in text
 

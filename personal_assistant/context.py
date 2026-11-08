@@ -92,18 +92,37 @@ def _action_summary(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _iso_time(value: Any, *, timestamp: bool = False) -> bool:
+    if not isinstance(value, str) or (timestamp and len(value.strip()) <= 10):
+        return False
+    try:
+        dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        return True
+    except ValueError:
+        return False
+
+
 def loop_fields(fields: dict[str, Any]) -> dict[str, Any]:
-    """Validate open-loop enums on write and keep only the latest chase_log entries."""
+    """Validate supplied loop fields on write and bound the chase log."""
 
     if not isinstance(fields, dict):
         return fields
-    if "loop_kind" in fields and fields["loop_kind"] not in LOOP_KINDS:
+    if "loop_kind" in fields and (not isinstance(fields["loop_kind"], str) or fields["loop_kind"] not in LOOP_KINDS):
         raise ValueError("loop_kind must be ask_owner, delegated, our_promise or waiting_on_them")
-    if "next_actor" in fields and fields["next_actor"] not in NEXT_ACTORS:
+    if "next_actor" in fields and (not isinstance(fields["next_actor"], str) or fields["next_actor"] not in NEXT_ACTORS):
         raise ValueError("next_actor must be owner, us or them")
-    if "confirmation" in fields and not isinstance(fields["confirmation"], dict):
+    for name in ("opened_at", "last_chased_at", "snoozed_until"):
+        if name in fields and not _iso_time(fields[name]):
+            raise ValueError(f"{name} must be an ISO date or timestamp")
+    if "confirmation" in fields and not _confirmed(fields):
         raise ValueError("confirmation must be an object with by, at and evidence")
-    if isinstance(fields.get("chase_log"), list):
+    if "chase_log" in fields:
+        log = fields["chase_log"]
+        if not isinstance(log, list) or any(
+            not isinstance(entry, dict) or entry.get("step") not in tuple(step for step, _ in CHASE_LADDER)
+            or not _iso_time(entry.get("at"), timestamp=True) for entry in log
+        ):
+            raise ValueError("chase_log must be a list of objects with ladder step and ISO timestamp at")
         fields = {**fields, "chase_log": fields["chase_log"][-MAX_CHASE_LOG:]}
     return fields
 
@@ -172,7 +191,19 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
 
 def _confirmed(fields: dict[str, Any]) -> bool:
     confirmation = fields.get("confirmation")
-    return isinstance(confirmation, dict) and bool(confirmation.get("by")) and bool(confirmation.get("evidence"))
+    return (isinstance(confirmation, dict)
+            and all(isinstance(confirmation.get(key), str) and confirmation[key].strip() for key in ("by", "evidence"))
+            and _iso_time(confirmation.get("at"), timestamp=True))
+
+
+def loop_state(action: dict[str, Any], kanban: dict[str, Any]) -> str | None:
+    fields = action.get("fields", {})
+    if not isinstance(fields.get("loop_kind"), str) or fields["loop_kind"] not in LOOP_KINDS:
+        return None
+    if _confirmed(fields) or action.get("status") == "cancelled":
+        return "closed"
+    done = kanban.get("status") in _KANBAN_DONE or action.get("status") in {"completed", "confirmed", "done"}
+    return "done_unconfirmed" if done else "open"
 
 
 def _loop_step(fields: dict[str, Any], item: dict[str, Any]) -> str | None:
@@ -188,7 +219,7 @@ def _loop_step(fields: dict[str, Any], item: dict[str, Any]) -> str | None:
         return None
     how = {"them": f"draft a nudge to {who} and hold it for the owner's yes",
            "us": "do our next step now, or tell the owner it has slipped"}.get(
-        fields.get("next_actor"), "remind the owner of the open ask")
+        str(fields.get("next_actor")), "remind the owner of the open ask")
     planned = fields.get("next_step") or fields.get("next_action")
     return (f"Chase {step}: {how}; then record last_chased_at and chase_log."
             + (f" Next step: {planned}" if planned else ""))
@@ -325,15 +356,16 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
             continue
         fields = action.get("fields", {})
-        loop = fields.get("loop_kind") in LOOP_KINDS
+        loop = isinstance(fields.get("loop_kind"), str) and fields["loop_kind"] in LOOP_KINDS
         if loops_only and not loop:
             continue
         task_id = fields.get("kanban_task_id")
         kanban = reader(task_id, fields.get("kanban_board"))
+        state = loop_state(action, kanban)
         status = action.get("status")
         if loop:
             # Only the other side's confirmation closes a loop; an owner cancellation withdraws it.
-            if _confirmed(fields) or status == "cancelled":
+            if state == "closed":
                 excluded_closed_loops += 1
                 continue
         elif kanban.get("status") in _KANBAN_DONE:
@@ -343,7 +375,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             excluded_terminal_unlinked += 1
             continue
         radar = radar_item(action, today)
-        if radar and not radar["surfaced"]:
+        if radar and not radar["surfaced"] and not loop:
             excluded_radar_upcoming += 1  # A renewal or date waits on the radar until its lead time.
             continue
         item = _action_summary(action)
@@ -377,8 +409,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             item["next_step"] = (fields.get("next_action") or (loop and fields.get("next_step"))
                                  or fields.get("blocked_reason") or "Review current source facts and choose one action.")
         if loop:
-            done = kanban.get("status") in _KANBAN_DONE or status in {"completed", "confirmed"}
-            item["loop_state"] = "done_unconfirmed" if done else "open"
+            item["loop_state"] = state
             item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
             guidance = None if status == "paused" or stale else _loop_step(fields, item)
             if guidance:

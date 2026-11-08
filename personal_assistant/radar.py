@@ -92,7 +92,7 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
          moment: dt.datetime, zone: dt.tzinfo) -> dict[str, Any]:
     """List surfaced radar items and unanswered offers; reads the ledger and writes nothing."""
 
-    from .context import _page, _paging, local_time
+    from .context import _page, _paging, local_time, loop_state
 
     limit, offset = _paging(data)
     offer_days = data.get("offer_days", DEFAULT_OFFER_DAYS)
@@ -102,14 +102,23 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
     today = moment.astimezone(zone).date()
     items, upcoming = [], []
     for action in ledger.list("action"):
+        if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
+            continue
         fields = action.get("fields", {})
+        state = loop_state(action, {})
+        if data.get("loops_only") is True and state is None:
+            continue
         if fields.get("radar_kind") in RADAR_KINDS:
-            if action.get("status") in _CLOSED:
-                continue
             task_id = fields.get("kanban_task_id")
-            if task_id and kanban_reader(task_id, fields.get("kanban_board")).get("status") in _KANBAN_DONE:
+            kanban = kanban_reader(task_id, fields.get("kanban_board")) if task_id else {}
+            state = loop_state(action, kanban)
+            if state == "closed" or (state is None and (
+                action.get("status") in _CLOSED or kanban.get("status") in _KANBAN_DONE
+            )):
                 continue
             item = radar_item(action, today)
+            if state:
+                item["loop_state"] = state
             if not item["surfaced"]:
                 upcoming.append(item["surface_at"])
                 if not include_upcoming:
