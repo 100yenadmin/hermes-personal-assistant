@@ -82,8 +82,10 @@ occurrence and `outcome=offered`. If blocked, stay silent: check acknowledged it
 Never create or update a watch in a watcher wake turn.
 For flight_change, say whether the first commitment works, name the assumed
 processing, transfer and buffer minutes plainly, and give up to three alternatives.
-Look up rebooking options with tripcom-flight-hotel-booking or the airline site;
-never book. For weather_leave_early, give the new timing and why; for trip_change,
+For a flight_change whose leg is cancelled, diverted or delayed by at least 45 minutes or rescheduled by at least 45 minutes,
+call `pa trip_watch_plan action=disruption trip_id=…` before offering; follow the
+orchestrator's "Changed or cancelled leg" packet. Never change anything before
+the owner picks an option. For weather_leave_early, give the new timing and why; for trip_change,
 say what changed and whether to update plans; for watch_attention, explain the trouble.
 The arrival offer flow below is for the arrival_logistics wake.
 When `leave_by` is null, say "Be at the airport by HH:MM" and ask ONCE how long the trip from where they're staying to the airport takes; replan with `airport_transfer_minutes`. Never call the at-airport time a leave time.

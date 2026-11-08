@@ -270,11 +270,12 @@ class Ledger:
         if outcome != "unknown" and not clean(proof):
             raise ValueError("provider evidence required")
         current = self.get("action", identity)
+        verified_at = now() if proof else None
         if follow_through is not None:
             if outcome != "confirmed":
                 raise ValueError("follow_through requires outcome confirmed")
             from .booking_follow_through import validate, complete
-            item, reminders, trip_id, loop = validate(self, current, follow_through)
+            item, reminders, trip_id, loop, expense, replaces = validate(self, current, follow_through, verified_at)
         governed = current and current["fields"].get("enforcement_profile") == "exact_action"
         if governed:
             target = {"confirmed": "verified", "failed": "reconciled", "unknown": "provider_result"}[outcome]
@@ -282,7 +283,7 @@ class Ledger:
         else:
             target = outcome
             expected = {"submitting", "unknown"}
-        fields = {"provider_proof": proof, "verified_at": now() if proof else None}
+        fields = {"provider_proof": proof, "verified_at": verified_at}
         if follow_through is not None:
             if item is not None:
                 fields["booked_item"] = item
@@ -292,5 +293,5 @@ class Ledger:
             expected = expected | {target}
         result = self.transition(identity, expected, target, fields)
         if follow_through is not None:
-            result["follow_through"] = complete(self, identity, item, reminders, trip_id, loop)
+            result["follow_through"] = complete(self, identity, item, reminders, trip_id, loop, expense, replaces)
         return result

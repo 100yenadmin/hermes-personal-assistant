@@ -140,6 +140,8 @@ def system_prompt(scenario):
         standins = "lab_booking_*" if scenario["lab"].get("kind") == "booking" else "lab_mail_* and lab_calendar_*"
         if scenario["lab"].get("kind") == "vendor_request":
             standins = "lab_booking_* and lab_vendor_*"
+        if scenario["lab"].get("kind") == "disruption":
+            standins = "lab_booking_* and lab_flight_*"
         return ("You are the synthetic owner's personal assistant. Use pa and the local " + standins + " stand-ins; "
                 "no real providers. All outward actions are draft-and-hold until an item-specific explicit yes. "
                 "Read before claiming completion. Reply in " + scenario["language"] + ". USER.md: " + scenario["user_md"]
@@ -279,7 +281,7 @@ def one(args):
         task_id = "pl" + hashlib.sha256(str(root).encode()).hexdigest()[:8]
         # Hermes' native timestamp + hex shape, deterministic within this run root.
         session_id = (dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc).strftime("%Y%m%d_%H%M%S_")
-                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request"} else None
+                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption"} else None
 
         def turn(message, user=False, system="", hist=None, platform=None):
             remaining = s["budget_seconds"] - (time.time() - meta["start"])

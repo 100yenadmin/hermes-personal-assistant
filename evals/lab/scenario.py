@@ -122,14 +122,22 @@ def validate(s):
     require(isinstance(s.get("seed", []), list), "seed")
     for i, item in enumerate(s.get("seed", [])):
         if isinstance(item, dict) and item.get("operation") == "trip_import":
-            require(lab and s["lab"].get("kind") == "booking", f"seed[{i}].operation")
+            require(lab and s["lab"].get("kind") in {"booking", "disruption"}, f"seed[{i}].operation")
     if cos or lab:
         require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
-            if lab and s["lab"].get("kind") == "booking" and isinstance(item, dict) and item.get("operation") == "trip_import":
+            if lab and s["lab"].get("kind") in {"booking", "disruption"} and isinstance(item, dict) and item.get("operation") == "trip_import":
                 data = item.get("data", {})
                 require(isinstance(data, dict) and bool(data.get("trip_id"))
                         and isinstance(data.get("ics_text"), str) and bool(data["ics_text"].strip()), f"seed[{i}].data")
+                continue
+            if lab and s["lab"].get("kind") == "disruption" and isinstance(item, dict) and item.get("operation") in {
+                    "trip_watch_plan", "action_prepare", "action_confirm", "action_claim", "action_result"}:
+                data = item.get("data")
+                require(isinstance(data, dict) and bool(data), f"seed[{i}].data")
+                require(data.get("action") == "record_facts" and data.get("source") == "simulated" and bool(data.get("segments"))
+                        if item["operation"] == "trip_watch_plan" else bool(data.get("action_id")) and "enforcement_profile" not in data,
+                        f"seed[{i}].data")
                 continue
             require(isinstance(item, dict) and item.get("operation") == "action_upsert"
                     and isinstance(item.get("data"), dict), f"seed[{i}]")
@@ -137,7 +145,17 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption"}, "lab.kind")
+        if s["lab"]["kind"] == "disruption":
+            from .lab_plugin import BOOKING_FIELDS
+            offers, options = s["lab"].get("offers", []), s["lab"].get("flight_options", [])
+            require(isinstance(offers, list) and len(offers) == 2 and all(isinstance(o, dict) and all(k in o for k in BOOKING_FIELDS)
+                    and o["party_size"] == 2 for o in offers), "lab.offers")
+            require(isinstance(options, list) and len(options) == 3 and all(isinstance(o, dict) and all(k in o for k in
+                    ("id", "carrier", "number", "origin", "destination", "start", "end", "timezone", "price_text", "fare_difference_text")) for o in options), "lab.flight_options")
+            ids = [o["id"] for o in offers + options]
+            require(all(isinstance(i, str) and i for i in ids) and len(set(ids)) == 5, "lab.options.id")
+            require(s["steps"][-1].get("scripted_yes", {}).get("items") == ["flight-opt-jl125", "offer-kitsune-2100"], "steps.scripted_yes.items")
         if s["lab"]["kind"] == "vendor_request":
             from .lab_plugin import BOOKING_FIELDS
             vendor, offers = s["lab"].get("vendor", {}), s["lab"].get("offers", [])
