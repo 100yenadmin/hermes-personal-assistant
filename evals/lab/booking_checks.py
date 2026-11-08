@@ -226,6 +226,9 @@ def _evaluate(root, scenario, index, messages, tools):
 
 
 def evaluate(root, scenario, index, messages, tools):
+    if scenario["lab"].get("kind") == "disruption":
+        from .disruption_checks import evaluate as disruption_evaluate
+        return disruption_evaluate(root, scenario, index, messages, tools)
     if scenario["lab"].get("kind") == "vendor_request":
         from .vendor_checks import evaluate as vendor_evaluate
         return vendor_evaluate(root, scenario, index, messages, tools)
