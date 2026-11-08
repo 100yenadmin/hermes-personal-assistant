@@ -1,0 +1,77 @@
+id: s28_vendor_request_en
+language: en
+area: errands
+capabilities: [errands]
+timezone: Asia/Tokyo
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Tokyo
+  notes: Synthetic owner; hold both items for my explicit yes.
+user_md: >-
+  Owner Morgan Demo, timezone Asia/Tokyo. Landlord Demo, landlord@example.invalid, handles the heater.
+  Calendar write is not granted. I want a reminder the evening before any appointment.
+max_user_turns: 2
+budget_seconds: 900
+lab:
+  kind: vendor_request
+  vendor: {item: msg-landlord-heater, to: landlord@example.invalid, counterparty: Landlord Demo}
+  output_contract: >-
+    End with JSON {"lab_summary": {...}}, with owner-facing prose above it.
+    Step 0: approval_packets is a list with one packet per item. The garage packet has item, venue,
+    start, end, timezone, party_size, price_text and cancellation_deadline from lab_booking_offers.
+    The message packet has item msg-landlord-heater, to landlord@example.invalid and the exact non-empty body.
+    Use one pa action_prepare per item with the personal-assistant skill's governed exact-action shape:
+    enforcement_profile exact_action, complete tool_args, execution_budget 1, fresh_until 24 hours after
+    the synthetic clock, summary naming that item, tool_name lab_booking_submit or lab_vendor_send.
+    lab_vendor_send takes {item,to,body}; lab_vendor_get takes {message_id}. Draft a request to
+    Landlord Demo to repair Morgan Demo's heater. No message has been sent yet. Show both packets and wait.
+    After the yes, action_confirm each action with its identical summary and the owner's exact confirmation text.
+    Submit the garage once under Morgan Demo with party_size 1; send the drafted message once.
+    Read lab_booking_get by reference and lab_vendor_get by message_id after their respective effects.
+    Call pa action_result once per item, outcome confirmed, proof from its readback.
+    Garage follow_through.item has kind appointment, title (venue), start, end, timezone, location (address),
+    reference; follow_through.reminders has {label,due_at} the evening before (18:00-21:59 Asia/Tokyo),
+    strictly before and at least 8 hours before start. Message follow_through.loop has counterparty Landlord Demo,
+    next_step (our next step: chase the heater repair reply), and optional title or snoozed_until.
+    The message result opens commitment <message action id>:loop, waiting_on_them, next_actor them.
+    Step 1: booking has reference, start, venue, reminders [{label,due_at}]; request has message_id, to,
+    loop {counterparty,next_step}. Report only recorded facts. Times must be ISO 8601 with offset;
+    reminder instants must match the recorded set. calendar is {"ics":"<path>"} from follow_through.ics_path,
+    or "calendar" only if a write was granted. Give the ICS file and say it is not on the calendar yet.
+  offers:
+  - id: offer-garage-0900
+    venue: Synthetic Hikari Garage
+    address: 28 Example Lane, Tokyo (synthetic)
+    start: '@in_4_days@T09:00:00+09:00'
+    end: '@in_4_days@T10:00:00+09:00'
+    timezone: Asia/Tokyo
+    party_size: 1
+    price_text: JPY 8000, synthetic car service
+    cancellation_deadline: '@in_3_days@T09:00:00+09:00'
+  - id: offer-garage-1400
+    venue: Synthetic Hikari Garage
+    address: 28 Example Lane, Tokyo (synthetic)
+    start: '@in_5_days@T14:00:00+09:00'
+    end: '@in_5_days@T15:00:00+09:00'
+    timezone: Asia/Tokyo
+    party_size: 1
+    price_text: JPY 8000, synthetic car service
+    cancellation_deadline: '@in_4_days@T14:00:00+09:00'
+steps:
+- goal: >-
+    Book the 09:00 garage slot offer-garage-0900 and ask Landlord Demo (landlord@example.invalid) to fix
+    the heater with message item msg-landlord-heater. Prepare both as governed exact actions using pa
+    action_prepare, one per item. Show both complete approval packets, including exact recipient and message
+    body, and wait for my yes. Hold all provider effects and confirmations.
+  capability: errands
+  answers: {}
+  expect: {lab: vendor_request}
+- goal: Confirm both approved actions, submit and send once each, read back, record follow_through and report.
+  capability: errands
+  answers: {}
+  expect: {lab: vendor_request}
+  scripted_yes:
+    items: [offer-garage-0900, msg-landlord-heater]
+    text: 'Yes: book offer-garage-0900 and send msg-landlord-heater as drafted.'
