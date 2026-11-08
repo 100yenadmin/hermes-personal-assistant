@@ -39,7 +39,7 @@ Use `phone-calls` when a phone call is needed.
 7. Build a final confirmation summary with kind `reservation`, risk flag `final-reservation-submit`, plus no-show fee, saved payment, saved credential, outbound-message, or phone-call flags as relevant. Update `travel-ledger` to `awaiting-final-confirmation`.
 8. After confirmation, re-check details and submit immediately only if they match.
 9. Verify reservation id, confirmation email, or provider-visible status. Record proof/status in `travel-ledger` before reporting.
-   With a confirmed readback, call `action_result` with `follow_through` using its own item values and reminders such as leave-by, check-in or the cancellation deadline. Never add a fact the readback does not show. Reminders are your own timing: set leave-by from the readback's start minus the known travel time, or assume 60 minutes and say so.
+   With a confirmed readback, call `action_result` with `follow_through` using its own item values and reminders such as leave-by, check-in or the cancellation deadline. Never add a fact the readback does not show. Reminders are your own timing: set leave-by from the readback's start minus the travel time, and for a flight or train also the check-in and boarding time; when a time is unknown, use a stated assumption (for a local dinner or appointment, about an hour) and say so.
    Include `follow_through.expense` when the readback states the total charged or due.
    Do the returned `next_step`. Report exactly what is on the itinerary, which reminders are set, and whether the booking is on the calendar or only in the ICS file.
 

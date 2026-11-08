@@ -109,9 +109,15 @@ def test_receipt_idempotency_trip_validation_and_void_list(ledger):
     assert row["action_id"] == "expense:" + stable_id("receipt", RECEIPT["evidence_ref"])
     assert row["fields"]["source"] == "owner_receipt"
     assert row["fields"]["source_action_id"] == ACTION
-    changed = expense(ledger, "record", expense={**RECEIPT, "amount": "20"}, trip_id=TRIP)
-    assert changed["action_id"] == row["action_id"]
+    same = expense(ledger, "record", expense={**RECEIPT, "merchant": "Synthetic Inn"})
+    assert same["action_id"] == row["action_id"] and same["fields"]["merchant"] == "Synthetic Inn"
+    # Omitting trip_id and source_action_id on a re-record keeps them, so the row stays in its trip export.
+    assert same["fields"]["trip_ref"] == TRIP and same["fields"]["source_action_id"] == ACTION
     assert len(expense(ledger, "list")) == 1
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="different receipt"):
+        expense(ledger, "record", expense={**RECEIPT, "amount": "20"}, trip_id=TRIP)
+    assert ledger.path.read_bytes() == before
     before = ledger.path.read_bytes()
     with pytest.raises(ValueError, match="existing trip"):
         expense(ledger, "record", **RECEIPT, trip_id="unknown")
@@ -128,6 +134,7 @@ def test_receipt_idempotency_trip_validation_and_void_list(ledger):
     {"action": "record", "expense": EXPENSE},
     {"action": "record", **RECEIPT, "payment_method": "cash"},
     {"action": "record", **RECEIPT, "description": "4111111111111111"},
+    {"action": "record", **RECEIPT, "source_action_id": "card number: 4111 1111 1111 1111"},
     {"action": "record", **RECEIPT, "expense": RECEIPT},
     {"action": "void", "expense_id": "missing", "reason": "x" * 201},
     {"action": "list", "include_void": "false"}, {"action": "list", "extra": 1},
@@ -242,3 +249,15 @@ def test_schema_describes_expenses_without_breaking_existing_reason(ledger):
     assert list(validator.iter_errors({"operation": "action_result", "data": {
         "outcome": "confirmed", "follow_through": {"expense": EXPENSE}}})) == []
     assert list(validator.iter_errors({"operation": "trip_watch_plan", "data": {"reason": "invented"}}))
+
+
+def test_voided_receipt_can_be_corrected_under_the_same_reference(ledger):
+    row = expense(ledger, "record", **RECEIPT, trip_id=TRIP)
+    expense(ledger, "void", expense_id=row["action_id"], reason="wrong amount")
+    fixed = expense(ledger, "record", expense={**RECEIPT, "amount": "20"}, trip_id=TRIP)
+    assert fixed["status"] == "recorded" and fixed["fields"]["amount"] == "20"
+
+
+def test_reason_hint_survives_without_combinators():
+    reason = SCHEMA["parameters"]["properties"]["data"]["properties"]["reason"]
+    assert reason["type"] == "string" and "declined" in reason["description"]

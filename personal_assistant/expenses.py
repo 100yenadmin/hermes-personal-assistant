@@ -149,7 +149,7 @@ def export(ledger, trip_id):
 
 
 def dispatch(ledger, data):
-    _safe({k: data[k] for k in ("reason", "merchant", "description", "evidence_ref") if k in data})
+    _safe({k: data[k] for k in ("reason", "merchant", "description", "evidence_ref", "source_action_id") if k in data})
     action = data.get("action")
     allowed = {"record": {*FIELDS, "expense", "trip_id", "source_action_id"}, "void": {"expense_id", "reason"},
                "list": {"trip_id", "include_void"}, "export": {"trip_id"}}
@@ -166,8 +166,15 @@ def dispatch(ledger, data):
             raise ValueError("expense.date and expense.evidence_ref are required")
         if "source_action_id" in data:
             _text(data["source_action_id"], "source_action_id", 1000)
-        return save(ledger, "expense:" + stable_id("receipt", fields["evidence_ref"]), fields,
-                    "owner_receipt", data.get("source_action_id"), trip_id)
+        identity = "expense:" + stable_id("receipt", fields["evidence_ref"])
+        old = ledger.get("action", identity)
+        if old and old["status"] != "void" and any(old["fields"].get(k) != fields[k] for k in ("amount", "currency", "date")):
+            # One evidence_ref is one receipt; a different charge under it would silently replace the first.
+            raise ValueError("this evidence_ref already records a different receipt; use the message id or receipt number, or void the old row first")
+        old_fields = (old or {}).get("fields", {})
+        # A re-record that omits the trip or source keeps them, so the row stays in its trip export.
+        return save(ledger, identity, fields, "owner_receipt",
+                    data.get("source_action_id", old_fields.get("source_action_id")), trip_id or old_fields.get("trip_ref"))
     if action == "void":
         identity = _text(data.get("expense_id"), "expense_id", 1000)
         reason = _text(data.get("reason"), "reason", 200, allow_empty=True)

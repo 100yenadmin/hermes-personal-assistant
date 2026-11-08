@@ -46,7 +46,7 @@ SCHEMA = {
             "arm": {"type": "array", "items": {"type": "string", "enum": list(MOMENTS)}, "minItems": 1, "uniqueItems": True},
             "check_in_window_hours": {"type": "integer", "minimum": 1, "maximum": 72},
             "night_alerts": {"type": "boolean"}, "weather": {"type": "boolean"},
-            "reason": {"type": "string"},
+            "reason": {"type": "string", "description": "trip_watch_plan record_skip: " + ", ".join(SKIPS) + ". expense void: free text."},
             "expires_at": {"type": "string"},
             "wakes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "status": {"type": "string"}, "expires_at": {"type": "string"}}, "required": ["id", "status"]}},
             "segments": {"anyOf": [{"type": "array", "items": SEG_SCHEMA, "minItems": 1, "maxItems": 8}, SEG_SCHEMA,
