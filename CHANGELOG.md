@@ -4,7 +4,7 @@
 
 ## 0.10.0-rc.1 — 2026-11-08
 
-The first measured release (roadmap M2, #48). It ships `releases/0.10.0-rc.1/scorecard.md`, built from Capability Lab runs pinned to this release's reviewed commit: real Hermes v0.22.2, real web pages through Browserbase, and `gpt-6.1-sol`. SCORECARD_HEADLINE
+The first measured release (roadmap M2, #48). It ships `releases/0.10.0-rc.1/scorecard.md`, built from Capability Lab runs pinned to this release's reviewed commit: real Hermes v0.22.2, real web pages through Browserbase, and `gpt-6.1-sol`. Four areas were exercised, 27 runs in all. Calendar (s19) and recurring routines (the daily, quiet-day, weekly and kickoff routines) pass their partial checks in 3 of 3 runs each. Travel prep passes 8 of 9 runs; in the ninth, the judge found a "prepared" food-order cart and a restaurant price range that the evidence did not show, so travel's partial check reads fail. General research fails its lab test, 1 of 3. Every run passed the fixed checks with no misquoted price; the judge found an annual price described as monthly billing in one run, and a unit it could not see in its source excerpt in another. No area reaches parity yet: real-work and day-30 evidence come from the pilot owner's recorded tasks, and ten areas have no lab scenario yet. No run booked, paid or submitted anything (zero tripwire hits).
 
 - **General research (#70, #81, #83, #84).** A new research lab scenario (s18) asks PA to compare real providers on the live web. The `research` skill now:
   - asks the owner's top priority first when the answer is a choice, and takes lowest total cost if they have none;
