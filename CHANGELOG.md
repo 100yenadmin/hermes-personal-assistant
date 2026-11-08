@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.12.0-rc.1 — 2026-11-09
+
+SCORECARD_PARAGRAPH
+
+This release finishes the steps after the owner says yes (roadmap M5, in part). A booking lands on the itinerary with its reminders and a calendar file in the same turn. A request sent to a vendor becomes a reply PA chases. Each booking can carry its cost, and the owner's receipts become an expense list that exports to a spreadsheet. When a flight is cancelled or delayed, PA lists what it breaks, brings two or three options in one message, and after the owner's pick replaces the old booking with the new one. A yes given in a different chat session still goes through exactly once. All of it is proven in the lab against stand-in providers; no real booking has been completed yet.
+
+After the yes (M5-a, #107, #108):
+
+- **Bookkeeping from the readback.** `pa action_result` with outcome `confirmed` takes `follow_through`. In the same atomic write as the result, it does the following:
+  - records the booked item on its trip, with the provider readback as its source;
+  - sets up to three reminders, such as leave-by, check-in or the cancellation deadline;
+  - writes a single-event ICS file in the profile.
+- **Calendar.** PA writes to the calendar only when the owner granted calendar write in setup and the daily-ops config is valid. Otherwise the owner gets the ICS file and is told the booking is not on their calendar yet.
+- **What stays private.** Booking references stay out of shared trip exports; only the booking's own ICS carries them.
+- **Moved bookings.** A moved booking refreshes its trip entry. Attempted transactions are never paused by it.
+- **Retries.** Re-recording a confirmed readback refreshes the bookkeeping without replaying the provider call. A reminder the owner already handled stays handled.
+
+Vendor requests and errands (M5-b, #114):
+
+- **Replies get chased.** After a verified send of a vendor request (a landlord, a garage, a florist), `follow_through.loop` opens a `waiting_on_them` loop in the same write. The day 2, 5 and 10 chase ladder then takes it, with nudges held for the owner's yes as before. A vendor's promised reply date holds the ladder until then.
+- **Appointments, deliveries and errands** are item kinds. They land with reminders and an ICS file like any booking.
+
+Expenses (M5-c, #119):
+
+- **Every confirmed booking can carry its cost.** `follow_through.expense` writes one expense row for the booking in the same write. Amounts are exact decimals with an ISO currency, as a charge or a refund, in a fixed category list. There is no currency conversion.
+- **Receipts the owner sends.** `pa expense` records, voids, lists and exports expenses. Exports are CSV and Markdown files in the profile's `exports/expenses`, safe to open in a spreadsheet, and they flag possible duplicates. A receipt is keyed by its evidence: sending the same receipt twice records it once, and a different amount for the same receipt is refused.
+- **Voided stays voided.** A re-record of a voided expense brings it back only when the money (amount, currency, charge or refund) is the same. A receipt also has to match on date, and on merchant when both copies name one.
+
+Changed or cancelled flights (M5-d, #118, #121):
+
+- **What a changed leg breaks.** `pa trip_watch_plan action=disruption` is a read-only view of a trip. It lists each changed leg and the bookings that leg puts at risk, with feasibility and the booking's pending reminders. A changed leg is cancelled, diverted, delayed by 45 minutes or more, or moved by 45 minutes or more against the saved schedule.
+- **Connections.** A delayed inbound leg that lands after the onward leg's departure marks a missed connection, using the onward estimate when there is one. A cancelled or diverted inbound leg to the next leg's origin does the same when the onward leg leaves within a day and does not return to where the trip started. Bookings after the missed connection are listed too.
+- **Options, then one change per item.** The travel skills turn that view into one packet of 2 or 3 options. After the owner picks, each change is its own governed exact action.
+- **Replacing a booking.** `follow_through.replaces` retires the old booking in the same write as the new one's readback. It removes the old trip entry, cancels the old booking's pending reminders and links the old booking to its replacement. Actions derived from the old entry are invalidated, and a replaced booking cannot come back by re-recording its readback.
+
+Reminder timing (#119): the booking skills set leave-by from the readback's start minus the travel time, and for a flight or train also check-in and boarding. When a time is unknown, the skill uses a stated assumption and says so. Booking facts come only from the readback.
+
+Approvals across sessions (#110, #112):
+
+- **A yes in another session counts once.** When the owner's yes arrives in a different Hermes session or task from the one that prepared the action, the confirmation moves the approval to the confirming session. The provider call there is claimed exactly once, and the old session can no longer use it. Before this fix, the call went through unclaimed and its readback was refused.
+
+Lab (#109, #111, #115, #120, #122):
+
+- **s27, a stand-in booking after the yes.** The scenario checks a hold until the item-specific yes, the approval packet, a prepared exact action, one submit under the owner's name, the readback, the recorded follow-through, a distinct leave-by reminder and an honest report.
+- **s28.** An appointment and a landlord request in one yes, ending with the reply chased as a loop.
+- **Lab check fixes from the 0.11.0 wave (#105).** s20 reads the agent's first loop read. s22 extras must be real, finished rows with evidence. s25 local times get a clean failure and a zone label.
+- **s29, a cancelled leg that breaks a dinner (#122).** One options packet with nothing changed; then, after the owner's pick, two governed exact actions, one flight rebook and one dinner move, both read back, the old dinner retired with its reminders and the ICS file offered honestly.
+- **s16 check fix (#120).** The weekly routine check accepts the outcome labels honest runs actually wrote.
+
 ## 0.11.0 — 2026-11-09
 
 It ships `releases/0.11.0/scorecard.md`, built from 48 Capability Lab runs (16 scenarios, 3 runs each) pinned to the reviewed commit: real Hermes v0.22.2, real web pages, `gpt-6.1-sol`. 40 of 48 runs pass. Inbox triage (s24), the personal radar (s21), the broken-routine catch (s23), meeting confirmations (s26), calendar conflicts (s19), general research (s18) and the daily, quiet-day and kickoff routines pass 3 of 3 each. Follow-through chasing (s20) and the end-of-day note (s22) pass 2 of 3. In the s20 miss the run claimed the right chase steps, but the check reads only the agent's last loop read, taken after the chase steps were recorded, when no step was due any more (a check gap, #105). In the s22 miss the note listed an extra item that was not one of the tasks. The weekly routine passes 2 of 3 (one reply did not offer calendar setup outright). Calendar invites pass 1 of 3: every run had the right times and the judge passed all three, but the lab contract does not fix the format of participant local times, so two runs wrote formats the check cannot read (#105). Travel prep passes 6 of 9: the Tokyo-to-Seoul trip 3 of 3, Seoul-to-Tokyo 2 of 3 and San Francisco 1 of 3; two runs gave a restaurant the price range of a different restaurant, and one left a step without a final page or hand-off. No area reaches parity yet. No run booked, paid or submitted anything (zero tripwire hits). A first wave on the pre-release commit found that the new rule to record every owner ask as a loop also opened a second tracker for Chief of Staff recommendations, so daily and kickoff fell to 1 of 3; #104 fixed that before this wave, with radar lead times, end-of-day grounding and lab checks that wrongly failed honest runs.

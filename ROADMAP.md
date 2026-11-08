@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.11.0, 9 November 2026)
+## Where we are (0.12.0-rc.1, 9 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -36,6 +36,14 @@ end-of-day note and the weekly routine pass 2 of 3. Calendar invites pass 1 of 3
 because the lab contract leaves the local-time format open (#105). Travel prep
 passes 6 of 9. Next: the ten-working-day unattended canary (#50), the pilot's real
 loops, and M5.
+
+**Built, lab-proven against stand-ins (M5, in part).** 0.12.0-rc.1 handles the steps
+after the yes. A booking readback records the item on its trip, sets reminders and
+writes a calendar file. A vendor request becomes a chased loop. Each booking can carry
+its expense, and the owner's receipts become an exportable expense list. A cancelled
+or delayed flight produces a read-only list of what it breaks, then one options
+packet, and the chosen change replaces the old booking. ROADMAP_WAVE_SENTENCE No real
+booking has been completed yet; calls and the browser handoff are still open.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
@@ -286,11 +294,14 @@ needs both.
 **Status (0.12.0-rc.1).** The steps after the yes are built and pass in the lab
 against stand-in providers. That covers recording a booked item from the
 readback, reminders, the ICS file, vendor requests that become chased loops,
-and appointment, delivery and errand items. A yes given in another session is
-also claimed exactly once. Lab s27 (a booking after the yes) passed S27_RESULT,
-and s28 (a garage appointment plus a landlord request) passed S28_RESULT. No
-real booking has been completed yet, and calls, the browser handoff and changed
-legs are still open.
+and appointment, delivery and errand items. Expenses from bookings and
+receipts (M5-c) and changed or cancelled legs (M5-d: what a leg breaks, one
+options packet, and the replacement) are built too. A yes given in another
+session is also claimed exactly once. Lab s27 (a booking after the yes) passed
+S27_RESULT, s28 (a garage appointment plus a landlord request) passed
+S28_RESULT, and s29 (a cancelled leg that breaks a dinner) passed S29_RESULT. No
+real booking has been completed yet, and calls and the browser handoff are still
+open.
 
 **Scope.**
 - **Browser handoff.** A live browser handoff inside Hermes for card, OTP,
