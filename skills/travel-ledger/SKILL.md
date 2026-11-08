@@ -41,6 +41,8 @@ checkout:
 python3 ./skills/travel-ledger/scripts/travel_ledger.py --help
 ```
 
+Use `pa expense export` with `trip_id` for the private per-trip CSV/Markdown expense summary, with totals per currency.
+
 Hermes must export an existing, profile-scoped `HERMES_HOME` (or an explicit
 `HERMES_WORKSPACE_ROOT`) before invoking the helper. With no override, the
 ledger is created at `<HERMES_HOME>/state/travel-ledger/travel.sqlite`.

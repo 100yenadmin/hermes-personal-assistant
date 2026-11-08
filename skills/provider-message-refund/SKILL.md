@@ -24,6 +24,7 @@ Draft and send provider-facing travel messages when the user wants the agent to 
 7. Before asking for confirmation, update the `travel-ledger` action with status `awaiting-final-confirmation`, message preview, final action, terms, and proof plan.
 8. After confirmation, re-check the live provider state. If recipient, amount, deadline, fee, message text, or final action changed, refresh the summary and ask once again. Otherwise send or submit immediately.
 9. Verify sent status, chat transcript, support ticket id, cancellation/refund request id, email sent item, call summary, or provider acknowledgement. Record proof and follow-up date in `travel-ledger` before reporting completion. When the send ran as a governed exact action and its message awaits a reply, pass `follow_through.loop` with the counterparty and our next step in `action_result`, without a separate `action_upsert` loop, and report that the reply is now chased. Otherwise open a `waiting_on_them` loop with `action_upsert` as in the personal-assistant open-loops reference. A nudge on an existing loop is recorded as a chase on that loop, never as a new loop.
+   A verified refund records `follow_through.expense` with `kind: refund` against the same trip when the readback states the total refunded.
 
 ## Message Shape
 

@@ -4,11 +4,14 @@ import os
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .privacy import clean
+from .expenses import SCHEMA as EXPENSE_SCHEMA, from_readback, save as save_expense
 
 
 FOLLOW_THROUGH_SCHEMA = {
     "type": "object", "additionalProperties": False,
+    "anyOf": [{"required": [key]} for key in ("item", "loop", "expense")],
     "properties": {
+        "expense": EXPENSE_SCHEMA,
         "trip_id": {"type": "string", "minLength": 1},
         "item": {
             "type": "object", "additionalProperties": False,
@@ -61,12 +64,12 @@ def _time(value, field):
     return parsed
 
 
-def validate(ledger, current, value):
+def validate(ledger, current, value, verified_at=None):
     """Refuse the whole readback before any result or follow-through write."""
     from .state import now
-    _object(value, {"trip_id", "item", "reminders", "loop"}, set(), "follow_through")
-    if not {"item", "loop"}.intersection(value):
-        raise ValueError("follow_through requires item or loop")
+    _object(value, {"trip_id", "item", "reminders", "loop", "expense"}, set(), "follow_through")
+    if not {"item", "loop", "expense"}.intersection(value):
+        raise ValueError("follow_through requires item or loop or expense")
     item = value.get("item")
     if "item" in value:
         schema = FOLLOW_THROUGH_SCHEMA["properties"]["item"]
@@ -122,16 +125,22 @@ def validate(ledger, current, value):
     trip_id = row_trip or supplied or recorded
     if trip_id and not ledger.get("trip", trip_id):
         raise ValueError("action.trip_id must name an existing trip")
-    return clean(item), clean(reminders), trip_id, clean(loop)
+    expense = None
+    if "expense" in value:
+        expense = from_readback(value["expense"], item, (current or {}).get("action_id"), verified_at or now(), trip_id)
+    return clean(item), clean(reminders), trip_id, clean(loop), expense
 
 
 _HANDLED = {"completed", "confirmed", "dismissed"}
 
 
-def complete(ledger, identity, item, reminders, trip_id, loop=None):
+def complete(ledger, identity, item, reminders, trip_id, loop=None, expense=None):
     from .trips import add_booked_item, export_booked_item
     from .daily_ops import config
 
+    expense_id = f"{identity}:expense" if expense is not None else None
+    if expense is not None:
+        save_expense(ledger, expense_id, expense, "provider_readback", identity, trip_id)
     trip_item = add_booked_item(ledger, trip_id, item, identity) if item is not None and trip_id else None
     reminder_ids = []
     for n in (range(1, 4) if item is not None else ()):
@@ -188,7 +197,7 @@ def complete(ledger, identity, item, reminders, trip_id, loop=None):
         "trip_item": trip_item, "trip_note": ("no item in this readback" if item is None else
                                              f"added to {trip_id}" if trip_id else "no trip on this action"),
         "reminders": reminder_ids, "ics_path": ics_path, "calendar_write_allowed": allowed, "calendar_ids": calendar_ids,
-        "loop_id": loop_id,
+        "loop_id": loop_id, "expense_id": expense_id,
         "next_step": (
             "Create a private event on one of calendar_ids with these exact fields (no attendees, no notifications), read it back, then record it with action_upsert."
             if allowed else

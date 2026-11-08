@@ -8,6 +8,7 @@ from .evidence import EVIDENCE_TYPES, EVIDENCE_PREFIXES
 from .trip_facts import SEG_SCHEMA, SOURCES
 from .trip_watch import MOMENTS, SKIPS
 from .booking_follow_through import FOLLOW_THROUGH_SCHEMA
+from .expenses import OP_SCHEMA as EXPENSE_OP_SCHEMA
 
 # Keys a governed action_prepare must carry; authority and risk_class are optional (PA binds the authority).
 GOVERNED_PREPARE_KEYS = ("summary", "action_revision", "workflow_id", "workflow_revision", "tool_name", "tool_args",
@@ -18,7 +19,7 @@ OPERATIONS = ["status", "capabilities", "context", "recipes", "trip_import", "ex
               "authorization_prepare", "authorization_confirm", "authorization_cancel", "authorization_status",
               "event_upsert", "projection_claim", "projection_result", "reconcile", "freshness",
               "disconnect", "automations", "next_action", "setup",
-              "trip_watch_plan", "trip_offer", "browser_session", "profile", "evidence"]
+              "trip_watch_plan", "trip_offer", "browser_session", "profile", "evidence", "expense"]
 SCHEMA = {
     "name": "pa",
     "description": "Personal Assistant Plugin: recover focused context, manage eight recipes, and preserve provider evidence and replay-safe state-loop receipts. Use capabilities for setup or a missing integration; use recipes to locate a needed qualified skill. Load personal-assistant:personal-assistant for setup and operation contracts. Reuse known context without repeating setup. Never infer authentication, spending or messaging approval from configuration or credential access. evidence: record/update/list a real owner task (area, due, agreed outcome, result, owner acceptance, fact sources), baseline and day30 time records; export for the scorecard.",
@@ -45,7 +46,7 @@ SCHEMA = {
             "arm": {"type": "array", "items": {"type": "string", "enum": list(MOMENTS)}, "minItems": 1, "uniqueItems": True},
             "check_in_window_hours": {"type": "integer", "minimum": 1, "maximum": 72},
             "night_alerts": {"type": "boolean"}, "weather": {"type": "boolean"},
-            "reason": {"type": "string", "enum": list(SKIPS)},
+            "reason": {"type": "string", "description": "trip_watch_plan record_skip: " + ", ".join(SKIPS) + ". expense void: free text."},
             "expires_at": {"type": "string"},
             "wakes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "status": {"type": "string"}, "expires_at": {"type": "string"}}, "required": ["id", "status"]}},
             "segments": {"anyOf": [{"type": "array", "items": SEG_SCHEMA, "minItems": 1, "maxItems": 8}, SEG_SCHEMA,
@@ -120,9 +121,11 @@ from .profile import SCHEMA as PROFILE_SCHEMA
 SCHEMA["parameters"]["allOf"].append({
     "if": {"properties": {"operation": {"const": "profile"}}},
     "then": {"properties": {"data": PROFILE_SCHEMA}},
+    "else": {"if": {"properties": {"operation": {"const": "expense"}}},
+    "then": {"properties": {"data": EXPENSE_OP_SCHEMA}},
     "else": {"properties": {"data": {"properties": {
-        "kind": {"enum": ["trip", "action", "source", "guide"]}, "source": {"enum": SOURCES}
-    }}}},
+        "kind": {"enum": ["trip", "action", "source", "guide"]}, "source": {"enum": SOURCES}, "reason": {"enum": list(SKIPS)}
+    }}}}},
 })
 
 
@@ -160,6 +163,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         from .capabilities import discover
         return discover(profile_root=profile_root)
     ledger = Ledger(profile_root, read_only=True) if op == "automations" and data.get("action") == "health" else Ledger(profile_root)
+    if op == "expense":
+        from .expenses import dispatch as expense_dispatch
+        return expense_dispatch(ledger, data)
     if op == "evidence":
         from .evidence import dispatch as evidence_dispatch
         return evidence_dispatch(ledger, data)
@@ -271,6 +277,8 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         if data.get("action_type") in {"preference", "person", "sop", "trust"} or str(identity).split(":", 1)[0] in {"pref", "person", "sop", "trust"}:
             raise ValueError("profile records are written with operation profile")
         existing = ledger.get("action", identity)
+        if data.get("action_type") == "expense" or str(identity).startswith("expense:") or str(identity).endswith(":expense") or (existing and existing["action_type"] == "expense"):
+            raise ValueError("expense records are written with operation expense or follow_through.expense")
         if data.get("action_type") in EVIDENCE_TYPES or str(identity).startswith(EVIDENCE_PREFIXES) or (existing and existing["action_type"] in EVIDENCE_TYPES):
             raise ValueError("evidence records are written with operation evidence")
         from .context import loop_fields
@@ -285,6 +293,8 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     if str(identity).split(":", 1)[0] in {"pref", "person", "sop", "trust"}:
         raise ValueError("profile records are written with operation profile")
     existing = ledger.get("action", identity)
+    if data.get("action_type") == "expense" or str(identity).startswith("expense:") or str(identity).endswith(":expense") or (existing and existing["action_type"] == "expense"):
+        raise ValueError("expense records are written with operation expense or follow_through.expense")
     if str(identity).startswith(EVIDENCE_PREFIXES) or (existing and existing["action_type"] in EVIDENCE_TYPES):
         raise ValueError("evidence records are written with operation evidence")
     if op == "action_cancel":
