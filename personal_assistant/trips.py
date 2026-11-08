@@ -3,13 +3,75 @@ import datetime as dt
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from icalendar import Calendar, Event, Timezone
 
 from .privacy import safe_text, safe_url
-from .state import now, stable_id
+from .state import legacy, now, stable_id
+
+
+def _booked_event(item, action_id):
+    return {
+        "uid": f"pa-booking:{action_id}", "recurrence_id": "", "summary": item["title"],
+        "start": item["start"], "end": item.get("end"), "all_day": False,
+        "timezone": item["timezone"], "location": item.get("location", ""),
+        "description": "Booked; provider reference " + item["reference"] if item.get("reference") else "Booked",
+        "url": "", "status": "CONFIRMED", "source_url": "", "warnings": [], "verified_at": now(),
+        "source": "provider_readback", "booking_action_id": action_id,
+    }
+
+
+def add_booked_item(ledger, trip_id, item, action_id):
+    """Replace this action's one itinerary event, leaving other events intact."""
+    trip = ledger.get("trip", trip_id)
+    if not trip:
+        raise ValueError("trip_id must name an existing trip")
+    event = _booked_event(item, action_id)
+    identity = stable_id(trip_id, event["uid"], "master")
+    event["source_record_id"] = identity
+    events, replaced = [], False
+    for old in trip["fields"].get("events", []):
+        if old.get("source_record_id") == identity:
+            if not replaced:
+                events.append(event)
+                replaced = True
+        else:
+            events.append(old)
+    if not replaced:
+        events.append(event)
+    ledger.put("trip", trip_id, {"events": events})
+    return identity
+
+
+def export_booked_item(ledger, action_id, item):
+    """Write only this booking's single-event ICS inside the active profile."""
+    output = ledger.root.resolve() / "exports" / "bookings"
+    legacy._ensure_directory(ledger.root, output)
+    safe_id = action_id if re.fullmatch(r"[A-Za-z0-9_-]{1,120}", action_id) else stable_id(action_id)
+    target = output / f"{safe_id}.ics"
+    legacy._validate_existing_path(ledger.root, target)
+    event = _booked_event(item, action_id)
+    cal = Calendar()
+    cal.add("prodid", "-//Personal Assistant Plugin//Booking snapshot//EN")
+    cal.add("version", "2.0")
+    cal.add("x-wr-timezone", item["timezone"])
+    cal.add_component(Timezone.from_tzinfo(ZoneInfo(item["timezone"])))
+    component = Event()
+    component.add("uid", event["uid"])
+    component.add("dtstamp", dt.datetime.now(dt.timezone.utc))
+    for name, value in (("dtstart", item["start"]), ("dtend", item.get("end"))):
+        if value:
+            component.add(name, _decode_time(value, False, item["timezone"]))
+    for name in ("summary", "description", "location", "status"):
+        component.add(name, safe_text(event[name]))
+    cal.add_component(component)
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(cal.to_ical())
+    return str(target)
 
 
 def _time(component, name, timezone):

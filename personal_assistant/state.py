@@ -260,12 +260,17 @@ class Ledger:
     def claim_submission(self, identity, summary):
         return self.transition(identity, {"authorized"}, "submitting", required_digest=stable_id(summary))
 
-    def result(self, identity, outcome, proof):
+    def result(self, identity, outcome, proof, follow_through=None):
         if outcome not in {"confirmed", "failed", "unknown"}:
             raise ValueError("invalid provider outcome")
         if outcome != "unknown" and not clean(proof):
             raise ValueError("provider evidence required")
         current = self.get("action", identity)
+        if follow_through is not None:
+            if outcome != "confirmed":
+                raise ValueError("follow_through requires outcome confirmed")
+            from .booking_follow_through import validate, complete
+            item, reminders, trip_id = validate(self, current, follow_through)
         governed = current and current["fields"].get("enforcement_profile") == "exact_action"
         if governed:
             target = {"confirmed": "verified", "failed": "reconciled", "unknown": "provider_result"}[outcome]
@@ -273,4 +278,12 @@ class Ledger:
         else:
             target = outcome
             expected = {"submitting", "unknown"}
-        return self.transition(identity, expected, target, {"provider_proof": proof, "verified_at": now() if proof else None})
+        fields = {"provider_proof": proof, "verified_at": now() if proof else None}
+        if follow_through is not None:
+            fields["booked_item"] = item
+            # Re-recording a confirmed readback refreshes bookkeeping, not provider execution.
+            expected = expected | {target}
+        result = self.transition(identity, expected, target, fields)
+        if follow_through is not None:
+            result["follow_through"] = complete(self, identity, item, reminders, trip_id)
+        return result
