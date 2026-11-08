@@ -460,6 +460,12 @@ def routine_time(value):
     return dt.time.fromisoformat(value)
 
 
+def eod_clock(prefs):
+    """The end-of-day slot's HH:MM, or None when it does not fall after the brief: an evening brief replaces it."""
+    eod = routine_time(prefs.get("eod_time", DEFAULTS["eod_time"]))
+    return eod.strftime("%H:%M") if eod > routine_time(prefs.get("brief_time", DEFAULTS["brief_time"])) else None
+
+
 def _after_quiet(prefs, at, zone):
     """The first moment at or after `at` outside the profile's quiet hours; preferences only, never current state."""
     quiet = prefs.get("quiet_hours") or DEFAULTS["quiet_hours"]
@@ -511,7 +517,13 @@ def routine_slots(ledger, *, now=None, date=None, findings=None, health=False):
         except (ValueError, TypeError, KeyError):
             continue
         day = dt.date.fromisoformat(date) if date else local.date()
-        clocks = [("brief_time", ""), ("eod_time", ":eod")] if kind == "daily_brief" else [(kind + "_time", "")]
+        clocks = [(kind + "_time", "")]
+        if kind == "daily_brief":
+            try:
+                eod_at = eod_clock(prefs)
+            except (ValueError, TypeError):
+                eod_at = prefs.get("eod_time", DEFAULTS["eod_time"])  # The loop below reports the invalid clock.
+            clocks = [("brief_time", "")] + ([("eod_time", ":eod")] if eod_at else [])
         for key, suffix in clocks:
             if kind in {"cos_kickoff", "cos_weekly"} and day.weekday() != ("mon", "tue", "wed", "thu", "fri", "sat", "sun").index(prefs.get(kind + "_day", DEFAULTS[kind + "_day"])): continue
             try:
@@ -532,7 +544,7 @@ def routine_slots(ledger, *, now=None, date=None, findings=None, health=False):
             if at is None or at > current: continue
             eligible = at.astimezone(ZoneInfo(zone))
             if eligible.date() != day: continue  # The precheck only claims today's period.
-            if kind == "daily_brief" and not suffix and eligible.strftime("%H:%M") >= prefs.get("eod_time", DEFAULTS["eod_time"]): continue
+            if kind == "daily_brief" and not suffix and eod_at and eligible.strftime("%H:%M") >= eod_at: continue
             logical = day.isoformat() + suffix if kind in {"daily_brief", "cos_daily"} else "%04d-W%02d" % day.isocalendar()[:2]
             slots.append({"kind": kind, "logical": logical, "due_at": at.isoformat(),
                           "occurrence_id": routine_occurrence(kind, logical, rules)})

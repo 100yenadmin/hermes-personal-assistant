@@ -401,3 +401,53 @@ def test_clearing_an_offsetless_snooze_restarts_grace_in_owner_zone(tmp_path):
     with patch.object(auto, '_now', return_value=at('2026-11-09T17:30')):
         assert preferences(ledger, {'snooze_until': None})['routine_resumed_at'] == '2026-11-09T17:30:00+00:00'
     assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T17:30'))['wakeAgent']
+
+
+def _old_due_occurrence(ledger, due):
+    """The due-source identity a profile claimed before chase wakes existed."""
+    from personal_assistant import automation_workflow as wf
+    rules = [auto._rule_data(a) for a in ledger.list('action') if a['action_type'] == 'automation_rule']
+    logical = wf.stable_id([(a, ledger.get('action', a)['fields'].get('due_at')) for a in due],
+                           [(r.get('source_ref'), r.get('last_checked_at')) for r in rules])
+    return auto.routine_occurrence('due_source_check', logical, rules)
+
+
+def test_due_identity_keeps_its_shape_when_no_chase_is_due(ledger):
+    rule(ledger, 'due_source_check')
+    ledger.put('action', 'rem', {'due_at': '2026-11-09T07:00:00+00:00'})
+    auto.claim_notification(ledger, _old_due_occurrence(ledger, ['rem']), rule_id='due_source_check')
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))['wakeAgent']
+
+
+def test_a_chase_tick_also_settles_the_same_due_work(ledger):
+    rule(ledger, 'due_source_check')
+    loop(ledger)
+    ledger.put('action', 'rem', {'due_at': '2026-11-09T07:00:00+00:00'})
+    first = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
+    assert first['wakeAgent'] and first['due_action_ids'] == ['rem'] and first['chase_action_ids'] == ['loop-fixture']
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:05'))['wakeAgent']
+
+
+@pytest.mark.parametrize('extra, wakes', [
+    ({}, True), ({'waiting_for': 'fixture'}, False), ({'snoozed_until': '2026-11-10T08:00:00+00:00'}, False),
+    ({'confirmation': {'by': 'fixture', 'at': '2026-11-09T11:00:00+00:00', 'evidence': 'reply'}}, False),
+])
+def test_an_open_loop_with_its_own_deadline_still_wakes(ledger, extra, wakes):
+    rule(ledger, 'due_source_check')
+    loop(ledger, loop_kind='our_promise', next_actor='us', opened_at='2026-11-09T08:00:00+00:00',
+         due_at='2026-11-09T12:00:00+00:00', **extra)
+    result = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T12:00'))
+    assert bool(result['wakeAgent']) is wakes
+    if wakes:
+        assert result['due_action_ids'] == ['loop-fixture']
+
+
+def test_an_evening_brief_is_not_replaced_by_the_default_end_of_day(ledger):
+    preferences(ledger, {'brief_time': '20:00'})
+    rule(ledger)
+    assert cron_precheck(ledger, 'daily_brief', enabled=True, moment=at('2026-11-09T18:00'))['reason'] == 'before_brief_time'
+    brief = cron_precheck(ledger, 'daily_brief', enabled=True, moment=at('2026-11-09T20:00'))
+    assert brief['wakeAgent'] and brief['occurrence_kind'] == 'daily_brief'
+    assert [s['logical'] for s in auto.routine_slots(ledger, now=at('2026-11-09T21:30'))] == ['2026-11-09']
+    preferences(ledger, {'brief_time': '08:00', 'eod_time': '18:00'})
+    assert auto.eod_clock(preferences(ledger)) == '18:00'

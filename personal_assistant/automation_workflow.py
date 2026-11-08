@@ -311,10 +311,11 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
                 return _health_failure(ledger, kind, "invalid_" + key, current)
     # Read the canonical loop guidance, including holds, rather than re-derive it.
     from .context import next_actions
-    chases, offset = [], 0
+    chases, open_loops, offset = [], set(), 0
     if kind == "due_source_check":
         while True:
             page = next_actions(ledger, {"loops_only": True, "at": current.isoformat(), "limit": 20, "offset": offset})
+            open_loops.update(item["action_id"] for item in page["candidates"])
             chases.extend(item for item in page["candidates"] if item["chase"]["step"] != "none"
                           and item["next_step"].startswith("Chase")
                           and not auto.notification_receipt(ledger, auto.notification_occurrence_id("chase-step", item["action_id"], item["chase"]["step"])))
@@ -324,7 +325,12 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     due = []
     for row in actions:
         fields = row["fields"]
-        if fields.get("loop_kind"): continue  # Canonical guidance above decides loop holds.
+        if fields.get("loop_kind"):
+            # The canonical guidance above decides loop holds; an open, unheld loop with its own due_at still wakes for it.
+            held = (fields.get("waiting_for") or fields.get("stale") is True or fields.get("freshness") in {"stale", "unknown"}
+                    or fields.get("snoozed_until") and (auto._value_time(fields["snoozed_until"], zone) or current) > current)
+            if row["action_id"] not in open_loops or not fields.get("due_at") or held:
+                continue
         if fields.get("kanban_task_id"):
             from .context import read_kanban_task
             task = read_kanban_task(fields["kanban_task_id"], fields.get("kanban_board"))
@@ -374,17 +380,20 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
         state.update(actions=[{"due": True}], chief_of_staff=True, timezone=zone)
         logical = local.date().isoformat() if kind == "cos_daily" else "%04d-W%02d" % local.isocalendar()[:2]
     elif kind == "daily_brief":
-        if local.strftime("%H:%M") < min(prefs.get("brief_time", "08:00"), prefs.get("eod_time", auto.DEFAULTS["eod_time"])):
+        brief, eod = prefs.get("brief_time", auto.DEFAULTS["brief_time"]), auto.eod_clock(prefs)
+        if local.strftime("%H:%M") < min(brief, eod or brief):
             return {"wakeAgent": False, "reason": "before_brief_time"}
         state["actions"] = [{"due": True}]
         logical = local.date().isoformat()
-        if local.strftime("%H:%M") >= prefs.get("eod_time", auto.DEFAULTS["eod_time"]):
+        if eod and local.strftime("%H:%M") >= eod:
             logical += ":eod"
     else:
         state["actions"] = [*due, *({"due": True} for _ in chases)]
-        logical = stable_id([(a["action_id"], a["fields"].get("due_at")) for a in due],
-                            [(c["action_id"], c["chase"]["step"], c["chase"]["next_chase_at"]) for c in chases],
-                            [(r.get("source_ref"), r.get("last_checked_at")) for r in rules])
+        due_part = [(a["action_id"], a["fields"].get("due_at")) for a in due]
+        rules_part = [(r.get("source_ref"), r.get("last_checked_at")) for r in rules]
+        base = stable_id(due_part, rules_part)  # The identity without chases, as before chases existed.
+        logical = stable_id(due_part, [(c["action_id"], c["chase"]["step"], c["chase"]["next_chase_at"]) for c in chases],
+                            rules_part) if chases else base
     check = auto.script_precheck(state, now=current, kind=kind)
     if check.get("status") == "blocked":
         return _health_failure(ledger, kind, check["reason"], current)
@@ -416,6 +425,11 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             marker = auto.notification_occurrence_id("chase-step", chase["action_id"], chase["chase"]["step"])
             if auto.claim_notification(ledger, marker, rule_id="chase-step", now=current)["claimed"]:
                 auto.record_notification(ledger, marker, "unknown", now=current)
+        if chases and due:
+            # The same due work without chases is now handled too, so the next tick does not resend it.
+            plain = auto.routine_occurrence(kind, base, rules)
+            if auto.claim_notification(ledger, plain, rule_id=rule_id, payload=payload, now=current)["claimed"]:
+                auto.record_notification(ledger, plain, "unknown", now=current)
     result = {"wakeAgent": claim["claimed"], "occurrence_id": occurrence,
               "destination": next(iter(destinations)), "due_sources": check.get("due_sources", []),
               "due_action_ids": [a["action_id"] for a in due],
