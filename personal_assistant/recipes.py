@@ -12,7 +12,7 @@ from typing import Any
 
 _WORKFLOW = (
     {"id": "capture", "operation": "context", "purpose": "Retrieve only the relevant trip, action, source, or guide context.", "expected": "Bounded source-linked context."},
-    {"id": "next_action", "operation": "next_action", "purpose": "Exclude completed Kanban commitments and surface the next supported step.", "expected": "One next action or compact question."},
+    {"id": "next_action", "operation": "next_action", "purpose": "Exclude completed Kanban commitments, keep open loops until confirmed, and surface the next supported or chase step.", "expected": "One next action or compact question."},
     {"id": "prepare", "operation": "action_upsert", "purpose": "Record reversible preparation with stable identity.", "expected": "Prepared facts without transaction state."},
     {"id": "verify", "operation": "context", "purpose": "Read back local or native state; use the provider's read tool for provider state.", "expected": "Verified, blocked, or unknown state."},
     {"id": "followup", "operation": "action_upsert", "purpose": "Persist safe proof, gaps, and the next follow-up.", "expected": "Durable follow-up without replay."},

@@ -140,6 +140,32 @@ reconcile the original claim before any further attempt.
 Credential access never implies spending, messaging, booking, cancellation, or
 calendar-write authority.
 
+## Open loops and follow-through
+
+Open loops are fields on existing commitment actions, not a separate table:
+`loop_kind` (`ask_owner`, `delegated`, `our_promise`, `waiting_on_them`),
+`counterparty`, `next_actor`, `opened_at`, `next_step`, `last_chased_at`, a
+bounded `chase_log` and `confirmation` (`by`, `at`, `evidence`). The agent
+records each ask it puts to the owner as an `ask_owner` loop. A loop closes only
+on the other side's confirmation; a done Kanban task without it stays listed as
+`done_unconfirmed`. Commitments without `loop_kind` keep the existing rule that
+Kanban done or archived drops them.
+
+`next_action` computes each loop's chase step on owner-local days from
+`opened_at`: day 2, day 5, day 10, then escalate. `loops_only: true` limits the
+list to loops. The `follow-through` skill turns a due step into a reminder to
+the owner or a nudge draft held for the owner's yes; any third-party send uses
+the governed exact-action path. Escalation gives the owner the problem, two or
+three options, a recommendation and a decision deadline. PA adds no scheduler
+and no new send path.
+
+The life-admin radar is a read-only `next_action` view (`radar: true`).
+Renewals, important dates and deadlines are commitment actions with
+`radar_kind`, `document`, `expires_on` or `event_date`, `lead_days`, `recurs`
+and `source_ref`; each surfaces at its date minus `lead_days`, and yearly dates
+roll to the next year. The view also lists trip offers still `offered` after
+three days and Chief of Staff notes still `unknown` past `review_at`.
+
 ## Generic state loop
 
 The state loop keeps management state synchronized with operational events:

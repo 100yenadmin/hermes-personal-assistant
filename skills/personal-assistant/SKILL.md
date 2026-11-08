@@ -116,6 +116,22 @@ Verify these with the relevant read tool, then record the readback with another
 `action_upsert`. `action_result` is only for a provider submission already
 claimed through the transaction state machine.
 
+## Open loops
+
+Every open loop is a commitment action with `fields.loop_kind` (`ask_owner`,
+`delegated`, `our_promise` or `waiting_on_them`), `counterparty`, `next_actor`
+(`owner`, `us` or `them`), `opened_at` and `next_step`. Record every question or
+ask you put to the owner as an `ask_owner` loop in the same turn, so no ask of
+yours is left unknown. A loop closes when the other side confirms (write
+`confirmation` `{by, at, evidence}`) or when the owner cancels it. Kanban done is not confirmation;
+`next_action` keeps such a loop as `done_unconfirmed`. `next_action` computes the
+chase step (day 2, 5, 10, then escalate) and `next_chase_at`; record a chase
+with `last_chased_at` and `chase_log`, and never put chase dates in `due_at`.
+Load `personal-assistant:follow-through` to chase or escalate. Fields and
+examples: `references/open-loops.md` (relative to this skill directory).
+Record renewals, important dates and deadlines as `radar_kind` commitments and
+read them with `next_action` `radar: true`; see `references/radar.md`.
+
 ## Governed exact-action transaction
 
 For a final provider transaction, allocate the action ID and call

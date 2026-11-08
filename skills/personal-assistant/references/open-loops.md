@@ -1,0 +1,56 @@
+# Open loops
+
+An open loop is anything still waiting on someone: a question you put to the
+owner, work the owner delegated, a promise we made, or a reply we are waiting
+for. Keep each loop on one existing commitment action. There is no separate
+table; `next_action` reads these fields.
+
+## Fields
+
+| Field | Values | Meaning |
+|---|---|---|
+| `loop_kind` | `ask_owner`, `delegated`, `our_promise`, `waiting_on_them` | What kind of loop this is. |
+| `counterparty` | text | Who must answer or act (the owner for `ask_owner`). |
+| `next_actor` | `owner`, `us`, `them` | Who moves next. |
+| `opened_at` | timestamp with offset | When the loop opened. The chase ladder counts days from here. |
+| `next_step` | text | The next concrete step. |
+| `last_chased_at` | timestamp with offset | The latest chase you made. |
+| `chase_log` | list of `{at, step, how}` | Short log of chases; PA keeps the latest 10. |
+| `confirmation` | `{by, at, evidence}` | Written only when the other side confirms. |
+
+`next_chase_at` is computed by `next_action`; read it there and never set it by
+hand. Do not put chase dates in `due_at`: renewals and other recipes use
+`due_at` as the decision deadline.
+
+## Record an ask to the owner
+
+Whenever you ask the owner a question or for a decision, record it in the same turn:
+
+`pa(operation="action_upsert", data={"source_id":"<chat or task>","action_kind":"ask_owner","occurrence":"<short key>","action_type":"commitment","fields":{"title":"<safe summary of the ask>","loop_kind":"ask_owner","counterparty":"owner","next_actor":"owner","opened_at":"<now with offset>","next_step":"<what you do after the answer>"}})`
+
+Use `waiting_on_them` with `next_actor: "them"` for a reply you await from a
+third party, `delegated` for work the owner handed to someone else, and
+`our_promise` with `next_actor: "us"` for something we promised.
+
+## Close
+
+- A loop closes on the other side's confirmation, or when the owner cancels it. Record confirmation with the same
+  action: `fields.confirmation = {"by": "<who confirmed>", "at": "<timestamp>", "evidence": "<safe source: reply, receipt, readback>"}`.
+  Non-empty strings `by` and `evidence`, and an ISO timestamp `at`, are required.
+- Kanban done is not confirmation. A loop whose Kanban task is done, or whose
+  status is completed, stays in `next_action` with `loop_state: "done_unconfirmed"`
+  until `confirmation` is written.
+- If the owner withdraws the loop, set `status: "cancelled"`. That is not a
+  confirmation; say so in the next brief.
+
+## Chase ladder
+
+`next_action` returns `chase: {step, next_chase_at, age_days, escalated}` for each
+loop. Steps fall on owner-local calendar days counted from `opened_at` (the
+profile timezone in `pa:preferences`): `day2`, `day5`, `day10`, then `escalate`
+from day 11. When several steps are overdue, only the latest one is due.
+Recording `last_chased_at` completes every chase step due by that local date.
+An escalation is recorded as a `chase_log` entry with `step: "escalate"`;
+after it, the loop waits for the owner's decision with no further chase.
+A future `snoozed_until` holds the ladder. Use
+`pa(operation="next_action", data={"loops_only": true})` to read only loops.
