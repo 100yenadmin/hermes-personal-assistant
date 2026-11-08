@@ -1131,5 +1131,7 @@ def test_eod_time_from_comm_rhythm_is_a_valid_preference(tmp_path):
     assert ledger.get("action", "pa:preferences")["fields"]["eod_time"] == "18:30"
     with pytest.raises(ValueError):
         preferences(ledger, {"eod_time": "6pm"})
-    with pytest.raises(ValueError):
-        preferences(ledger, {"eod_time": "23:30"})  # inside default quiet hours, so the note would never be sent
+    # eod_time is the owner's day end, so it may touch quiet hours without failing the batch.
+    preferences(ledger, {"eod_time": "18:00", "quiet_hours": {"start": "18:00", "end": "07:00"}, "timezone": "Asia/Tokyo"})
+    fields = ledger.get("action", "pa:preferences")["fields"]
+    assert fields["eod_time"] == "18:00" and fields["timezone"] == "Asia/Tokyo"

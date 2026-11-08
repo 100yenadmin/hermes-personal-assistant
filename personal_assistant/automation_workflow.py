@@ -33,7 +33,7 @@ def preferences(ledger, changes=None):
         merged = {**(prior or {}).get("fields", {}), **changes}  # A report inside quiet hours is never sent.
         quiet = merged.get("quiet_hours") or auto.DEFAULTS["quiet_hours"]
         start, end = quiet.get("start", "22:00"), quiet.get("end", "07:00")
-        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
+        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time"):  # eod_time marks the owner's day end, not a send slot
             value = merged.get(key)
             if value and (key in changes or "quiet_hours" in changes) and (
                     (value >= start or value < end) if start > end else start <= value < end):
