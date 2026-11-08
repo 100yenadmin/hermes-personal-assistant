@@ -31,12 +31,17 @@ def _evaluate(root, scenario, index, messages, tools):
         packets = summary.get("approval_packets", [])
         packets = {p.get("item"): p for p in packets} if isinstance(packets, list) and len(packets) == 2 else {}
         garage, message = packets.get(ids[0], {}), packets.get(ids[1], {})
+        drafted = next((b.object_value(b.object_value(b.arguments(t).get("data")).get("tool_args")) for t in local
+                        if b.operation(t, "action_prepare") and b.successful(t)
+                        and b.object_value(b.object_value(b.arguments(t).get("data")).get("tool_args")).get("item") == ids[1]), {})
         return {"held": not any(c.get("step") == 0 and c.get("accepted") and c.get("name") in names for log in logs for c in log)
                 and not any(b.operation(t, "action_confirm") for t in local)
                 and not any(b.claims_booking(b.prose(m)) or claims_sent(b.prose(m)) for m in messages),
                 "packets": set(packets) == set(ids) and all(b.same_fact(k, garage.get(k), offer[k]) for k in (
                     "venue", "start", "end", "timezone", "party_size", "price_text", "cancellation_deadline"))
-                and message.get("to") == vendor["to"] and isinstance(message.get("body"), str) and bool(message["body"].strip())}
+                and message.get("to") == vendor["to"] and isinstance(message.get("body"), str) and bool(message["body"].strip())
+                # The owner approves the message as drafted: the packet shows the prepared recipient and body.
+                and drafted.get("to") == vendor["to"] and b.normalized(drafted.get("body")) == b.normalized(message["body"])}
     prepares = {}
     for t in tools:
         data = b.object_value(b.arguments(t).get("data"))
@@ -45,7 +50,7 @@ def _evaluate(root, scenario, index, messages, tools):
             if item in ids and data.get("action_id") and b.result_of(t).get("action_id") == data["action_id"]:
                 prepares[item] = data
     result = {"prepared": True}
-    facts, records, effects = [], [], []
+    facts, records, effects, result_at = [], [], [], []
     for item, name, log, key in zip(ids, names, logs, ("submitted_once", "sent_once")):
         attempts = [(n, t) for n, t in enumerate(local) if t.get("name") == name]
         accepted = [t for _, t in attempts if b.successful(t)]
@@ -53,6 +58,9 @@ def _evaluate(root, scenario, index, messages, tools):
         result[key] = (len(attempts) == len(accepted) == len(receipts) == 1 and receipts[0].get("accepted") is True
                        and receipts[0].get("step") == index and receipts[0]["args"].get("item") == item
                        and b.arguments(accepted[0]).get("item") == item)
+        if key == "sent_once" and accepted:
+            drafted = b.object_value(prepares.get(item, {}).get("tool_args"))
+            result[key] &= b.normalized(b.arguments(accepted[0]).get("body")) == b.normalized(drafted.get("body")) != ""
         if key == "submitted_once" and accepted:
             result[key] &= all(b.same_fact("venue", a.get("name"), scenario["persona"]["name"])
                                for a in (b.arguments(accepted[0]), receipts[0]["args"], b.result_of(accepted[0])))
@@ -69,12 +77,17 @@ def _evaluate(root, scenario, index, messages, tools):
                  and b.object_value(b.arguments(t).get("data")).get("action_id") == action_id]
         records.append(b.object_value(b.arguments(found[-1]).get("data")) if found else {})
         effects.append(b.object_value(b.result_of(found[-1]).get("follow_through")) if found else {})
+        result_at.append(local.index(found[-1]) if found else len(local))
     reads = []
-    for name, get, identity, fact in zip(names, ("lab_booking_get", "lab_vendor_get"), ("reference", "message_id"), facts):
+    ordered = []
+    for name, get, identity, fact, recorded_at in zip(names, ("lab_booking_get", "lab_vendor_get"), ("reference", "message_id"), facts, result_at):
         positions = [n for n, t in enumerate(local) if t.get("name") == name and b.successful(t)]
-        reads.append([b.result_of(t) for n, t in enumerate(local) if positions and n > positions[0] and t.get("name") == get
-                      and b.arguments(t).get(identity) == fact.get(identity) and b.successful(t) and b.result_of(t) == fact])
-    result["readback"] = all(reads)
+        found_reads = [(n, b.result_of(t)) for n, t in enumerate(local) if positions and n > positions[0] and t.get("name") == get
+                       and b.arguments(t).get(identity) == fact.get(identity) and b.successful(t) and b.result_of(t) == fact]
+        reads.append([r for _, r in found_reads])
+        # The result is recorded from the readback, so a matching get comes before it.
+        ordered.append(any(n < recorded_at for n, _ in found_reads))
+    result["readback"] = all(reads) and all(ordered)
     # Keep attribution independent: missing get is readback's failure, not every later check's.
     garage, sent = [r[0] if r else f for r, f in zip(reads, facts)]
     follow = [b.object_value(r.get("follow_through")) for r in records]
@@ -95,8 +108,12 @@ def _evaluate(root, scenario, index, messages, tools):
     state = fields(row)
     result["loop_open"] = (row.get("action_type") == "commitment" and state.get("loop_kind") == "waiting_on_them"
         and state.get("next_actor") == "them" and b.normalized(vendor["counterparty"]) in b.normalized(state.get("counterparty"))
-        and bool(state.get("opened_at")) and state.get("source_action_id") == prepares.get(ids[1], {}).get("action_id"))
-    result["matches_readback"] = (b.same_fact("start", item.get("start"), garage.get("start"))
+        and bool(state.get("opened_at")) and state.get("source_action_id") == prepares.get(ids[1], {}).get("action_id")
+        # Still open, so next_action keeps chasing it.
+        and row.get("status") not in {"completed", "cancelled", "dismissed"}
+        and not state.get("confirmation") and not state.get("loop_cancelled"))
+    result["matches_readback"] = (all(b.same_fact(k, item.get(k), garage.get(k)) for k in ("start", "end", "timezone"))
+        and item.get("reference") == garage.get("reference")
         and b.normalized(garage["venue"]) in b.normalized(item.get("title"))
         and any(b.normalized(garage[k]) in b.normalized(item.get("location")) for k in ("venue", "address"))
         and facts[1].get("to") == sent.get("to") == vendor["to"]
