@@ -46,6 +46,11 @@ def _validate_json(value: Any, path: str = "$") -> None:
     raise ValueError(f"{path} contains an unsupported JSON value")
 
 
+def _unconfirmed(missing):
+    return ("required precondition is not confirmed: " + ", ".join(missing) + "; check each on the live page, then "
+            "prepare again with the value \"confirmed\" before asking for confirmation")
+
+
 def canonical_json(value: Any) -> str:
     _validate_json(value)
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -238,7 +243,8 @@ class ActionAuthorizationStore:
             not isinstance(authority.get(key), str) or not authority[key]
             for key in ("mode", "subject", "scope_digest")
         ):
-            raise ValueError("complete authority metadata is required")
+            raise ValueError("complete authority metadata is required: authority needs non-empty mode, subject and "
+                             "scope_digest; omit authority on action_prepare and PA binds it to this action")
         required = envelope.get("required_pre_action_projections")
         preconditions = envelope.get("preconditions")
         if not isinstance(required, list) or not required or any(not isinstance(key, str) or not key for key in required):
@@ -246,7 +252,8 @@ class ActionAuthorizationStore:
         if len(required) != len(set(required)) or not isinstance(preconditions, dict):
             raise ValueError("preconditions must uniquely cover required projections")
         if set(preconditions) != set(required) or any(not isinstance(value, str) for value in preconditions.values()):
-            raise ValueError("preconditions must uniquely cover required projections")
+            raise ValueError("preconditions must uniquely cover required projections: give exactly one string value for "
+                             "each of " + ", ".join(sorted(required)))
 
         pa_action_id = envelope.get("pa_action_id", "")
         action_revision = envelope.get("action_revision", "")
@@ -259,7 +266,8 @@ class ActionAuthorizationStore:
         semantic_target = envelope.get("semantic_target")
         if pa_action_id:
             if not isinstance(semantic_target, dict) or set(semantic_target) != {"paths", "value"}:
-                raise ValueError("governed actions require semantic target paths and a value")
+                raise ValueError("governed actions require semantic target paths and a value, for example "
+                                 '{"paths": [["code"]], "value": ["<the exact code>"]}')
             paths = semantic_target["paths"]
             if (
                 not isinstance(paths, list)
@@ -377,8 +385,9 @@ class ActionAuthorizationStore:
             if not row or row["status"] != "prepared":
                 raise ValueError("authorization is not prepared for confirmation")
             envelope = json.loads(row["envelope_json"])
-            if any(envelope["preconditions"].get(key) != "confirmed" for key in envelope["required_pre_action_projections"]):
-                raise ValueError("required precondition is not confirmed")
+            missing = [key for key in envelope["required_pre_action_projections"] if envelope["preconditions"].get(key) != "confirmed"]
+            if missing:
+                raise ValueError(_unconfirmed(missing))
             envelope["authority"]["confirmed_at"] = stamp
             conn.execute(
                 """update pa_action_authorizations
@@ -439,11 +448,10 @@ class ActionAuthorizationStore:
                 raise ValueError("governed authorization is not prepared for confirmation")
             authorization = rows[0]
             envelope = json.loads(authorization["envelope_json"])
-            if any(
-                envelope["preconditions"].get(key) != "confirmed"
-                for key in envelope["required_pre_action_projections"]
-            ):
-                raise ValueError("required precondition is not confirmed")
+            missing = [key for key in envelope["required_pre_action_projections"]
+                       if envelope["preconditions"].get(key) != "confirmed"]
+            if missing:
+                raise ValueError(_unconfirmed(missing))
             action = conn.execute(
                 "select status,fields_json from actions where action_id=?", (pa_action_id,)
             ).fetchone()

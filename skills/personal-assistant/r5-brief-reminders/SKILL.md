@@ -14,10 +14,25 @@ Load for a daily brief, due-item review, or reminder change.
 2. `pa.action_upsert` prepares the brief or reminder with timing visible.
 3. Read source and calendar state through existing integrations; `pa.action_upsert` records safe proof.
 4. `pa.automations` suggests an accepted native routine; no job starts at install.
+   To turn on a routine the owner asked for (see "Turning on a routine" below).
 5. `pa.action_upsert` records brief, source gap, and follow-up; scheduled notification receipts use the contract below.
 Expected outcome: a current brief or reminder receipt without duplicate notification.
 
 Load `personal-assistant:personal-assistant` for the exact tool argument and state contract. R5 has no provider transaction, so do not use `pa.action_prepare`, `pa.action_confirm`, `pa.action_claim`, or `pa.action_result` for a brief or reminder.
+
+## Turning on a routine
+
+When the owner asks for the morning brief (or the due check), in the chat where
+they asked:
+
+1. Save their clock: `{"operation":"automations","data":{"action":"preferences","changes":{"timezone":"<IANA zone>","brief_time":"HH:MM"}}}`.
+2. Record their acceptance, with this chat as the destination: `{"operation":"automations","data":{"action":"rule","rule_id":"daily_brief","rule":{"kind":"daily_brief","accepted":true,"destination":"<platform>:<chat id>","destination_verified":true,"timezone":"<IANA zone>"}}}`.
+   The destination is verified because the owner is asking in it; for any other
+   destination, verify delivery first.
+3. Offer the native job: `{"operation":"automations","data":{"action":"suggest","native":true}}`.
+   Then tell the owner to send Hermes's `/suggestions accept <id>` with the
+   returned suggestion id. Their acceptance creates the job; PA never creates
+   jobs itself.
 
 ## Scheduled notification receipt
 
