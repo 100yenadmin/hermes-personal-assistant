@@ -163,7 +163,6 @@ def main():
         ROOT / "scripts" / "check_pa_release_lifecycle.py",
         ROOT / "scripts" / "publish_release.py",
         ROOT / "scripts" / "probe_installed_version.py",
-        ROOT / "scripts" / "reinstall_pinned.py",
         ROOT / "scripts" / "release_contract.py",
         ROOT / "scripts" / "verify_release_assets.py",
     ]

@@ -656,12 +656,10 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
     (package/'__init__.py').write_text('')
     (package/'entry.py').write_text('def dispatch(root,args): return None\n')
     (hh/'config.yaml').write_text('plugins:\n  enabled: [personal-assistant]\n')
-    auth = tmp_path/'synthetic-auth.json'
-    common.write(auth,{'tokens':{'access_token':'fixture-token-value'}})
     monkeypatch.chdir(tmp_path)
     for key in ('HOME','HERMES_HOME','PA_LAB_OUT','TRAVEL_LEDGER_DB','HERMES_SAFE_MODE','HERMES_DISABLE_LAZY_INSTALLS'):
         monkeypatch.setenv(key,os.environ.get(key,''))
-    monkeypatch.setenv('PA_LAB_AUTH',str(auth))
+    monkeypatch.setenv('PA_EVAL_CODEX_TOKEN','fixture-token-value')
     monkeypatch.setattr(common,'SECRET','')
     observer = SimpleNamespace(pages=[],capture=lambda n: [])
     plugins = SimpleNamespace(_plugin_manager=None)

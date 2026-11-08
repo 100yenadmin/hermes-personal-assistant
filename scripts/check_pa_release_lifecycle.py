@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disposable native Git install/reinstall lifecycle acceptance for Personal Assistant."""
+"""Disposable native Git install and pin-move lifecycle acceptance for Personal Assistant."""
 
 from __future__ import annotations
 
@@ -115,11 +115,11 @@ def internal_probe(home: Path, hermes_root: Path, ics: Path, trip_id: str) -> di
     recipes = call({"operation": "recipes"})
     imported = call({
         "operation": "trip_import",
-        "data": {"trip_id": trip_id, "ics_path": str(ics), "title": "Synthetic lifecycle"},
+        "data": {"trip_id": trip_id, "ics_text": ics.read_text(), "title": "Synthetic lifecycle"},
     })
     replay = call({
         "operation": "trip_import",
-        "data": {"trip_id": trip_id, "ics_path": str(ics), "title": "Synthetic lifecycle"},
+        "data": {"trip_id": trip_id, "ics_text": ics.read_text(), "title": "Synthetic lifecycle"},
     })
     exported = call({
         "operation": "export",
@@ -241,26 +241,21 @@ def main() -> int:
 
         installed = home / "plugins" / PLUGIN_ID
         config_before = write_local_config(installed, "first")
-        reinstall = run([
-            sys.executable,
-            str(installed / "scripts" / "reinstall_pinned.py"),
-            "--source", source_url,
-            "--ref", second_ref,
-            "--hermes", args.hermes,
-            "--hermes-home", str(home),
-            "--json",
+        state_before = state_receipt(state_paths)
+        # Hermes' own pin move: a same-source --force install at the new revision.
+        run([
+            args.hermes, "plugins", "install", source_url, "--force", "--ref", second_ref, "--no-enable"
         ], env=env)
         second_metadata = read_metadata(home)
         if second_metadata.get("revision") != second_ref or second_metadata.get("pinned") is not True:
             raise RuntimeError("second native install was not pinned to the requested revision")
-        config_after = {name: sha256((home / "plugins" / PLUGIN_ID / name)) for name in CONFIG_NAMES}
-        if config_before != config_after:
-            raise RuntimeError("local PA configuration changed during pinned reinstall")
+        config_after = {
+            name: sha256(installed / name) if (installed / name).is_file() else None for name in CONFIG_NAMES
+        }
+        # Newer Hermes carries untracked plugin files across --force; older pins do not. Report it.
+        config_carried = config_before == config_after
         if ledger_before != sha256(ledger):
-            raise RuntimeError("profile ledger changed during pinned reinstall")
-        reinstall_result = json.loads(reinstall.stdout)
-        if not reinstall_result.get("rollback_snapshot"):
-            raise RuntimeError("pinned reinstall did not retain a prior-package rollback snapshot")
+            raise RuntimeError("profile ledger changed during the pin move")
 
         pinned_update = subprocess.run(
             [args.hermes, "plugins", "update", PLUGIN_ID], env=env, text=True, capture_output=True
@@ -278,110 +273,11 @@ def main() -> int:
         installed_status = json.loads(installed_probe.stdout)
         if installed_status.get("source_kind") != "native_git" or installed_status.get("observed_commit") != second_ref:
             raise RuntimeError("installed probe did not identify the native Git revision")
-
-        accepted_git_config = write_local_config(home / "plugins" / PLUGIN_ID, "accepted-after-git")
-        accepted_git_ledger = sha256(ledger)
-        accepted_external_state = state_receipt(state_paths)
-        rollback_git = run([
-            sys.executable,
-            str(home / "plugins" / PLUGIN_ID / "scripts" / "reinstall_pinned.py"),
-            "--rollback", str(reinstall_result["rollback_snapshot"]),
-            "--hermes-home", str(home),
-            "--json",
-        ], env=env)
-        if read_metadata(home).get("revision") != first_ref:
-            raise RuntimeError("rollback did not restore the prior native package identity")
-        if accepted_git_config != {
-            name: sha256(home / "plugins" / PLUGIN_ID / name) for name in CONFIG_NAMES
-        }:
-            raise RuntimeError("rollback rewound accepted local PA configuration")
-        if sha256(ledger) != accepted_git_ledger or state_receipt(state_paths) != accepted_external_state:
-            raise RuntimeError("rollback rewound state outside the plugin package")
-
-        repeat = run([
-            sys.executable,
-            str(home / "plugins" / PLUGIN_ID / "scripts" / "reinstall_pinned.py"),
-            "--source", source_url,
-            "--ref", first_ref,
-            "--hermes", args.hermes,
-            "--hermes-home", str(home),
-            "--json",
-        ], env=env)
-        if read_metadata(home).get("revision") != first_ref:
-            raise RuntimeError("repeat same-revision replacement changed package identity")
-        if accepted_git_config != {
-            name: sha256(home / "plugins" / PLUGIN_ID / name) for name in CONFIG_NAMES
-        } or sha256(ledger) != accepted_git_ledger:
-            raise RuntimeError("repeat same-revision replacement changed accepted state")
-
-        assets = root / "release-assets"
-        package_source = fixture_source if args.include_working_tree else source
-        archive_source_sha = git(["rev-parse", "HEAD"], package_source)
-        version = (package_source / "VERSION").read_text(encoding="utf-8").strip()
-        package = run([
-            "bash", str(package_source / "scripts" / "package_release.sh"), "--output-dir", str(assets)
-        ], cwd=package_source)
-        archive = run([
-            sys.executable,
-            str(home / "plugins" / PLUGIN_ID / "scripts" / "reinstall_pinned.py"),
-            "--archive-dir", str(assets),
-            "--version", version,
-            "--hermes-home", str(home),
-            "--json",
-        ], env=env)
-        archive_result = json.loads(archive.stdout)
-        archive_probe_script = home / "plugins" / PLUGIN_ID / "scripts" / "probe_installed_version.py"
-        archive_probe = json.loads(run([
-            sys.executable, str(archive_probe_script), "--json", "--home", str(root / "system-home"),
-            "--hermes-home", str(home),
-        ], env=env).stdout)
-        if (
-            archive_probe.get("source_kind") != "native_archive"
-            or archive_probe.get("observed_commit") != archive_source_sha
-            or archive_probe.get("package_path") != str((home / "plugins" / PLUGIN_ID).resolve())
-        ):
-            raise RuntimeError(
-                "archive replacement identity mismatch: "
-                + json.dumps({
-                    "expected_commit": archive_source_sha,
-                    "expected_path": str((home / "plugins" / PLUGIN_ID).resolve()),
-                    "observed_commit": archive_probe.get("observed_commit"),
-                    "observed_path": archive_probe.get("package_path"),
-                    "source_kind": archive_probe.get("source_kind"),
-                }, sort_keys=True)
-            )
-
-        archive_runtime = internal_probe(
-            home, hermes_root, ics, "release-lifecycle-archive-accepted"
-        )
-        accepted_archive_config = write_local_config(
-            home / "plugins" / PLUGIN_ID, "accepted-after-archive"
-        )
-        accepted_archive_ledger = sha256(ledger)
-        accepted_archive_state = state_receipt(state_paths)
-        rollback_archive = run([
-            sys.executable,
-            str(home / "plugins" / PLUGIN_ID / "scripts" / "reinstall_pinned.py"),
-            "--rollback", str(archive_result["rollback_snapshot"]),
-            "--hermes-home", str(home),
-            "--json",
-        ], env=env)
-        restored_probe_script = home / "plugins" / PLUGIN_ID / "scripts" / "probe_installed_version.py"
-        restored_probe = json.loads(run([
-            sys.executable, str(restored_probe_script), "--json", "--home", str(root / "system-home"),
-            "--hermes-home", str(home),
-        ], env=env).stdout)
-        if restored_probe.get("source_kind") != "native_git" or restored_probe.get("observed_commit") != first_ref:
-            raise RuntimeError("archive rollback did not restore the retained Git package identity")
-        if accepted_archive_config != {
-            name: sha256(home / "plugins" / PLUGIN_ID / name) for name in CONFIG_NAMES
-        }:
-            raise RuntimeError("archive rollback rewound accepted local configuration")
-        if sha256(ledger) != accepted_archive_ledger or state_receipt(state_paths) != accepted_archive_state:
-            raise RuntimeError("archive rollback rewound accepted external state")
+        if state_receipt(state_paths) != state_before:
+            raise RuntimeError("pin move changed state outside the plugin package")
 
         receipt = {
-            "claim": "disposable native pinned install and explicit pinned reinstall lifecycle",
+            "claim": "disposable native pinned install and Hermes --force --ref pin move lifecycle",
             "hermes_source_commit": git(["rev-parse", "HEAD"], hermes_root),
             "tested_pa_head": tested_pa_head,
             "fixture_baseline_binding": (
@@ -395,26 +291,13 @@ def main() -> int:
             "activation_after_first_install": activation_after_install,
             "first_probe": first_probe,
             "second_probe": second_probe,
-            "preserved_config": sorted(config_before),
-            "preserved_config_sha256": config_after,
+            "local_config": sorted(config_before),
+            "local_config_carried_by_hermes": config_carried,
             "ledger_sha256_unchanged": True,
             "pinned_update_refused": True,
             "disable_reenable": "PASS",
             "installed_probe_source_kind": installed_status["source_kind"],
             "installed_probe_revision": installed_status["observed_commit"],
-            "reinstall_result": reinstall_result,
-            "git_rollback_result": json.loads(rollback_git.stdout),
-            "repeat_same_revision_result": json.loads(repeat.stdout),
-            "archive_build": json.loads(package.stdout),
-            "archive_source_sha": archive_source_sha,
-            "archive_replacement_result": archive_result,
-            "archive_probe_source_kind": archive_probe["source_kind"],
-            "archive_probe_revision": archive_probe["observed_commit"],
-            "archive_runtime": archive_runtime,
-            "archive_rollback_result": json.loads(rollback_archive.stdout),
-            "rollback_preserved_accepted_config": True,
-            "rollback_preserved_ledger_sessions_memory_jobs": True,
-            "repeat_same_revision_preserved_state": True,
             "live_profile_changed": False,
             "provider_actions": False,
         }

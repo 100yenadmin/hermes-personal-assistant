@@ -82,8 +82,9 @@ The `pa` operation groups are:
 - **Context:** `context`, `next_action`.
 - `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
 - `trip_offer` checks and records offer outcomes; load `personal-assistant:trip-concierge`.
-- **Domain state:** `trip_import`, `export`, `calendar_bind`, `calendar_sync`,
-  `disconnect`, `automations`.
+- **Domain state:** `trip_import` (file content in `ics_text`/`guide_text`,
+  never a path), `export`, `disconnect`, `automations`. Calendar writes go
+  through the profile's own calendar tools; PA holds no Google token.
 - **Durable actions:** `action_upsert`, `action_prepare`, `action_confirm`,
   `action_cancel`, legacy `action_claim`, and `action_result`.
 - **Exact authorization:** `authorization_prepare`, `authorization_confirm`,

@@ -36,13 +36,10 @@ native automation suggestions. It does **not** create a scheduler or daemon.
    existing config. Point `DAILY_OPS_CONFIG` to that file; replace example
    identities, destination and timezone with the customer's choices. The
    example and a mutable flag do not establish delivery verification.
-2. Choose `calendar.provider` as `profile_google` to reuse the profile's
-   existing Google authorization, or `gog` only when that alternative is
-   explicitly configured. Set `calendar.read_scope.accepted: true` with exact
-   `calendar_ids`; choose whether the PA binding is included. Then run
-   `python3 -m personal_assistant.daily_ops.doctor`. It must report the selected
-   calendar provider and account without describing profile Google as a gog
-   identity, and it never registers jobs.
+2. Set `calendar.provider` to `gog` (PA holds no Google token of its own).
+   Set `calendar.read_scope.accepted: true` with exact `calendar_ids`. Then run
+   `python3 -m personal_assistant.daily_ops.doctor`. It must report the gog
+   account and scopes, and it never registers jobs.
 3. Preview the synthetic example in `docs/customer-contract.md`. Verify the
    selected calendar with a read-only call. Run `gog auth add` only when gog was
    explicitly selected and its existing setup requires consent. If the selected

@@ -43,12 +43,22 @@ def test_save_flight_forms(tmp_path, form):
 def test_import_offers_watch_once(tmp_path):
     path = tmp_path / 'flight.ics'
     path.write_text('BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:f\nDTSTART:20991110T120000Z\nEND:VEVENT\nEND:VCALENDAR\n')
-    args = {'operation': 'trip_import', 'data': {'trip_id': 'synthetic', 'ics_path': str(path)}}
+    args = {'operation': 'trip_import', 'data': {'trip_id': 'synthetic', 'ics_text': path.read_text()}}
     assert dispatch(tmp_path, args)['next_step']['offer_trip_watch']
     ledger = Ledger(tmp_path)
     assert ledger.list('action') == []  # A hint reserves and arms nothing.
     concierge.dispatch(ledger, {'action': 'record', 'trip_id': 'synthetic', 'offer_type': 'trip_watch', 'outcome': 'declined'})
     assert 'next_step' not in dispatch(tmp_path, args)
+
+
+def test_import_refuses_model_named_paths(tmp_path):
+    secret = tmp_path / 'outside.ics'
+    secret.write_text('BEGIN:VCALENDAR\nEND:VCALENDAR\n')
+    for key in ('ics_path', 'guide_path'):
+        with pytest.raises(ValueError, match='not paths'):
+            dispatch(tmp_path, {'operation': 'trip_import', 'data': {'trip_id': 't', 'ics_text': 'x', key: str(secret)}})
+    with pytest.raises(ValueError, match='ics_text'):
+        dispatch(tmp_path, {'operation': 'trip_import', 'data': {'trip_id': 't'}})
 
 
 def test_night_watch_explains_required_setting(tmp_path):

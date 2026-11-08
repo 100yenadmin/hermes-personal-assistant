@@ -85,9 +85,7 @@ def wave(args):
         try:
             shutil.copytree(template / "home", home, symlinks=True)
             write(root / "plugin-refs.json", read(template / "lab-home.json", {}))
-            env = {**os.environ, "PYTHONPATH": str(ROOT) + os.pathsep + str(Path(args.hermes).resolve()),
-                   "CODEX_HOME": os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
-                   "PA_LAB_AUTH": os.environ.get("PA_LAB_AUTH") or str(Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json")}
+            env = {**os.environ, "PYTHONPATH": str(ROOT) + os.pathsep + str(Path(args.hermes).resolve())}
             cmd = [args.python, "-m", "evals.lab", "run-one", "--hermes", str(Path(args.hermes).resolve()), "--out", str(root), "--judge", args.judge]
             with (root / "stderr.log").open("w") as err:
                 status = execute(cmd, s["budget_seconds"] + 120, cwd=home, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err)
@@ -109,16 +107,10 @@ def wave(args):
 
 
 def token():
-    path = Path(os.environ.get("PA_LAB_AUTH", str(Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json")))
-    try:
-        value = read(path, {}).get("tokens", {}).get("access_token")
-        if not value:
-            from hermes_cli.auth import _read_codex_tokens
-            value = _read_codex_tokens().get("tokens", {}).get("access_token")
-    except Exception:
-        raise RuntimeError("existing model token unavailable") from None
-    if not isinstance(value, str) or not value:
-        raise RuntimeError("existing model token unavailable")
+    """The model token the caller put in PA_EVAL_CODEX_TOKEN; the lab never reads a saved login."""
+    value = os.environ.get("PA_EVAL_CODEX_TOKEN")
+    if not value:
+        raise RuntimeError("PA_EVAL_CODEX_TOKEN is not set")
     common.SECRET = value
     return value
 

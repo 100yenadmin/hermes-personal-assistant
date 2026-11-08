@@ -46,25 +46,21 @@ Never install software or treat discovery as approval to adopt or activate it.
 1. Confirm the approved start, end, timezone, title and destination in chat.
    A generic yes with missing times requires a timing question, not invented
    availability. Reuse already authorized calendar reads to check the slot.
-2. Read `pa(operation="context", data={"kind":"action","action_id":"pa:calendar-binding"})`.
-   An absent binding may return “action not found”. If absent or not `bound`,
-   say no calendar is bound and, in the same reply, offer to set one up. Reuse the profile's existing Google
-   authorization; never start another login silently. After explicit destination
-   approval, use `pa(operation="calendar_bind", data={"calendar_id":"<explicit calendar id>","expected_account":"<approved account>"})`.
-   Never use `primary` as the destination ID or guess the account.
+2. Use the profile's own calendar tool for the approved destination calendar;
+   PA holds no Google token and writes no calendar itself. If no calendar tool
+   is available, say so and, in the same reply, offer to set one up; never start
+   a login silently. Never guess the destination calendar or account.
 3. Use the existing calendar contract described in
    `../travel-email-calendar/SKILL.md`. For this owner-approved benchmark, save
    a non-trip note action with the same stable ID on every retry:
    `pa(operation="action_upsert", data={"action_id":"cos:radar:<local ISO week>","action_type":"note","status":"completed","fields":{"calendar_event":{"summary":"<approved title>","start":"<ISO timestamp with offset>","end":"<ISO timestamp with offset>","timezone":"<IANA timezone>","status":"CONFIRMED"}}})`.
    Keep it minimal; no attendees, sensitive notes or unrelated calendar changes.
-4. Call `pa(operation="calendar_sync", data={"action_id":"cos:radar:<local ISO week>"})`.
-   Then read that action with `context`. Inspect `calendar_last_attempt` and
-   `calendar_mapping`, including the remote ID and stored provider fields. Use
-   the available calendar read tool to verify that exact event's title, start,
-   end and timezone; report those details only after they match. Record the safe
-   readback with `action_upsert`. A stored intention or failed sync is not a booking.
-   Stop on conflicts, account mismatch or uncertainty; inspect the existing
-   remote ID before any retry and never allocate a second action to retry it.
+4. Create the event with the calendar tool, then read it back with that tool and
+   verify the exact title, start, end and timezone; report those details only
+   after they match. Record the event reference and safe readback with
+   `action_upsert` on the same action. A stored intention or failed write is not
+   a booking. Stop on conflicts, account mismatch or uncertainty; look for the
+   existing event before any retry and never allocate a second action to retry it.
 
 Update the recommendation's stage and calendar receipt through the shared
 protocol. An approved or booked benchmark remains `unknown` until observed use;

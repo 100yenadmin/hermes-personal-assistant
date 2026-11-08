@@ -339,6 +339,15 @@ class PhonePoller:
         return {'coverage': 'partial', 'calls': calls, 'next_cursor': cursor, 'delivery': 'not_attempted'}
 
 
+def _api_key():
+    # Declared in plugin.yaml; Hermes' accessor resolves the active profile's secret.
+    try:
+        from agent.secret_scope import get_secret
+    except ImportError:  # Run outside a Hermes environment: the shell is the only source.
+        return os.environ.get('ELEVENLABS_API_KEY')
+    return get_secret('ELEVENLABS_API_KEY')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--profile-root', required=True, type=Path)
@@ -349,7 +358,7 @@ def main():
     args = parser.parse_args()
     try:
         config = json.loads(args.config.read_text())
-        poller = PhonePoller(args.profile_root, config, ElevenLabsReader(os.environ.get('ELEVENLABS_API_KEY')),
+        poller = PhonePoller(args.profile_root, config, ElevenLabsReader(_api_key()),
                             dry_run=not args.enqueue)
         result = poller.poll_once(since=args.since, max_pages=args.max_pages)
         print(json.dumps(result, ensure_ascii=False))

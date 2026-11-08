@@ -37,15 +37,8 @@ Installation creates no cron jobs, reminders, calendar events, provider actions,
 or downloads. The travel ledger remains in the profile at
 `state/travel-ledger/travel.sqlite`.
 
-Pinned revisions never move through `hermes plugins update`. After another full
-commit SHA is approved, preserve local PA configuration with:
-
-```bash
-python3 ~/.hermes/plugins/personal-assistant/scripts/reinstall_pinned.py \
-  --source 100yenadmin/hermes-personal-assistant \
-  --ref <40-character-approved-commit>
-```
-
-The script force-reinstalls the approved Git revision with `--no-enable`, restores
-only the documented local PA configuration names, and leaves reload/activation
-to the operator.
+To update a catalog install, run `hermes plugins update personal-assistant`;
+Hermes moves it to the catalog's current reviewed pin and keeps your local
+files. A direct Git install pinned with `--ref` moves only with
+`hermes plugins install 100yenadmin/hermes-personal-assistant --force --ref
+<40-character-approved-commit> --no-enable`.

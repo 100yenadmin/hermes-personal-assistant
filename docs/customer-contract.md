@@ -14,7 +14,6 @@ state needed for continuity and safe follow-through, including:
 - source revisions and reconciliation obligations;
 - provider-attempt state and bounded safe receipts;
 - automation preferences and notification identities;
-- calendar-binding metadata for an explicitly selected account and calendar;
 - opt-in exact-action authorization envelopes without retained raw tool
   arguments; and
 - an opt-in private conversation-evidence queue.

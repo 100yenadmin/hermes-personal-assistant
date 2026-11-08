@@ -13,12 +13,11 @@
     "personal": null
   },
   "calendar": {
-    "provider": "profile_google",
+    "provider": "gog",
     "account": "owner@example.com",
     "read_scope": {
       "accepted": false,
-      "calendar_ids": [],
-      "include_pa_binding": false
+      "calendar_ids": []
     }
   },
   "priority": {

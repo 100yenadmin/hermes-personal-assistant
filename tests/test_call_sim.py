@@ -36,7 +36,7 @@ def test_scripted_import_does_not_load_hermes():
     assert result.returncode == 0
 
 
-def test_codex_no_tools_existing_token_only(monkeypatch, tmp_path):
+def test_codex_no_tools_caller_token_only(monkeypatch, tmp_path):
     reads, instances = [], []
     class Agent:
         def __init__(self, **kwargs):
@@ -50,17 +50,18 @@ def test_codex_no_tools_existing_token_only(monkeypatch, tmp_path):
         def close(self):
             self.closed = True
     monkeypatch.setitem(sys.modules, 'run_agent', SimpleNamespace(AIAgent=Agent))
-    monkeypatch.setitem(sys.modules, 'hermes_cli', SimpleNamespace())
     monkeypatch.setitem(sys.modules, 'hermes_cli.auth', SimpleNamespace(
-        _read_codex_tokens=lambda: (reads.append(1) or {'tokens': {'access_token': 'synthetic-fixture'}})))
-    monkeypatch.setenv('CODEX_HOME', str(tmp_path))  # No real auth file is read in tests.
-    monkeypatch.setenv('HOME', str(tmp_path))
+        _read_codex_tokens=lambda: (reads.append(1) or {'tokens': {'access_token': 'saved-login'}})))
+    monkeypatch.delenv('PA_EVAL_CODEX_TOKEN', raising=False)
+    with pytest.raises(ValueError, match='PA_EVAL_CODEX_TOKEN'):
+        Codex()
+    monkeypatch.setenv('PA_EVAL_CODEX_TOKEN', 'synthetic-fixture')  # The caller supplies it; no saved login is read.
     backend = Codex()
     persona = yaml.safe_load((PERSONAS / 'ko_restaurant_booking.yaml').read_text())
     history = []
     for _ in range(2):
         assert backend.reply(persona, history)['text'] == '안녕하세요'
-    assert len(reads) == 1 and history
+    assert reads == [] and history
     assert all(a.kwargs['provider'] == 'openai-codex' and a.kwargs['model'] == 'gpt-6.1-sol'
                and a.kwargs['enabled_toolsets'] == [] and a.closed for a in instances)
 

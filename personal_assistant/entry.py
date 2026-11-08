@@ -12,7 +12,7 @@ OPERATIONS = ["status", "capabilities", "context", "recipes", "trip_import", "ex
               "action_prepare", "action_confirm", "action_cancel", "action_claim", "action_result",
               "authorization_prepare", "authorization_confirm", "authorization_cancel", "authorization_status",
               "event_upsert", "projection_claim", "projection_result", "reconcile", "freshness",
-              "calendar_bind", "calendar_sync", "disconnect", "automations", "next_action", "setup",
+              "disconnect", "automations", "next_action", "setup",
               "trip_watch_plan", "trip_offer", "browser_session", "profile", "evidence"]
 SCHEMA = {
     "name": "pa",
@@ -46,6 +46,8 @@ SCHEMA = {
             "segments": {"anyOf": [{"type": "array", "items": SEG_SCHEMA, "minItems": 1, "maxItems": 8}, SEG_SCHEMA,
                                    {"type": "string", "description": "JSON-encoded segments; record_facts parses it."}]},
             "source": {"type": "string"},
+            "ics_text": {"type": "string", "description": "trip_import: the calendar file's text; read the file with read_file first."},
+            "guide_text": {"type": "string", "description": "trip_import: optional guide text, read the same way."},
             "wake_id": {"type": "string", "pattern": "^w_[A-Za-z0-9_-]+$"},
             "offer_type": {"type": "string", "pattern": "^[a-z][a-z_]{1,39}$"},
             "section": {"type": "string"},
@@ -84,7 +86,7 @@ SCHEMA = {
             "kind": {"type": "string", "description": "context: trip/action/source/guide; profile: preference/person/sop/trust."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 20},
             "offset": {"type": "integer", "minimum": 0}
-        }, "description": "Operation arguments. browser_session: action status/create/live_view/connect/release; live_view/connect/release take bb_session_id; create accepts region; live_view lists tabs when the session has more than one; connect returns a fresh connect_url for a running session. trip_watch_plan: plan (default), status, record_wake, record_cancel, record_skip, verify or record_facts with trip_id; plan arms check_in_window/arrival_logistics/watch; receipts take moment/wake_id, verify takes wakes, record_facts takes segments/source or flat carrier, number, origin, destination, origin_timezone, destination_timezone, scheduled_departure, scheduled_arrival, optional estimated_departure, estimated_arrival, terminal_departure, terminal_arrival, status. trip_import/record_facts may return next_step. trip_offer: action check or record with trip_id/offer_type and outcome for record; occurrence comes from an observer notice; record example: data={\"action\":\"record\",\"trip_id\":…,\"offer_type\":…,\"outcome\":\"accepted\",\"occurrence\":\"n_…\"} (occurrence at the top level of data, not in fields); check reserves by default (reserve false skips reservation); opted_out requires an explicit never request. setup actions: status (default), start, record, propose, applied, fresh_check, pause, decline; record accepts consent granted/declined for the look-around; after apply it preserves applied/checked status and flags pending_changes for the next /pa setup review, then propose and apply. propose with draft true saves deeper-answer summaries and keeps the interview in progress. applied takes readbacks with target plus skill/path as needed; PA reads back the files and computes hashes. capabilities takes no data and never proves authentication. context: kind plus trip_id/action_id/source_id/query and optional limit/offset; kind is optional with exactly one ID, except trip_id plus query; guide needs explicit kind. recipes: optional recipe_id R1-R8; trip_import: trip_id, ics_path, optional guide_path/timezone/title/source_url/complete; export: trip_id/output_dir and optional guarded overwrite for same-profile PA files; action_upsert: optional action_id/source_id/action_kind/occurrence, fields. Transaction prepare/confirm/claim require action_id and summary; confirm also requires confirmation. action_prepare with enforcement_profile exact_action automatically registers a server-bound pending scope; action_cancel cancels that governed action. Action result requires action_id, outcome and proof. authorization_prepare records a generic exact-action envelope and hashes complete tool_args without retaining them; authorization_confirm requires action_id and explicit confirmation; authorization_status reads one action. event_upsert requires source_type/source_id/source_revision/projections and optional payload/occurred_at; each projection may declare freshness_seconds. projection_claim requires event_id/projection_key/claimed_by and optional lease_seconds/at. projection_result requires event_id/projection_key/claim_token/outcome and optional proof/at. reconcile optionally accepts event_id. freshness requires explicit at and optionally accepts event_id."}},
+        }, "description": "Operation arguments. browser_session: action status/create/live_view/connect/release; live_view/connect/release take bb_session_id; create accepts region; live_view lists tabs when the session has more than one; connect returns a fresh connect_url for a running session. trip_watch_plan: plan (default), status, record_wake, record_cancel, record_skip, verify or record_facts with trip_id; plan arms check_in_window/arrival_logistics/watch; receipts take moment/wake_id, verify takes wakes, record_facts takes segments/source or flat carrier, number, origin, destination, origin_timezone, destination_timezone, scheduled_departure, scheduled_arrival, optional estimated_departure, estimated_arrival, terminal_departure, terminal_arrival, status. trip_import/record_facts may return next_step. trip_offer: action check or record with trip_id/offer_type and outcome for record; occurrence comes from an observer notice; record example: data={\"action\":\"record\",\"trip_id\":…,\"offer_type\":…,\"outcome\":\"accepted\",\"occurrence\":\"n_…\"} (occurrence at the top level of data, not in fields); check reserves by default (reserve false skips reservation); opted_out requires an explicit never request. setup actions: status (default), start, record, propose, applied, fresh_check, pause, decline; record accepts consent granted/declined for the look-around; after apply it preserves applied/checked status and flags pending_changes for the next /pa setup review, then propose and apply. propose with draft true saves deeper-answer summaries and keeps the interview in progress. applied takes readbacks with target plus skill/path as needed; PA reads back the files and computes hashes. capabilities takes no data and never proves authentication. context: kind plus trip_id/action_id/source_id/query and optional limit/offset; kind is optional with exactly one ID, except trip_id plus query; guide needs explicit kind. recipes: optional recipe_id R1-R8; trip_import: trip_id, ics_text, optional guide_text/timezone/title/source_url/complete; export: trip_id/output_dir and optional guarded overwrite for same-profile PA files; action_upsert: optional action_id/source_id/action_kind/occurrence, fields. Transaction prepare/confirm/claim require action_id and summary; confirm also requires confirmation. action_prepare with enforcement_profile exact_action automatically registers a server-bound pending scope; action_cancel cancels that governed action. Action result requires action_id, outcome and proof. authorization_prepare records a generic exact-action envelope and hashes complete tool_args without retaining them; authorization_confirm requires action_id and explicit confirmation; authorization_status reads one action. event_upsert requires source_type/source_id/source_revision/projections and optional payload/occurred_at; each projection may declare freshness_seconds. projection_claim requires event_id/projection_key/claimed_by and optional lease_seconds/at. projection_result requires event_id/projection_key/claim_token/outcome and optional proof/at. reconcile optionally accepts event_id. freshness requires explicit at and optionally accepts event_id."}},
         "required": ["operation"],
         "allOf": [{
             "if": {"properties": {"operation": {"const": "projection_result"}}},
@@ -215,12 +217,6 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     if op == "next_action":
         from .context import next_actions
         return next_actions(ledger, data)
-    if op == "calendar_bind":
-        from .calendar_workflow import bind
-        return _call_with_supported_data(bind, ledger, data=data)
-    if op == "calendar_sync":
-        from .calendar_workflow import sync_trip
-        return _call_with_supported_data(sync_trip, ledger, data=data)
     if op == "disconnect":
         from .automation_workflow import preferences
         preferences(ledger, {"paused": True})
@@ -237,12 +233,18 @@ def dispatch(profile_root, args, *, runtime_scope=None):
                 "capabilities": "Google, browser, messaging and credential availability require profile-specific verification."}
     if op == "trip_import":
         from .trips import import_trip
-        source = Path(data.pop("ics_path")).expanduser()
-        guide_path = data.pop("guide_path", None)
-        if guide_path:
-            data["guide"] = Path(guide_path).expanduser().read_text()
+        # Content only: PA never opens a path the model names (read_file applies Hermes' denylist).
+        if "ics_path" in data or "guide_path" in data:
+            raise ValueError("trip_import takes file content, not paths: read the file with read_file "
+                             "and pass ics_text (and guide_text)")
+        ics_text = data.pop("ics_text", None)
+        if not isinstance(ics_text, str) or not ics_text.strip():
+            raise ValueError("trip_import requires ics_text, the calendar file's text")
+        guide_text = data.pop("guide_text", None)
+        if guide_text is not None:
+            data["guide"] = str(guide_text)
         from .trip_watch import offer_hint
-        result = _call_with_supported_data(import_trip, ledger, data={**data, "ics": source.read_bytes()})
+        result = _call_with_supported_data(import_trip, ledger, data={**data, "ics": ics_text.encode("utf-8")})
         hint = offer_hint(ledger, data["trip_id"])
         return {**result, "next_step": hint} if hint else result
     if op == "export":

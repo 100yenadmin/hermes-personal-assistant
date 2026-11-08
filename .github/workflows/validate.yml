@@ -40,7 +40,7 @@ jobs:
       - run: >-
           python3 -m py_compile
           scripts/build_release.py scripts/check_release.py scripts/check_pa_release_lifecycle.py
-          scripts/probe_installed_version.py scripts/publish_release.py scripts/reinstall_pinned.py
+          scripts/probe_installed_version.py scripts/publish_release.py
           scripts/release_contract.py scripts/verify_release_assets.py scripts/verify_release_recovery.py
           skills/travel-ledger/scripts/travel_ledger.py scripts/validate_pack.py
       - run: python -m pytest tests -q
@@ -78,8 +78,7 @@ jobs:
       - run: >-
           python -m pytest
           tests/test_release_contract.py tests/test_release_checker.py
-          tests/test_probe_installed_version.py tests/test_publish_release.py
-          tests/test_reinstall_pinned.py -q
+          tests/test_probe_installed_version.py tests/test_publish_release.py -q
 
   native-lifecycle:
     name: native-lifecycle (${{ matrix.hermes_sha }})
@@ -106,7 +105,7 @@ jobs:
           test "$(git -C "$RUNNER_TEMP/hermes-agent" rev-parse HEAD)" = "${{ matrix.hermes_sha }}"
       - run: python -m pip install -e "$RUNNER_TEMP/hermes-agent"
       - run: python -m pip install -r requirements.txt
-      - name: Native pinned install and reinstall lifecycle
+      - name: Native pinned install and pin move lifecycle
         run: >-
           python scripts/check_pa_release_lifecycle.py
           --hermes "$(command -v hermes)"

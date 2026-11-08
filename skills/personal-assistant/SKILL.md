@@ -154,14 +154,11 @@ access contexts belong in protected profile state; Secure Access owns materializ
 file cleanup. Denial/revocation stops use of the credential and associated cached
 authentication. Access never implies spending or messaging authority.
 
-Calendar setup first reuses profile Google authorization. An explicitly configured
-`gog` provider is an alternative, not a required second login. Accept read scope
-with an explicit choice shaped as `calendar.provider` (`profile_google` or
-`gog`), optional `calendar.account` such as `accounts.work`, and
-`calendar.read_scope` containing `accepted: true`, explicit `calendar_ids`, and
-`include_pa_binding`. Use `calendar_bind` with an explicitly selected
-calendar ID and expected account, then `calendar_sync` with `trip_id` or the
-supported stable `action_id`. Source gaps are not cancellations.
+PA holds no Google token. Read and write calendars with the profile's own
+calendar tools; for Daily Ops, accept read scope shaped as `calendar.provider`
+`gog`, optional `calendar.account` such as `accounts.work`, and
+`calendar.read_scope` containing `accepted: true` and explicit `calendar_ids`.
+Source gaps are not cancellations.
 For guides that contradict Events, pass the authoritative Events timing and both
 versions in `source_notes` keyed by UID. Pass verified public subscription URLs
 using `subscriptions`. Timed values require a timezone; never invent a duration.

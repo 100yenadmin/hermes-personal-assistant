@@ -23,7 +23,6 @@ _BOOL_FIELDS = (
     ("priority.connectors.clients_sync", "stripe_live"),
     ("autoclean", "enabled"),
     ("calendar.read_scope", "accepted"),
-    ("calendar.read_scope", "include_pa_binding"),
 )
 
 
@@ -117,8 +116,9 @@ def validate_config(cfg: dict, *, require_profile: bool = False) -> list[str]:
         if not isinstance(calendar, dict):
             errors.append("calendar must be an object")
             calendar = {}
-        if calendar.get("provider") not in {"profile_google", "gog"}:
-            errors.append("calendar.provider must be profile_google or gog")
+        if calendar.get("provider") != "gog":
+            # PA holds no Google token; profile_google was removed with Calendar sync.
+            errors.append("calendar.provider must be gog")
         calendar_account = calendar.get("account")
         if calendar_account is not None and (not isinstance(calendar_account, str) or "@" not in calendar_account):
             errors.append("calendar.account must be an email address or omitted")
@@ -133,8 +133,10 @@ def validate_config(cfg: dict, *, require_profile: bool = False) -> list[str]:
             not isinstance(value, str) or not value.strip() for value in (calendar_ids or [])
         ):
             errors.append("calendar.read_scope.calendar_ids must be a list of calendar IDs")
-        elif not calendar_ids and read_scope.get("include_pa_binding") is not True:
-            errors.append("calendar.read_scope must include a calendar ID or the accepted PA binding")
+        elif not calendar_ids:
+            errors.append("calendar.read_scope must include a calendar ID")
+        if read_scope.get("include_pa_binding") not in {None, False}:
+            errors.append("calendar.read_scope.include_pa_binding was removed with Calendar sync")
 
     for section, field in _BOOL_FIELDS:
         value = _lookup(cfg, f"{section}.{field}")
