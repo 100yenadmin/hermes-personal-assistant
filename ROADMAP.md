@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.10.0, 8 November 2026)
+## Where we are (0.11.0, 9 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -26,16 +26,16 @@ interview (27 questions), owner memory (corrections, people, SOPs and trust
 levels) and the day-30 review. The persona rig passes for zero re-asked facts
 across two sittings. The M1 exit test on the pilot agent is next.
 
-**Measuring parity (M2), in progress.** 0.10.0 ships its measured scorecard
-(27 live lab runs on its reviewed commit). General research now passes its lab
-test 3 of 3. Calendar and the daily, quiet-day and kickoff routines pass their
-partial checks 3 of 3; the weekly routine passes the judge 3 of 3 but misses a
-fixed check in each run: in two, the check's wording is too narrow ("disconnected"
-is honest but not accepted); in one, the reply did not keep its outcomes
-separate. Travel prep passes 6 of 9 (the San Francisco trip fails on unsupported
-cart and price claims, and one run left the taxi without a hand-off). Next:
-travel to 3 of 3, the weekly check's wording and separate outcomes, and the
-owner's real tasks and day-30 baseline on the pilot agent.
+**Built, live exit pending (M3 and M4).** 0.11.0 adds open loops with the
+day 2, 5 and 10 chase ladder, the personal radar, an end-of-day note, routine
+health, inbox triage, and calendar writes with invites and 24-hour confirmations.
+Its scorecard (48 live lab runs on the reviewed commit) passes 40: inbox triage,
+the radar, the broken-routine catch, meeting confirmations, calendar conflicts,
+research, and the daily, quiet-day and kickoff routines pass 3 of 3. Chasing, the
+end-of-day note and the weekly routine pass 2 of 3. Calendar invites pass 1 of 3,
+because the lab contract leaves the local-time format open (#105). Travel prep
+passes 6 of 9. Next: the ten-working-day unattended canary (#50), the pilot's real
+loops, and M5.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
@@ -254,7 +254,7 @@ its own open asks as "unknown".
   - a deliberately broken routine is caught within one cycle;
   - at least two SOP improvements are recorded.
 
-### M4: Runs the inbox and calendar (target 0.12.0)
+### M4: Runs the inbox and calendar (target 0.11.0, shipped with M3)
 
 **Why.** The inbox and calendar take up most of a VA's day, and a Chief of Staff
 needs both.
@@ -279,7 +279,7 @@ needs both.
   digest is delivered, an owner-approved draft in the owner's voice is sent, and
   an invite is sent.
 
-### M5: Finishes the job: transactions, calls and vendors (target 0.13.0)
+### M5: Finishes the job: transactions, calls and vendors (target 0.12.0)
 
 **Why.** A VA finishes errands. PA still stops at the handoff.
 
