@@ -8,7 +8,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
-LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin"}
+LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel"}
 
 
 def validate(s):
@@ -120,16 +120,24 @@ def validate(s):
         require(isinstance(allowed, list) and all(isinstance(o, str) for o in allowed) and set(allowed) <= set(CALL_OUTCOMES), "calls.allowed_outcomes")
     require(s.get("requires") in (None, "gateway"), "requires")
     require(isinstance(s.get("seed", []), list), "seed")
+    for i, item in enumerate(s.get("seed", [])):
+        if isinstance(item, dict) and item.get("operation") == "trip_import":
+            require(lab and s["lab"].get("kind") == "booking", f"seed[{i}].operation")
     if cos or lab:
         require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
+            if lab and s["lab"].get("kind") == "booking" and isinstance(item, dict) and item.get("operation") == "trip_import":
+                data = item.get("data", {})
+                require(isinstance(data, dict) and bool(data.get("trip_id"))
+                        and isinstance(data.get("ics_text"), str) and bool(data["ics_text"].strip()), f"seed[{i}].data")
+                continue
             require(isinstance(item, dict) and item.get("operation") == "action_upsert"
                     and isinstance(item.get("data"), dict), f"seed[{i}]")
             data = item["data"]
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking"}, "lab.kind")
     return s
 
 

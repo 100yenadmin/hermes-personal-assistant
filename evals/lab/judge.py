@@ -339,6 +339,7 @@ def digest(root):
         result["m34"] = {"scenario": scenario, "seed": read(root / "seed.json", {}),
                          "ledger": read(root / "ledger.json", {}),
                          "answers": [m for m in transcript if m["role"] == "assistant"],
+                         "booking_calls": lines(root / "booking-calls.jsonl"),
                          "mail_calls": lines(root / "mail-calls.jsonl"),
                          "calendar_writes": lines(root / "calendar-writes.jsonl"),
                          "tools": tools}
