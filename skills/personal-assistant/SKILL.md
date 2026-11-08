@@ -122,7 +122,8 @@ Every open loop is a commitment action with `fields.loop_kind` (`ask_owner`,
 `delegated`, `our_promise` or `waiting_on_them`), `counterparty`, `next_actor`
 (`owner`, `us` or `them`), `opened_at` and `next_step`. Record every question or
 ask you put to the owner as an `ask_owner` loop in the same turn, so no ask of
-yours is left unknown. A loop closes when the other side confirms (write
+yours is left unknown. A Chief of Staff recommendation (`cos:*` note) is already
+tracked by its own review and the radar; never add a loop for it. A loop closes when the other side confirms (write
 `confirmation` `{by, at, evidence}`) or when the owner cancels it. Kanban done is not confirmation;
 `next_action` keeps such a loop as `done_unconfirmed`. `next_action` computes the
 chase step (day 2, 5, 10, then escalate) and `next_chase_at`; record a chase

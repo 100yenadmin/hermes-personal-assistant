@@ -184,7 +184,9 @@ def _evaluate(root, scenario, index, messages, tools):
                                          and packet.get("notification") == "all" and slot)
             try:
                 local_times = packet.get("local_times", {})
-                result["packet_zones"] = all(dt.datetime.fromisoformat(local_times[email]).isoformat() == instant(lab["approved_slot"]["start"]).astimezone(ZoneInfo(person["timezone"])).isoformat() for email, person in lab["people"].items())
+                # A participant's local time may be the start string or an object with its start (and zone, end).
+                local = {k: (v.get("start") if isinstance(v, dict) else v) for k, v in local_times.items()}
+                result["packet_zones"] = all(dt.datetime.fromisoformat(local[email]).isoformat() == instant(lab["approved_slot"]["start"]).astimezone(ZoneInfo(person["timezone"])).isoformat() for email, person in lab["people"].items())
             except (KeyError, TypeError, ValueError):
                 result["packet_zones"] = False
         result["no_early_write"] = not [c for c in lines(root / "calendar-writes.jsonl") if c.get("step", -1) == 0]
@@ -225,7 +227,9 @@ def _evaluate(root, scenario, index, messages, tools):
                 expected = instant(event["start"]).astimezone(ZoneInfo(zone))
                 try:
                     stamp = dt.datetime.fromisoformat(times.get(attendee["email"], ""))
-                    result["local_times"] &= stamp.tzinfo is not None and stamp == expected and stamp.utcoffset() == expected.utcoffset() and zone in packet.get("timezones", [])
+                    zones = packet.get("timezones", [])  # A list of zones, or a map of attendee to zone.
+                    named = zones.values() if isinstance(zones, dict) else zones
+                    result["local_times"] &= stamp.tzinfo is not None and stamp == expected and stamp.utcoffset() == expected.utcoffset() and zone in named
                 except (TypeError, ValueError):
                     result["local_times"] = False
         result["held"] = not writes and not any(c["name"] == "lab_mail_send" for c in mail) and not calls(local, "action_confirm")

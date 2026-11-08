@@ -496,6 +496,36 @@ def test_s22_evidence_may_add_context_but_must_keep_the_recorded_evidence(tmp_pa
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["grounded_tasks"]
 
 
+def test_s25_local_times_may_be_objects_with_a_start(tmp_path):
+    s, data = run(tmp_path, 25)
+    transcript = common.read(tmp_path / "transcript.json")
+    turn = next(t for t in transcript if t["role"] == "assistant" and t["step"] == 0)  # The packet is step 0's reply.
+
+    def packet_zones(local_times):
+        data["approval_packet"]["local_times"] = local_times
+        turn["content"] = "Owner note\n" + json.dumps({"lab_summary": data})
+        common.write(tmp_path / "transcript.json", transcript)
+        return checks.evaluate(tmp_path, s)["steps"][0]["checks"]["packet_zones"]
+
+    zones = {k: p["timezone"] for k, p in s["lab"]["people"].items()}
+    start = dt.datetime.fromisoformat(s["lab"]["approved_slot"]["start"])
+    good = {k: {"start": start.astimezone(ZoneInfo(z)).isoformat(), "timezone": z} for k, z in zones.items()}
+    assert packet_zones(good)
+    first = next(iter(good))
+    assert not packet_zones({**good, first: {"start": "2026-11-10T16:00:00+00:00", "timezone": zones[first]}})
+
+
+def test_s26_timezones_may_map_attendees_to_zones(tmp_path):
+    s, data = run(tmp_path, 26)
+    for meeting, event in zip(data["meetings"], s["lab"]["events"]):
+        meeting["timezones"] = {a["email"]: a["timezone"] for a in event["attendees"]}
+    _summary(tmp_path, data)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["local_times"]
+    data["meetings"][0]["timezones"] = {a["email"]: "UTC" for a in s["lab"]["events"][0]["attendees"]}
+    _summary(tmp_path, data)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["local_times"]
+
+
 @pytest.mark.parametrize("identity_args", [{"item": "approved-slot", "event_id": "my-new-event"},
                                          {"item": "approved-slot"}, {"event_id": "approved-slot"}])
 def test_approved_create_uses_item_despite_new_event_id(tmp_path, monkeypatch, identity_args):
