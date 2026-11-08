@@ -283,6 +283,15 @@ needs both.
 
 **Why.** A VA finishes errands. PA still stops at the handoff.
 
+**Status (0.12.0-rc.1).** The steps after the yes are built and pass in the lab
+against stand-in providers. That covers recording a booked item from the
+readback, reminders, the ICS file, vendor requests that become chased loops,
+and appointment, delivery and errand items. A yes given in another session is
+also claimed exactly once. Lab s27 (a booking after the yes) passed S27_RESULT,
+and s28 (a garage appointment plus a landlord request) passed S28_RESULT. No
+real booking has been completed yet, and calls, the browser handoff and changed
+legs are still open.
+
 **Scope.**
 - **Browser handoff.** A live browser handoff inside Hermes for card, OTP,
   passport and CAPTCHA steps (#25, #39), plus payment readiness (#11).
