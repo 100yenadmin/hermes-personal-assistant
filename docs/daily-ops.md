@@ -101,8 +101,19 @@ grant itself is an owner-run `gog auth add` (see the Daily Ops skill). PA
 plugin code never sends mail or writes events; the agent does that with its own
 tools after the owner's yes, through the exact-action path.
 
-Morning mail collection uses the same read-only `gog` path. If it fails, the
-run reports one pipeline failure; it never claims mailbox coverage.
+Morning and evening mail collection use the same read-only `gog` path and the
+same two queries (unread human mail, bulk categories), so the inbox is triaged
+twice a day without a third routine. Each account gets `humans_N` and
+`bulk_N` with their own `complete`/`truncated` flags, which also roll up into
+the packet's flags. If a mail read fails, the run reports one pipeline
+failure; it never claims mailbox coverage.
+
+The evening register also lists `meetings_to_confirm`: tomorrow's timed,
+non-cancelled events with at least one other attendee, each with `event_id`,
+`summary`, `start`, `end`, `attendee_count` and aliased `attendees`. Events the
+owner declined, all-day entries and solo events are left out. When the
+calendar packet carries no attendee list, the row says `attendees_known:
+false` with `attendee_count: null` instead of claiming nobody was invited.
 
 The morning window is the next 36 hours. The evening window is tomorrow in the
 configured timezone, including all-day events as timeline facts but never as

@@ -11,6 +11,9 @@ from .gog_collector import DailyOpsError, alias_emails, iter_events, iter_thread
 PAGE_SIZE = 25
 MAX_PAGES = 20
 MAX_ITEMS = 1000
+# Twice-daily triage reads: the morning brief and the evening register share these.
+Q_HUMANS = "is:unread -category:promotions -category:updates -category:social -category:forums newer_than:2d"
+Q_BULK = "is:unread (category:promotions OR category:updates OR category:social OR category:forums) newer_than:3d"
 
 
 @dataclass
@@ -144,3 +147,26 @@ def run_calendar(account_or_config: str | dict, days: int, *, profile: str | Non
 
 def run_mail(account: str, query: str, *, page_size: int, max_items: int) -> Collected:
     return collect_pages(account, ["gmail", "search", query], iter_threads, page_size=page_size, max_items=max_items)
+
+
+def mail_accounts(cfg: dict) -> list[str]:
+    accounts = cfg.get("accounts") or {}
+    return [value for value in (accounts.get("work"), accounts.get("personal")) if value]
+
+
+def mail_sections(account: str, index: int, read_mail: Callable[..., Collected]) -> tuple[dict, bool, bool]:
+    """Humans and bulk sections for one account; a failed read raises, never an empty result."""
+    humans = read_mail(account, Q_HUMANS, page_size=25, max_items=500)
+    bulk = read_mail(account, Q_BULK, page_size=100, max_items=2000)
+    bulk_count = bulk.total if bulk.total is not None else len(bulk.items)
+    sections = {
+        f"humans_{index}": {
+            "items": humans.items[:25], "count": len(humans.items), "complete": humans.complete, "truncated": humans.truncated,
+        },
+        f"bulk_{index}": {
+            "count": bulk_count, "exact": bulk.total is not None and bulk.complete,
+            "lower_bound": len(bulk.items), "sample": bulk.items[:3],
+            "complete": bulk.complete, "truncated": bulk.truncated,
+        },
+    }
+    return sections, humans.complete and bulk.complete, humans.truncated or bulk.truncated

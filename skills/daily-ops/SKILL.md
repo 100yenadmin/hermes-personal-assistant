@@ -21,7 +21,16 @@ native automation suggestions. It does **not** create a scheduler or daemon.
   messages, complete-or-explicitly-incomplete bulk volume, trip context, and
   possible travel-booking mail.
 - Evening: a bounded JSON packet for tomorrow's timeline, first commitment,
-  preparation flags, and PA trip context.
+  preparation flags, PA trip context, `meetings_to_confirm` (tomorrow's timed
+  meetings with attendee count and aliased emails; `attendees_known: false`
+  when the calendar packet had no attendee list), and the same unread-human
+  and bulk mail sections as the morning brief, with the same
+  complete/truncated flags.
+- Both mail packets feed the twice-daily inbox triage in
+  `personal-assistant:r6-inbox-replies` (five buckets, a digest of 5 lines or
+  fewer); `meetings_to_confirm` feeds the 24h-ahead confirmations in
+  `personal-assistant:r4-calendar-meeting`. Both are read-only; drafts, sends
+  and invites wait for the owner's yes.
 - Watchdog: a zero-byte quiet tick, or a bounded JSON packet for a new priority
   thread or one of the two leave-by phases.
 - Optional client matching: an explicitly consented, tenant-bound Stripe or
