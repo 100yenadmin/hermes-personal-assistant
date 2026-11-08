@@ -89,7 +89,7 @@ def _unanswered(action: dict[str, Any], moment: dt.datetime, offer_days: int, lo
             return None
         return {"action_id": identity, "radar_kind": "unanswered_offer", "trip_id": action.get("trip_id"),
                 "offer_type": offer_type, "offered_at": offered.isoformat(),
-                "age_days": (moment - offered).days, "surfaced": True}
+                "age_days": (moment - offered).days, "lead_days": offer_days, "surfaced": True}
     if identity.startswith("cos:") and fields.get("outcome") == "unknown":
         review_at = local(fields.get("review_at"))
         if review_at is None or review_at >= moment:

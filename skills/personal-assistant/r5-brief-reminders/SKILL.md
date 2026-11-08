@@ -75,9 +75,13 @@ precheck's findings immediately in the scheduled final response; never repair jo
 The `end_of_day` slot (default `eod_time` 18:00) runs only when it falls after `brief_time`;
 an evening brief replaces it. For `end_of_day`, skip the gog morning collector. Read `pa evidence action=list`,
 `pa next_action`, and `pa automations action=health`. Page relevant evidence using
-focused context; missing evidence stays unknown. Write the owner's note with all
-three sections: **Done / In progress / Blocked with questions**. Every blocked
-item ends in a question; nothing is invented. Save a `pa:eod:<local date>` note
+focused context; missing evidence stays unknown. **Done** also comes from the ledger:
+page `pa context` `kind: action` for rows completed, confirmed or verified today and
+read each by `action_id` for its `evidence`; an empty evidence register never means
+nothing was done. Write the owner's note with all three sections:
+**Done / In progress / Blocked with questions**. Every blocked item ends in a
+question; one that needs the owner's decision also gives `problem`, `options` (2 or 3),
+`recommendation` and `decision_deadline` (say when the deadline is unknown). Nothing is invented. Save a `pa:eod:<local date>` note
 with `occurrence_id`, `sections` (those exact three keys, each a list), and `evidence_refs`
 before recording the scheduled receipt as `unknown`.
 The evening run lists `meetings_to_confirm` for tomorrow's R4 24h confirmation

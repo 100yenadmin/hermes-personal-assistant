@@ -106,9 +106,16 @@ def _evaluate(root, scenario, index, messages, tools):
         packet = data.get("escalation", {})
         result["escalation"] = packet.get("action_id") == lab["escalate_id"] and all(packet.get(k) for k in ("problem", "options", "recommendation", "decision_deadline")) and isinstance(packet.get("options"), list) and 2 <= len(packet["options"]) <= 3
         result["confirmation_only_close"] = lab["confirmed_id"] not in claimed and lab["confirmed_id"] not in observed and observed.get(lab["unconfirmed_id"], {}).get("loop_state") == "done_unconfirmed"
-        drafted = {d.get("action_id") for d in data.get("drafts", []) if isinstance(d, dict) and d.get("body")}
-        required = {k for k, v in expected.items() if v not in {"none", "escalate"}}
-        result["draft_nudges"] = required <= drafted <= required | {lab["escalate_id"]} and not calls(local, "action_confirm") and not any(c["name"] == "lab_mail_send" for c in mail)
+        # The contract asks for held nudge texts keyed by action_id; it names no text key, so body or text both count.
+        drafted = {d.get("action_id") for d in data.get("drafts", []) if isinstance(d, dict) and (d.get("body") or d.get("text"))}
+        # A held nudge is due where the other side owes the next move, plus the confirmation ask on a done loop;
+        # owner and our-own-move loops get a reminder or our next step, never a nudge (context._loop_step).
+        seeded = {s["data"]["action_id"]: s["data"].get("fields", {}) for s in scenario.get("seed", [])
+                  if isinstance(s, dict) and isinstance(s.get("data"), dict)}
+        required = {k for k, v in expected.items() if v not in {"none", "escalate"}
+                    and (seeded.get(k, {}).get("next_actor") == "them" or k == lab["unconfirmed_id"])}
+        due = {k for k, v in expected.items() if v != "none"}  # Extra held texts are harmless; none for a loop with nothing due.
+        result["draft_nudges"] = required <= drafted <= due and not calls(local, "action_confirm") and not any(c["name"] == "lab_mail_send" for c in mail)
     elif kind == "radar":
         items = {r.get("action_id"): r for r in data.get("radar", [])}
         result["all_four_with_leads"] = all(items.get(k, {}).get("lead_days") == lead and items[k].get("next_step") for k, lead in lab["radar"].items())
@@ -127,7 +134,7 @@ def _evaluate(root, scenario, index, messages, tools):
         sections = data.get("sections", {})
         result["sections"] = all(isinstance(sections.get(k), list) and sections[k] for k in ("Done", "In progress", "Blocked with questions"))
         actual = {item.get("action_id"): (section, item) for section, items in sections.items() if isinstance(items, list) for item in items if isinstance(item, dict)}
-        result["grounded_tasks"] = set(actual) == set(lab["tasks"]) and all(actual[k][0] == v and actual[k][1].get("evidence") == fields(rows.get(k, {})).get("evidence") for k, v in lab["tasks"].items() if k in actual)
+        result["grounded_tasks"] = set(actual) == set(lab["tasks"]) and all(actual[k][0] == v and str(fields(rows.get(k, {})).get("evidence") or "\0") in str(actual[k][1].get("evidence") or "") for k, v in lab["tasks"].items() if k in actual)
         result["blocked_questions"] = bool(sections.get("Blocked with questions")) and all(str(i.get("question", "")).strip().endswith("?") for i in sections.get("Blocked with questions", []))
     elif kind == "health":
         result["exception_this_cycle"] = lab["broken_routine"].lower() in str(data.get("exception", "")).lower() and data.get("missing_receipt") == "synthetic-missing-receipt"

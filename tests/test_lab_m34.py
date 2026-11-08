@@ -467,6 +467,35 @@ def test_s20_escalation_does_not_need_a_nudge_draft(tmp_path):
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["draft_nudges"]
 
 
+def _summary(tmp_path, data):
+    transcript = common.read(tmp_path / "transcript.json")
+    transcript[-1]["content"] = json.dumps({"lab_summary": data})
+    common.write(tmp_path / "transcript.json", transcript)
+
+
+def test_s20_nudges_are_required_only_where_the_other_side_owes_the_move(tmp_path):
+    s, data = run(tmp_path, 20)
+    # Owner and our-own-move loops get a reminder or our next step, not a nudge (context._loop_step).
+    data["drafts"] = [{"action_id": "lab:done-unconfirmed", "text": "Could you confirm it is done?"}]
+    _summary(tmp_path, data)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["draft_nudges"]
+    data["drafts"].append({"action_id": "lab:loop-1", "body": "Nothing is due on this loop."})
+    _summary(tmp_path, data)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["draft_nudges"]
+
+
+def test_s22_evidence_may_add_context_but_must_keep_the_recorded_evidence(tmp_path):
+    s, data = run(tmp_path, 22)
+    item = data["sections"]["Done"][0]
+    recorded = item["evidence"]
+    item["evidence"] = "Ledger readback: completed; " + recorded
+    _summary(tmp_path, data)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["grounded_tasks"]
+    item["evidence"] = "Ledger readback: completed"
+    _summary(tmp_path, data)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["grounded_tasks"]
+
+
 @pytest.mark.parametrize("identity_args", [{"item": "approved-slot", "event_id": "my-new-event"},
                                          {"item": "approved-slot"}, {"event_id": "approved-slot"}])
 def test_approved_create_uses_item_despite_new_event_id(tmp_path, monkeypatch, identity_args):
