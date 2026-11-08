@@ -51,8 +51,11 @@ def guarded(identity, action_type=None, existing=None, *, bookkeeping=False):
 def _iban(value):
     """A real IBAN (mod-97 valid), not ordinary words like FY26 or AB12 Studio."""
     for match in re.finditer(r"\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]){11,30}\b", value):
-        compact = re.sub(r"[ -]", "", match.group())
-        for n in range(15, min(34, len(compact)) + 1):
+        text_ = match.group()
+        # Only lengths that end a written group (or the whole match): far fewer chance hits.
+        ends = {len(re.sub(r"[ -]", "", text_[:i])) for i, c in enumerate(text_) if c in " -"} | {len(re.sub(r"[ -]", "", text_))}
+        compact = re.sub(r"[ -]", "", text_)
+        for n in sorted(e for e in ends if 15 <= e <= 34):
             text = compact[4:n] + compact[:4]
             if int("".join(str(int(c, 36)) for c in text)) % 97 == 1:
                 return True
@@ -60,10 +63,10 @@ def _iban(value):
 
 
 def _validate(data):
-    if _private(data):
+    if _private({k: v for k, v in data.items() if k != "invoice_id"}):  # Generated hex ids are not owner text.
         raise ValueError("PA does not store payment or account numbers or credentials")
     for key, value in data.items():
-        if isinstance(value, str) and (_iban(value)
+        if isinstance(value, str) and (key != "reference" and _iban(value)
                 or key in {"counterparty", "description", "evidence_ref", "reference"}
                 and re.search(r"\d{%d,}" % (17 if key == "reference" else 8), value)):
             raise ValueError("PA does not store payment or account numbers")

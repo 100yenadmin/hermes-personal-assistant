@@ -333,3 +333,14 @@ def test_reference_case_and_spacing_name_one_invoice(ledger, reference):
     ("reference", "PO2026-000123-ABC"), ("description", "SS26 collection samples")])
 def test_ordinary_codes_are_not_ibans(ledger, key, value):
     assert record(ledger, **{key: value})["status"] == "open"
+
+
+def test_reference_codes_and_generated_ids_are_not_payment_data(ledger, monkeypatch):
+    assert record(ledger, reference="SN18-OYAUYE1H65P4ELT")["status"] == "open"
+    identity = record(ledger)["action_id"]
+    import personal_assistant.invoices as inv
+    seen = []
+    real = inv._private
+    monkeypatch.setattr(inv, "_private", lambda value: seen.append(value) or real(value))
+    call(ledger, "paid", invoice_id=identity, paid_on="2026-11-12", evidence="Remittance email from Acme")
+    assert all("invoice_id" not in v for v in seen if isinstance(v, dict))
