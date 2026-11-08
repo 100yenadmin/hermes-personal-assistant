@@ -13,7 +13,7 @@ def test_pa_skill_states_open_loop_contract():
     for name in LOOP_FIELDS + ("ask_owner", "delegated", "our_promise", "waiting_on_them"):
         assert name in section, name
     assert "Record every question or\nask you put to the owner as an `ask_owner` loop" in section
-    assert "closed only when the other side confirms" in section
+    assert "A loop closes when the other side confirms" in section and "or when the owner cancels it" in section
     assert "Kanban done is not confirmation" in section
     assert "`personal-assistant:follow-through`" in section
     assert "never put chase dates in `due_at`" in section

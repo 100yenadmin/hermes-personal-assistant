@@ -95,6 +95,8 @@ def _action_summary(row: dict[str, Any]) -> dict[str, Any]:
 _UNRESOLVED_ATTEMPT = {"submitting", "unknown", "claimed_once", "provider_result"}
 _TRANSACTION_HOLD = _UNRESOLVED_ATTEMPT | {"paused", "prepared", "approval_required", "authorized",
                                           "approved_revision", "failed"}
+_NUDGE_IN_FLIGHT = _TRANSACTION_HOLD - {"failed"}
+_TRANSACTION_DONE = {"completed", "confirmed", "verified", "reconciled"}
 
 
 def _iso_time(value: Any, *, timestamp: bool = False) -> bool:
@@ -357,7 +359,14 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
     excluded_completed = 0
     excluded_terminal_unlinked = 0
     excluded_closed_loops = 0
-    for action in ledger.list("action"):
+    actions = ledger.list("action")
+    # A nudge is its own action, <loop action id>:nudge:<step>; while one is in flight its loop waits.
+    nudges_in_flight = {}
+    for row in actions:
+        parent, marker, _ = str(row.get("action_id", "")).partition(":nudge:")
+        if marker and row.get("status") in _NUDGE_IN_FLIGHT:
+            nudges_in_flight.setdefault(parent, (row["action_id"], row.get("status")))
+    for action in actions:
         if action.get("action_type") not in _COMMITMENT_TYPES:
             continue
         if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
@@ -378,7 +387,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         elif kanban.get("status") in _KANBAN_DONE:
             excluded_completed += 1
             continue
-        elif not task_id and status in {"completed", "confirmed", "failed", "cancelled"}:
+        elif not task_id and status in {"completed", "confirmed", "failed", "cancelled", "verified", "reconciled"}:
             excluded_terminal_unlinked += 1
             continue
         radar = radar_item(action, today)
@@ -414,7 +423,8 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             item["next_step"] = "Present the current material details for explicit confirmation."
         elif status in {"authorized", "approved_revision"}:
             item["next_step"] = "Recheck details, then claim immediately before one provider submission."
-        elif status == "failed" or (status == "confirmed" and not loop):
+        elif (status == "failed" or (status == "confirmed" and not loop)
+              or (action.get("action_type") == "transaction" and status in _TRANSACTION_DONE)):
             item["next_step"] = "Reconcile the provider result with the linked Kanban commitment."
         else:
             item["next_step"] = (fields.get("next_action") or (loop and fields.get("next_step"))
@@ -424,7 +434,11 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
             # A loop row in a transaction lifecycle keeps its transaction instruction; chase
             # guidance never replaces an approval step or an unresolved provider attempt.
-            hold = (snoozed_until or waiting_for or stale or status in _TRANSACTION_HOLD
+            nudge = nudges_in_flight.get(action["action_id"])
+            if nudge and not (snoozed_until or waiting_for or stale or status in _TRANSACTION_HOLD):
+                item["next_step"] = (f"A nudge for this loop is in progress ({nudge[0]}, {nudge[1]}): finish or "
+                                     "reconcile it first; do not draft or send another.")
+            hold = (snoozed_until or waiting_for or stale or status in _TRANSACTION_HOLD or nudge
                     or action.get("action_type") == "transaction")
             guidance = None if hold else _loop_step(fields, item)
             if guidance:

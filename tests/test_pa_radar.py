@@ -308,3 +308,39 @@ def test_offer_type_is_read_after_a_trip_id_with_colons(ledger, trip_id):
 def test_a_loop_snooze_can_be_cleared(value):
     from personal_assistant.context import loop_fields
     assert loop_fields({"loop_kind": "ask_owner", "snoozed_until": value})["snoozed_until"] == value
+
+
+@pytest.mark.parametrize("nudge_status", ["approval_required", "approved_revision", "claimed_once", "provider_result"])
+def test_a_loop_waits_while_its_nudge_is_in_flight(ledger, nudge_status):
+    opened = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=10)).isoformat()
+    ledger.put("action", "loop", {"loop_kind": "waiting_on_them", "next_actor": "them", "counterparty": "Dana",
+               "opened_at": opened}, action_type="commitment", status="pending")
+    ledger.put("action", "loop:nudge:day5", {"title": "nudge"}, action_type="commitment", status=nudge_status)
+    item = next(row for row in next_actions(ledger, {"at": AT, "loops_only": True}, kanban_reader=lambda *_: UNKNOWN)["candidates"]
+                if row["action_id"] == "loop")
+    assert item["next_step"].startswith("A nudge for this loop is in progress (loop:nudge:day5")
+    assert "Chase" not in item["next_step"]
+
+
+def test_a_finished_nudge_releases_its_loop(ledger):
+    opened = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=10)).isoformat()
+    ledger.put("action", "loop", {"loop_kind": "waiting_on_them", "next_actor": "them", "opened_at": opened},
+               action_type="commitment", status="pending")
+    ledger.put("action", "loop:nudge:day5", {"title": "nudge"}, action_type="commitment", status="reconciled")
+    item = next(row for row in next_actions(ledger, {"at": AT, "loops_only": True}, kanban_reader=lambda *_: UNKNOWN)["candidates"]
+                if row["action_id"] == "loop")
+    assert item["next_step"].startswith("Chase")
+
+
+def test_a_finished_transaction_loop_says_reconcile_not_its_old_next_action(ledger):
+    opened = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=10)).isoformat()
+    ledger.put("action", "tx-loop", {"loop_kind": "our_promise", "next_actor": "us", "opened_at": opened,
+               "next_action": "Send the approved email"}, action_type="commitment", status="pending")
+    summary = {"provider": "fixture", "final_action": "send", "total": "0"}
+    ledger.prepare("tx-loop", summary)
+    ledger.confirm("tx-loop", summary, "confirm fixture")
+    ledger.claim_submission("tx-loop", summary)
+    ledger.result("tx-loop", "confirmed", "fixture readback")
+    item = next_actions(ledger, {"at": AT, "loops_only": True}, kanban_reader=lambda *_: UNKNOWN)["candidates"][0]
+    assert item["next_step"] == "Reconcile the provider result with the linked Kanban commitment."
+    assert "Send the approved email" not in item["next_step"]
