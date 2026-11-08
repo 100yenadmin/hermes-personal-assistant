@@ -30,8 +30,8 @@ it uses what was saved and the saved files still hold the approved facts.
 ## USER.md
 
 Profile destinations use existing targets only: business, confidential facts, people,
-calendar rules, history and access go to the manual's Business, Key people, Calendar rules,
-History and worries, and Access scope sections. Compact identity/role facts go to USER.md;
+calendar rules, inbox and chase rules, history and access go to the manual's Business, Key people, Calendar rules,
+Inbox and follow-up, History and worries, and Access scope sections. Compact identity/role facts go to USER.md;
 decision rights and tone go to the SOUL PA section, with detail in Decision rights and limits/Voice.
 `rights_spend` goes to the manual's Permissions section. Never store passwords, card numbers or account numbers.
 
@@ -85,7 +85,8 @@ use `pa(operation="automations", data={"action":"preferences","changes":{...}})`
 Preserve existing preferences when forming `changes`; use supported keys only:
 `timezone`, `brief_time`, `quiet_hours`, `paused`, `snooze_until`,
 `cos_daily_time`, `cos_kickoff_day`, `cos_kickoff_time`, `cos_weekly_day`,
-`cos_weekly_time`.
+`cos_weekly_time`, `eod_time` (the end of day from `comm_rhythm`, HH:MM;
+default 18:00).
 Quiet hours use `{"start":"22:00","end":"07:00"}`; use an IANA timezone.
 Read status again to verify saved values. A travel-local policy in prose does not
 prove a scheduler follows it; verify its effective zone before promising a time.
@@ -114,6 +115,26 @@ resolve missing settings before planning. Recheck in the delivery chat if setup
 was elsewhere. Never claim PA and HB2 are aligned until the user confirms.
 Do not register, replace or enable jobs without the reviewed job decision and
 explicit approval. Keep one publisher per brief or alert; never a second morning brief.
+
+## Inbox, calendar writes, dates and chasing
+
+After review and apply only:
+- `comm_inbox`: the manual's Inbox and follow-up section (triage times, reply SLA, what counts as urgent, junk
+  handling; junk stays report-only unless the owner approves each batch). Triage runs inside the morning brief and
+  evening register; a morning time is `brief_time`, an evening time is proposed for the existing evening routine.
+  Never a third job.
+- `chase_style`: the same section. Default day 2, day 5 and day 10, then escalate to the owner; record any change the
+  owner makes there for the follow-through skill.
+- `rights_drafts`: SOUL PA and Decision rights and limits, plus a proposed Daily Ops change
+  `"inbox": {"drafts": {"accepted": true}}`. `cal_write`: Calendar rules and Access scope, plus a proposed
+  `calendar.write_scope` with `accepted: true`, the named `calendar_ids` and `invites: true|false`. Show both as diffs to
+  the profile's `daily_ops.config.json`; write them only after apply, then give the owner the matching `gog auth add`
+  command from the Daily Ops skill to run in a terminal and run the Daily Ops doctor. Never run auth yourself, and
+  never claim drafts or invites work before the doctor passes.
+- `life_dates`: birthdays and anniversaries also go to Key people (with the gift lead). Each date becomes one
+  commitment row through `pa.action_upsert` with `radar_kind` (`renewal` | `important_date` | `deadline`),
+  `document` (a name such as "passport", never its number), `expires_on` or `event_date`, `lead_days` and
+  `recurs` (`yearly` | `none`). Months alone stay months; do not invent a day.
 
 ## Chief of Staff schedules
 

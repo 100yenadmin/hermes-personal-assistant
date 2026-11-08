@@ -16,7 +16,7 @@ from personal_assistant.state import Ledger
 def test_profile_group_walk_stays_in_sitting_and_skips_finish_it(tmp_path):
     ledger = Ledger(tmp_path)
     current = setup.start(ledger, "profile")
-    assert len(setup.PROFILE_QUESTIONS) == 27
+    assert len(setup.PROFILE_QUESTIONS) == 32
     for index, (group, ids) in enumerate(setup.PROFILE_GROUPS):
         assert current["current_group"] == current["sitting_group"] == group and not current["sitting_done"]
         assert current["next_group"] == (setup.PROFILE_GROUPS[index + 1][0] if index < 7 else None)
@@ -76,7 +76,7 @@ def test_live_core_counts_ignore_five_cos_asked_ids(tmp_path):
     assert all(text in reply for text in ("Core 8 of 8", "Chief of Staff 0 of 6")) and "Profile" not in reply
     setup.record(ledger, skipped=["biz_what", "you_role"])
     reply = make_pa_command(tmp_path)("setup status")
-    assert "Profile 2 of 27 (2 skipped) (next: business)" in reply and "Core 8 of 8 ·" in reply
+    assert "Profile 2 of 32 (2 skipped) (next: business)" in reply and "Core 8 of 8 ·" in reply
 
 
 @pytest.mark.parametrize("fresh", ["pending", "failed"])
@@ -261,7 +261,7 @@ def test_rc1_retired_answers_hidden_but_preserved_after_record(tmp_path):
     view = dispatch(tmp_path, {"operation": "setup"})
     assert view["answers"] == {"authority": current}
     assert view["asked"] == ["authority"] and view["skipped"] == ["protect"]
-    assert view["counts"] == {"answers": 1, "asked": 1, "skipped": 1, "covered": 0, "total": 41}
+    assert view["counts"] == {"answers": 1, "asked": 1, "skipped": 1, "covered": 0, "total": 46}
     assert view["next_question"] is None
     raw = ledger.get("action", "pa:setup")["fields"]
     assert raw["answers"]["cos_schedules"] == retired
@@ -1082,3 +1082,41 @@ def test_status_without_progress_has_no_empty_segment(tmp_path):
     reply = make_pa_command(tmp_path)("status")
     assert reply.startswith("Setup: ") and ". ." not in reply and ".  " not in reply
     assert reply.split(". ", 1)[1].startswith("Assistant:") and "_" not in reply.split(". ", 1)[0]
+
+
+M4_SETUP_IDS = {"comm_inbox": "communication", "chase_style": "communication", "rights_drafts": "decision_rights",
+                "cal_write": "calendar", "life_dates": "you"}
+
+
+def test_m4_inbox_calendar_dates_and_chase_questions_are_asked_once(tmp_path):
+    groups = dict(setup.PROFILE_GROUPS)
+    assert len(groups) == 8
+    for question, group in M4_SETUP_IDS.items():
+        assert question in groups[group] and setup.PROFILE_QUESTIONS.count(question) == 1
+    ledger = Ledger(tmp_path)
+    setup.record(ledger, skipped=[q for g, ids in setup.PROFILE_GROUPS if g != "communication" for q in ids])
+    current = setup.request(ledger, "profile")
+    assert current["sitting_group"] == "communication"
+    current = setup.record(ledger, {"comm_inbox": {"text": "Synthetic triage rules", "source": "discovered"}})
+    seen = []
+    while current["next_question"]:
+        seen.append(current["next_question"])
+        current = setup.record(ledger, {seen[-1]: {"text": "Synthetic", "source": "user"}}, asked=[seen[-1]])
+    assert "comm_inbox" not in seen and seen.count("chase_style") == 1 and current["sitting_done"]
+
+
+def test_m4_setup_answers_have_documented_destinations():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "skills/pa-setup/references"
+    bank = " ".join((root / "question-bank.md").read_text().split())
+    where = " ".join((root / "where-answers-go.md").read_text().split())
+    manual = (root / "manual-template.md").read_text()
+    for question in M4_SETUP_IDS:
+        assert f"| `{question}` |" in bank and f"`{question}`" in where
+    assert "when does your day end?" in bank and "`eod_time` (HH:MM) in PA preferences" in bank
+    assert "`eod_time` (the end of day from `comm_rhythm`" in where
+    assert "Day 2, day 5 and day 10 reminders, then escalate to you" in bank
+    assert '`"inbox": {"drafts": {"accepted": true}}`' in where and "`calendar.write_scope`" in where
+    assert "Never run auth yourself" in where and "Never a third job." in where
+    assert "`radar_kind`" in where and "never its number" in where
+    assert "## Inbox and follow-up" in manual and "never ask it again" in bank

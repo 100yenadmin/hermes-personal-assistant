@@ -134,11 +134,15 @@ if fewer are saved, state the gap. No `/new` check or trip/check-in arming.
 | `you_rhythm` | What working hours, zone and energy windows suit you? | Known hours/zone, deep-work and call windows. | USER.md; Calendar rules |
 | `you_interrupt` | When may I interrupt you? | Existing urgent-only or never-interrupt rules. | Manual: Calendar rules |
 | `you_offload` | What should I take off your plate for a better day? | Known burdens and examples of great/bad days. | Manual: Business |
+| `life_dates` | Which renewals, expiry months, important dates and birthdays should I watch, and how early for gifts? | Known renewals and expiry months, family birthdays and anniversaries; gift lead 4 weeks, renewal lead 6 months for documents. | Manual: Key people; radar rows after apply |
 | `comm_channel` | Which channel should I use to reach you? | Connected preferred route; reuse `route`. | USER.md; Access scope |
-| `comm_rhythm` | What response times and update rhythm work for you? | Existing SLAs and digest/exception rules; reuse `worth_a_message`. | Manual: Voice |
+| `comm_rhythm` | What response times and update rhythm work for you, and when does your day end? | Existing SLAs and digest/exception rules; reuse `worth_a_message`; end of day 18:00 unless known. | Manual: Voice; `eod_time` (HH:MM) in PA preferences |
 | `comm_format` | What update and feedback format do you prefer? | Accepted bullets, tables, voice and feedback examples. | Manual: Voice |
+| `comm_inbox` | When should I triage your inbox, how fast must replies go, what counts as urgent, and what should I do with junk? | Twice a day with the morning brief and evening register; urgent = the VIPs and deadlines you name; junk report-only. | Manual: Inbox and follow-up |
+| `chase_style` | How should I chase people who have not replied? | Day 2, day 5 and day 10 reminders, then escalate to you; change any step. | Manual: Inbox and follow-up |
 | `rights_act` | What may I do without asking? | Existing permissions within the approval line. | SOUL PA; Decision rights and limits |
 | `rights_draft` | What should I draft for you to send? | Existing draft-and-hold boundaries. | SOUL PA; Decision rights and limits |
+| `rights_drafts` | May I save drafts in your mailbox, and send them once you say yes? | No until you opt in; a yes needs a mail re-authorisation you run. | SOUL PA; Decision rights and limits; Daily Ops `inbox.drafts` proposal |
 | `rights_ask` | What must I always ask you about? | Never-do list and ask-before rules; reuse `authority`. | SOUL PA; Decision rights and limits |
 | `rights_spend` | What spending limits apply per category? | Recorded thresholds; unknown means ask, never payment authority. | Manual: Permissions |
 | `rights_backup` | Who can approve when you are unreachable? | Named delegated approver and scope, otherwise ask you. | SOUL PA; Decision rights and limits |
@@ -149,7 +153,13 @@ if fewer are saved, state the gap. No `/new` check or trip/check-in arming.
 | `cal_rules` | What meeting lengths, buffers and booking horizon suit you? | Calendar patterns and confirmed scheduling rules. | Manual: Calendar rules |
 | `cal_protect` | Which focus blocks and recurring meetings are sacred? | Existing protected calendar blocks. | Manual: Calendar rules |
 | `cal_people` | Who always gets a slot, and who never does? | Accepted VIP and exclusion rules. | Manual: Key people; Calendar rules |
+| `cal_write` | Which calendars may I write to, and may invites notify guests? | None until you opt in; then named calendars only, guests notified only on your yes. | Manual: Calendar rules; Access scope; Daily Ops `calendar.write_scope` proposal |
 | `hist_past` | What did previous assistants get wrong? | Known corrections, with safe summaries only. | Manual: History and worries |
 | `hist_worries` | What delegation mistake worries you most? | Stated concerns; never infer sensitive history. | Manual: History and worries |
 | `access_systems` | Which systems, owners and delegated access are in scope? | Existing authorized reads and least-privilege access roles. | Manual: Access scope |
 | `access_off_limits` | Which accounts or systems are off limits? | Existing never-access list. | Manual: Access scope |
+
+`comm_inbox`, `rights_drafts`, `cal_write`, `life_dates` and `chase_style` are asked once and read back. When the
+manual's Inbox and follow-up or Calendar rules, a Daily Ops opt-in or saved radar rows already answer one, record it as
+discovered and read it back; never ask it again. Opt-ins default to no, and setup only proposes them: see
+`where-answers-go.md` for the Daily Ops fields and the owner's terminal step.

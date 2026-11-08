@@ -96,13 +96,16 @@ user confirms the HB2 setting.
 <What it does, revenue model, quarterly priorities, offload goals and confidentiality boundaries.>
 
 ## Key people
-<Team, clients, vendors and family: relationships, VIP/exclusion and contact rules.>
+<Team, clients, vendors and family: relationships, VIP/exclusion and contact rules, birthdays with gift lead.>
 
 ## Decision rights and limits
 <Act/draft/ask boundaries and backup approver scope; category spend thresholds live in Permissions.>
 
 ## Calendar rules
-<Meeting lengths, buffers, booking horizon, focus/call windows, sacred meetings and interruptions.>
+<Meeting lengths, buffers, booking horizon, focus/call windows, sacred meetings, interruptions, writable calendars and invite notifications.>
+
+## Inbox and follow-up
+<Triage times, reply SLA, what counts as urgent, junk handling (report-only by default) and chase steps (day 2/5/10, then escalate).>
 
 ## Voice
 <Tone/sign-off by audience, banned words, safe style summaries, update/feedback formats and response SLAs.>
