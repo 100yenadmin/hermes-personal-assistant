@@ -48,6 +48,17 @@ database; do not substitute a host-specific skill path.
 10. Stop for one compact final-state confirmation before paid submit, booking, check-in submit, ride request, food order, reservation, cancellation, outbound message, phone call, or material profile/payment change.
 11. Use `travel-approval-packet` as the final confirmation summary for the final action and verify live provider state after confirmation. After submit/send/request, write the receipt, ticket id, order id, confirmation id, sent-message proof, calendar event id, or blocker status to `travel-ledger`.
 
+## Changed or cancelled leg
+
+1. Read `pa trip_watch_plan action=disruption trip_id=…` for changed legs, affected bookings and reminders.
+2. Look up 2 or 3 real replacement options on the airline or Trip.com with the existing booking skills; reach the final page without booking.
+3. For each option, name the replacement leg and what happens to every affected booking (keep, move or cancel), with its cancellation deadline. Give the total cost and arrival-time difference shown on the provider pages; mark missing facts as unknown.
+4. Send ONE approval packet. Change nothing until the owner names one option.
+5. Then prepare the rebooking, followed by each moved or cancelled booking, as separate governed exact actions. Act on each only with its own confirm and read each provider result back.
+6. Record each confirmed readback with `action_result` and `follow_through`. Record a moved booking's result with `follow_through.replaces` naming the old booking action: PA removes the old trip item and cancels its pending reminders. A cancellation records `replaces` alone.
+
+If the owner says no, change nothing and record nothing.
+
 ## Optional parallel work
 
 Keep one accountable agent by default. When explicitly authorized parallel work

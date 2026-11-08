@@ -186,6 +186,93 @@ def read_status(ledger, trip_id, at=None):
     return status(ledger, trip_id, at, unplanned_ok=True)
 
 
+def disruption(ledger, trip_id, at=None):
+    """Read changed flight legs and their booking consequences without updating the plan."""
+    from .trip_facts import facts
+    current = _time(at or now())
+    segments = sorted(facts(ledger, trip_id).get("segments", []), key=lambda s: _time(s["scheduled_departure"]))
+    result = {"trip_id": trip_id, "at": current.isoformat(), "changed_legs": [], "affected": [], "reminders": [], "next_step": ""}
+    if not segments:
+        result["next_step"] = "Flight facts are needed first: use trip_watch_plan action=record_facts."
+        return result
+    prior = _plan_row(ledger, trip_id)
+    saved = json.loads(prior["payload_json"]).get("inputs", {}) if prior else {}
+    signature, schedule = saved.get("facts_signature") or [], saved.get("facts_schedule") or []
+    baseline = {entry[0]: times for entry, times in zip(signature or [], schedule or [])
+                if isinstance(entry, list) and len(entry) == 4 and isinstance(times, list) and len(times) == 2}
+    baseline_routes = {entry[0]: entry[2:] for entry in signature if isinstance(entry, list) and len(entry) == 4}
+    events = (ledger.get("trip", trip_id) or {}).get("fields", {}).get("events", [])
+    for index, segment in enumerate(segments):
+        departure = _time(segment["scheduled_departure"])
+        if (segment["status"] == "landed"
+                and current - _time(segment.get("estimated_arrival") or segment["scheduled_arrival"]) > dt.timedelta(hours=6)):
+            continue
+        arrival = segment["scheduled_arrival"]
+        delay = ((_time(segment["estimated_arrival"]) - _time(arrival)).total_seconds() / 60
+                 if segment.get("estimated_arrival") else None)
+        old = (baseline.get(segment["segment_id"])
+               if baseline_routes.get(segment["segment_id"]) == [segment["origin"], segment["destination"]] else None)
+        shift = max(abs((_time(value) - _time(before)).total_seconds()) for value, before in
+                    zip((segment["scheduled_departure"], arrival), old)) if old else 0
+        window_start = min(departure, _time(old[0])) if old else departure
+        if segment["status"] in {"cancelled", "diverted"}:
+            reason, detail = segment["status"], {}
+        elif delay is not None and delay >= 45 or segment["status"] == "delayed" and delay is None:
+            reason, detail = "delayed", {"delay_minutes": max(0, delay) if delay is not None else None}
+        elif shift >= 2700:
+            reason, detail = "rescheduled", {"shift_minutes": shift / 60}
+        else:
+            continue
+        leg = {k: segment[k] for k in ("segment_id", "origin", "destination", "scheduled_departure",
+                                      "scheduled_arrival", "destination_timezone", "estimated_arrival") if k in segment}
+        live_departures = [_time(s["scheduled_departure"]) for s in segments[index + 1:]
+                           if s["status"] != "cancelled"]
+        next_departure = live_departures[0] if live_departures else None
+        connection_at_risk = (reason in {"delayed", "rescheduled"} and next_departure is not None
+                              and _time(segment.get("estimated_arrival") or arrival) >= next_departure)
+        window_end = next_departure
+        if connection_at_risk:
+            detail["connection_at_risk"] = True
+            window_end = live_departures[1] if len(live_departures) > 1 else None
+        result["changed_legs"].append({**leg, "reason": reason, **detail})
+        for item in events:
+            if not item.get("booking_action_id") or not item.get("start"):
+                continue
+            start = _time(item["start"])
+            if start <= window_start or window_end is not None and start >= window_end:
+                continue
+            feasibility = None
+            affected_reason = "after_" + reason + "_leg"
+            if connection_at_risk and start >= next_departure:
+                affected_reason = "after_missed_connection"
+            elif reason in {"delayed", "rescheduled"}:
+                feasibility = trip_math.feasibility(arrival, item["start"], segment["destination_timezone"],
+                                                    estimated=segment.get("estimated_arrival"))
+                if not feasibility["reachable"]:
+                    affected_reason = "unreachable"
+                elif feasibility["slack_minutes"] < feasibility["buffer_minutes"] + 30:
+                    affected_reason = "tight"
+                else:
+                    continue
+            result["affected"].append({"booking_action_id": item["booking_action_id"], "title": item.get("summary", ""),
+                **{k: item.get(k) for k in ("start", "end", "timezone", "location")},
+                "leg": segment["segment_id"], "reason": affected_reason, "feasibility": feasibility})
+    affected_ids = {item["booking_action_id"] for item in result["affected"]}
+    for row in ledger.list("action") if affected_ids else []:
+        fields = row["fields"]
+        if (row["status"] == "pending" and row["action_type"] == "commitment"
+                and fields.get("reminder_kind") == "booking" and fields.get("booking_action_id") in affected_ids):
+            result["reminders"].append({"action_id": row["action_id"], "title": fields.get("title", row.get("title", "")),
+                                        "due_at": fields.get("due_at")})
+    if result["changed_legs"]:
+        result["next_step"] = (
+            "Prepare 2 or 3 options as one approval packet. Each option names the replacement leg, what happens to each "
+            "affected booking (keep, move or cancel, with its cancellation deadline) and the cost and time difference the "
+            "provider pages show. Change nothing until the owner picks one option; then prepare each change as its own "
+            "exact action and record each confirmed readback with action_result follow_through.")
+    return result
+
+
 def _moments(payload):
     """Moments as returned to callers. A plan stored before derivation 4 kept the at-airport time
     under leave_by ("Leave for the airport."); show it as at_airport_by. The stored payload is unchanged."""
@@ -641,7 +728,7 @@ def dispatch(ledger, data):
             data["segments"] = json.loads(data["segments"])
         if isinstance(data.get("segments"), dict):
             data["segments"] = [data["segments"]]
-    actions = {"plan": plan, "record_wake": record_wake, "record_cancel": record_cancel, "record_skip": record_skip, "verify": verify, "record_facts": record_facts, "status": read_status}
+    actions = {"plan": plan, "record_wake": record_wake, "record_cancel": record_cancel, "record_skip": record_skip, "verify": verify, "record_facts": record_facts, "status": read_status, "disruption": disruption}
     if action not in actions:
         raise ValueError("unknown trip watch action")
     result = _call_with_supported_data(actions[action], ledger, data=data)

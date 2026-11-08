@@ -50,11 +50,12 @@ def ledger(tmp_path, monkeypatch):
     return result
 
 
-def prepare(ledger, *, governed=True, trip_id=TRIP, claim=True):
+def prepare(ledger, *, governed=True, trip_id=TRIP, claim=True, action_id=ACTION):
     if trip_id:
-        ledger.put("action", ACTION, {}, action_type="note", trip_id=trip_id)
-    data = {"action_id": ACTION, "summary": SUMMARY}
-    scope = {"session_id": "fixture-session", "task_id": "fixture-task"}
+        ledger.put("action", action_id, {}, action_type="note", trip_id=trip_id)
+    data = {"action_id": action_id, "summary": SUMMARY}
+    scope = {"session_id": "fixture-session" if action_id == ACTION else f"fixture-session:{action_id}",
+             "task_id": "fixture-task"}
     if governed:
         data.update({
             "enforcement_profile": "exact_action", "action_revision": "r1", "workflow_id": "booking",
@@ -66,7 +67,7 @@ def prepare(ledger, *, governed=True, trip_id=TRIP, claim=True):
         })
     dispatch(ledger.root, {"operation": "action_prepare", "data": data}, runtime_scope=scope)
     dispatch(ledger.root, {"operation": "action_confirm", "data": {
-        "action_id": ACTION, "summary": SUMMARY, "confirmation": "Reserve these exact details",
+        "action_id": action_id, "summary": SUMMARY, "confirmation": "Reserve these exact details",
     }}, runtime_scope=scope)
     if claim:
         if governed:
