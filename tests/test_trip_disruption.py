@@ -288,8 +288,37 @@ def test_no_facts_hint_and_default_at(ledger):
 @pytest.mark.parametrize("elapsed,changed", [(360, True), (361, False)])
 def test_old_landed_legs_are_ignored(ledger, elapsed, changed):
     flight(ledger, status="landed", estimated_arrival="2026-11-10T13:00:00Z")
-    at = dt.datetime.fromisoformat(SEGMENT["scheduled_departure"]) + dt.timedelta(minutes=elapsed)
+    at = dt.datetime.fromisoformat("2026-11-10T13:00:00+00:00") + dt.timedelta(minutes=elapsed)
     assert bool(read(ledger, at=at.isoformat())["changed_legs"]) is changed
+
+
+def test_later_departure_keeps_bookings_in_baseline_window(ledger):
+    flight(ledger, scheduled_arrival="2026-11-10T11:00:00Z")
+    trip_watch.plan(ledger, TRIP, at=AT)
+    flight(ledger, scheduled_departure="2026-11-10T15:00:00Z",
+           scheduled_arrival="2026-11-10T16:00:00Z")
+    booking(ledger, "lunch", "2026-11-10T12:00:00Z")
+    before = rows(ledger)
+    result = read(ledger)
+    assert result["changed_legs"][0]["reason"] == "rescheduled"
+    assert [item["booking_action_id"] for item in result["affected"]] == ["lunch"]
+    assert result["affected"][0]["reason"] == "unreachable"
+    assert rows(ledger) == before
+
+
+@pytest.mark.parametrize("estimated", [False, True])
+def test_long_flight_landed_one_hour_ago_is_still_evaluated(ledger, estimated):
+    # Saved baseline provides a changed schedule even without an arrival estimate.
+    flight(ledger, scheduled_departure="2026-11-10T00:00:00Z",
+           scheduled_arrival="2026-11-10T06:00:00Z")
+    trip_watch.plan(ledger, TRIP, at="2026-11-09T20:00:00Z")
+    flight(ledger, scheduled_departure="2026-11-10T00:00:00Z",
+           scheduled_arrival="2026-11-10T07:00:00Z", status="landed",
+           **({"estimated_arrival": "2026-11-10T07:00:00Z"} if estimated else {}))
+    booking(ledger, "lunch", "2026-11-10T08:00:00Z")
+    result = read(ledger)
+    assert result["changed_legs"][0]["reason"] == "rescheduled"
+    assert [item["booking_action_id"] for item in result["affected"]] == ["lunch"]
 
 
 def test_cancelled_leg_is_not_the_next_live_boundary(ledger):

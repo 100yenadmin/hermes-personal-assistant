@@ -89,7 +89,9 @@ def save(ledger, identity, fields, source, source_action_id=None, trip_id=None):
     old = ledger.get("action", identity)
     # A voided readback stays void unless the money changed (its default date moves with verified_at).
     # A voided receipt recorded again with a changed amount, currency, kind, date or merchant is a correction.
-    money = ("amount", "currency", "kind") + (("date", "merchant") if source == "owner_receipt" else ())
+    money = ("amount", "currency", "kind") + (("date",) if source == "owner_receipt" else ())
+    if source == "owner_receipt" and old and old["fields"].get("merchant") and fields.get("merchant"):
+        money += ("merchant",)
     keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields.get(k) for k in money)
     return ledger.put("action", identity, fields, action_type="expense", status="void" if keep else "recorded",
                       remove=[k for k in (*FIELDS, "trip_ref", "source_action_id", "void_reason")

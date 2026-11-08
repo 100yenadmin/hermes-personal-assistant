@@ -204,7 +204,8 @@ def disruption(ledger, trip_id, at=None):
     events = (ledger.get("trip", trip_id) or {}).get("fields", {}).get("events", [])
     for index, segment in enumerate(segments):
         departure = _time(segment["scheduled_departure"])
-        if segment["status"] == "landed" and current - departure > dt.timedelta(hours=6):
+        if (segment["status"] == "landed"
+                and current - _time(segment.get("estimated_arrival") or segment["scheduled_arrival"]) > dt.timedelta(hours=6)):
             continue
         arrival = segment["scheduled_arrival"]
         delay = ((_time(segment["estimated_arrival"]) - _time(arrival)).total_seconds() / 60
@@ -213,6 +214,7 @@ def disruption(ledger, trip_id, at=None):
                if baseline_routes.get(segment["segment_id"]) == [segment["origin"], segment["destination"]] else None)
         shift = max(abs((_time(value) - _time(before)).total_seconds()) for value, before in
                     zip((segment["scheduled_departure"], arrival), old)) if old else 0
+        window_start = min(departure, _time(old[0])) if old else departure
         if segment["status"] in {"cancelled", "diverted"}:
             reason, detail = segment["status"], {}
         elif delay is not None and delay >= 45 or segment["status"] == "delayed" and delay is None:
@@ -237,7 +239,7 @@ def disruption(ledger, trip_id, at=None):
             if not item.get("booking_action_id") or not item.get("start"):
                 continue
             start = _time(item["start"])
-            if start <= departure or window_end is not None and start >= window_end:
+            if start <= window_start or window_end is not None and start >= window_end:
                 continue
             feasibility = None
             affected_reason = "after_" + reason + "_leg"

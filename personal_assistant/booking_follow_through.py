@@ -1,5 +1,6 @@
 """Bookkeeping sourced only from a confirmed provider readback."""
 import datetime as dt
+import json
 import os
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -9,8 +10,9 @@ from .expenses import SCHEMA as EXPENSE_SCHEMA, from_readback, save as save_expe
 
 FOLLOW_THROUGH_SCHEMA = {
     "type": "object", "additionalProperties": False,
-    "anyOf": [{"required": [key]} for key in ("item", "loop", "expense")],
+    "anyOf": [{"required": [key]} for key in ("item", "loop", "expense", "replaces")],
     "properties": {
+        "replaces": {"type": "string", "minLength": 1},
         "expense": EXPENSE_SCHEMA,
         "trip_id": {"type": "string", "minLength": 1},
         "item": {
@@ -67,9 +69,9 @@ def _time(value, field):
 def validate(ledger, current, value, verified_at=None):
     """Refuse the whole readback before any result or follow-through write."""
     from .state import now
-    _object(value, {"trip_id", "item", "reminders", "loop", "expense"}, set(), "follow_through")
-    if not {"item", "loop", "expense"}.intersection(value):
-        raise ValueError("follow_through requires item or loop or expense")
+    _object(value, {"trip_id", "item", "reminders", "loop", "expense", "replaces"}, set(), "follow_through")
+    if not {"item", "loop", "expense", "replaces"}.intersection(value):
+        raise ValueError("follow_through requires item or loop or expense or replaces")
     item = value.get("item")
     if "item" in value:
         schema = FOLLOW_THROUGH_SCHEMA["properties"]["item"]
@@ -125,22 +127,64 @@ def validate(ledger, current, value, verified_at=None):
     trip_id = row_trip or supplied or recorded
     if trip_id and not ledger.get("trip", trip_id):
         raise ValueError("action.trip_id must name an existing trip")
+    replaces = value.get("replaces")
+    if "replaces" in value:
+        _text(replaces, "follow_through.replaces")
+        if replaces == (current or {}).get("action_id"):
+            raise ValueError("follow_through.replaces must name a different action")
+        old = ledger.get("action", replaces)
+        trips = [t for t in ledger.list("trip") if any(
+            e.get("booking_action_id") == replaces for e in t["fields"].get("events", []))]
+        # An event-only booking's link is its recorded booking evidence after removal.
+        replay = old and current and old["fields"].get("replaced_by") == current["action_id"]
+        if not old or not (old["fields"].get("booked_item") or trips or replay):
+            raise ValueError("follow_through.replaces must name an existing recorded booking")
+        if old["fields"].get("replaced_by") not in {None, (current or {}).get("action_id")}:
+            raise ValueError("follow_through.replaces is already replaced by another action")
+        old_trip = old["fields"].get("booking_trip_id") or old.get("trip_id")
+        if trip_id and (old_trip and old_trip != trip_id or any(t["trip_id"] != trip_id for t in trips)):
+            raise ValueError("follow_through.replaces belongs to a different trip")
     expense = None
     if "expense" in value:
         expense = from_readback(value["expense"], item, (current or {}).get("action_id"), verified_at or now(), trip_id)
-    return clean(item), clean(reminders), trip_id, clean(loop), expense
+    return clean(item), clean(reminders), trip_id, clean(loop), expense, replaces
 
 
 _HANDLED = {"completed", "confirmed", "dismissed"}
 
 
-def complete(ledger, identity, item, reminders, trip_id, loop=None, expense=None):
+def complete(ledger, identity, item, reminders, trip_id, loop=None, expense=None, replaces=None):
     from .trips import add_booked_item, export_booked_item
     from .daily_ops import config
 
     expense_id = f"{identity}:expense" if expense is not None else None
     if expense is not None:
-        save_expense(ledger, expense_id, expense, "provider_readback", identity, trip_id)
+        stored = ledger.get("action", expense_id)
+        expense_trip = trip_id or (stored or {}).get("fields", {}).get("trip_ref")
+        save_expense(ledger, expense_id, expense, "provider_readback", identity, expense_trip)
+    cancelled_reminders = []
+    if replaces is not None:
+        # This internal write owns only the replacement link, including on governed rows.
+        with ledger.connect() as conn:
+            conn.execute("begin immediate")
+            row = conn.execute("select fields_json from actions where action_id=?", (replaces,)).fetchone()
+            fields = json.loads(row["fields_json"])
+            if fields.get("replaced_by") != identity:
+                fields["replaced_by"] = identity
+                from .state import now
+                conn.execute("update actions set fields_json=?,updated_at=? where action_id=?",
+                             (json.dumps(fields, ensure_ascii=False), now(), replaces))
+        for trip in ledger.list("trip"):
+            events = trip["fields"].get("events", [])
+            kept = [e for e in events if e.get("booking_action_id") != replaces]
+            if len(kept) != len(events):
+                ledger.put("trip", trip["trip_id"], {"events": kept})
+        for n in range(1, 4):
+            reminder_id = f"{replaces}:reminder:{n}"
+            old = ledger.get("action", reminder_id)
+            if old and old["status"] not in _HANDLED | {"cancelled"}:
+                ledger.put("action", reminder_id, {}, status="cancelled")
+                cancelled_reminders.append(reminder_id)
     trip_item = add_booked_item(ledger, trip_id, item, identity) if item is not None and trip_id else None
     reminder_ids = []
     for n in (range(1, 4) if item is not None else ()):
@@ -198,6 +242,7 @@ def complete(ledger, identity, item, reminders, trip_id, loop=None, expense=None
                                              f"added to {trip_id}" if trip_id else "no trip on this action"),
         "reminders": reminder_ids, "ics_path": ics_path, "calendar_write_allowed": allowed, "calendar_ids": calendar_ids,
         "loop_id": loop_id, "expense_id": expense_id,
+        "replaced": replaces, "cancelled_reminders": cancelled_reminders,
         "next_step": (
             "Create a private event on one of calendar_ids with these exact fields (no attendees, no notifications), read it back, then record it with action_upsert."
             if allowed else
