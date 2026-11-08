@@ -40,7 +40,10 @@ sign up, request a quote with the owner's details, or contact a vendor without a
   page you cite for it, in the same currency and unit, with any condition it
   carries ("from", "per employee per month", "billed annually", "plus tax").
   Name what the price is for in the page's own words; never relabel a fee
-  (a setup fee is not a monthly fee, and an add-on is not the base price).
+  (a setup fee is not a monthly fee, and an add-on is not the base price) or
+  widen its terms (a price billed annually is not a monthly-billing price, and
+  a one-time fee is not charged per entity or per country unless the page says
+  so).
 - Before you write "Could not find" for something, check the pages you already
   read for it (setup fees, minimums and terms often sit lower on a pricing page).
 - Note the date you read each page. A price without a date is not usable.
@@ -78,8 +81,20 @@ recommendation:
 - **Comparison**: one row per option, the option's name in the first column,
   one column per criterion.
 - **Every amount from a source**, anywhere in the answer and in the appendix
-  detail, carries the `[n]` of the page that shows it. Amounts the owner gave
-  you, such as a budget, need no `[n]`.
+  detail, carries the `[n]` of the page that shows it, right after the amount:
+  `$29 per employee/month [2]`. Give each source its own brackets: `[2][5]`,
+  never `[2,5]` or `[1–3]`. Amounts the owner gave you, such as a budget, need
+  no `[n]`.
+- **No sums you worked out.** State each published fee as the page prints it,
+  each with its own `[n]`, but do not combine them: no price times the
+  headcount, no fees added together, no saving or effective rate. A starting
+  price times a headcount is not a quote, and no page shows that number. When
+  cost decides the pick, say in words which option costs less at the owner's
+  headcount and which fee decides it ("at the published prices and 10 people,
+  Birch's $29 per employee [2], with no platform fee, costs less than Cedar's
+  $20 per employee [1] once Cedar's $250 monthly platform fee [1] is
+  counted"), and put the all-in total under "Could not find" as something to
+  get in a written quote.
 - **Could not find**: never leave it out; write "nothing material" only when
   that is true.
 - **Appendix**: one `[n]` line per source, each carrying its own read date on
