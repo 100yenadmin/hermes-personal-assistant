@@ -17,12 +17,12 @@ def preferences(ledger, changes=None):
     prior = ledger.get("action", "pa:preferences")
     if changes is not None:
         allowed = {"timezone", "brief_time", "quiet_hours", "paused", "snooze_until", "cos_daily_time",
-                   "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time"}
+                   "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time", "eod_time"}
         if set(changes) - allowed:
             raise ValueError("unknown preference")
         if "timezone" in changes:
             ZoneInfo(changes["timezone"])
-        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time"):
+        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
             if key in changes:
                 value = changes[key]
                 if not isinstance(value, str) or len(value) != 5 or dt.time.fromisoformat(value).strftime("%H:%M") != value:
@@ -33,7 +33,7 @@ def preferences(ledger, changes=None):
         merged = {**(prior or {}).get("fields", {}), **changes}  # A report inside quiet hours is never sent.
         quiet = merged.get("quiet_hours") or auto.DEFAULTS["quiet_hours"]
         start, end = quiet.get("start", "22:00"), quiet.get("end", "07:00")
-        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time"):
+        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
             value = merged.get(key)
             if value and (key in changes or "quiet_hours" in changes) and (
                     (value >= start or value < end) if start > end else start <= value < end):

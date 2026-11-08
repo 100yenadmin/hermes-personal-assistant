@@ -20,7 +20,7 @@ never invent facts, prices or dates. Keep it short in the owner's register.
   (`rights_drafts`, Daily Ops `inbox.drafts.accepted: true`) and the gog grant
   includes `gmail.compose`. Save it in an owner-attended turn:
   `gog -a <account> gmail drafts create --thread-id <threadId> --to <addr> --subject <subject> --body-file <file> --json`,
-  then read it back with `gog gmail drafts get <draftId>` and record the draft
+  then read it back with `gog gmail drafts get <draftId> -a <account>` and record the draft
   ID with `pa.action_upsert` on the thread row.
 - **Otherwise** keep the text in the digest or the chat and call it a local
   draft. A scheduled run never saves provider drafts.

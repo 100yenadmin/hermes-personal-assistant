@@ -24,7 +24,9 @@ of shared summaries.
 
 Draft one short confirmation per external meeting in the owner's voice (read
 `profile` category voice and each person's rules first). It names the time in
-the recipient's zone. Save it as a provider draft where supported, show it,
+the recipient's zone. Save it as a provider draft only when the owner opted in
+(`inbox.drafts.accepted`) and is in this conversation; otherwise keep it in the
+brief. Show it,
 and send only after the owner's yes through `pa.action_prepare` with
 `enforcement_profile: "exact_action"` and `pa.action_confirm`; then read the
 sent message back. No yes means no send; never mark a meeting confirmed

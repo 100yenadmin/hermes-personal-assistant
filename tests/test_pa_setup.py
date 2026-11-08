@@ -99,7 +99,7 @@ def test_bare_setup_complete_core_shows_menu_without_request(tmp_path):
     setup.record(ledger, {"authority": {"text": "Ask", "source": "user"}}, skipped=list(setup.CORE_QUESTIONS[:2] + setup.CORE_QUESTIONS[3:]))
     setup.pause(ledger)
     prior = setup.state(ledger)
-    assert make_pa_command(tmp_path)("setup") == "/pa setup grill (get to know you, about 27 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
+    assert make_pa_command(tmp_path)("setup") == "/pa setup grill (get to know you, about 32 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
     assert setup.state(ledger) == prior
 
 
@@ -1120,3 +1120,16 @@ def test_m4_setup_answers_have_documented_destinations():
     assert "Never run auth yourself" in where and "Never a third job." in where
     assert "`radar_kind`" in where and "never its number" in where
     assert "## Inbox and follow-up" in manual and "never ask it again" in bank
+
+
+def test_eod_time_from_comm_rhythm_is_a_valid_preference(tmp_path):
+    from personal_assistant.automation_workflow import preferences
+    from personal_assistant.state import Ledger
+    import pytest
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"eod_time": "18:30", "brief_time": "08:00"})
+    assert ledger.get("action", "pa:preferences")["fields"]["eod_time"] == "18:30"
+    with pytest.raises(ValueError):
+        preferences(ledger, {"eod_time": "6pm"})
+    with pytest.raises(ValueError):
+        preferences(ledger, {"eod_time": "23:30"})  # inside default quiet hours, so the note would never be sent

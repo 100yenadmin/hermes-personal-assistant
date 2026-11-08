@@ -6,7 +6,7 @@ from .modes import config_getter, cos_enabled
 USAGE = "Use /pa setup, /pa setup grill (or profile), /pa setup chief-of-staff, /pa setup review, /pa setup status, /pa status, /pa mode, /pa mode chief-of-staff on|off, or /pa help."
 READY = "Setup is ready. Send me any message and I'll start — one question at a time, about 8 in all. Say pause any time."
 PROFILE_READY = "Send me any message and I'll start with {group} — about {total} questions. Say pause any time."
-MENU = "/pa setup grill (get to know you, about 27 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
+MENU = "/pa setup grill (get to know you, about 32 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
 
 
 def make_pa_command(root, get_config=None, set_config=None):
