@@ -19,9 +19,17 @@ sign up, request a quote with the owner's details, or contact a vendor without a
 
 1. Restate the question in one sentence, including the facts that change the
    answer (who, where, how many, by when, budget).
-2. Fix three to six comparison criteria before looking at any option, and say
-   them. If one missing fact would change the choice (a country, a headcount,
-   a budget), ask that one question first; otherwise state your assumption and go.
+2. When the answer is a choice between options, know what matters most to the
+   owner (lowest cost, coverage, service, speed). A direct lookup ("what does
+   plan X cost?") needs no priority. For a choice it almost always changes the
+   pick, so if they have not said it, here or in
+   their saved preferences, ask it first in one short question, together with
+   any other fact that would change the choice (a country, a headcount, a
+   budget), and wait for the answer before searching. If they have no
+   preference, take lowest total cost, say so, and go. For a missing fact that
+   would not change the pick, state your assumption and go.
+3. Fix three to six comparison criteria, with the owner's top priority first,
+   before looking at any option, and say them.
 
 ## Searching
 
@@ -31,27 +39,52 @@ sign up, request a quote with the owner's details, or contact a vendor without a
 - Read each page you cite. A number goes in the answer only if it appears on the
   page you cite for it, in the same currency and unit, with any condition it
   carries ("from", "per employee per month", "billed annually", "plus tax").
+  Name what the price is for in the page's own words; never relabel a fee
+  (a setup fee is not a monthly fee, and an add-on is not the base price).
+- Before you write "Could not find" for something, check the pages you already
+  read for it (setup fees, minimums and terms often sit lower on a pricing page).
 - Note the date you read each page. A price without a date is not usable.
 - When a price is behind a sales call or a login, do not guess or estimate it as
   if it were published: record it as not published.
 
 ## The answer (one page, then the appendix)
 
-Keep everything before "Appendix" under about 350 words:
+Keep everything before "Appendix" under about 350 words. Use these six
+headings, exactly and in this order, even when you are confident of the answer.
+The owner reads the criteria before the pick, so never open with the
+recommendation:
 
-1. **Question**, restated in one line.
-2. **Criteria**, as a short list.
-3. **Recommendation**: the option and the reason, tied to the criteria, in two
-   or three sentences.
-4. **Comparison**: a compact table with one row per option, the option's name in
-   the first column, and one column per criterion. Every number carries its
-   source number, like `$29 per employee/month [2]`.
-5. **Could not find**: what is unknown and why (not published, needs a quote,
-   conflicting sources). Never leave this out; write "nothing material" only
-   when that is true.
+```
+## Question
+<the question in one line, with the facts that change the answer>
+## Criteria
+- <criterion 1: the owner's top priority>
+- <criterion 2>
+- <criterion 3>
+## Recommendation
+<the option and the reason, tied to the criteria, in two or three sentences>
+## Comparison
+| Option | <criterion 1> | <criterion 2> | <criterion 3> |
+|---|---|---|---|
+| <option name> | $29 per employee/month [2] | ... | ... |
+## Could not find
+<what is unknown and why: not published, needs a quote, conflicting sources>
+## Appendix
+[1] <title>, <URL>, read YYYY-MM-DD
+[2] <title>, <URL>, read YYYY-MM-DD
+<then any detail the owner may want>
+```
 
-**Appendix**: numbered sources, each as `[n] title, URL, read YYYY-MM-DD`, then
-any detail the owner may want.
+- **Comparison**: one row per option, the option's name in the first column,
+  one column per criterion.
+- **Every amount from a source**, anywhere in the answer and in the appendix
+  detail, carries the `[n]` of the page that shows it. Amounts the owner gave
+  you, such as a budget, need no `[n]`.
+- **Could not find**: never leave it out; write "nothing material" only when
+  that is true.
+- **Appendix**: one `[n]` line per source, each carrying its own read date on
+  that line. Do not use one shared "All sources read" line: each source must
+  stand alone when the owner forwards it.
 
 No padding, no generic advice, no claims you did not check. If the sources
 disagree, show both and say which you trust and why.
