@@ -362,3 +362,31 @@ def test_preferences_reject_unreadable_holds(ledger, changes):
 def test_clearing_a_snooze_is_allowed(ledger):
     preferences(ledger, {'snooze_until': '2026-11-09T20:00:00+00:00'})
     assert preferences(ledger, {'snooze_until': None}).get('snooze_until') is None
+
+
+@pytest.mark.parametrize('scope', ['profile', 'rule'])
+def test_clearing_a_running_snooze_restarts_grace(ledger, scope):
+    rule(ledger, 'due_source_check')
+    if scope == 'profile':
+        rule(ledger)
+        preferences(ledger, {'snooze_until': '2026-11-09T20:00:00+00:00'})
+    else:
+        rule(ledger, snooze_until='2026-11-09T20:00:00+00:00')
+    with patch.object(auto, '_now', return_value=at('2026-11-09T09:30')):
+        if scope == 'profile':
+            preferences(ledger, {'snooze_until': None})
+        else:
+            rule(ledger, snooze_until=None)
+    for time in ('09:30', '10:00', '10:29'):
+        assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T' + time))['wakeAgent']
+        assert auto.routine_health(ledger, now=at('2026-11-09T' + time))['findings'] == []
+    assert any(f['reason'] == 'slot_unclaimed' for f in auto.routine_health(ledger, now=at('2026-11-09T10:30'))['findings'])
+
+
+def test_moving_a_snooze_later_or_clearing_an_expired_one_stamps_no_resume(ledger):
+    with patch.object(auto, '_now', return_value=at('2026-11-09T09:30')):
+        preferences(ledger, {'snooze_until': '2026-11-09T20:00:00+00:00'})
+        assert 'routine_resumed_at' not in preferences(ledger, {'snooze_until': '2026-11-09T21:00:00+00:00'})
+    ledger.put('action', 'pa:preferences', {'snooze_until': '2026-11-09T09:00:00+00:00'})
+    with patch.object(auto, '_now', return_value=at('2026-11-09T09:40')):
+        assert 'routine_resumed_at' not in preferences(ledger, {'snooze_until': None})

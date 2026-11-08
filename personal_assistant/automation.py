@@ -138,13 +138,26 @@ def attach_automation_rule(ledger, action_id, rule):
     if not row:
         raise ValueError("action not found")
     return ledger.put("action", action_id, source_rule_fields(rule))
+def snooze_released(old, new):
+    """True when a snooze still running now is cleared or moved earlier."""
+    current = _now(None, "UTC")
+    before = _value_time(old, "UTC") if old else None
+    if not before or before <= current:
+        return False
+    after = _value_time(new, "UTC") if new else None
+    return after is None or after < before
+
+
 def upsert_automation_rule(ledger, rule_id, rule):
     """Store an accepted rule as a ledger action, without creating a job."""
     fields = source_rule_fields(rule)
     fields["automation_rule_id"] = str(rule_id)
     action_id = ledger.action_id("pa-automation-rule", "rule", str(rule_id))
     prior = ledger.get("action", action_id)
-    if prior and _rule_data(prior).get("paused") and not _rule_data(rule).get("paused"):
+    old = _rule_data(prior) if prior else {}
+    # A resume (unpause, or a snooze ended early) starts the routine's health grace again.
+    if prior and ((old.get("paused") and not _rule_data(rule).get("paused"))
+                  or snooze_released(old.get("snooze_until"), _rule_data(rule).get("snooze_until"))):
         fields["routine_resumed_at"] = _now(None, "UTC").isoformat()
     return ledger.put(
         "action", action_id, fields, status="configured", action_type="automation_rule", provider="local"

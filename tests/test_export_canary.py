@@ -196,3 +196,12 @@ def test_historical_scores_do_not_move_with_current_holds_or_quiet_hours(tmp_pat
     assert [d['routines'] for d in good['daily']] == ['pass'] * 10
     assert bad['daily'][0]['routines'] == 'fail'
     assert [d['routines'] for d in bad['daily'][1:]] == ['pass'] * 9
+
+
+def test_excused_occurrences_are_not_scored(tmp_path):
+    missing = _canary(tmp_path, missed=('2026-11-09',))
+    assert score(missing)['daily'][0]['routines'] == 'fail'
+    held = [s['occurrence_id'] for s in auto.routine_slots(missing, now=NOW, date='2026-11-09') if s['logical'] == '2026-11-09']
+    note = missing.get('action', 'pa:canary:2026-11-09')['fields']
+    missing.put('action', 'pa:canary:2026-11-09', {**note, 'excused_occurrences': held})
+    assert score(missing)['daily'][0]['routines'] == 'pass'

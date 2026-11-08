@@ -56,7 +56,8 @@ def preferences(ledger, changes=None):
             raise ValueError("the weekly kickoff and closeout cannot share a day and time; choose a kickoff slot before or after the closeout")
         updates = dict(changes)
         old = (prior or {}).get("fields", {})
-        if old.get("paused") and changes.get("paused") is False:
+        if ((old.get("paused") and changes.get("paused") is False)
+                or ("snooze_until" in changes and auto.snooze_released(old.get("snooze_until"), changes["snooze_until"]))):
             updates["routine_resumed_at"] = auto._now(None, "UTC").isoformat()
         if prior and any(key in changes and changes[key] != old.get(key, auto.DEFAULTS.get(key))
                          for key in ("timezone", "brief_time", "eod_time", *WEEKLY_SLOT_KEYS, "cos_daily_time")):
