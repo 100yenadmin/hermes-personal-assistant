@@ -138,7 +138,30 @@ For a final provider transaction, allocate the action ID and call
 `action_prepare` with `enforcement_profile="exact_action"`, the complete material
 summary, stable action and workflow revisions, exact provider `tool_name` and
 complete `tool_args`, semantic target, freshness deadline, `execution_budget=1`,
-preconditions, required projections, authority, risk class, and expected readback.
+preconditions, required projections and expected readback. Omit `authority`: PA
+binds it to this action. `risk_class` defaults to `external_write`. The shape:
+
+```json
+{"operation":"action_prepare","data":{"action_id":"<id>","enforcement_profile":"exact_action",
+ "summary":{"provider":"<provider>","final_action":"<the one button or call>","...":"every material detail"},
+ "action_revision":"<revision of these details>","workflow_id":"<workflow>","workflow_revision":"<revision>",
+ "tool_name":"browser_exec","tool_args":{"code":"<the exact code you will run>"},
+ "semantic_target":{"paths":[["code"]],"value":["<the exact code you will run>"]},
+ "fresh_until":"<timestamp with offset, minutes ahead>","execution_budget":1,
+ "required_pre_action_projections":["final_page_matches_summary"],
+ "preconditions":{"final_page_matches_summary":"confirmed"},
+ "expected_readback":"<what the provider must show afterwards>"}}
+```
+
+- `tool_args` are the exact arguments of the later provider call; the gateway
+  refuses any other call. `semantic_target.paths` are lists of keys into
+  `tool_args`, and `value` lists what those paths hold.
+- `preconditions` has exactly one entry per required projection. Set each to the
+  literal `"confirmed"` only after you checked it on the live page; otherwise
+  `action_confirm` refuses. Once it holds, prepare again with a new
+  `action_revision` (a prepared revision cannot change).
+- A rejected prepare names the missing or invalid keys: fix those and retry once.
+
 Obtain final confirmation with `action_confirm` and the
 identical `data.summary`, then repeat material, identity, duplicate, and
 precondition checks. Invoke the exact provider tool directly. The native gateway

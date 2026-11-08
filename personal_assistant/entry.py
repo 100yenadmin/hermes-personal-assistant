@@ -8,6 +8,10 @@ from .evidence import EVIDENCE_TYPES, EVIDENCE_PREFIXES
 from .trip_facts import SEG_SCHEMA, SOURCES
 from .trip_watch import MOMENTS, SKIPS
 
+# Keys a governed action_prepare must carry; authority and risk_class are optional (PA binds the authority).
+GOVERNED_PREPARE_KEYS = ("summary", "action_revision", "workflow_id", "workflow_revision", "tool_name", "tool_args",
+                         "semantic_target", "fresh_until", "execution_budget", "required_pre_action_projections",
+                         "preconditions", "expected_readback")
 OPERATIONS = ["status", "capabilities", "context", "recipes", "trip_import", "export", "action_upsert",
               "action_prepare", "action_confirm", "action_cancel", "action_claim", "action_result",
               "authorization_prepare", "authorization_confirm", "authorization_cancel", "authorization_status",
@@ -289,6 +293,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
             return ledger.prepare(identity, data["summary"])
         if enforcement_profile != "exact_action":
             raise ValueError("unsupported action enforcement profile")
+        missing = [key for key in GOVERNED_PREPARE_KEYS if key not in data]
+        if missing:
+            raise ValueError("governed action_prepare is missing: " + ", ".join(missing))
         scope = runtime_scope or {}
         store = _authorization_store(profile_root, ledger, runtime_scope)
         envelope = {
