@@ -151,7 +151,7 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     if op == "capabilities":
         from .capabilities import discover
         return discover(profile_root=profile_root)
-    ledger = Ledger(profile_root)
+    ledger = Ledger(profile_root, read_only=True) if op == "automations" and data.get("action") == "health" else Ledger(profile_root)
     if op == "evidence":
         from .evidence import dispatch as evidence_dispatch
         return evidence_dispatch(ledger, data)

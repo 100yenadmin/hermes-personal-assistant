@@ -134,3 +134,27 @@ def test_observations_use_owner_local_working_dates(canary):
     result = score(canary)
     assert result['rows']['broken_routine_within_one_cycle'] == 'pass'
     assert result['sop_version_bumps'] == 2
+
+
+def test_changed_brief_time_without_historical_slots_is_unproven(canary):
+    with patch.object(auto, '_now', return_value=dt.datetime.fromisoformat('2026-11-12T12:00:00+00:00')):
+        preferences(canary, {'brief_time': '09:00'})
+    result = score(canary)
+    assert result['daily'][0]['routines'] == 'unproven'
+    assert result['daily'][3]['routines'] == 'unproven'
+
+
+def test_changed_brief_time_historical_inventory_preserves_proof(canary):
+    slots = auto.routine_slots(canary, now=NOW, date='2026-11-09')
+    canary.put('action', 'pa:canary:2026-11-09', {'due_occurrences': slots})
+    with patch.object(auto, '_now', return_value=NOW):
+        preferences(canary, {'brief_time': '09:00'})
+    assert score(canary)['daily'][0]['routines'] == 'pass'
+
+
+def test_invalid_timezone_cli_has_clear_error(canary, capsys):
+    canary.put('action', 'pa:preferences', {'timezone': 'broken/zone'})
+    with pytest.raises(SystemExit) as exc:
+        main([str(canary.root), '--start', '2026-11-09'])
+    assert exc.value.code == 2
+    assert 'invalid timezone: broken/zone' in capsys.readouterr().err

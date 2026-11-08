@@ -143,6 +143,9 @@ def upsert_automation_rule(ledger, rule_id, rule):
     fields = source_rule_fields(rule)
     fields["automation_rule_id"] = str(rule_id)
     action_id = ledger.action_id("pa-automation-rule", "rule", str(rule_id))
+    prior = ledger.get("action", action_id)
+    if prior and _rule_data(prior).get("paused") and not _rule_data(rule).get("paused"):
+        fields["routine_resumed_at"] = _now(None, "UTC").isoformat()
     return ledger.put(
         "action", action_id, fields, status="configured", action_type="automation_rule", provider="local"
     )
@@ -435,19 +438,48 @@ def routine_occurrence(kind, logical, rules):
     return notification_occurrence_id(kind, logical) if kind in COS_JOBS else notification_occurrence_id(rule_id, logical, revision if complete else None)
 
 
-def routine_slots(ledger, *, now=None, date=None):
+def routine_time(value):
+    """Accept only canonical HH:MM clock preferences, including stored values."""
+    if not isinstance(value, str) or len(value) != 5 or dt.time.fromisoformat(value).strftime("%H:%M") != value:
+        raise ValueError("time must be HH:MM")
+    return dt.time.fromisoformat(value)
+
+
+def _eligible_slot(prefs, rules, at, current, zone):
+    """Delay the grace clock until intentional routine holds have ended."""
+    holds = [_value_time(value, zone) for value in (
+        prefs.get("snooze_until"), prefs.get("routine_resumed_at"),
+        *(r.get(key) for r in rules for key in ("snooze_until", "routine_resumed_at"))) if value]
+    if any(value is None for value in holds): return None
+    at = max(at, *holds) if holds else at
+    state = {**prefs, "timezone": zone, "actions": [{"due": True}]}
+    if not script_precheck(state, now=current)["run"]: return None
+    gate = script_precheck(state, now=at)
+    if gate["reason"] == "quiet_hours":
+        quiet = prefs.get("quiet_hours") or DEFAULTS["quiet_hours"]
+        end = dt.time.fromisoformat(quiet.get("end", "07:00"))
+        local = at.astimezone(ZoneInfo(zone))
+        at = dt.datetime.combine(local.date(), end, ZoneInfo(zone))
+        if at <= local: at += dt.timedelta(days=1)
+    return at if at <= current else None
+
+
+def routine_slots(ledger, *, now=None, date=None, findings=None):
     """Known calendar slots for accepted rules, without claiming or repairing."""
     prefs = (ledger.get("action", "pa:preferences") or {}).get("fields", {})
     current = _now(now, "UTC")
     grouped = {}
     for row in ledger.list("action"):
         rule = _rule_data(row)
-        if row["action_type"] == "automation_rule" and rule.get("accepted") and not rule.get("paused"):
+        if row["action_type"] == "automation_rule" and rule.get("accepted") and rule.get("destination_verified") and not rule.get("paused"):
             grouped.setdefault(rule.get("kind"), []).append(rule)
     slots = []
     for kind, rules in grouped.items():
         if kind not in {"daily_brief", *COS_JOBS}: continue
         zone = rules[0].get("timezone") or prefs.get("timezone")
+        if len({r.get("destination") for r in rules}) != 1 or not rules[0].get("destination"): continue
+        if any((r.get("timezone") or prefs.get("timezone")) != zone for r in rules): continue
+        if kind == "daily_brief" and prefs.get("timezone") != zone: continue
         try:
             local = current.astimezone(ZoneInfo(zone))
         except (ValueError, TypeError, KeyError):
@@ -456,8 +488,20 @@ def routine_slots(ledger, *, now=None, date=None):
         clocks = [("brief_time", ""), ("eod_time", ":eod")] if kind == "daily_brief" else [(kind + "_time", "")]
         for key, suffix in clocks:
             if kind in {"cos_kickoff", "cos_weekly"} and day.weekday() != ("mon", "tue", "wed", "thu", "fri", "sat", "sun").index(prefs.get(kind + "_day", DEFAULTS[kind + "_day"])): continue
-            at = dt.datetime.combine(day, dt.time.fromisoformat(prefs.get(key, DEFAULTS[key])), ZoneInfo(zone))
+            try:
+                clock = routine_time(prefs.get(key, DEFAULTS[key]))
+            except (ValueError, TypeError):
+                if findings is not None:
+                    findings.append({"id": stable_id(kind, key, str(prefs.get(key))), "kind": kind,
+                                     "reason": "invalid_" + key, "at": current.isoformat()})
+                continue
+            at = dt.datetime.combine(day, clock, ZoneInfo(zone))
             if at > current or any(_value_time(r.get("accepted_at"), zone) and _value_time(r["accepted_at"], zone) > at for r in rules): continue
+            at = _eligible_slot(prefs, rules, at, current, zone)
+            if at is None: continue
+            eligible = at.astimezone(ZoneInfo(zone))
+            if eligible.date() != day: continue  # The precheck only claims today's period.
+            if kind == "daily_brief" and not suffix and eligible.strftime("%H:%M") >= prefs.get("eod_time", DEFAULTS["eod_time"]): continue
             logical = day.isoformat() + suffix if kind in {"daily_brief", "cos_daily"} else "%04d-W%02d" % day.isocalendar()[:2]
             slots.append({"kind": kind, "logical": logical, "due_at": at.isoformat(),
                           "occurrence_id": routine_occurrence(kind, logical, rules)})
@@ -467,11 +511,14 @@ def routine_slots(ledger, *, now=None, date=None):
 def routine_health(ledger, *, now=None, grace_minutes=60):
     """Read-only findings; unknown hand-offs are terminal, never delivery proof."""
     current = _now(now, "UTC")
+    if ledger.read_only and not ledger.path.exists():
+        return {"status": "no ledger yet", "findings": [], "read_only": True}
     grace = dt.timedelta(minutes=max(0, int(grace_minutes)))
     rows = ledger.list("action")
     findings = []
     for row in rows:
         fields = row["fields"]
+        if fields.get("routine_kind") == "routine-health" or fields.get("rule_id") == "routine-health": continue
         if row["action_id"].startswith("pa:routine-health:") and fields.get("reason"):
             findings.append({"id": stable_id(row["action_id"], fields["reason"], fields["failed_at"]),
                              "kind": fields.get("kind"), "reason": fields["reason"],
@@ -481,7 +528,9 @@ def routine_health(ledger, *, now=None, grace_minutes=60):
         if claimed and current >= claimed + grace:
             findings.append({"id": stable_id("receipt_missing", row["action_id"]), "kind": fields.get("routine_kind", fields.get("rule_id")),
                              "reason": "receipt_missing", "at": claimed.isoformat(), "occurrence_id": fields.get("notification_occurrence_id")})
-    for slot in routine_slots(ledger, now=current):
+    invalid = []
+    for slot in routine_slots(ledger, now=current, findings=invalid):
         if current >= _value_time(slot["due_at"], "UTC") + grace and not notification_receipt(ledger, slot["occurrence_id"]):
             findings.append({"id": stable_id("slot_unclaimed", slot["occurrence_id"]), "reason": "slot_unclaimed", **slot})
+    findings.extend(f for f in invalid if not any((f["kind"], f["reason"]) == (old.get("kind"), old["reason"]) for old in findings))
     return {"status": "attention" if any(not f.get("recovered_at") for f in findings) else "healthy", "findings": findings, "read_only": True}

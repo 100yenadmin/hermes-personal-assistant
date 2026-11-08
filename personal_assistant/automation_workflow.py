@@ -22,10 +22,12 @@ def preferences(ledger, changes=None):
             raise ValueError("unknown preference")
         if "timezone" in changes:
             ZoneInfo(changes["timezone"])
-        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
+        for key in ("brief_time", "cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
             if key in changes:
                 value = changes[key]
-                if not isinstance(value, str) or len(value) != 5 or dt.time.fromisoformat(value).strftime("%H:%M") != value:
+                try:
+                    auto.routine_time(value)
+                except (ValueError, TypeError):
                     raise ValueError(f"{key} must be HH:MM")
         for key in (kind + "_day" for kind in WEEKLY_COS):
             if key in changes and changes[key] not in WEEKDAYS:
@@ -40,7 +42,14 @@ def preferences(ledger, changes=None):
                 raise ValueError(f"{key} {value} is inside quiet hours {start}-{end}, so that report would never be sent; choose a time outside quiet hours")
         if WEEKLY_SLOT_KEYS & set(changes) and _slot(merged, "cos_kickoff") == _slot(merged, "cos_weekly"):
             raise ValueError("the weekly kickoff and closeout cannot share a day and time; choose a kickoff slot before or after the closeout")
-        prior = ledger.put("action", "pa:preferences", changes, action_type="preferences", status="configured")
+        updates = dict(changes)
+        old = (prior or {}).get("fields", {})
+        if old.get("paused") and changes.get("paused") is False:
+            updates["routine_resumed_at"] = auto._now(None, "UTC").isoformat()
+        if prior and any(key in changes and changes[key] != old.get(key, auto.DEFAULTS.get(key))
+                         for key in ("timezone", "brief_time", "eod_time", *WEEKLY_SLOT_KEYS, "cos_daily_time")):
+            updates["schedule_changed_at"] = auto._now(None, "UTC").isoformat()
+        prior = ledger.put("action", "pa:preferences", updates, action_type="preferences", status="configured")
     return (prior or {}).get("fields", {})
 
 
@@ -278,6 +287,12 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     if any(r.get("snooze_until") and auto._value_time(r["snooze_until"], zone) > current for r in rules):
         return {"wakeAgent": False, "reason": "routine_snoozed"}
     local = current.astimezone(ZoneInfo(zone))
+    if kind == "daily_brief":
+        for key in ("brief_time", "eod_time"):
+            try:
+                auto.routine_time(prefs.get(key, auto.DEFAULTS[key]))
+            except (ValueError, TypeError):
+                return _health_failure(ledger, kind, "invalid_" + key, current)
     # Read the canonical loop guidance, including holds, rather than re-derive it.
     from .context import next_actions
     chases, offset = [], 0
@@ -317,6 +332,8 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
                 urgent=all(r.get("quiet_hours_exceptions") is True for r in rules))
             if not gate["run"]: return {"wakeAgent": False, "reason": gate["reason"]}
             claim = auto.claim_notification(ledger, occurrence, rule_id="routine-health", now=current)
+            if claim["claimed"]:
+                ledger.put("action", claim["action_id"], {"routine_kind": "routine-health"})
             if claim["claimed"] and finding.get("note_id"):
                 ledger.put("action", finding["note_id"], {"detected_at": current.isoformat()})
             return {"wakeAgent": claim["claimed"], "occurrence_id": occurrence, "occurrence_kind": "routine_health",

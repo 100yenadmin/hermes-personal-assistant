@@ -50,3 +50,7 @@ The evening run lists `meetings_to_confirm` for tomorrow's R4 24h confirmation
 and brief. Preserve `attendees_known: false` and `attendees_omitted` as gaps;
 never infer all attendees were checked. Point the brief to the twice-daily R6
 inbox triage digest; do not duplicate or invent inbox results.
+
+The follow-through `escalate` step surfaces through the daily brief or radar;
+there is no separate wake for escalation. Preserve the canonical loop guidance
+and bring its decision question into the next report.

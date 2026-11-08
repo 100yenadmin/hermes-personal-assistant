@@ -214,3 +214,111 @@ def test_same_failure_after_recovery_is_a_new_health_finding(ledger):
     second = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:20'))
     assert second['wakeAgent']
     assert second['occurrence_id'] != first['occurrence_id']
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_unreceipted_health_wake_never_recurses(ledger, legacy):
+    rule(ledger, 'due_source_check')
+    ledger.put('action', 'pa:routine-health:daily_brief', {
+        'kind': 'daily_brief', 'reason': 'timezone_conflict',
+        'failed_at': '2026-11-09T08:00:00+00:00',
+    }, action_type='routine_health')
+    wake = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
+    assert wake['wakeAgent'] and wake['occurrence_kind'] == 'routine_health'
+    claim_id = auto._notification_action_id(ledger, wake['occurrence_id'])
+    if legacy:
+        ledger.put('action', claim_id, {}, remove=['routine_kind'])
+        auto.claim_notification(ledger, 'legacy-health-2', rule_id='routine-health', now=at('2026-11-09T08:00'))
+    else:
+        assert ledger.get('action', claim_id)['fields']['routine_kind'] == 'routine-health'
+    for hour in ('09', '10'):
+        now = at(f'2026-11-09T{hour}:00')
+        assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=now)['wakeAgent']
+        assert not any(f['reason'] == 'receipt_missing' for f in auto.routine_health(ledger, now=now)['findings'])
+
+
+def test_snoozed_daily_brief_has_no_false_slot_alarm_and_gets_grace(ledger):
+    rule(ledger, snooze_until='2026-11-09T20:00:00+00:00')
+    rule(ledger, 'due_source_check')
+    now = at('2026-11-09T09:00')
+    assert cron_precheck(ledger, 'daily_brief', enabled=True, moment=now)['reason'] == 'routine_snoozed'
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=now)['wakeAgent']
+    for time in ('20:00', '20:05', '20:59'):
+        assert auto.routine_health(ledger, now=at('2026-11-09T' + time))['findings'] == []
+    assert any(f['reason'] == 'slot_unclaimed' for f in auto.routine_health(ledger, now=at('2026-11-09T21:00'))['findings'])
+
+
+def test_snooze_ending_after_eod_does_not_expect_unclaimable_morning_slot(ledger):
+    rule(ledger, snooze_until='2026-11-09T20:00:00+00:00')
+    rule(ledger, 'due_source_check')
+    wake = cron_precheck(ledger, 'daily_brief', enabled=True, moment=at('2026-11-09T20:00'))
+    assert wake['wakeAgent'] and wake['occurrence_kind'] == 'end_of_day'
+    auto.record_notification(ledger, wake['occurrence_id'], 'unknown', now=at('2026-11-09T20:01'))
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T21:00'))['wakeAgent']
+
+
+@pytest.mark.parametrize('scope', ['profile', 'rule'])
+def test_paused_routine_resume_gets_grace(ledger, scope):
+    rule(ledger)
+    if scope == 'profile':
+        preferences(ledger, {'paused': True})
+    else:
+        rule(ledger, paused=True)
+    assert auto.routine_health(ledger, now=at('2026-11-09T09:00'))['findings'] == []
+    with patch.object(auto, '_now', return_value=at('2026-11-09T09:00')):
+        if scope == 'profile':
+            preferences(ledger, {'paused': False})
+        else:
+            rule(ledger, paused=False)
+    assert auto.routine_health(ledger, now=at('2026-11-09T09:05'))['findings'] == []
+    assert auto.routine_health(ledger, now=at('2026-11-09T10:00'))['findings']
+
+
+def test_quiet_end_and_unverified_destination_slot_eligibility(ledger):
+    rule(ledger, destination_verified=False)
+    assert auto.routine_slots(ledger, now=at('2026-11-09T09:00')) == []
+    rule(ledger)
+    preferences(ledger, {'quiet_hours': {'start': '22:00', 'end': '09:00'}})
+    for time in ('08:30', '09:00', '09:05', '09:59'):
+        assert auto.routine_health(ledger, now=at('2026-11-09T' + time))['findings'] == []
+    assert auto.routine_health(ledger, now=at('2026-11-09T10:00'))['findings']
+
+
+def test_public_health_missing_ledger_is_read_only(tmp_path):
+    from personal_assistant.entry import dispatch as public_dispatch
+    with patch('personal_assistant.entry.Ledger', wraps=Ledger) as constructor:
+        result = public_dispatch(tmp_path, {'operation': 'automations', 'data': {'action': 'health'}})
+    constructor.assert_called_once_with(tmp_path, read_only=True)
+    assert result['status'] == 'no ledger yet' and result['read_only']
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_public_health_existing_ledger_uses_read_only_connection(ledger):
+    from personal_assistant.entry import dispatch as public_dispatch
+    before = ledger.path.read_bytes()
+    original = Ledger.connect
+    def readonly_connect(self):
+        assert self.read_only
+        return original(self)
+    with patch.object(Ledger, 'connect', readonly_connect):
+        assert public_dispatch(ledger.root, {'operation': 'automations', 'data': {'action': 'health'}})['read_only']
+    assert ledger.path.read_bytes() == before
+
+
+def test_brief_time_rejects_bad_input_and_stored_value_is_health_finding(ledger):
+    with pytest.raises(ValueError, match='brief_time must be HH:MM'):
+        preferences(ledger, {'brief_time': '8:00'})
+    ledger.put('action', 'pa:preferences', {'brief_time': '8:00'})
+    rule(ledger)
+    rule(ledger, 'due_source_check')
+    now = at('2026-11-09T09:00')
+    health = dispatch(ledger, {'action': 'health', 'now': now})
+    assert any(f['reason'] == 'invalid_brief_time' for f in health['findings'])
+    assert cron_precheck(ledger, 'daily_brief', enabled=True, moment=now)['reason'] == 'invalid_brief_time'
+    due = cron_precheck(ledger, 'due_source_check', enabled=True, moment=now)
+    assert due['wakeAgent'] and due['health_findings'][0]['reason'] == 'invalid_brief_time'
+
+
+def test_escalate_step_is_reported_without_a_separate_wake():
+    text = (ROOT / 'skills/personal-assistant/r5-brief-reminders/SKILL.md').read_text()
+    assert '`escalate`' in text and 'daily brief or radar' in text and 'no separate wake' in text

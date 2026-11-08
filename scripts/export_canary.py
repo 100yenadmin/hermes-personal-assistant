@@ -6,7 +6,7 @@ import json
 import sqlite3
 import sys
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from personal_assistant import automation as auto
@@ -26,7 +26,11 @@ def export(ledger, *, start, days=10, now=None):
         raise ValueError('days must be between 1 and 260')
     current = auto._now(now, 'UTC')
     prefs = (ledger.get('action', 'pa:preferences') or {}).get('fields', {})
-    zone = ZoneInfo(prefs.get('timezone', 'UTC'))
+    try:
+        zone = ZoneInfo(prefs.get('timezone', 'UTC'))
+    except (ZoneInfoNotFoundError, ValueError, TypeError):
+        raise ValueError(f"invalid timezone: {prefs.get('timezone')}") from None
+    changed = auto._value_time(prefs.get('schedule_changed_at'), 'UTC')
 
     def local_date(value):
         moment = auto._value_time(value, 'UTC')
@@ -54,7 +58,10 @@ def export(ledger, *, start, days=10, now=None):
             due = auto._value_time(slot.get('due_at'), 'UTC')
             claimed = auto._value_time((receipt or {}).get('claimed_at'), 'UTC')
             terminal = auto._value_time((receipt or {}).get('receipt_at'), 'UTC')
-            if not due or not claimed or not terminal:
+            historical = isinstance(inventory, list) and any(s['occurrence_id'] == slot['occurrence_id'] for s in inventory)
+            if changed and due and due <= changed and not historical:
+                status = 'unproven'  # Current clock preferences cannot reconstruct a changed schedule.
+            elif not due or not claimed or not terminal:
                 status = 'fail' if due and current >= due + dt.timedelta(minutes=60) else 'unproven'
             elif claimed < due or terminal < claimed or claimed > due + dt.timedelta(minutes=5) or terminal > due + dt.timedelta(minutes=60):
                 status = 'fail'

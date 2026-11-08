@@ -38,6 +38,9 @@ Calendar slots from accepted rules (brief, EOD, CoS) are added by the exporter.
 Keep acceptance timestamps and profile preferences stable during the observation,
 or retain the historical calendar slots in the daily inventory; current rules
 alone cannot reconstruct old preferences or source checkpoints.
+After a recorded schedule change, reconstructed earlier slots stay unproven
+unless the daily inventory retains their historical due times. Intentional
+snoozes, pauses and quiet hours delay slot-health grace until the routine can run.
 
 Break a test routine only with the owner's separate authority and an existing
 recovery path, during working hours outside quiet hours and snoozes. This
