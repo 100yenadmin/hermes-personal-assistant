@@ -139,3 +139,25 @@ def test_daily_ops_text_hands_evening_mail_and_meetings_to_r6_and_r4():
     assert "`meetings_to_confirm`" in skill and "`personal-assistant:r6-inbox-replies`" in skill
     assert "`personal-assistant:r4-calendar-meeting`" in skill and "same complete/truncated flags" in skill
     assert "twice a day without a third routine" in docs and "`attendees_known: false`" in docs
+
+
+def test_threads_past_the_listed_ones_make_the_section_truncated(monkeypatch):
+    threads = [{"id": f"t{n}", "from": "Dana <dana@client.example>", "subject": f"Thread {n}"} for n in range(1, 27)]
+    patch(monkeypatch, [event("ev1", 10)], mail=lambda *a, **k: Collected(list(threads), True, False, None))
+    packet = evening_register.collect(cfg(), profile="/synthetic", moment=MOMENT)
+    humans = packet["sections"]["humans_1"]
+    assert humans["count"] == 26 and humans["shown"] == 25 and humans["omitted"] == 1
+    assert len(humans["items"]) == 25 and humans["complete"] is True and humans["truncated"] is True
+    assert packet["truncated"] is True
+
+
+def test_morning_and_evening_share_the_honest_humans_section():
+    def read(account, query, **kwargs):
+        size = 30 if query == common.Q_HUMANS else 2
+        return Collected([{"id": f"x{n}"} for n in range(size)], True, False, None)
+    sections, complete, truncated = common.mail_sections("owner@example.invalid", 1, read)
+    assert sections["humans_1"]["omitted"] == 5 and sections["humans_1"]["truncated"] is True
+    assert complete is True and truncated is True
+    small, _, small_truncated = common.mail_sections("owner@example.invalid", 1, lambda *a, **k: Collected([{"id": "y"}], True, False, None))
+    assert small["humans_1"]["omitted"] == 0 and small["humans_1"]["shown"] == 1 and small_truncated is False
+    assert morning_brief.mail_sections is common.mail_sections

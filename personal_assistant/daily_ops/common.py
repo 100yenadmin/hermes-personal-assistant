@@ -12,6 +12,7 @@ PAGE_SIZE = 25
 MAX_PAGES = 20
 MAX_ITEMS = 1000
 # Twice-daily triage reads: the morning brief and the evening register share these.
+HUMANS_SHOWN = 25
 Q_HUMANS = "is:unread -category:promotions -category:updates -category:social -category:forums newer_than:2d"
 Q_BULK = "is:unread (category:promotions OR category:updates OR category:social OR category:forums) newer_than:3d"
 
@@ -159,9 +160,14 @@ def mail_sections(account: str, index: int, read_mail: Callable[..., Collected])
     humans = read_mail(account, Q_HUMANS, page_size=25, max_items=500)
     bulk = read_mail(account, Q_BULK, page_size=100, max_items=2000)
     bulk_count = bulk.total if bulk.total is not None else len(bulk.items)
+    # The packet lists the first HUMANS_SHOWN threads; any more were read but not listed, so the
+    # section is truncated and says how many the agent still has to triage.
+    omitted = max(len(humans.items) - HUMANS_SHOWN, 0)
+    humans_truncated = humans.truncated or omitted > 0
     sections = {
         f"humans_{index}": {
-            "items": humans.items[:25], "count": len(humans.items), "complete": humans.complete, "truncated": humans.truncated,
+            "items": humans.items[:HUMANS_SHOWN], "count": len(humans.items), "shown": min(len(humans.items), HUMANS_SHOWN),
+            "omitted": omitted, "complete": humans.complete, "truncated": humans_truncated,
         },
         f"bulk_{index}": {
             "count": bulk_count, "exact": bulk.total is not None and bulk.complete,
@@ -169,4 +175,4 @@ def mail_sections(account: str, index: int, read_mail: Callable[..., Collected])
             "complete": bulk.complete, "truncated": bulk.truncated,
         },
     }
-    return sections, humans.complete and bulk.complete, humans.truncated or bulk.truncated
+    return sections, humans.complete and bulk.complete, humans_truncated or bulk.truncated
