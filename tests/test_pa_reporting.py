@@ -181,7 +181,7 @@ def test_chase_wakes_once_per_step_and_survives_other_work(ledger):
 
 @pytest.mark.parametrize('hold', [
     {'snoozed_until': '2026-11-10T08:00:00+00:00'}, {'waiting_for': 'fixture'},
-    {'stale': True},
+    {'stale': True}, {'snooze_until': '2026-11-10T08:00:00+00:00'},
 ])
 def test_chase_holds_stay_quiet(ledger, hold):
     rule(ledger, 'due_source_check')
@@ -452,6 +452,30 @@ def test_a_loop_deadline_waits_while_its_nudge_is_in_flight_and_wakes_after(ledg
     ledger.put('action', 'loop-fixture:nudge:day2', {'title': 'nudge'}, status='cancelled')
     released = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T12:05'))
     assert released['wakeAgent'] and released['due_action_ids'] == ['loop-fixture']
+
+
+def test_a_loop_done_without_confirmation_wakes_to_ask_for_it(ledger):
+    rule(ledger, 'due_source_check')
+    ledger.put('action', 'loop-fixture', {
+        'loop_kind': 'waiting_on_them', 'counterparty': 'fixture', 'next_actor': 'them',
+        'opened_at': '2026-11-07T08:00:00+00:00', 'next_step': 'Wait for response',
+    }, action_type='commitment', status='completed')
+    first = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
+    assert first['wakeAgent'] and first['chase_action_ids'] == ['loop-fixture']
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:05'))['wakeAgent']
+
+
+def test_a_routine_accepted_after_its_slot_still_expects_todays_catch_up(ledger):
+    rule(ledger, accepted_at='2026-11-09T09:00:00+00:00')
+    slots = auto.routine_slots(ledger, now=at('2026-11-09T10:00'))
+    assert [(s['logical'], s['due_at']) for s in slots] == [('2026-11-09', '2026-11-09T09:00:00+00:00')]
+    assert auto.routine_slots(ledger, now=at('2026-11-09T08:30')) == []
+
+
+def test_a_quiet_hours_change_is_a_schedule_change(ledger):
+    assert 'schedule_changed_at' not in preferences(ledger, {'brief_time': '08:00'})
+    changed = preferences(ledger, {'quiet_hours': {'start': '22:00', 'end': '09:00'}})
+    assert changed.get('schedule_changed_at')
 
 
 def test_an_evening_brief_is_not_replaced_by_the_default_end_of_day(ledger):

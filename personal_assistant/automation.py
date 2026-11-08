@@ -534,7 +534,10 @@ def routine_slots(ledger, *, now=None, date=None, findings=None, health=False):
                                      "reason": "invalid_" + key, "at": current.isoformat()})
                 continue
             at = dt.datetime.combine(day, clock, ZoneInfo(zone))
-            if at > current or any(_value_time(r.get("accepted_at"), zone) and _value_time(r["accepted_at"], zone) > at for r in rules): continue
+            # A rule accepted after the slot still gets today's occurrence: the precheck catches it up from acceptance.
+            accepted = [t for t in (_value_time(r.get("accepted_at"), zone) for r in rules) if t]
+            at = max(at, *accepted) if accepted else at
+            if at > current: continue
             try:
                 at = _eligible_slot(prefs, rules, at, zone) if health else _after_quiet(prefs, at, zone)
             except ValueError as error:

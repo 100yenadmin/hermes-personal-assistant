@@ -60,7 +60,7 @@ def preferences(ledger, changes=None):
                 or ("snooze_until" in changes and auto.snooze_released(old.get("snooze_until"), changes["snooze_until"], merged.get("timezone") or "UTC"))):
             updates["routine_resumed_at"] = auto._now(None, "UTC").isoformat()
         if prior and any(key in changes and changes[key] != old.get(key, auto.DEFAULTS.get(key))
-                         for key in ("timezone", "brief_time", "eod_time", *WEEKLY_SLOT_KEYS, "cos_daily_time")):
+                         for key in ("timezone", "brief_time", "eod_time", "quiet_hours", *WEEKLY_SLOT_KEYS, "cos_daily_time")):
             updates["schedule_changed_at"] = auto._now(None, "UTC").isoformat()
         prior = ledger.put("action", "pa:preferences", updates, action_type="preferences", status="configured")
     return (prior or {}).get("fields", {})
@@ -315,12 +315,17 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     # Read the canonical loop guidance, including holds, rather than re-derive it.
     from .context import next_actions, nudges_in_flight
     chases, open_loops, offset = [], set(), 0
+    # An action-level snooze holds a loop's chase as it holds its due work below.
+    snoozed = {r["action_id"] for r in actions if r["fields"].get("snooze_until")
+               and (auto._value_time(r["fields"]["snooze_until"], zone) or current) > current}
     if kind == "due_source_check":
         while True:
             page = next_actions(ledger, {"loops_only": True, "at": current.isoformat(), "limit": 20, "offset": offset})
             open_loops.update(item["action_id"] for item in page["candidates"])
+            # A due chase step wakes for a chase or, on a loop done without the other side's confirmation, to ask for it.
             chases.extend(item for item in page["candidates"] if item["chase"]["step"] != "none"
-                          and item["next_step"].startswith("Chase")
+                          and item["next_step"].startswith(("Chase", "Kanban or status shows done"))
+                          and item["action_id"] not in snoozed
                           and not auto.notification_receipt(ledger, auto.notification_occurrence_id("chase-step", item["action_id"], item["chase"]["step"])))
             offset = page["next_offset"]
             if offset is None: break
