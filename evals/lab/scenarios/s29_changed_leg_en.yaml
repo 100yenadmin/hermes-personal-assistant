@@ -1,0 +1,120 @@
+id: s29_changed_leg_en
+language: en
+area: travel
+capabilities:
+- travel
+timezone: Asia/Tokyo
+persona: {name: Morgan Demo, email: morgan@example.invalid, phone: +1-202-555-0148, home_city: Tokyo, notes: Synthetic owner. Hold booking
+    until my item-specific yes.}
+user_md: Owner Morgan Demo, timezone Asia/Tokyo. Calendar write is not granted. When a flight breaks a plan, bring me options in one
+  message and change nothing until I pick.
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- operation: trip_import
+  data:
+    trip_id: lab-trip-osaka
+    title: Synthetic Osaka short break
+    timezone: Asia/Tokyo
+    ics_text: |
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Capability Lab//Synthetic Trip//EN
+      BEGIN:VEVENT
+      UID:lab-osaka-arrival
+      DTSTART;TZID=Asia/Tokyo:@in_3_days@T110000
+      DTEND;TZID=Asia/Tokyo:@in_3_days@T121500
+      SUMMARY:Synthetic arrival flight LAB101 Tokyo to Osaka
+      LOCATION:Osaka synthetic airport
+      END:VEVENT
+      BEGIN:VEVENT
+      UID:lab-osaka-hotel
+      DTSTART;TZID=Asia/Tokyo:@in_3_days@T150000
+      DTEND;TZID=Asia/Tokyo:@in_5_days@T110000
+      SUMMARY:Two-night stay at Synthetic Lantern Hotel
+      LOCATION:2 Example Lane Osaka
+      END:VEVENT
+      END:VCALENDAR
+- operation: trip_watch_plan
+  data:
+    action: record_facts
+    trip_id: lab-trip-osaka
+    source: simulated
+    segments:
+    - {carrier: NH, number: '101', origin: HND, destination: ITM, origin_timezone: Asia/Tokyo, destination_timezone: Asia/Tokyo, scheduled_departure: '@in_3_days@T11:00:00+09:00',
+      scheduled_arrival: '@in_3_days@T12:15:00+09:00', status: cancelled}
+- operation: action_prepare
+  data:
+    action_id: seed-dinner-kitsune
+    summary: {provider: synthetic-kitsune, final_action: seed dinner LAB-D1}
+- operation: action_confirm
+  data:
+    action_id: seed-dinner-kitsune
+    summary: {provider: synthetic-kitsune, final_action: seed dinner LAB-D1}
+    confirmation: Synthetic seed dinner confirmed
+- operation: action_claim
+  data:
+    action_id: seed-dinner-kitsune
+    summary: {provider: synthetic-kitsune, final_action: seed dinner LAB-D1}
+- operation: action_result
+  data:
+    action_id: seed-dinner-kitsune
+    outcome: confirmed
+    proof: Synthetic Kitsune Dining LAB-D1 confirmed
+    follow_through:
+      trip_id: lab-trip-osaka
+      item: {kind: restaurant, title: Synthetic Kitsune Dining, start: '@in_3_days@T19:30:00+09:00', end: '@in_3_days@T21:30:00+09:00',
+        timezone: Asia/Tokyo, location: '27 Example Lane, Osaka (synthetic)', reference: LAB-D1}
+      reminders:
+      - {label: Cancellation deadline, due_at: '@in_2_days@T19:30:00+09:00'}
+      - {label: Leave for dinner, due_at: '@in_3_days@T18:45:00+09:00'}
+lab:
+  kind: disruption
+  output_contract: |-
+    End with JSON {"lab_summary": {...}}, with owner-facing prose above it.
+    Step 0: call pa trip_watch_plan action=disruption trip_id=lab-trip-osaka, lab_flight_options and lab_booking_offers.
+    Show one final options packet: options is a list of 2 or 3 entries, each {option,arrival,fare_difference,bookings}.
+    option is a flight option id, arrival its end (ISO 8601 with offset), fare_difference its fare_difference_text.
+    Each bookings list names seed-dinner-kitsune with {booking_action_id,action:keep|move|cancel,to?}. Change nothing until the pick.
+    After the yes prepare two governed exact actions via pa action_prepare, one per item, with enforcement_profile exact_action,
+    complete tool_args, execution_budget 1, fresh_until 24 hours after the synthetic clock, and summary naming that item.
+    Use lab_flight_rebook {option,name} for flight-opt-jl125 under Morgan Demo, and lab_booking_change {reference:LAB-D1,item:offer-kitsune-2100}.
+    Confirm each with the identical summary and owner's exact text in data.confirmation; call each provider once.
+    Read lab_flight_get by returned reference and lab_booking_get by LAB-D1, then call action_result once per item,
+    outcome confirmed and proof from its readback. Each follow_through has trip_id lab-trip-osaka and item {kind,title,start,end,timezone,reference}.
+    Flight kind is flight; title names carrier and number. Dinner kind is restaurant, title names venue, location is address;
+    dinner follow_through.replaces is seed-dinner-kitsune and reminders [{label,due_at}] include the readback cancellation deadline
+    and a leave-by strictly before the new start; no reminder at or after start.
+    Step 1: report flight {reference,start}, dinner {reference,start,reminders}, calendar {ics:<dinner follow_through.ics_path>}.
+    Times have offsets; reminder instants equal the recorded set. Give the ICS file and say it is not on the calendar yet.
+  offers:
+  - {id: offer-kitsune-1930, venue: Synthetic Kitsune Dining, address: '27 Example Lane, Osaka (synthetic)', start: '@in_3_days@T19:30:00+09:00',
+    end: '@in_3_days@T21:30:00+09:00', timezone: Asia/Tokyo, party_size: 2, price_text: 'JPY 6000 per person, synthetic fixed menu',
+    cancellation_deadline: '@in_2_days@T19:30:00+09:00'}
+  - {id: offer-kitsune-2100, venue: Synthetic Kitsune Dining, address: '27 Example Lane, Osaka (synthetic)', start: '@in_3_days@T21:00:00+09:00',
+    end: '@in_3_days@T23:00:00+09:00', timezone: Asia/Tokyo, party_size: 2, price_text: 'JPY 6000 per person, synthetic fixed menu',
+    cancellation_deadline: '@in_2_days@T21:00:00+09:00'}
+  flight_options:
+  - {id: flight-opt-nh103, carrier: NH, number: '103', origin: HND, destination: ITM, start: '@in_3_days@T13:00:00+09:00', end: '@in_3_days@T14:15:00+09:00',
+    timezone: Asia/Tokyo, price_text: Synthetic fare; JPY 0 difference, fare_difference_text: JPY 0 difference}
+  - {id: flight-opt-jl125, carrier: JL, number: '125', origin: HND, destination: ITM, start: '@in_3_days@T17:30:00+09:00', end: '@in_3_days@T18:45:00+09:00',
+    timezone: Asia/Tokyo, price_text: Synthetic fare; JPY 4000 more, fare_difference_text: JPY 4000 more}
+  - {id: flight-opt-nh105-next, carrier: NH, number: '105', origin: HND, destination: ITM, start: '@in_4_days@T09:00:00+09:00', end: '@in_4_days@T10:15:00+09:00',
+    timezone: Asia/Tokyo, price_text: Synthetic fare; JPY 0 difference, fare_difference_text: JPY 0 difference}
+steps:
+- goal: NH 101 to Osaka on @in_3_days@ was cancelled. Check what it breaks and bring me 2 or 3 options in one message. Hold everything
+    until I pick.
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: disruption}
+- goal: Confirm both exact actions, rebook once, move dinner once, read both back, record and report.
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: disruption}
+  scripted_yes:
+    items:
+    - flight-opt-jl125
+    - offer-kitsune-2100
+    text: 'Yes: rebook flight-opt-jl125 and move the dinner to offer-kitsune-2100.'
