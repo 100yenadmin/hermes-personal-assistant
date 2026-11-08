@@ -116,6 +116,8 @@ Verify these with the relevant read tool, then record the readback with another
 `action_upsert`. `action_result` is only for a provider submission already
 claimed through the transaction state machine.
 
+Load `personal-assistant:finance-admin` when the owner forwards or mentions an invoice or bill.
+
 ## Open loops
 
 Every open loop is a commitment action with `fields.loop_kind` (`ask_owner`,

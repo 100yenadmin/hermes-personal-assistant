@@ -23,6 +23,7 @@ REQUIRED_SKILLS = {
     "airline-check-in",
     "browserbase-checkout-lane",
     "daily-ops",
+    "finance-admin",
     "follow-through",
     "food-delivery-to-hotel",
     "hotel-check-in",
