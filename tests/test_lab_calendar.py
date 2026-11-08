@@ -67,7 +67,7 @@ def test_schema_and_catalogue():
     assert s["capabilities"] == ["calendar"]
     assert s["steps"][0]["expect"] == {"calendar": True}
     area = next(a for a in AREAS if a["key"] == "calendar")
-    assert area["tests"] == [{"scenario": SCENARIO, "kind": "partial",
+    assert area["tests"][:1] == [{"scenario": SCENARIO, "kind": "partial",
                              "label": "calendar reads and conflicts (lab stand-in for the provider read)", "covers": [1, 2, 6]}]
     research = next(a for a in AREAS if a["key"] == "research")
     assert research["tests"][0]["covers"] == [0, 1, 2, 3, 4]
@@ -230,7 +230,7 @@ def test_report_scorecard_and_digest(tmp_path, monkeypatch):
     assert all(r["pass"] for r in summary["runs"])
     card = build("0.9.0-rc.2", SHA, [tmp_path])
     area = next(a for a in card["areas"] if a["key"] == "calendar")
-    assert area["partial"]["state"] == "pass" and area["lab"] == "unproven"
+    assert area["partial"]["state"] == "incomplete" and area["lab"] == "unproven"
     assert area["tests"][0]["passed"] == area["tests"][0]["runs"] == 3
     digest = judge.digest(tmp_path / "r0")
     assert digest["calendar"]["valid_windows"] == cal.valid_windows(scenario()["calendar"])
@@ -703,8 +703,7 @@ def test_fix3_r2_fix_with_trailing_dash():
 def test_fix3_r3_protection_cannot_mask_focus_change(line):
     text = answer().replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", line)
     kept = line in ("Focus: Use Deep work for the Partner sync, no other change.",
-                    "Focus: Keep Monday clear; book the meeting during Deep work.",
-                    "Focus: Don't worry, I'd move Deep work to Tuesday.")
+                    "Focus: Keep Monday clear; book the meeting during Deep work.")
     assert evaluate(text)["checks"]["focus_kept"] is kept
 
 
@@ -912,3 +911,30 @@ def test_focus_template_line_passes():
 
 def test_slot_instruction_asks_for_new_free_times():
     assert "proposed new slot (a free time, not an existing event)" in runner.system_prompt(scenario())
+
+
+@pytest.mark.parametrize("focus", [
+    "Deep work Tuesday 09:00–12:00 SGT unchanged",
+    "Deep work Monday 09:30–12:00 SGT unchanged",
+    "Deep work Monday 09:00–11:30 SGT unchanged",
+])
+def test_s19_focus_explicit_day_and_range_match_fixture(focus):
+    text = answer().replace("Keep Deep work Monday 09:00–12:00 SGT unchanged.", focus)
+    assert not evaluate(text)["checks"]["focus_kept"]
+
+
+@pytest.mark.parametrize("extra,valid", [
+    ("14:00–14:45 London / 09:00–09:45 New York", True),
+    ("13:00–13:45 London / 09:00–09:45 New York", False),
+    ("14:00–15:00 London / 09:00–09:45 New York", False),
+    ("14:00–14:45 BST / 09:00–09:45 New York", False),
+])
+def test_s19_all_extra_slot_ranges_checked(extra, valid):
+    text = answer().replace("Tuesday 22:00–22:45 SGT", "Tuesday 22:00–22:45 SGT (" + extra + ")")
+    assert evaluate(text)["checks"]["slot_valid"] is valid
+
+
+def test_s19_parsed_summary_in_digest(tmp_path):
+    synthetic_run(tmp_path / "r")
+    rows = judge.digest(tmp_path / "r")["calendar"]["summary_rows"]
+    assert rows == [{"step": 0, "rows": cal.summary(answer())}]

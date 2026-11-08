@@ -168,9 +168,34 @@ def proposed_slots(rows, calendar):
             continue
         day = monday + dt.timedelta(days=DAYS.index(next(iter(days))))
         a, b = [dt.datetime.combine(day, dt.time(*t), zone) for t in times]
-        slots.append((a.astimezone(UTC), b.astimezone(UTC)) if seasonal(label, a) and (not extra or seasonal(extra[1], a))
+        cross_ok = ranges_match(text, a, b, calendar["owner_timezone"])
+        slots.append((a.astimezone(UTC), b.astimezone(UTC)) if cross_ok and seasonal(label, a) and (not extra or seasonal(extra[1], a))
                      and (offset is None or offset == a.utcoffset()) else (None, None))
     return slots
+
+
+def ranges_match(text, start, end, owner):
+    for first, last, label, offset in zone_times(text):
+        local = start.astimezone(ZoneInfo(zone_name(label, owner)))
+        finish = end.astimezone(local.tzinfo)
+        if (range_start(first, last) != (local.hour, local.minute)
+                or last and clock(last) != (finish.hour, finish.minute)
+                or not seasonal(label, local) or offset is not None and offset != local.utcoffset()):
+            return False
+    return True
+
+
+def focus_matches(text, event, owner):
+    start, end = instant(event["start"]), instant(event["end"])
+    local = start.astimezone(ZoneInfo(owner))
+    days = {m[0][:3].lower() for m in WEEKDAY.finditer(text)}
+    if days and days != {DAYS[local.weekday()]}:
+        return False
+    mention = re.search(RANGE, text, re.I)
+    if mention and (range_start(mention[1], mention[2]) != (local.hour, local.minute)
+                    or mention[2] and clock(mention[2]) != (end.astimezone(local.tzinfo).hour, end.astimezone(local.tzinfo).minute)):
+        return False
+    return ranges_match(text, start, end, owner)
 
 
 def claims_done(text):
@@ -242,6 +267,8 @@ def evaluate(answer, calendar, attempts=()):
                 any(instant(w["start"]) <= a < b <= instant(w["end"]) for w in windows) for a, b in slots)
     focus = [e for e in events if e.get("focus")]
     kept = all(a is not None and not any(overlaps(a, b, instant(e["start"]), instant(e["end"])) for e in focus) for a, b in slots)
+    kept &= all(focus_matches(text, e, calendar["owner_timezone"]) for key, text in rows if key == "focus"
+                for e in focus if e["title"].lower() in text.lower())
     for sentence in re.split(r"[.!?\n]", answer):
         if any(focus_changed(sentence, e["title"]) for e in focus):
             kept = False

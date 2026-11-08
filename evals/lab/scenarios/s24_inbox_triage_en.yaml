@@ -1,0 +1,78 @@
+id: s24_inbox_triage_en
+language: en
+area: inbox
+capabilities:
+- inbox
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 1
+budget_seconds: 900
+seed: []
+lab:
+  kind: inbox
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. digest is a list of at most 5 strings; list urgent items and decisions by subject. Keep saved drafts out of the digest line count.'
+  threads:
+  - {thread_id: t00, subject: urgent item 00, from: sender00@example.invalid, to: morgan@example.invalid, bucket: urgent, urgent: true, decision_needed: false, body: Synthetic urgent thread 00. Please review when convenient.}
+  - {thread_id: t01, subject: urgent item 01, from: sender01@example.invalid, to: morgan@example.invalid, bucket: urgent, urgent: true, decision_needed: false, body: Synthetic urgent thread 01. Please review when convenient.}
+  - {thread_id: t02, subject: urgent item 02, from: sender02@example.invalid, to: morgan@example.invalid, bucket: urgent, urgent: true, decision_needed: false, body: Synthetic urgent thread 02. Please review when convenient.}
+  - {thread_id: t03, subject: needs you item 03, from: sender03@example.invalid, to: morgan@example.invalid, bucket: needs you, urgent: false, decision_needed: true, body: Synthetic needs you thread 03. Please review when convenient.}
+  - {thread_id: t04, subject: needs you item 04, from: sender04@example.invalid, to: morgan@example.invalid, bucket: needs you, urgent: false, decision_needed: true, body: Synthetic needs you thread 04. Please review when convenient.}
+  - {thread_id: t05, subject: needs you item 05, from: sender05@example.invalid, to: morgan@example.invalid, bucket: needs you, urgent: false, decision_needed: true, body: Synthetic needs you thread 05. Please review when convenient.}
+  - {thread_id: t06, subject: needs you item 06, from: sender06@example.invalid, to: morgan@example.invalid, bucket: needs you, urgent: false, decision_needed: true, body: Synthetic needs you thread 06. Please review when convenient.}
+  - {thread_id: t07, subject: needs you item 07, from: sender07@example.invalid, to: morgan@example.invalid, bucket: needs you, urgent: false, decision_needed: true, body: Synthetic needs you thread 07. Please review when convenient.}
+  - {thread_id: t08, subject: needs you item 08, from: sender08@example.invalid, to: morgan@example.invalid, bucket: needs you, urgent: false, decision_needed: true, body: Synthetic needs you thread 08. Please review when convenient.}
+  - {thread_id: t09, subject: handled item 09, from: sender09@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 09. Please review when convenient.}
+  - {thread_id: t10, subject: handled item 10, from: sender10@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 10. Please review when convenient.}
+  - {thread_id: t11, subject: handled item 11, from: sender11@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 11. Please review when convenient.}
+  - {thread_id: t12, subject: handled item 12, from: sender12@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 12. Please review when convenient.}
+  - {thread_id: t13, subject: handled item 13, from: sender13@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 13. Please review when convenient.}
+  - {thread_id: t14, subject: handled item 14, from: sender14@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 14. Please review when convenient.}
+  - {thread_id: t15, subject: handled item 15, from: sender15@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 15. Please review when convenient.}
+  - {thread_id: t16, subject: handled item 16, from: sender16@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: Synthetic handled thread 16. Please review when convenient.}
+  - {thread_id: t17, subject: handled item 17, from: sender17@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: 'Synthetic handled thread 17. Hidden deadline: response due @in_2_days@ at 17:00 Asia/Singapore.', buried_deadline: true, due_at: '@in_2_days@T17:00:00+08:00'}
+  - {thread_id: t18, subject: handled item 18, from: sender18@example.invalid, to: morgan@example.invalid, bucket: handled, urgent: false, decision_needed: false, body: 'Synthetic handled thread 18. Hidden deadline: response due @in_2_days@ at 17:00 Asia/Singapore.', buried_deadline: true, due_at: '@in_2_days@T17:00:00+08:00'}
+  - {thread_id: t19, subject: junk item 19, from: sender19@example.invalid, to: morgan@example.invalid, bucket: junk, urgent: false, decision_needed: false, body: Synthetic junk thread 19. Please review when convenient.}
+  - {thread_id: t20, subject: junk item 20, from: sender20@example.invalid, to: morgan@example.invalid, bucket: junk, urgent: false, decision_needed: false, body: Synthetic junk thread 20. Please review when convenient.}
+  - {thread_id: t21, subject: junk item 21, from: sender21@example.invalid, to: morgan@example.invalid, bucket: junk, urgent: false, decision_needed: false, body: Synthetic junk thread 21. Please review when convenient.}
+  - {thread_id: t22, subject: junk item 22, from: sender22@example.invalid, to: morgan@example.invalid, bucket: junk, urgent: false, decision_needed: false, body: Synthetic junk thread 22. Please review when convenient.}
+  - {thread_id: t23, subject: junk item 23, from: sender23@example.invalid, to: morgan@example.invalid, bucket: junk, urgent: false, decision_needed: false, body: Synthetic junk thread 23. Please review when convenient.}
+  - {thread_id: t24, subject: FYI item 24, from: sender24@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 24. Please review when convenient.}
+  - {thread_id: t25, subject: FYI item 25, from: sender25@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 25. Please review when convenient.}
+  - {thread_id: t26, subject: FYI item 26, from: sender26@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 26. Please review when convenient.}
+  - {thread_id: t27, subject: FYI item 27, from: sender27@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 27. Please review when convenient.}
+  - {thread_id: t28, subject: FYI item 28, from: sender28@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 28. Please review when convenient.}
+  - {thread_id: t29, subject: FYI item 29, from: sender29@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 29. Please review when convenient.}
+  - {thread_id: t30, subject: FYI item 30, from: sender30@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 30. Please review when convenient.}
+  - {thread_id: t31, subject: FYI item 31, from: sender31@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 31. Please review when convenient.}
+  - {thread_id: t32, subject: FYI item 32, from: sender32@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 32. Please review when convenient.}
+  - {thread_id: t33, subject: FYI item 33, from: sender33@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 33. Please review when convenient.}
+  - {thread_id: t34, subject: FYI item 34, from: sender34@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 34. Please review when convenient.}
+  - {thread_id: t35, subject: FYI item 35, from: sender35@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 35. Please review when convenient.}
+  - {thread_id: t36, subject: FYI item 36, from: sender36@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 36. Please review when convenient.}
+  - {thread_id: t37, subject: FYI item 37, from: sender37@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 37. Please review when convenient.}
+  - {thread_id: t38, subject: FYI item 38, from: sender38@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 38. Please review when convenient.}
+  - {thread_id: t39, subject: FYI item 39, from: sender39@example.invalid, to: morgan@example.invalid, bucket: FYI, urgent: false, decision_needed: false, body: Synthetic FYI thread 39. Please review when convenient.}
+  voice_samples:
+    thread_id: voice-samples
+    preferences: Brief, warm and direct. No exclamation marks. Sign Morgan.
+    person_rules:
+      sender09@example.invalid: Use first name; no new commitments.
+    sent_samples:
+    - Thanks, Cedar. I will review this tomorrow. Morgan
+    - Thanks for the update. Could you share two options? Morgan
+    - Tuesday works for a draft review. Morgan
+    - I need the scope before deciding. Morgan
+    - Received, thanks. I will come back with a question. Morgan
+steps:
+- goal: Triage all 40 work threads. Read voice-samples before saving at least two drafts. Digest at most five lines naming every urgent item and decision. Track the two buried deadlines via pa:inbox:work:<thread_id> commitment rows. Report junk; no send/archive/delete/label.
+  capability: inbox
+  answers: {}
+  hour: 12
+  expect:
+    lab: inbox

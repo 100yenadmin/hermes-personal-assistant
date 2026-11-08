@@ -1,0 +1,37 @@
+id: s22_eod_note_en
+language: en
+area: reporting
+capabilities:
+- reporting
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- {operation: action_upsert, data: {action_id: 'lab:passed', action_type: commitment, status: completed, fields: {title: passed task, evidence: Synthetic check P1 passed, due_at: '@today@T09:00:00+08:00', blocked_reason: ''}}}
+- {operation: action_upsert, data: {action_id: 'lab:pending', action_type: commitment, status: open, fields: {title: pending task, evidence: Synthetic check P2 pending, due_at: '@today@T09:00:00+08:00', blocked_reason: ''}}}
+- {operation: action_upsert, data: {action_id: 'lab:blocked', action_type: commitment, status: blocked, fields: {title: blocked task, evidence: 'Synthetic check P3 blocked: owner scope missing', due_at: '@today@T09:00:00+08:00', blocked_reason: Owner scope decision missing}}}
+lab:
+  kind: eod
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. sections maps Done / In progress / Blocked with questions to lists of {action_id, evidence, question (if blocked)}. Show those same labels in the owner note.'
+  tasks:
+    lab:passed: Done
+    lab:pending: In progress
+    lab:blocked: Blocked with questions
+steps:
+- goal: Run the end_of_day occurrence of daily_brief after eod_time. Report only recorded evidence, and end each blocked item with a question.
+  capability: reporting
+  answers: {}
+  hour: 19
+  expect:
+    lab: eod
+  type: scheduled
+  job: daily_brief
+preferences:
+  eod_time: '18:00'

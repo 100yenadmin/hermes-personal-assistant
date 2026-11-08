@@ -1,0 +1,34 @@
+id: s23_broken_routine_en
+language: en
+area: reporting
+capabilities:
+- reporting
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- {operation: action_upsert, data: {action_id: 'pa:routine-health:collector', action_type: note, status: open, fields: {title: due_source_check failure, routine: due_source_check, kind: collector, error: Synthetic source unavailable, at: '@now@'}}}
+- {operation: action_upsert, data: {action_id: 'lab:unreceipted', action_type: notification, status: claimed, fields: {title: due_source_check claimed without receipt, routine: due_source_check, notification_occurrence_id: synthetic-missing-receipt, notification_state: claimed, rule_id: due_source_check, claimed_at: '@days_ago_1@T12:00:00+08:00'}}}
+lab:
+  kind: health
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. exception names the broken routine; missing_receipt identifies the unreceipted claim.'
+  broken_routine: due_source_check
+  preserve_ids:
+  - pa:routine-health:collector
+  - lab:unreceipted
+steps:
+- goal: Run daily_brief. Read pa automations health; flag due_source_check failure and missing receipt in this cycle. Do not fix or mark delivered.
+  capability: reporting
+  answers: {}
+  hour: 12
+  expect:
+    lab: health
+  type: scheduled
+  job: daily_brief
