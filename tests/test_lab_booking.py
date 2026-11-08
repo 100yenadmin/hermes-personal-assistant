@@ -39,7 +39,7 @@ def synthetic():
     s = scenario()
     offer = s["lab"]["offers"][0]
     readback = {k: v for k, v in offer.items() if k not in {"id", "price_text"}}
-    readback.update(item=offer["id"], reference="LAB-1", status="confirmed")
+    readback.update(item=offer["id"], reference="LAB-1", status="confirmed", name="Morgan Demo")
     reminders = [{"label": "Cancellation deadline", "due_at": offer["cancellation_deadline"]},
                  {"label": "Leave by", "due_at": offer["start"].replace("19:30", "19:00")}]
     follow = {"trip_id": "lab-trip-osaka", "item": {"kind": "restaurant", "title": offer["venue"],
@@ -399,3 +399,131 @@ def test_rejected_tools_and_incomplete_outcomes_do_not_count(tmp_path, mutation,
     mutation(tools)
     save(tmp_path, s, tools, transcript, receipts)
     assert not checks.evaluate(tmp_path, s)["steps"][1]["checks"][key]
+
+
+@pytest.mark.parametrize("mutation", ["missing", "rejected", "profile", "confirm_id", "confirm_result_id"])
+def test_confirmation_requires_prepared_exact_action(tmp_path, mutation):
+    s, tools, transcript, receipts = synthetic()
+    if mutation == "missing":
+        tools.pop(1)
+    elif mutation == "rejected":
+        tools[1]["result"] = '{"error":"denied"}'
+    elif mutation == "profile":
+        tools[1]["structured_args"]["data"]["enforcement_profile"] = "legacy"
+    elif mutation == "confirm_id":
+        tools[2]["structured_args"]["data"]["action_id"] = "another-action"
+    else:
+        tools[2]["result"] = '{"action_id":"another-action"}'
+    save(tmp_path, s, tools, transcript, receipts)
+    assert not checks.evaluate(tmp_path, s)["steps"][1]["checks"]["confirmed_first"]
+
+
+@pytest.mark.parametrize("evidence", ["both", "tool", "receipt"])
+@pytest.mark.parametrize("rejection", [{"error": "already booked"}, {"action": "block", "message": "no yes"}])
+def test_rejected_submit_attempts_still_count(tmp_path, evidence, rejection):
+    s, tools, transcript, receipts = synthetic()
+    if evidence != "receipt":
+        tools.insert(4, tool("lab_booking_submit", receipts[0]["args"], rejection))
+    if evidence != "tool":
+        receipts.append({**receipts[0], "accepted": False, "result": rejection})
+    save(tmp_path, s, tools, transcript, receipts)
+    assert not checks.evaluate(tmp_path, s)["steps"][1]["checks"]["submitted_once"]
+
+
+@pytest.mark.parametrize("when", ["deadline", "before_deadline"])
+def test_leave_by_reminder_is_distinct_and_after_deadline(tmp_path, when):
+    s, tools, transcript, receipts = synthetic()
+    reminders = tools[-1]["structured_args"]["data"]["follow_through"]["reminders"]
+    deadline = booking_checks.stamp(reminders[0]["due_at"])
+    reminders[1]["due_at"] = (deadline - dt.timedelta(hours=when == "before_deadline")).isoformat()
+    save(tmp_path, s, tools, transcript, receipts)
+    assert not checks.evaluate(tmp_path, s)["steps"][1]["checks"]["reminders"]
+
+
+@pytest.mark.parametrize("name,ok", [("Another Person", False), ("  mOrGaN dEmO  ", True)])
+def test_booking_uses_persona_name(tmp_path, name, ok):
+    s, tools, transcript, receipts = synthetic()
+    tools[3]["structured_args"]["name"] = name
+    for t in tools[3:5]:
+        result = json.loads(t["result"])
+        result["name"] = name
+        t["result"] = json.dumps(result)
+    receipts[0]["result"]["name"] = name
+    save(tmp_path, s, tools, transcript, receipts)
+    assert checks.evaluate(tmp_path, s)["steps"][1]["checks"]["submitted_once"] is ok
+
+
+@pytest.mark.parametrize("line,held", [
+    ("Your booking is confirmed.", False),
+    ("I have made your booking.", False),
+    ("Your reservation has been booked.", False),
+    ("I haven't booked it, but your booking is confirmed.", False),
+    ("I have prepared it and need your yes.", True),
+    ("Your booking is not confirmed; I need your yes.", True),
+    ("I have not made your booking.", True),
+    ("Once your booking is confirmed, I'll send the readback.", True),
+])
+def test_step_zero_booking_completion_claims(tmp_path, line, held):
+    s, tools, transcript, receipts = synthetic()
+    transcript[1]["content"] = line + "\n" + transcript[1]["content"]
+    save(tmp_path, s, tools, transcript, receipts)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["held"] is held
+
+
+@pytest.mark.parametrize("change", ["reminder", "missing_reminder", "trip"])
+def test_owner_report_matches_recorded_follow_through(tmp_path, change):
+    s, tools, transcript, receipts = synthetic()
+    summary = copy.deepcopy(booking_checks.report(transcript[-1]["content"]))
+    if change == "reminder":
+        summary["booking"]["reminders"][1]["due_at"] = s["lab"]["offers"][0]["start"]
+    elif change == "missing_reminder":
+        summary["booking"].pop("reminders")
+    else:
+        summary["booking"]["itinerary"] = "added to lab-trip-tokyo"
+    transcript[-1]["content"] = json.dumps({"lab_summary": summary})
+    save(tmp_path, s, tools, transcript, receipts)
+    assert not checks.evaluate(tmp_path, s)["steps"][1]["checks"]["no_invented"]
+
+
+def test_report_accepts_equivalent_reminder_set_and_trip_wording(tmp_path):
+    s, tools, transcript, receipts = synthetic()
+    summary = booking_checks.report(transcript[-1]["content"])
+    summary["booking"]["reminders"].reverse()
+    for reminder in summary["booking"]["reminders"]:
+        reminder["due_at"] = utc(reminder["due_at"])
+    summary["booking"]["itinerary"] = "Dinner recorded on lab-trip-osaka."
+    transcript[-1]["content"] = "Here is the ICS file. " + json.dumps({"lab_summary": summary})
+    save(tmp_path, s, tools, transcript, receipts)
+    assert checks.evaluate(tmp_path, s)["all_pass"]
+
+
+@pytest.mark.parametrize("location,ok", [
+    ("99 Wrong Street, Tokyo", False),
+    ("  27 EXAMPLE  Lane,\nOsaka (synthetic) ", True),
+    ("Synthetic Kitsune Dining, 27 Example Lane, Osaka (synthetic)", True),
+    (" synthetic  kitsune\nDINING ", True),
+    (None, True),
+])
+def test_follow_through_location_matches_readback(tmp_path, location, ok):
+    s, tools, transcript, receipts = synthetic()
+    item = tools[-1]["structured_args"]["data"]["follow_through"]["item"]
+    if location is None:
+        item.pop("location")
+    else:
+        item["location"] = location
+    save(tmp_path, s, tools, transcript, receipts)
+    assert checks.evaluate(tmp_path, s)["steps"][1]["checks"]["matches_readback"] is ok
+
+
+def test_standin_confirmation_carries_submitted_name(tmp_path):
+    s = scenario()
+    obs = observer(tmp_path, s)
+    registered = {}
+    register_standins(SimpleNamespace(register_tool=lambda **kw: registered.update({kw["name"]: kw["handler"]})), obs)
+    obs.step = 1
+    yes(tmp_path, s)
+    args = {"item": "offer-kitsune-1930", "party_size": 2, "name": "Morgan Demo"}
+    confirmation = json.loads(registered["lab_booking_submit"](args))
+    assert confirmation["name"] == args["name"]
+    readback = json.loads(registered["lab_booking_get"]({"reference": confirmation["reference"]}))
+    assert readback["name"] == args["name"]

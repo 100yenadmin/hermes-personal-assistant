@@ -411,7 +411,7 @@ def register_booking(ctx, obs):
             else:
                 offer = offers[args["item"]]
                 result = {k: v for k, v in offer.items() if k not in {"id", "price_text"}}
-                result.update(reference="LAB-" + str(len(bookings) + 1), status="confirmed", item=args["item"])
+                result.update(reference="LAB-" + str(len(bookings) + 1), status="confirmed", item=args["item"], name=args["name"])
                 bookings[args["item"]] = result
             append(obs.out / "booking-calls.jsonl", {"name": name, "step": obs.step, "args": args,
                    "result": result, "accepted": "error" not in result})
