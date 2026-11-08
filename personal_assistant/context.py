@@ -92,6 +92,11 @@ def _action_summary(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_UNRESOLVED_ATTEMPT = {"submitting", "unknown", "claimed_once", "provider_result"}
+_TRANSACTION_HOLD = _UNRESOLVED_ATTEMPT | {"paused", "prepared", "approval_required", "authorized",
+                                          "approved_revision", "failed"}
+
+
 def _iso_time(value: Any, *, timestamp: bool = False) -> bool:
     if not isinstance(value, str) or (timestamp and len(value.strip()) <= 10):
         return False
@@ -112,6 +117,8 @@ def loop_fields(fields: dict[str, Any]) -> dict[str, Any]:
     if "next_actor" in fields and (not isinstance(fields["next_actor"], str) or fields["next_actor"] not in NEXT_ACTORS):
         raise ValueError("next_actor must be owner, us or them")
     for name in ("opened_at", "last_chased_at", "snoozed_until"):
+        if name == "snoozed_until" and fields.get(name) in (None, ""):
+            continue  # Clearing a snooze is allowed.
         if name in fields and not _iso_time(fields[name]):
             raise ValueError(f"{name} must be an ISO date or timestamp")
     if "confirmation" in fields and not _confirmed(fields):
@@ -364,7 +371,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         state = loop_state(action, kanban)
         status = action.get("status")
         if loop:
-            # Only the other side's confirmation closes a loop; an owner cancellation withdraws it.
+            # The other side's confirmation closes a loop, and so does the owner's cancellation.
             if state == "closed":
                 excluded_closed_loops += 1
                 continue
@@ -401,13 +408,13 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             item["next_step"] = f"Keep paused for {reason}; recheck at {recheck} before resuming."
         elif stale:
             item["next_step"] = "Refresh stale or unknown source evidence before choosing an execution step."
-        elif status in {"submitting", "unknown"}:
+        elif status in _UNRESOLVED_ATTEMPT:
             item["next_step"] = "Read provider state for the claimed attempt; do not submit again."
-        elif status == "prepared":
+        elif status in {"prepared", "approval_required"}:
             item["next_step"] = "Present the current material details for explicit confirmation."
-        elif status == "authorized":
+        elif status in {"authorized", "approved_revision"}:
             item["next_step"] = "Recheck details, then claim immediately before one provider submission."
-        elif status in {"confirmed", "failed"} and not loop:
+        elif status == "failed" or (status == "confirmed" and not loop):
             item["next_step"] = "Reconcile the provider result with the linked Kanban commitment."
         else:
             item["next_step"] = (fields.get("next_action") or (loop and fields.get("next_step"))
@@ -415,7 +422,10 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         if loop:
             item["loop_state"] = state
             item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
-            hold = snoozed_until or waiting_for or stale or status in {"paused", "submitting", "unknown"}
+            # A loop row in a transaction lifecycle keeps its transaction instruction; chase
+            # guidance never replaces an approval step or an unresolved provider attempt.
+            hold = (snoozed_until or waiting_for or stale or status in _TRANSACTION_HOLD
+                    or action.get("action_type") == "transaction")
             guidance = None if hold else _loop_step(fields, item)
             if guidance:
                 item["next_step"] = guidance

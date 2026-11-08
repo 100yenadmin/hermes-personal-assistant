@@ -242,6 +242,13 @@ def test_radar_and_next_actions_share_loop_closure(ledger, status, task, confirm
     ("pending", {"stale": True}, "Refresh stale or unknown source evidence"),
     ("pending", {"freshness": "unknown"}, "Refresh stale or unknown source evidence"),
     ("pending", {"snoozed_until": "2026-11-10T10:00:00+09:00"}, "Wait until 2026-11-10"),
+    ("claimed_once", {}, "Read provider state for the claimed attempt; do not submit again."),
+    ("provider_result", {}, "Read provider state for the claimed attempt; do not submit again."),
+    ("prepared", {}, "Present the current material details for explicit confirmation."),
+    ("approval_required", {}, "Present the current material details for explicit confirmation."),
+    ("authorized", {}, "Recheck details, then claim immediately"),
+    ("approved_revision", {}, "Recheck details, then claim immediately"),
+    ("failed", {}, "Reconcile the provider result"),
 ])
 def test_loop_chase_preserves_safety_and_wait_instructions(ledger, status, extra, instruction):
     opened = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=6)).isoformat()
@@ -283,3 +290,21 @@ def test_unanswered_offer_respects_lasting_type_opt_out(ledger, opt_out, trip_id
     assert {item["offer_type"] for item in items} == ({"dinner"} if opt_out else {"airport_transfer", "dinner"})
     assert all(item["radar_kind"] == "unanswered_offer" and item["age_days"] == 5 for item in items)
     assert ledger.list("action") == rows and _fingerprint(ledger.root) == files
+
+
+@pytest.mark.parametrize("trip_id", ["trip:seoul", "seoul"])
+def test_offer_type_is_read_after_a_trip_id_with_colons(ledger, trip_id):
+    offered = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=5)).isoformat()
+    for suffix in ("", ":n_1234abcd"):
+        ledger.put("action", f"pa:offer:{trip_id}:airport_transfer{suffix}", {
+            "outcome": "offered", "history": [{"outcome": "offered", "at": offered}]},
+            action_type="offer", trip_id=trip_id)
+    assert {item["offer_type"] for item in _read(ledger)["candidates"]} == {"airport_transfer"}
+    ledger.put("action", "pa:offer:*:airport_transfer", {"outcome": "opted_out"}, action_type="offer", trip_id="*")
+    assert _read(ledger)["candidates"] == []
+
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_a_loop_snooze_can_be_cleared(value):
+    from personal_assistant.context import loop_fields
+    assert loop_fields({"loop_kind": "ask_owner", "snoozed_until": value})["snoozed_until"] == value

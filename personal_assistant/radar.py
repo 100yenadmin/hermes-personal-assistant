@@ -68,6 +68,15 @@ def _offered_at(fields: dict[str, Any]) -> str | None:
     return stamps[-1] if stamps else None
 
 
+def _offer_type(identity: str, trip_id: Any) -> str | None:
+    """The type in pa:offer:<trip_id>:<type>[:<occurrence>]; trip IDs may contain colons."""
+
+    prefix = f"pa:offer:{trip_id}:" if isinstance(trip_id, str) and trip_id else None
+    if prefix and identity.startswith(prefix):
+        return identity[len(prefix):].split(":")[0] or None
+    return identity.split(":")[3] if identity.count(":") >= 3 else None
+
+
 def _unanswered(action: dict[str, Any], moment: dt.datetime, offer_days: int, local,
                 opt_outs: set[str]) -> dict[str, Any] | None:
     fields, identity = action.get("fields", {}), action["action_id"]
@@ -75,7 +84,7 @@ def _unanswered(action: dict[str, Any], moment: dt.datetime, offer_days: int, lo
         offered = local(_offered_at(fields) or action.get("updated_at"))
         if offered is None or moment - offered <= dt.timedelta(days=offer_days):
             return None
-        offer_type = identity.split(":")[3] if identity.count(":") >= 3 else None
+        offer_type = _offer_type(identity, action.get("trip_id"))
         if f"pa:offer:*:{offer_type}" in opt_outs:
             return None
         return {"action_id": identity, "radar_kind": "unanswered_offer", "trip_id": action.get("trip_id"),

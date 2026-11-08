@@ -122,3 +122,9 @@ def test_follow_through_wakes_only_for_owner_approved_dates():
     assert "Never create a wake for\nyour own chase dates" in section
     reference = (REFERENCES / "reminders-and-wakes.md").read_text()
     assert '"trigger":{"kind":"at"' in reference and '"owner_asked":true' in reference
+
+
+def test_nudges_are_prepared_as_their_own_action():
+    text = SKILL.read_text(encoding="utf-8")
+    assert "`<loop action id>:nudge:<step>`" in text
+    assert "never on the loop's own action" in text
