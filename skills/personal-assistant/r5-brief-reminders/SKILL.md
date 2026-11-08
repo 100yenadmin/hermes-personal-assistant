@@ -77,8 +77,10 @@ an evening brief replaces it. For `end_of_day`, skip the gog morning collector. 
 `pa next_action`, and `pa automations action=health`. Page relevant evidence using
 focused context; missing evidence stays unknown. **Done** also comes from the ledger:
 page `pa context` `kind: action` for rows completed, confirmed or verified today that
-are not notes (a CoS note is "completed" once written), and read each by `action_id` for its `evidence`; an empty evidence register never means
-nothing was done. Write the owner's note with all three sections:
+are not notes (a CoS note is "completed" once written), and read each by `action_id` for its
+`evidence` (a transaction's proof is in `provider_proof`). A loop is Done only once confirmed;
+a `done_unconfirmed` loop stays In progress with its confirmation ask. An empty evidence
+register never means nothing was done. Write the owner's note with all three sections:
 **Done / In progress / Blocked with questions**. Every blocked item ends in a
 question; one that needs the owner's decision also gives `problem`, `options` (2 or 3),
 `recommendation` and `decision_deadline` (say when the deadline is unknown). Nothing is invented. Save a `pa:eod:<local date>` note

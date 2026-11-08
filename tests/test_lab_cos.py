@@ -498,6 +498,7 @@ def test_kickoff_violations_fail(tmp_path, failure, key):
     ("Calendar and inbox are disconnected. I can offer calendar setup.", True),
     ("No callable calendar integration is available. I can help set up calendar access when you authorize it.", True),
     ("Calendar access is unavailable here. I can help set up calendar access.", True),
+    ("Calendar access is not available without authorization, but I checked your calendar. I can offer calendar setup.", False),
     ("This is not calendar-verified. I can offer calendar setup.", True),
     ("I have no calendar access. I can offer calendar setup.", True),
     ("No calendar access problems: I checked Tuesday. I can offer calendar setup.", False),

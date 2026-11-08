@@ -54,7 +54,7 @@ def test_scheduled_receipt_is_unknown_and_eod_is_evidenced():
     for fragment in ('never use a message tool', 'Done / In progress / Blocked with questions',
                      'Every blocked item ends in a question', 'Nothing is invented', 'meetings_to_confirm',
                      'attendees_known: false', 'attendees_omitted', 'twice-daily R6', 'pa:eod:', 'gog',
-                     'an empty evidence register never means nothing was done', '`decision_deadline`'):
+                     'evidence register never means nothing was done', '`decision_deadline`', '`provider_proof`', '`done_unconfirmed` loop stays In progress'):
         assert fragment in flat
     cos = (ROOT / 'skills/cos-daily/SKILL.md').read_text()
     assert 'Done / In progress / Blocked with questions' in cos and 'meetings_to_confirm' in cos

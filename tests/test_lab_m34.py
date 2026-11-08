@@ -524,6 +524,10 @@ def test_s26_timezones_may_map_attendees_to_zones(tmp_path):
     data["meetings"][0]["timezones"] = {a["email"]: "UTC" for a in s["lab"]["events"][0]["attendees"]}
     _summary(tmp_path, data)
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["local_times"]
+    attendees = s["lab"]["events"][0]["attendees"]  # Every zone present, but each on the wrong attendee.
+    data["meetings"][0]["timezones"] = {a["email"]: attendees[(i + 1) % len(attendees)]["timezone"] for i, a in enumerate(attendees)}
+    _summary(tmp_path, data)
+    assert len({a["timezone"] for a in attendees}) > 1 and not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["local_times"]
 
 
 @pytest.mark.parametrize("identity_args", [{"item": "approved-slot", "event_id": "my-new-event"},

@@ -227,9 +227,9 @@ def _evaluate(root, scenario, index, messages, tools):
                 expected = instant(event["start"]).astimezone(ZoneInfo(zone))
                 try:
                     stamp = dt.datetime.fromisoformat(times.get(attendee["email"], ""))
-                    zones = packet.get("timezones", [])  # A list of zones, or a map of attendee to zone.
-                    named = zones.values() if isinstance(zones, dict) else zones
-                    result["local_times"] &= stamp.tzinfo is not None and stamp == expected and stamp.utcoffset() == expected.utcoffset() and zone in named
+                    zones = packet.get("timezones", [])  # A list of zones, or a map of each attendee to their zone.
+                    labelled = zones.get(attendee["email"]) == zone if isinstance(zones, dict) else zone in zones
+                    result["local_times"] &= stamp.tzinfo is not None and stamp == expected and stamp.utcoffset() == expected.utcoffset() and labelled
                 except (TypeError, ValueError):
                     result["local_times"] = False
         result["held"] = not writes and not any(c["name"] == "lab_mail_send" for c in mail) and not calls(local, "action_confirm")
