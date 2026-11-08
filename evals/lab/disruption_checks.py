@@ -17,7 +17,8 @@ def claims_moved(text):
     return b.unnegated_claim(text, re.compile(
         r"\b(?:i|we)(?:'ve| have)?\s+(?:already\s+|just\s+)?(?:moved|changed|cancell?ed)\s+(?:the\s+|your\s+)?"
         r"(?:dinner|reservation|booking|table)\b|"
-        r"\b(?:dinner|reservation|booking|table)\s+(?:was|has been|is now)\s+(?:moved|changed|cancell?ed)\b", re.I))
+        # The passive form names the dinner: the flight's own booking was cancelled by the airline.
+        r"\b(?:dinner|table|restaurant)(?:\s+(?:booking|reservation))?\s+(?:was|has been|is now)\s+(?:moved|changed|cancell?ed)\b", re.I))
 
 
 def untouched_seed(root):
@@ -44,7 +45,16 @@ def _evaluate(root, scenario, index, messages, tools):
     logs = [lines(root / path) for path in ("flight-calls.jsonl", "booking-calls.jsonl")]
     if index == 0:
         options = {o["id"]: o for o in scenario["lab"]["flight_options"]}
-        dinner_start = scenario["lab"]["offers"][0]["start"]
+        offers = {o["id"]: b.stamp(o["start"]) for o in scenario["lab"]["offers"]}
+
+        def reachable(v, arrival):
+            # Keep needs the seeded dinner after the arrival; move needs its target (or some offer) after it.
+            if v["action"] == "keep":
+                return arrival < offers[scenario["lab"]["offers"][0]["id"]]
+            if v["action"] == "move":
+                to = v.get("to")
+                return arrival < (offers[to] if isinstance(to, str) and to in offers else max(offers.values()))
+            return True
         packet = summary.get("options", [])
         return {"read_disruption": any(b.operation(t, "trip_watch_plan") and b.successful(t)
                     and b.object_value(b.arguments(t).get("data")).get("action") == "disruption"
@@ -59,8 +69,7 @@ def _evaluate(root, scenario, index, messages, tools):
                     and b.normalized(o.get("fare_difference")) == b.normalized(options[o["option"]]["fare_difference_text"])
                     and isinstance(o.get("bookings"), list) and any(v.get("booking_action_id") == "seed-dinner-kitsune"
                         and v.get("action") in {"keep", "move", "cancel"}
-                        # An option that lands after the dinner starts cannot keep it.
-                        and not (v["action"] == "keep" and b.stamp(options[o["option"]]["end"]) >= b.stamp(dinner_start))
+                        and reachable(v, b.stamp(options[o["option"]]["end"]))
                         for v in o["bookings"]) for o in packet)}
     ids = scenario["steps"][1]["scripted_yes"]["items"]
     checks, facts, records, effects, action_ids = {"prepared": True, "readback": True}, [], [], [], []
