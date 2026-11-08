@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.10.0-rc.1, 8 November 2026)
+## Where we are (0.10.0, 8 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -26,12 +26,16 @@ interview (27 questions), owner memory (corrections, people, SOPs and trust
 levels) and the day-30 review. The persona rig passes for zero re-asked facts
 across two sittings. The M1 exit test on the pilot agent is next.
 
-**Measuring parity (M2), in progress.** 0.10.0-rc.1 ships the first measured
-scorecard (27 live lab runs on its reviewed commit). Calendar and recurring
-routines pass their partial checks 3 of 3; travel prep passes 8 of 9; general
-research passes 1 of 3 on the judge, though every run passes the fixed checks.
-Next: research and travel to 3 of 3, and the owner's real tasks and day-30
-baseline on the pilot agent.
+**Measuring parity (M2), in progress.** 0.10.0 ships its measured scorecard
+(27 live lab runs on its reviewed commit). General research now passes its lab
+test 3 of 3. Calendar and the daily, quiet-day and kickoff routines pass their
+partial checks 3 of 3; the weekly routine passes the judge 3 of 3 but misses a
+fixed check in each run: in two, the check's wording is too narrow ("disconnected"
+is honest but not accepted); in one, the reply did not keep its outcomes
+separate. Travel prep passes 6 of 9 (the San Francisco trip fails on unsupported
+cart and price claims, and one run left the taxi without a hand-off). Next:
+travel to 3 of 3, the weekly check's wording and separate outcomes, and the
+owner's real tasks and day-30 baseline on the pilot agent.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);

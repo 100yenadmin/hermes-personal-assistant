@@ -155,7 +155,8 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
 - **Chief of Staff follow-ups.** After you approve a specific follow-up, the agent schedules one HeartBeat 2.0 `at` wake in the same chat. That wake runs one agent turn to check whether a recommendation helped.
 
 **Developer and maintenance scripts.**
-- The `evals/` harness and the `scripts/evaluate_*` tools call the model provider (and, for the voice check, Fish Audio) only when you run them by hand. The plugin never loads them.
+- The `evals/` harness and the `scripts/evaluate_*` tools call the model provider (and, for the voice check, Fish Audio) only when you run them by hand. The plugin never loads them. They take the model token from `PA_EVAL_CODEX_TOKEN`, which you set; the lab's optional judge (`--judge codex`, its default) runs the Codex CLI, which signs in with its own login.
+- `scripts/check_release.py` reads this repository's GitHub releases through the `gh` CLI and its own sign-in, only when you run it. It downloads and runs no release assets; to compare versions it runs the read-only probe below.
 - `scripts/probe_installed_version.py` is read-only. It also checks the legacy `~/.openclaw` folders for an older install and runs `git` on the plugin checkout.
 
 **Telemetry and approvals.**
@@ -253,8 +254,10 @@ profile owner approves activation. Restart or reload only at an agreed idle
 point. Verify `pa` and `personal-assistant:personal-assistant` discovery before
 use.
 
-Pinned revisions do not update automatically. The documented preservation
-wrapper requires a separately approved replacement SHA. For an isolated loader
+Pinned revisions do not update automatically. A direct pinned install moves only
+with `hermes plugins install … --force --ref <approved SHA>`. Some Hermes versions
+replace the plugin folder, so copy PA's local configuration files out first and
+put them back afterwards (see `docs/release-process.md`). For an isolated loader
 check without profile or provider mutation, use `scripts/check_pa_native.py`.
 
 ## Verification and rollback

@@ -1,6 +1,6 @@
 name: personal-assistant
 label: Personal Assistant Plugin
-version: 0.10.0-rc.1
+version: 0.10.0
 description: Durable personal operations for calendar, communication, meetings, household, shopping, travel and executive follow-through.
 manifest_version: 1
 api_version: 1
@@ -18,6 +18,15 @@ optional_env:
     url: "https://elevenlabs.io/app/settings/api-keys"
     secret: true
     password: true
+  - name: BROWSERBASE_API_KEY
+    description: "Optional. Browserbase key for the cloud-browser lane; read through Hermes' secret accessor."
+    url: "https://www.browserbase.com/settings"
+    secret: true
+    password: true
+  - name: BROWSERBASE_PROJECT_ID
+    description: "Optional. Browserbase project for the cloud-browser lane; read through Hermes' secret accessor."
+    url: "https://www.browserbase.com/settings"
+    secret: false
 python_dependencies:
   - icalendar>=6.3.1,<7
   - python-dateutil>=2.9.0.post0,<3
