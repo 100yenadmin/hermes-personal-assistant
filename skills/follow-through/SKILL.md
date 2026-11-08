@@ -16,6 +16,8 @@ names a due chase, or when you record a new open loop. Use the user's language.
 Every `references/...` path is relative to this skill directory. The open-loop
 fields are defined in the Open loops section of `personal-assistant:personal-assistant`.
 
+After a verified vendor request or sent message awaiting a reply, pass `follow_through.loop` with the counterparty and our next step in `action_result`, without a separate `action_upsert` loop, and report that the reply is now chased. It opens an ordinary `waiting_on_them` loop at `<action id>:loop`; its nudges use `<loop action id>:nudge:<step>`.
+
 ## Read the loops
 
 1. Call `pa(operation="next_action", data={"loops_only":true,"limit":20})` and
