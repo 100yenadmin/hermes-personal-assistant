@@ -5,6 +5,8 @@ owner, work the owner delegated, a promise we made, or a reply we are waiting
 for. Keep each loop on one existing commitment action. There is no separate
 table; `next_action` reads these fields.
 
+After a verified vendor request or any sent message awaiting a reply, pass `follow_through.loop` with the counterparty and our next step in `action_result`, without a separate `action_upsert` loop. This opens the ordinary `waiting_on_them` commitment `<action id>:loop`; report that the reply is now chased. A nudge or any other step on an existing loop never gets its own `follow_through.loop`: record it as a chase on that loop.
+
 ## Fields
 
 | Field | Values | Meaning |
