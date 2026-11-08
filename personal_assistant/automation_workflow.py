@@ -310,7 +310,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             except (ValueError, TypeError):
                 return _health_failure(ledger, kind, "invalid_" + key, current)
     # Read the canonical loop guidance, including holds, rather than re-derive it.
-    from .context import next_actions
+    from .context import next_actions, nudges_in_flight
     chases, open_loops, offset = [], set(), 0
     if kind == "due_source_check":
         while True:
@@ -322,12 +322,14 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             offset = page["next_offset"]
             if offset is None: break
     trips = ledger.list("trip")
+    nudging = nudges_in_flight(actions)
     due = []
     for row in actions:
         fields = row["fields"]
         if fields.get("loop_kind"):
             # The canonical guidance above decides loop holds; an open, unheld loop with its own due_at still wakes for it.
             held = (fields.get("waiting_for") or fields.get("stale") is True or fields.get("freshness") in {"stale", "unknown"}
+                    or row["action_id"] in nudging
                     or fields.get("snoozed_until") and (auto._value_time(fields["snoozed_until"], zone) or current) > current)
             if row["action_id"] not in open_loops or not fields.get("due_at") or held:
                 continue

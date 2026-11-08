@@ -442,6 +442,18 @@ def test_an_open_loop_with_its_own_deadline_still_wakes(ledger, extra, wakes):
         assert result['due_action_ids'] == ['loop-fixture']
 
 
+def test_a_loop_deadline_waits_while_its_nudge_is_in_flight_and_wakes_after(ledger):
+    rule(ledger, 'due_source_check')
+    loop(ledger, loop_kind='our_promise', next_actor='us', opened_at='2026-11-09T08:00:00+00:00',
+         due_at='2026-11-09T12:00:00+00:00')
+    ledger.put('action', 'loop-fixture:nudge:day2', {'title': 'nudge'}, action_type='commitment', status='prepared')
+    held = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T12:00'))
+    assert not held['wakeAgent']
+    ledger.put('action', 'loop-fixture:nudge:day2', {'title': 'nudge'}, status='cancelled')
+    released = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T12:05'))
+    assert released['wakeAgent'] and released['due_action_ids'] == ['loop-fixture']
+
+
 def test_an_evening_brief_is_not_replaced_by_the_default_end_of_day(ledger):
     preferences(ledger, {'brief_time': '20:00'})
     rule(ledger)
