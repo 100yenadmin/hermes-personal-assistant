@@ -7,10 +7,13 @@ import os
 import sys
 from zoneinfo import ZoneInfo
 
-from .common import envelope, now_utc, run_calendar
+from .common import envelope, mail_accounts, mail_sections, now_utc, run_calendar, run_mail
 from .config import load_config, profile_root, validate_or_raise
 from .gog_collector import DailyOpsError
 from . import trip_context
+
+
+ATTENDEES_SHOWN = 25
 
 
 def _event_start(event: dict, zone: ZoneInfo):
@@ -52,6 +55,36 @@ def _timeline_item(event: dict, zone: ZoneInfo) -> dict:
     }
 
 
+def _meeting_to_confirm(event: dict, item: dict, own: set[str]) -> dict | None:
+    """Read-only 24h-ahead confirmation row; None for a private or declined event."""
+    if not isinstance(event, dict) or str(event.get("status") or "") == "cancelled":
+        return None
+    start = event.get("start") if isinstance(event.get("start"), dict) else {}
+    if not start.get("dateTime"):
+        return None  # All-day entries are timeline facts, not meetings to confirm.
+    raw = event.get("attendees")
+    row = {"event_id": item["id"], "summary": item["summary"], "start": item["start"], "end": item["end"]}
+    if not isinstance(raw, list):
+        # The calendar packet carried no attendee list: unknown, never "no attendees".
+        return {**row, "attendees_known": False, "attendee_count": None, "attendees": []}
+    others = []
+    for attendee in raw:
+        if not isinstance(attendee, dict) or not isinstance(attendee.get("email"), str):
+            continue
+        email = attendee["email"].strip().lower()
+        if attendee.get("self") is True or email in own:
+            if attendee.get("responseStatus") == "declined":
+                return None
+            continue
+        if attendee.get("resource") is not True:
+            others.append(email)
+    if not others:
+        return None
+    # Up to ATTENDEES_SHOWN addresses are listed; a longer list is cut, which makes the packet truncated.
+    return {**row, "attendees_known": True, "attendee_count": len(others), "attendees": others[:ATTENDEES_SHOWN],
+            "attendees_omitted": max(len(others) - ATTENDEES_SHOWN, 0)}
+
+
 def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None = None) -> dict:
     current = (moment or now_utc()).astimezone(ZoneInfo(cfg["timezone"]))
     zone = ZoneInfo(cfg["timezone"])
@@ -71,13 +104,26 @@ def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None
             prep_flags.append({"event_id": item["id"], "flag": "location not supplied"})
         if not item["end"]:
             prep_flags.append({"event_id": item["id"], "flag": "duration not supplied"})
+    own = {value.strip().lower() for value in mail_accounts(cfg) + list(cfg.get("self_emails") or [])
+           if isinstance(value, str)}
+    meetings = [row for row in (_meeting_to_confirm(event, item, own) for event, item in zip(events, timeline)) if row]
     sections = {
         "trip_context": trip_context.trip_context(cfg, current.astimezone(dt.timezone.utc), profile),
         "tomorrow_timeline": {"items": timeline, "count": len(timeline), "coverage": calendar.coverage},
         "first_commitment": first,
         "prep_flags": prep_flags,
+        "meetings_to_confirm": {"items": meetings, "count": len(meetings), "coverage": calendar.coverage},
     }
-    return envelope("evening_register", cfg, start_local, end_local, sections, complete=calendar.complete, truncated=calendar.truncated)
+    complete, truncated = calendar.complete, calendar.truncated
+    if any(row.get("attendees_omitted") for row in meetings):
+        complete, truncated = False, True
+    # The second daily triage: the same humans and bulk reads as the morning brief.
+    for index, account in enumerate(mail_accounts(cfg), 1):
+        mail, mail_complete, mail_truncated = mail_sections(account, index, run_mail)
+        sections.update(mail)
+        complete = complete and mail_complete
+        truncated = truncated or mail_truncated
+    return envelope("evening_register", cfg, start_local, end_local, sections, complete=complete, truncated=truncated)
 
 
 def main() -> None:

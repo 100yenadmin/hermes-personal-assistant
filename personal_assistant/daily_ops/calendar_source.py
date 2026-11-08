@@ -85,6 +85,12 @@ def _event_packet(event: Mapping[str, Any], source: str) -> dict:
     for key in ("iCalUID", "recurringEventId", "originalStartTime", "updated", "etag", "sequence"):
         if key in event:
             packet[key] = copy.deepcopy(event[key])
+    attendees = event.get("attendees")
+    if isinstance(attendees, list):  # meetings_to_confirm needs who is invited; no other attendee data is kept
+        packet["attendees"] = [
+            {key: item[key] for key in ("email", "self", "responseStatus", "resource") if key in item}
+            for item in attendees if isinstance(item, Mapping)
+        ]
     return packet
 
 

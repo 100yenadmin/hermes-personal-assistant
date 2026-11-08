@@ -23,6 +23,9 @@ _BOOL_FIELDS = (
     ("priority.connectors.clients_sync", "stripe_live"),
     ("autoclean", "enabled"),
     ("calendar.read_scope", "accepted"),
+    ("calendar.write_scope", "accepted"),
+    ("calendar.write_scope", "invites"),
+    ("inbox.drafts", "accepted"),
 )
 
 
@@ -137,6 +140,30 @@ def validate_config(cfg: dict, *, require_profile: bool = False) -> list[str]:
             errors.append("calendar.read_scope must include a calendar ID")
         if read_scope.get("include_pa_binding") not in {None, False}:
             errors.append("calendar.read_scope.include_pa_binding was removed with Calendar sync")
+        write_scope = calendar.get("write_scope")
+        if write_scope is not None:
+            # Owner opt-in from setup; PA itself never writes, the agent does after a yes.
+            if not isinstance(write_scope, dict):
+                errors.append("calendar.write_scope must be an object")
+            elif write_scope.get("accepted") is True:
+                write_ids = write_scope.get("calendar_ids")
+                readable = {value.strip().casefold() for value in (calendar_ids if isinstance(calendar_ids, list) else [])
+                            if isinstance(value, str)}
+                if not isinstance(write_ids, list) or not write_ids or any(
+                    not isinstance(value, str) or not value.strip() for value in write_ids
+                ):
+                    errors.append("calendar.write_scope.calendar_ids must be a non-empty list of calendar IDs")
+                elif any(value.strip().casefold() not in readable for value in write_ids):
+                    errors.append("calendar.write_scope.calendar_ids must also be in calendar.read_scope.calendar_ids")
+                if not isinstance(write_scope.get("invites"), bool):
+                    errors.append("calendar.write_scope.invites must be the JSON boolean true or false")
+
+    inbox = cfg.get("inbox")
+    if inbox is not None:
+        if not isinstance(inbox, dict):
+            errors.append("inbox must be an object")
+        elif inbox.get("drafts") is not None and not isinstance(inbox.get("drafts"), dict):
+            errors.append("inbox.drafts must be an object")
 
     for section, field in _BOOL_FIELDS:
         value = _lookup(cfg, f"{section}.{field}")

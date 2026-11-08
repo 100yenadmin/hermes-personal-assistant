@@ -53,6 +53,30 @@ def test_gog_read_scope_preserves_typed_times_url_and_dedupes(monkeypatch):
     assert [entry["provider"] for entry in result.coverage] == ["gog", "gog"]
 
 
+def test_configured_packets_keep_only_attendee_identity_and_response(monkeypatch):
+    monkeypatch.setattr("personal_assistant.daily_ops.calendar_source.collect_pages", fake_pages({
+        "primary": [
+            {"id": "invite", "start": {"dateTime": "2026-09-08T09:00:00+09:00"}, "end": {"dateTime": "2026-09-08T09:30:00+09:00"},
+             "attendees": [
+                 {"email": "owner@example.com", "self": True, "responseStatus": "accepted", "displayName": "Owner",
+                  "comment": "private note", "organizer": True},
+                 {"email": "guest@example.invalid", "responseStatus": "needsAction", "optional": True},
+                 {"email": "room@resource.example.invalid", "resource": True, "responseStatus": "accepted"},
+                 "not-a-mapping",
+             ]},
+            {"id": "solo", "start": {"date": "2026-09-09"}, "end": {"date": "2026-09-10"}},
+        ],
+    }, []))
+    result = collect_calendar_scope(config(calendar_ids=["primary"]), 2)
+    invite, solo = result.items
+    assert invite["attendees"] == [
+        {"email": "owner@example.com", "self": True, "responseStatus": "accepted"},
+        {"email": "guest@example.invalid", "responseStatus": "needsAction"},
+        {"email": "room@resource.example.invalid", "resource": True, "responseStatus": "accepted"},
+    ]
+    assert "attendees" not in solo
+
+
 def test_partial_calendar_failure_stays_visible(monkeypatch):
     monkeypatch.setattr("personal_assistant.daily_ops.calendar_source.collect_pages", fake_pages({
         "primary": [{"id": "ok", "start": {"date": "2026-09-08"}, "end": {"date": "2026-09-09"}}],

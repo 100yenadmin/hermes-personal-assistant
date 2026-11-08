@@ -10,11 +10,11 @@ CHIEF_OF_STAFF_QUESTIONS = ("cos_priorities", "cos_radar_topics", "cos_daily_tim
                             "cos_kickoff_slot", "cos_weekly_slot", "cos_schedule_choices")
 PROFILE_GROUPS = (
     ("business", ("biz_what", "biz_priorities", "biz_people", "biz_confidential")),
-    ("you", ("you_role", "you_rhythm", "you_interrupt", "you_offload")),
-    ("communication", ("comm_channel", "comm_rhythm", "comm_format")),
-    ("decision_rights", ("rights_act", "rights_draft", "rights_ask", "rights_spend", "rights_backup")),
+    ("you", ("you_role", "you_rhythm", "you_interrupt", "you_offload", "life_dates")),
+    ("communication", ("comm_channel", "comm_rhythm", "comm_format", "comm_inbox", "chase_style")),
+    ("decision_rights", ("rights_act", "rights_draft", "rights_drafts", "rights_ask", "rights_spend", "rights_backup")),
     ("voice", ("voice_tone", "voice_examples", "prefs_travel", "prefs_life")),
-    ("calendar", ("cal_rules", "cal_protect", "cal_people")),
+    ("calendar", ("cal_rules", "cal_protect", "cal_people", "cal_write")),
     ("history", ("hist_past", "hist_worries")),
     ("access", ("access_systems", "access_off_limits")),
 )
