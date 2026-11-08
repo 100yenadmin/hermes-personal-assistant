@@ -99,6 +99,18 @@ _NUDGE_IN_FLIGHT = _TRANSACTION_HOLD - {"failed"}
 _TRANSACTION_DONE = {"completed", "confirmed", "verified", "reconciled"}
 
 
+def nudges_in_flight(actions):
+    """Loop id -> (nudge id, status) for each loop whose nudge, <loop action id>:nudge:<step>, is still in flight.
+
+    While one is in flight its loop waits: no new nudge, and no wake for the loop's own deadline."""
+    found = {}
+    for row in actions:
+        parent, marker, _ = str(row.get("action_id", "")).partition(":nudge:")
+        if marker and row.get("status") in _NUDGE_IN_FLIGHT:
+            found.setdefault(parent, (row["action_id"], row.get("status")))
+    return found
+
+
 def _iso_time(value: Any, *, timestamp: bool = False) -> bool:
     if not isinstance(value, str) or (timestamp and len(value.strip()) <= 10):
         return False
@@ -368,12 +380,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
     excluded_terminal_unlinked = 0
     excluded_closed_loops = 0
     actions = ledger.list("action")
-    # A nudge is its own action, <loop action id>:nudge:<step>; while one is in flight its loop waits.
-    nudges_in_flight = {}
-    for row in actions:
-        parent, marker, _ = str(row.get("action_id", "")).partition(":nudge:")
-        if marker and row.get("status") in _NUDGE_IN_FLIGHT:
-            nudges_in_flight.setdefault(parent, (row["action_id"], row.get("status")))
+    nudging = nudges_in_flight(actions)
     for action in actions:
         if action.get("action_type") not in _COMMITMENT_TYPES:
             continue
@@ -445,7 +452,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
             # A loop row in a transaction lifecycle keeps its transaction instruction; chase
             # guidance never replaces an approval step or an unresolved provider attempt.
-            nudge = nudges_in_flight.get(action["action_id"])
+            nudge = nudging.get(action["action_id"])
             if nudge and not (snoozed_until or waiting_for or stale or status in _TRANSACTION_HOLD):
                 item["next_step"] = (f"A nudge for this loop is in progress ({nudge[0]}, {nudge[1]}): finish or "
                                      "reconcile it first; do not draft or send another.")

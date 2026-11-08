@@ -11,6 +11,8 @@ metadata:
 
 # Research
 
+Read `reporting.md` in `../personal-assistant/references/` (relative to this skill directory) for reporting, bridge recovery, progress and pre-send checks.
+
 Use for "compare", "find the best", "what does X cost", "which should we use" and
 similar questions. Answer in the owner's language. Research is read-only: never
 sign up, request a quote with the owner's details, or contact a vendor without a yes.

@@ -11,6 +11,8 @@ metadata:
 
 # Restaurant Reservations
 
+Read `reporting.md` in `../personal-assistant/references/` (relative to this skill directory) for reporting, bridge recovery, progress and pre-send checks.
+
 Every `references/...` path in this skill is relative to this skill directory.
 
 Find dining options, prepare a reservation, and ask before final reservation submit.

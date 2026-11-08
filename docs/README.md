@@ -50,8 +50,7 @@ canonical destination updates.
   validation, publication, installation, and rollback boundaries.
 - [Support Control version contract](support-control-version-contract.md) —
   compatibility package identity and enrolled-version metadata.
-- [Canary scorecard](canary-scorecard.md) — bounded fixture-based evaluation;
-  never a substitute for named provider or customer acceptance.
+- [Canary scorecard](canary-scorecard.md) — M3 ten-working-day read-only export; never a substitute for named provider or customer acceptance.
 
 ## Safe-default summary
 

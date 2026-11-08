@@ -11,6 +11,8 @@ metadata:
 
 # Trip concierge
 
+Read `reporting.md` in `../personal-assistant/references/` (relative to this skill directory) for reporting, bridge recovery, progress and pre-send checks.
+
 ## When to arm
 
 Once per trip, after setup, after importing a trip or recording flight facts (`next_step.offer_trip_watch`), or when a flight is known, ask:

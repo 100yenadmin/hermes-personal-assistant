@@ -665,3 +665,22 @@ def test_setup_guides_hand_made_kickoff_and_closeout_jobs():
     assert "replace it" in text and "removes the hand-made job in Hermes before accepting" in text
     assert "Never remove a hand-made job yourself" in text
     assert "accept_command" in text and "/suggestions accept <id>" in text
+
+
+def test_core_reporting_skills_stay_mode_independent(tmp_path):
+    ledger = ledger_at(tmp_path)
+    for kind in ('daily_brief', 'due_source_check'):
+        rule(ledger, kind)
+    config(tmp_path, False)
+    jobs = {j['kind']: j for j in prepare_suggestions(ledger)['jobs']}
+    assert jobs['daily_brief']['skills'] == [
+        'personal-assistant:r5-brief-reminders', 'personal-assistant:daily-ops',
+        'personal-assistant:r4-calendar-meeting', 'personal-assistant:r6-inbox-replies',
+    ]
+    assert jobs['due_source_check']['skills'] == [
+        'personal-assistant:itinerary-intake', 'personal-assistant:travel-email-calendar',
+        'personal-assistant:provider-message-refund', 'personal-assistant:daily-ops',
+        'personal-assistant:follow-through', 'personal-assistant:r5-brief-reminders',
+        'personal-assistant:r4-calendar-meeting',
+        'personal-assistant:r6-inbox-replies',
+    ]

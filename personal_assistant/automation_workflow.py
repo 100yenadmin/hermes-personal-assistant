@@ -22,11 +22,25 @@ def preferences(ledger, changes=None):
             raise ValueError("unknown preference")
         if "timezone" in changes:
             ZoneInfo(changes["timezone"])
-        for key in ("cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
+        for key in ("brief_time", "cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
             if key in changes:
                 value = changes[key]
-                if not isinstance(value, str) or len(value) != 5 or dt.time.fromisoformat(value).strftime("%H:%M") != value:
+                try:
+                    auto.routine_time(value)
+                except (ValueError, TypeError):
                     raise ValueError(f"{key} must be HH:MM")
+        if changes.get("snooze_until") not in (None, "") and auto._value_time(changes["snooze_until"], "UTC") is None:
+            raise ValueError("snooze_until must be an ISO timestamp")
+        if "quiet_hours" in changes:
+            quiet = changes["quiet_hours"]
+            try:
+                if not isinstance(quiet, dict):
+                    raise TypeError
+                for key in ("start", "end"):
+                    if key in quiet:
+                        auto.routine_time(quiet[key])
+            except (TypeError, ValueError):
+                raise ValueError("quiet_hours start and end must be HH:MM")
         for key in (kind + "_day" for kind in WEEKLY_COS):
             if key in changes and changes[key] not in WEEKDAYS:
                 raise ValueError(f"{key} must be mon..sun")
@@ -40,7 +54,15 @@ def preferences(ledger, changes=None):
                 raise ValueError(f"{key} {value} is inside quiet hours {start}-{end}, so that report would never be sent; choose a time outside quiet hours")
         if WEEKLY_SLOT_KEYS & set(changes) and _slot(merged, "cos_kickoff") == _slot(merged, "cos_weekly"):
             raise ValueError("the weekly kickoff and closeout cannot share a day and time; choose a kickoff slot before or after the closeout")
-        prior = ledger.put("action", "pa:preferences", changes, action_type="preferences", status="configured")
+        updates = dict(changes)
+        old = (prior or {}).get("fields", {})
+        if ((old.get("paused") and changes.get("paused") is False)
+                or ("snooze_until" in changes and auto.snooze_released(old.get("snooze_until"), changes["snooze_until"], merged.get("timezone") or "UTC"))):
+            updates["routine_resumed_at"] = auto._now(None, "UTC").isoformat()
+        if prior and any(key in changes and changes[key] != old.get(key, auto.DEFAULTS.get(key))
+                         for key in ("timezone", "brief_time", "eod_time", "quiet_hours", *WEEKLY_SLOT_KEYS, "cos_daily_time")):
+            updates["schedule_changed_at"] = auto._now(None, "UTC").isoformat()
+        prior = ledger.put("action", "pa:preferences", updates, action_type="preferences", status="configured")
     return (prior or {}).get("fields", {})
 
 
@@ -111,9 +133,9 @@ def prepare_suggestions(ledger, *, native=False, get_config=None, reoffer=False)
         brief = job["kind"] == "daily_brief"
         collector = "personal_assistant.daily_ops.morning_brief" if brief else "personal_assistant.daily_ops.evening_register"
         due_rule = (
-            "run after the configured local brief time for the current local date"
+            "run after the configured local brief time for the current local date, or the end_of_day slot after eod_time"
             if brief else
-            "run only when an accepted source is due_at<=now or its refresh interval has elapsed in that source timezone"
+            "run only when an accepted source is due_at<=now or its refresh interval has elapsed in that source timezone, or the local precheck reports due actions, chase_action_ids or a routine_health finding"
         )
         skills = ["personal-assistant:personal-assistant", *job["skills"]]
         skills = list(dict.fromkeys(skills))
@@ -128,7 +150,7 @@ def prepare_suggestions(ledger, *, native=False, get_config=None, reoffer=False)
             "script": str(_precheck_path(ledger, job["kind"])),
             "skills": skills,
             "deliver": job["deliver"],  # Hermes delivers the final response; cron runs have no send tool.
-            "prompt": job["prompt"] + f" Use the accepted daily-ops source in its configured timezone; {due_rule}. Invoke the read-only collector {collector} only after the local precheck.{brief_rule} The evening collector is the due-source check, not a third scheduled job. The script supplies an already claimed notification occurrence. Your final response is the owner message, which Hermes delivers to the verified destination; never use a message tool. For a useful message, first record the occurrence with pa automations receipt unknown and note \"Final response handed to Hermes cron delivery\"; if nothing is useful, record suppressed and reply exactly [SILENT]. Never resend an existing occurrence. Refresh source checkpoints only after successful reads. Do not create jobs or make purchases."}
+            "prompt": job["prompt"] + f" Use the accepted daily-ops source in its configured timezone; {due_rule}. For an end_of_day or routine_health occurrence, use R5 reporting with evidence, next_action and health; do not invoke the gog collector. Otherwise invoke the read-only collector {collector} only after the local precheck.{brief_rule} The evening collector is the due-source check, not a third scheduled job. The script supplies an already claimed notification occurrence. Your final response is the owner message, which Hermes delivers to the verified destination; never use a message tool. For a useful message, first record the occurrence with pa automations receipt unknown and note \"Final response handed to Hermes cron delivery\"; if nothing is useful, record suppressed and reply exactly [SILENT]. Never resend an existing occurrence. Refresh source checkpoints only after successful reads. Do not create jobs or make purchases."}
     if native:
         native_profile_guard(ledger)
         from cron.jobs import list_jobs
@@ -137,11 +159,16 @@ def prepare_suggestions(ledger, *, native=False, get_config=None, reoffer=False)
             from cron.suggestions import MAX_PENDING
         except ImportError:
             MAX_PENDING = 5
-        existing = {job.get("name") for job in list_jobs(include_disabled=True)}
+        existing = {job.get("name"): job for job in list_jobs(include_disabled=True)}
         for job in result["jobs"]:
             _install_precheck(ledger, job["kind"])
             if job["name"] in existing:
-                job["suggestion"] = "job_exists"
+                prior_job = existing[job["name"]]
+                drift = [key for key in ("prompt", "deliver", "skills") if key in prior_job and prior_job[key] != job["job_spec"][key]]
+                job["suggestion"] = "job_outdated" if drift else "job_exists"
+                if drift:
+                    job["drift"] = drift
+                    job["next_step"] = "Ask the owner to remove the outdated native job, then re-run suggest with reoffer true and accept the replacement; nothing was rewritten."
                 continue
             ref = "pa:suggestion:" + job["kind"]
             generation = (ledger.get("action", ref) or {}).get("fields", {}).get("generation", 0)
@@ -232,16 +259,26 @@ def stop_cos(ledger):
     return counts
 
 
+def _health_failure(ledger, kind, reason, current):
+    identity = "pa:routine-health:" + kind
+    prior = (ledger.get("action", identity) or {}).get("fields", {})
+    if prior.get("reason") != reason or prior.get("recovered_at"):
+        ledger.put("action", identity, {"kind": kind, "reason": reason, "failed_at": current.isoformat()},
+                   remove=("detected_at", "recovered_at"), action_type="routine_health", status="blocked")
+    return {"wakeAgent": False, "reason": reason}
+
+
 def cron_precheck(ledger, kind, *, enabled, moment=None):
     """Return Hermes wakeAgent JSON; no network or LLM on an empty tick."""
     prefs = preferences(ledger)
+    current = moment or dt.datetime.now(dt.timezone.utc)
     zone = prefs.get("timezone")
     cos = kind in auto.COS_JOBS
     if not enabled or not (zone or cos):  # A CoS rule may carry its own zone.
-        return {"wakeAgent": False, "reason": "disabled_or_timezone_missing"}
+        return ({"wakeAgent": False, "reason": "disabled_or_timezone_missing"} if not enabled else
+                _health_failure(ledger, kind, "disabled_or_timezone_missing", current))
     if cos and not cos_enabled(config_getter(ledger.root)):
         return {"wakeAgent": False, "reason": "chief_of_staff_off"}
-    current = moment or dt.datetime.now(dt.timezone.utc)
     actions = ledger.list("action")
     accepted = [r for r in (auto._rule_data(a) for a in actions if a["action_type"] == "automation_rule")
                 if r.get("accepted") and r.get("destination_verified") and not r.get("paused")]
@@ -250,26 +287,67 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
         return {"wakeAgent": False, "reason": "no_accepted_routine"}
     destinations = {r.get("destination") for r in rules}
     if len(destinations) != 1 or not next(iter(destinations)):
-        return {"wakeAgent": False, "reason": "destination_conflict"}
+        return _health_failure(ledger, kind, "destination_conflict", current)
     if cos:  # Resolve each rule's zone as the suggestion does; never pick between zones.
         zones = {r.get("timezone") or zone for r in rules}
         if len(zones) != 1 or None in zones:
             reason = "timezone_conflict" if len(zones - {None}) > 1 else "disabled_or_timezone_missing"
-            return {"wakeAgent": False, "reason": reason}
+            return _health_failure(ledger, kind, reason, current)
         zone = zones.pop()
-    if any(r.get("snooze_until") and auto._value_time(r["snooze_until"], zone) > current for r in rules):
+    try:
+        ZoneInfo(zone)
+        if any(r.get("timezone") and r["timezone"] != zone for r in rules):
+            return _health_failure(ledger, kind, "timezone_conflict", current)
+    except (ValueError, TypeError, KeyError):
+        return _health_failure(ledger, kind, "invalid_timezone", current)
+    snoozes = [auto._value_time(r["snooze_until"], zone) for r in rules if r.get("snooze_until")]
+    if any(until is None for until in snoozes):
+        return _health_failure(ledger, kind, "invalid_snooze", current)
+    if any(until > current for until in snoozes):
         return {"wakeAgent": False, "reason": "routine_snoozed"}
     local = current.astimezone(ZoneInfo(zone))
+    if kind == "daily_brief":
+        for key in ("brief_time", "eod_time"):
+            try:
+                auto.routine_time(prefs.get(key, auto.DEFAULTS[key]))
+            except (ValueError, TypeError):
+                return _health_failure(ledger, kind, "invalid_" + key, current)
+    # Read the canonical loop guidance, including holds, rather than re-derive it.
+    from .context import next_actions, nudges_in_flight
+    chases, open_loops, offset = [], set(), 0
+    # An action-level snooze holds a loop's chase as it holds its due work below.
+    snoozed = {r["action_id"] for r in actions if r["fields"].get("snooze_until")
+               and (auto._value_time(r["fields"]["snooze_until"], zone) or current) > current}
+    if kind == "due_source_check":
+        while True:
+            page = next_actions(ledger, {"loops_only": True, "at": current.isoformat(), "limit": 20, "offset": offset})
+            open_loops.update(item["action_id"] for item in page["candidates"])
+            # A due chase step wakes for a chase or, on a loop done without the other side's confirmation, to ask for it.
+            # Escalation surfaces through the brief or radar, never as its own wake.
+            chases.extend(item for item in page["candidates"] if item["chase"]["step"] not in {"none", "escalate"}
+                          and item["next_step"].startswith(("Chase", "Kanban or status shows done"))
+                          and item["action_id"] not in snoozed
+                          and not auto.notification_receipt(ledger, auto.notification_occurrence_id("chase-step", item["action_id"], item["chase"]["step"])))
+            offset = page["next_offset"]
+            if offset is None: break
     trips = ledger.list("trip")
+    nudging = nudges_in_flight(actions)
     due = []
     for row in actions:
         fields = row["fields"]
+        if fields.get("loop_kind"):
+            # The canonical guidance above decides loop holds; an open, unheld loop with its own due_at still wakes for it.
+            held = (fields.get("waiting_for") or fields.get("stale") is True or fields.get("freshness") in {"stale", "unknown"}
+                    or row["action_id"] in nudging
+                    or fields.get("snoozed_until") and (auto._value_time(fields["snoozed_until"], zone) or current) > current)
+            if row["action_id"] not in open_loops or not fields.get("due_at") or held:
+                continue
         if fields.get("kanban_task_id"):
             from .context import read_kanban_task
             task = read_kanban_task(fields["kanban_task_id"], fields.get("kanban_board"))
             if task.get("status") in {"done", "archived"}:
                 continue
-        if fields.get("snooze_until") and auto._value_time(fields["snooze_until"], zone) > current:
+        if fields.get("snooze_until") and (auto._value_time(fields["snooze_until"], zone) or current) > current:
             continue
         trip = next((t for t in trips if t["trip_id"] == row.get("trip_id")), None)
         if trip and not auto._trip_active([trip], current) and row["action_type"] not in {"refund", "return"}:
@@ -278,6 +356,21 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             due.append(row)
     active = auto._trip_active(trips, current)
     state = {**prefs, "actions": due, "accepted_sources": rules, "active_travel": active}
+    if not cos:
+        for finding in auto.routine_health(ledger, now=current)["findings"]:
+            if finding.get("kind") == kind or finding.get("recovered_at"): continue  # The other routine carries the exception.
+            occurrence = auto.notification_occurrence_id("routine-health", finding["id"])
+            if auto.notification_receipt(ledger, occurrence): continue
+            gate = auto.script_precheck({**state, "actions": [{"due": True}]}, now=current,
+                urgent=all(r.get("quiet_hours_exceptions") is True for r in rules))
+            if not gate["run"]: return {"wakeAgent": False, "reason": gate["reason"]}
+            claim = auto.claim_notification(ledger, occurrence, rule_id="routine-health", now=current)
+            if claim["claimed"]:
+                ledger.put("action", claim["action_id"], {"routine_kind": "routine-health"})
+            if claim["claimed"] and finding.get("note_id"):
+                ledger.put("action", finding["note_id"], {"detected_at": current.isoformat()})
+            return {"wakeAgent": claim["claimed"], "occurrence_id": occurrence, "occurrence_kind": "routine_health",
+                    "destination": next(iter(destinations)), "health_findings": [finding]}
     if cos:
         clock_key = kind + "_time"
         moment_slot = (local.weekday(), local.strftime("%H:%M"))
@@ -298,13 +391,26 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
         state.update(actions=[{"due": True}], chief_of_staff=True, timezone=zone)
         logical = local.date().isoformat() if kind == "cos_daily" else "%04d-W%02d" % local.isocalendar()[:2]
     elif kind == "daily_brief":
-        if local.strftime("%H:%M") < prefs.get("brief_time", "08:00"):
+        brief, eod = prefs.get("brief_time", auto.DEFAULTS["brief_time"]), auto.eod_clock(prefs)
+        if local.strftime("%H:%M") < min(brief, eod or brief):
             return {"wakeAgent": False, "reason": "before_brief_time"}
         state["actions"] = [{"due": True}]
         logical = local.date().isoformat()
+        if eod and local.strftime("%H:%M") >= eod:
+            logical += ":eod"
     else:
-        logical = stable_id([(a["action_id"], a["fields"].get("due_at")) for a in due], [(r.get("source_ref"), r.get("last_checked_at")) for r in rules])
+        state["actions"] = [*due, *({"due": True} for _ in chases)]
+        due_part = [(a["action_id"], a["fields"].get("due_at")) for a in due]
+        rules_part = [(r.get("source_ref"), r.get("last_checked_at")) for r in rules]
+        base = stable_id(due_part, rules_part)  # The identity without chases, as before chases existed.
+        logical = stable_id(due_part, [(c["action_id"], c["chase"]["step"], c["chase"]["next_chase_at"]) for c in chases],
+                            rules_part) if chases else base
     check = auto.script_precheck(state, now=current, kind=kind)
+    if check.get("status") == "blocked":
+        return _health_failure(ledger, kind, check["reason"], current)
+    prior_health = ledger.get("action", "pa:routine-health:" + kind)
+    if prior_health and not prior_health["fields"].get("recovered_at"):
+        ledger.put("action", prior_health["action_id"], {"recovered_at": current.isoformat()}, status="recovered")
     if not check["run"]:
         return {"wakeAgent": False, "reason": check["reason"]}
     # Complete accepted rules bind the existing notification action to the
@@ -322,12 +428,25 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             destination=next(iter(destinations)), rule_id=rule_id, rule_revision=revision,
         )
     # CoS reports belong to the calendar period even if an accepted rule changes.
-    occurrence = (auto.notification_occurrence_id(kind, logical) if cos else
-                  auto.notification_occurrence_id(rule_id, logical, revision if payload else None))
-    claim = auto.claim_notification(ledger, occurrence, rule_id=rule_id, payload=payload)
+    occurrence = auto.routine_occurrence(kind, logical, rules)
+    claim = auto.claim_notification(ledger, occurrence, rule_id=rule_id, payload=payload, now=current)
+    if claim["claimed"]:
+        ledger.put("action", claim["action_id"], {"routine_kind": kind, "logical": logical})
+        for chase in chases:
+            marker = auto.notification_occurrence_id("chase-step", chase["action_id"], chase["chase"]["step"])
+            if auto.claim_notification(ledger, marker, rule_id="chase-step", now=current)["claimed"]:
+                auto.record_notification(ledger, marker, "unknown", now=current)
+        if chases and auto.script_precheck({**state, "actions": due}, now=current, kind=kind)["run"]:
+            # The same due work and sources without chases are handled too, so the next tick does not resend them.
+            # A chase-only tick settles nothing else, so a source that comes due later still wakes.
+            plain = auto.routine_occurrence(kind, base, rules)
+            if auto.claim_notification(ledger, plain, rule_id=rule_id, payload=payload, now=current)["claimed"]:
+                auto.record_notification(ledger, plain, "unknown", now=current)
     result = {"wakeAgent": claim["claimed"], "occurrence_id": occurrence,
               "destination": next(iter(destinations)), "due_sources": check.get("due_sources", []),
-              "due_action_ids": [a["action_id"] for a in due]}
+              "due_action_ids": [a["action_id"] for a in due],
+              "chase_action_ids": [c["action_id"] for c in chases],
+              "occurrence_kind": "end_of_day" if kind == "daily_brief" and logical.endswith(":eod") else kind}
     # Computed here so the model never does ISO-week arithmetic. A kickoff's week is
     # the week of the next closeout, which reads it; a closeout's is its own week.
     if kind == "cos_kickoff":
@@ -344,6 +463,8 @@ def dispatch(ledger, data, *, get_config=None):
     action = data.pop("action", "status")
     if action == "status":
         return {"preferences": preferences(ledger), "rules": [a for a in ledger.list("action") if a["action_type"] == "automation_rule"], "install_enabled_jobs": 0}
+    if action == "health":
+        return auto.routine_health(ledger, **data)
     if action == "suggest":
         data.pop("get_config", None)
         return prepare_suggestions(ledger, get_config=get_config, **data)
@@ -362,14 +483,21 @@ def dispatch(ledger, data, *, get_config=None):
 
 def script_main(kind):
     import json
+    ledger = None
     try:
         import yaml
         from .state import Ledger
         root = Path(os.environ["HERMES_HOME"]).resolve()
+        ledger = Ledger(root)
         config = yaml.safe_load((root / "config.yaml").read_text()) or {}
         plugins = config.get("plugins", {})
         enabled = "personal-assistant" in (plugins.get("enabled") or []) and "personal-assistant" not in (plugins.get("disabled") or [])
-        result = cron_precheck(Ledger(root), kind, enabled=enabled)
+        result = cron_precheck(ledger, kind, enabled=enabled)
     except Exception:
         result = {"wakeAgent": False, "reason": "precheck_requires_attention"}
+        if ledger is not None:
+            try:
+                result = _health_failure(ledger, kind, result["reason"], dt.datetime.now(dt.timezone.utc))
+            except Exception:
+                pass  # An unavailable ledger cannot retain a health note.
     print(json.dumps(result))
