@@ -31,6 +31,10 @@ def stable_id(*parts):
     return hashlib.sha256(json.dumps(parts, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+# Transaction states whose provider step was attempted or settled; invalidation never pauses them.
+_ATTEMPTED = {"submitting", "unknown", "confirmed", "completed", "claimed_once", "provider_result", "verified", "reconciled"}
+
+
 class Ledger:
     def __init__(self, profile_root, *, timeout=10, read_only=False):
         self.timeout, self.read_only = timeout, read_only
@@ -154,8 +158,8 @@ class Ledger:
                         f["blocked_reason"] = "source details changed; recompute before resuming"
                         for derived in f.get("derived_fields", []):
                             f.pop(derived, None)
-                        # A source refresh cannot undo an attempted provider action.
-                        preserve = row["action_type"] == "transaction" and row["status"] in {"submitting", "unknown", "confirmed", "completed"}
+                        # A source refresh cannot undo an attempted provider action, legacy or governed.
+                        preserve = row["action_type"] == "transaction" and row["status"] in _ATTEMPTED
                         conn.execute("update actions set status=?,fields_json=?,updated_at=? where action_id=?", (row["status"] if preserve else "paused", json.dumps(f), stamp, row["action_id"]))
         return self.get(kind, identity)
 
@@ -260,12 +264,17 @@ class Ledger:
     def claim_submission(self, identity, summary):
         return self.transition(identity, {"authorized"}, "submitting", required_digest=stable_id(summary))
 
-    def result(self, identity, outcome, proof):
+    def result(self, identity, outcome, proof, follow_through=None):
         if outcome not in {"confirmed", "failed", "unknown"}:
             raise ValueError("invalid provider outcome")
         if outcome != "unknown" and not clean(proof):
             raise ValueError("provider evidence required")
         current = self.get("action", identity)
+        if follow_through is not None:
+            if outcome != "confirmed":
+                raise ValueError("follow_through requires outcome confirmed")
+            from .booking_follow_through import validate, complete
+            item, reminders, trip_id = validate(self, current, follow_through)
         governed = current and current["fields"].get("enforcement_profile") == "exact_action"
         if governed:
             target = {"confirmed": "verified", "failed": "reconciled", "unknown": "provider_result"}[outcome]
@@ -273,4 +282,14 @@ class Ledger:
         else:
             target = outcome
             expected = {"submitting", "unknown"}
-        return self.transition(identity, expected, target, {"provider_proof": proof, "verified_at": now() if proof else None})
+        fields = {"provider_proof": proof, "verified_at": now() if proof else None}
+        if follow_through is not None:
+            fields["booked_item"] = item
+            if trip_id:
+                fields["booking_trip_id"] = trip_id
+            # Re-recording a confirmed readback refreshes bookkeeping, not provider execution.
+            expected = expected | {target}
+        result = self.transition(identity, expected, target, fields)
+        if follow_through is not None:
+            result["follow_through"] = complete(self, identity, item, reminders, trip_id)
+        return result

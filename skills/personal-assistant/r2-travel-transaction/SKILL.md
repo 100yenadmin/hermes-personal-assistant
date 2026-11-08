@@ -15,6 +15,8 @@ Provider skills own browser details; `pa` owns action state and confirmation.
 2. Use `pa.action_upsert` for research. When ready to submit, call `pa.action_prepare` with `enforcement_profile: "exact_action"`, the complete material summary, exact provider tool and arguments, semantic target, revisions, freshness, one-call budget, preconditions, and expected readback.
 3. Require exact confirmation, call `pa.action_confirm` with the same summary, and recheck it. Invoke the exact provider tool directly; the native gateway atomically claims the one matching call. Do not claim it manually. Use `pa.action_cancel` if the user withdraws approval before dispatch.
 4. Read provider state and call `pa.action_result` with confirmed, failed, or unknown plus safe proof when known.
+   With a confirmed readback, pass `follow_through` with its own item values and reminders such as leave-by, check-in or the cancellation deadline. Never add a value the readback does not show.
+   Do the returned `next_step`. Report exactly what is on the itinerary, which reminders are set, and whether the booking is on the calendar or only in the ICS file.
 5. Never change a transaction through `action_upsert`; after timeout or restart, read provider state and never replay an unknown submit.
 Expected outcome: a prepared or verified travel action. Provider reference links
 are resolved relative to the selected provider skill directory.

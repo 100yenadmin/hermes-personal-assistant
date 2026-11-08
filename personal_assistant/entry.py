@@ -7,6 +7,7 @@ from .state import Ledger, stable_id
 from .evidence import EVIDENCE_TYPES, EVIDENCE_PREFIXES
 from .trip_facts import SEG_SCHEMA, SOURCES
 from .trip_watch import MOMENTS, SKIPS
+from .booking_follow_through import FOLLOW_THROUGH_SCHEMA
 
 # Keys a governed action_prepare must carry; authority and risk_class are optional (PA binds the authority).
 GOVERNED_PREPARE_KEYS = ("summary", "action_revision", "workflow_id", "workflow_revision", "tool_name", "tool_args",
@@ -85,6 +86,7 @@ SCHEMA = {
             "expected_readback": {"type": "string"},
             "outcome": {"type": "string", "description": "Outcome values are scoped by operation below."},
             "proof": {"description": "Provider or canonical readback evidence required for a known terminal outcome."},
+            "follow_through": FOLLOW_THROUGH_SCHEMA,
             "freshness_seconds": {"type": "integer", "minimum": 1, "maximum": 315360000, "description": "Optional caller-owned projection freshness duration; PA supplies no domain default."},
             "at": {"type": "string", "description": "Explicit timezone-aware evaluation or transition timestamp."},
             "kind": {"type": "string", "description": "context: trip/action/source/guide; profile: preference/person/sop/trust."},
@@ -107,8 +109,10 @@ SCHEMA = {
                 "outcome": {"type": "string", "enum": ["offered", "accepted", "declined", "completed", "useful", "not_useful", "opted_out"]}
             }}}}, "else": {"if": {"properties": {"operation": {"const": "action_result"}}},
             "then": {"properties": {"data": {"properties": {
-                "outcome": {"type": "string", "enum": ["confirmed", "failed", "unknown"]}
-            }}}}}}
+                "outcome": {"type": "string", "enum": ["confirmed", "failed", "unknown"]},
+                "follow_through": FOLLOW_THROUGH_SCHEMA
+            }, "allOf": [{"if": {"required": ["follow_through"]},
+                           "then": {"required": ["outcome"], "properties": {"outcome": {"const": "confirmed"}}}}]}}}}}
         }]},
 }
 
@@ -359,4 +363,4 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         return ledger.confirm(identity, data["summary"], data["confirmation"])
     if op == "action_claim":
         return ledger.claim_submission(identity, data["summary"])
-    return ledger.result(identity, data["outcome"], data.get("proof"))
+    return ledger.result(identity, data["outcome"], data.get("proof"), follow_through=data.get("follow_through"))
