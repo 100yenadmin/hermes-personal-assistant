@@ -279,8 +279,10 @@ def source_matches(match, texts, header=None):
     return currency_ok and numeric(match[0] if header else groups["prefix"] or groups["suffix"]) in seen
 
 
-def source_excerpt(match, texts, header=None):
-    """Source text around the cited number, so the judge can check its unit and conditions."""
+def source_excerpt(match, texts, header=None, claim=""):
+    """Source text around the cited number, so the judge can check its unit and conditions. With several
+    occurrences, the window sharing the most words with the claim line wins (live s18: a page listing a $10
+    benefits fee and a $10 treasury fee); a tie keeps the first occurrence."""
     groups = match.groupdict()
     value = numeric(match[0] if header else groups["prefix"] or groups["suffix"])
     family = currency_family(header or groups["pcurrency"] or groups["scurrency"])
@@ -291,14 +293,22 @@ def source_excerpt(match, texts, header=None):
         sign = (found[0][:found.start(group) - found.start()] + found[0][found.end(group) - found.start():]).strip()
         return 0 if currency_family(sign) in same else 1
 
+    wanted = {w for w in re.findall(r"[a-z]{3,}", claim.lower())}
+    best, best_key = None, None
+    order = 0
     for text, _ in texts:
         attached = sorted(ATTACHED.finditer(text), key=rank)
-        spans = [m.span(1 if m[1] else 2) for m in attached] + [m.span() for m in NUMBERS.finditer(text)]
-        for start, end in spans:
+        spans = [(rank(m), m.span(1 if m[1] else 2)) for m in attached] + [(2, m.span()) for m in NUMBERS.finditer(text)]
+        for tier, (start, end) in spans:
             if numeric(text[start:end]) == value:
                 begin = max(0, (start + end) // 2 - 100)
-                return " ".join(text[begin:begin + 200].split())
-    return None
+                window = " ".join(text[begin:begin + 200].split())
+                overlap = len(wanted & set(re.findall(r"[a-z]{3,}", window.lower())))
+                key = (tier, -overlap, order)  # cited currency first, then shared words, then first seen
+                if best_key is None or key < best_key:
+                    best, best_key = window, key
+                order += 1
+    return best
 
 
 VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:\w+\s+)?orders?|reserved|cancell?ed|signed\s+(?:you\s+|us\s+|me\s+)?up|registered"
@@ -419,7 +429,7 @@ def evaluate(answer, tools):
             seen = [fetched[url_key(s)] for s in cited if url_key(s) in fetched]
             matched = [texts for texts in seen if source_matches(match, texts, header)]
             if matched and len(excerpts) < 12:
-                excerpts.append({"amount": amount, "claim": line.strip()[:200], "source_text": source_excerpt(match, matched[0], header)})
+                excerpts.append({"amount": amount, "claim": line.strip()[:200], "source_text": source_excerpt(match, [t for texts in matched for t in texts], header, line)})
             elif matched:
                 excerpts_cut += 1
             if markers and not matched:

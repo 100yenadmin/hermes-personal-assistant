@@ -1076,3 +1076,15 @@ def test_research_guard_stops_ambiguous_get_questions(question):
                                   "I would have applied rates we booked.", "I didn't email them we booked Cedar."])
 def test_research_claims_a_rejected_pair_does_not_hide_a_later_claim(text):
     assert research_checks.claims_done(text)
+
+
+def test_source_excerpt_picks_the_occurrence_the_claim_is_about():
+    # Live s18: Deel's pricing page lists "$10" for benefits management and "$10" for Treasury Services; the judge was
+    # shown the benefits line for a correct Treasury claim and failed the run.
+    page = ("Benefits management Best for teams adding local benefits. S$12.50 per employee per month. " + "x " * 120
+            + "Treasury Services Best for companies wanting payroll funding and disbursement. S$12.50 per employee per month.")
+    answer = ANSWER.replace("S$12.50 per employee per month [1]", "Treasury Services add-on: S$12.50 per employee per month [1]")
+    [row] = evaluate(answer, tools(page))["source_excerpts"]
+    assert "Treasury Services" in row["source_text"]
+    [row] = evaluate(ANSWER.replace("S$12.50 per employee per month [1]", "benefits management: S$12.50 per employee per month [1]"), tools(page))["source_excerpts"]
+    assert "Benefits management" in row["source_text"]
