@@ -12,6 +12,12 @@ provides_tools:
 provides_hooks:
   - pre_tool_call
   - pre_llm_call
+optional_env:
+  - name: ELEVENLABS_API_KEY
+    description: "Optional. Read-only key for the manual phone-call poll (python -m personal_assistant.phone_poll); read through Hermes' secret accessor."
+    url: "https://elevenlabs.io/app/settings/api-keys"
+    secret: true
+    password: true
 python_dependencies:
   - icalendar>=6.3.1,<7
   - python-dateutil>=2.9.0.post0,<3

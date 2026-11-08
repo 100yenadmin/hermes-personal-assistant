@@ -37,25 +37,12 @@ class Scripted:
 
 
 class Codex:
-    """Read existing authorization once; never refresh, log or persist it."""
+    """Use a model token the caller put in PA_EVAL_CODEX_TOKEN; never read a saved login."""
     def __init__(self):
         from run_agent import AIAgent
-        token = None
-        homes = [os.environ.get('CODEX_HOME'), str(Path.home() / '.codex')]
-        for home in filter(None, homes):  # The lab sets HOME to a run home, so CODEX_HOME comes first.
-            try:
-                token = json.loads((Path(home) / 'auth.json').read_text())['tokens']['access_token']
-                break
-            except Exception:
-                continue
+        token = os.environ.get('PA_EVAL_CODEX_TOKEN')
         if not token:
-            try:
-                from hermes_cli.auth import _read_codex_tokens
-                token = (_read_codex_tokens() or {}).get('tokens', {}).get('access_token')
-            except Exception:
-                token = None
-        if not token:
-            raise ValueError('existing Codex authorization unavailable')
+            raise ValueError('PA_EVAL_CODEX_TOKEN is not set')
         self.agent_class, self.token = AIAgent, token
 
     def reply(self, persona, history, text=None, reason=None, direction='outbound'):

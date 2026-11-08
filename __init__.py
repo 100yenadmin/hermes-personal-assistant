@@ -1,7 +1,6 @@
 """Native Hermes entry point; installation registers capabilities but starts no jobs."""
 from pathlib import Path
 import json
-import os
 import threading
 
 
@@ -38,9 +37,9 @@ def register(ctx):
     get_config = getattr(ctx, "get_config", lambda key, default: default)
     chief_of_staff = cos_enabled(get_config)
 
-    configured_home = os.environ.get("HERMES_HOME")
-    manager_home = getattr(getattr(ctx, "_manager", None), "home_path", None)
-    root = Path(configured_home or manager_home or Path.home() / ".hermes").resolve()
+    # Resolved at register() time so each profile binds its own ledger.
+    from hermes_constants import get_hermes_home
+    root = Path(get_hermes_home()).resolve()
     policy_path = Path(__file__).parent / "config" / "pa-action-gateway-policy.example.json"
     policy = GatewayPolicy.load(policy_path)
     gateway_lock = threading.RLock()

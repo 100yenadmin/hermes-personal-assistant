@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+Catalog review fixes (NousResearch/hermes-agent#150855):
+
+- **Calendar sync removed.** The `calendar_bind` and `calendar_sync` operations are gone, with PA's Google Calendar client. PA no longer reads or refreshes the profile's `google_token.json`. The agent writes calendars with the profile's own calendar tools. Daily Ops reads them only through `gog`; the `profile_google` provider and `include_pa_binding` are refused with a clear error.
+- **`trip_import` takes content, not paths.** Pass the calendar file's text in `ics_text` (and a guide in `guide_text`), read first with `read_file`. `ics_path` and `guide_path` are refused.
+- **Updates go through Hermes.** `scripts/reinstall_pinned.py` is removed. Catalog installs update with `hermes plugins update personal-assistant`; a direct pinned Git install moves with `hermes plugins install <source> --force --ref <sha>`.
+- **Per-profile ledger.** `register()` binds the ledger with `hermes_constants.get_hermes_home()` instead of `HERMES_HOME` and the plugin manager's private attribute.
+- **No saved-login reads.** Eval and lab scripts take the model token from `PA_EVAL_CODEX_TOKEN`, set by the caller. The phone poll reads the declared `ELEVENLABS_API_KEY` through Hermes's secret accessor.
+
 ## 0.10.0-rc.1 — 2026-11-08
 
 The first measured release (roadmap M2, #48). It ships `releases/0.10.0-rc.1/scorecard.md`, built from Capability Lab runs pinned to this release's reviewed commit: real Hermes v0.22.2, real web pages through Browserbase, and `gpt-6.1-sol`. Four areas were exercised, 27 runs in all. Calendar (s19) and recurring routines (the daily, quiet-day, weekly and kickoff routines) pass their partial checks in 3 of 3 runs each. Travel prep passes 8 of 9 runs; in the ninth, the judge found a "prepared" food-order cart and a restaurant price range that the evidence did not show, so travel's partial check reads fail. General research fails its lab test: 1 of 3 runs passed and 2 failed. Every run passed the fixed checks, with no price missing from its cited page; the judge found an annual price described as monthly billing in one run, and a unit it could not see in its source excerpt in another. No area reaches parity yet: real-work and day-30 evidence come from the pilot owner's recorded tasks, and ten areas have no lab scenario yet. No run booked, paid or submitted anything (zero tripwire hits).

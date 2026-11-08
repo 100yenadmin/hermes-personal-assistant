@@ -58,9 +58,9 @@ def test_explicit_pilot_can_propose_newer_publication_despite_lower_numeric_vers
             system_home=tmp_path, hermes_home=tmp_path / ".hermes",
         )
     assert result["status"] == "update_available"
-    assert "reinstall_pinned.py" in result["proposed_command"]
-    assert "d" * 40 in result["proposed_command"]
-    assert f"--hermes-home {tmp_path / '.hermes'}" in result["proposed_command"]
+    assert "hermes plugins install owner/repo --force --ref " + "d" * 40 in result["proposed_command"]
+    assert result["proposed_command"].startswith(f"HERMES_HOME={tmp_path / '.hermes'} ")
+    assert "daily_ops.config.json" in result["before_command"] and "owner/repo" in result["before_command"]
     assert result["downloaded"] is False and result["executed"] is False
 
 
@@ -74,8 +74,9 @@ def test_archive_install_gets_canonical_path_and_explicit_replacement_proposal(t
             system_home=tmp_path, hermes_home=tmp_path / ".hermes",
         )
     assert result["operator_archive_path"] == str(tmp_path / ".hermes/plugins/personal-assistant")
-    assert "--archive-dir" in result["proposed_command"]
-    assert "--hermes-home" in result["proposed_command"]
+    assert "--force --ref " + "e" * 40 in result["proposed_command"]
+    assert "location.json" in result["before_command"]
+    assert result["proposed_command"].startswith("HERMES_HOME=")
 
 
 def test_equal_version_does_not_mask_known_source_mismatch(tmp_path):
@@ -89,7 +90,7 @@ def test_equal_version_does_not_mask_known_source_mismatch(tmp_path):
         )
     assert result["status"] == "source_mismatch"
     assert "'" in result["proposed_command"]
-    assert "--hermes-home" in result["proposed_command"]
+    assert result["proposed_command"].startswith("HERMES_HOME='")
 
 
 def test_invalid_install_and_missing_dependencies_are_not_actionable(tmp_path):

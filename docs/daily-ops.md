@@ -51,37 +51,31 @@ Calendar reads use one optional configuration block:
 ```json
 {
   "calendar": {
-    "provider": "profile_google",
+    "provider": "gog",
     "account": "owner@example.com",
     "read_scope": {
       "accepted": true,
-      "calendar_ids": ["primary"],
-      "include_pa_binding": true
+      "calendar_ids": ["primary"]
     }
   }
 }
 ```
 
-`account` may be omitted to use `accounts.work`. `profile_google` is the normal
-profile path: it reuses the active profile's existing `google_token.json`, accepts
-read-only or write-capable Calendar scopes, verifies the token's primary account,
-and never starts OAuth. Set `provider` to `gog` only to choose the configured
-alternative. Profiles without the new block retain the legacy `gog` primary
+`account` may be omitted to use `accounts.work`. `gog` is the only provider: PA
+holds no Google token, so the former `profile_google` provider and
+`include_pa_binding` were removed with Calendar sync in 0.10.0 and are refused
+with a clear error. Profiles without the block retain the legacy `gog` primary
 calendar behavior.
 
-`calendar_ids` is the complete explicitly accepted read set. The PA-owned write
-calendar is added only when `include_pa_binding` is the literal boolean `true`
-and the binding account matches. Duplicate IDs are read once. Each packet carries
+`calendar_ids` is the complete explicitly accepted read set. Duplicate IDs are
+read once. Each packet carries
 anonymous source-level coverage. Recurring events are expanded into occurrences;
 typed `start`/`end`, IANA timezone, and event URL remain intact. One failed source
 makes the packet incomplete while successful sources remain usable. Actual item,
 field, string, or depth bounding sets `complete:false` and `truncated:true`.
 
-Morning mail collection still uses the existing read-only `gog` path when it is
-available. A `profile_google` calendar does not require a second `gog` login: if
-mail collection is unavailable, the morning packet remains calendar-useful and
-marks each missing mail section and the whole packet incomplete. It never claims
-mailbox coverage in that state.
+Morning mail collection uses the same read-only `gog` path. If it fails, the
+run reports one pipeline failure; it never claims mailbox coverage.
 
 The morning window is the next 36 hours. The evening window is tomorrow in the
 configured timezone, including all-day events as timeline facts but never as

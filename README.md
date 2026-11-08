@@ -91,7 +91,6 @@ What you would want to know before installing. Nothing on this list runs on inst
 - call cards and call transcripts;
 - task evidence;
 - action receipts;
-- the bound Google account email and calendar ID, until you run `disconnect`;
 - records that only the shell ledger helper writes: browser checkpoints (page URLs, Browserbase session IDs), payment readiness (budget, funds status, which providers have a card on file) and connectivity profiles (device model, region, trip countries, budget).
 
 Optional features keep their own stores:
@@ -124,7 +123,7 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
 - Inbox and travel-mail work you ask for reads messages and their attachments through the mail integration your agent already has, and can write drafts in your mail provider. Sending is a separate action that needs your yes.
 - While signing in to a provider during an errand, the agent may read your connected email or SMS to pick up a sign-in link or verification code, if those integrations are connected.
 - Chief of Staff jobs (opt-in, each accepted separately) run scheduled agent turns. These read PA's ledger and USER.md or the manual, and may read your calendar and inbox through integrations you have already authorised. The weekly closeout also searches the web for tools related to your saved radar topics.
-- Trip import reads the `.ics` or guide file you give it.
+- For a trip import, the agent reads the `.ics` or guide file you give it with its own file tool and passes the text to PA; PA itself opens no file or URL.
 - Observer, precheck and mode reads use the profile's `config.yaml`. `/pa mode` also writes the plugin's mode setting there.
 - PA's own code reads Hermes's Kanban database and its cron job and suggestion stores.
 
@@ -138,13 +137,13 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
 **Network, only when you ask or opt in.**
 - **Provider sites.** Errands drive Hermes's browser tools on provider sites, for example a restaurant, hotel, airline or delivery site. When you don't name a provider, flight and hotel searches start on Trip.com and may move to the airline's or hotel's own site, or to local sellers such as Agoda or Rakuten, if Trip.com lacks the option, is worse or is blocked. Restaurant searches use reservation platforms, maps and local guides. A blocked site may be retried on another regional domain. The browser is the local one, `agent-browser` on a Browserbase session, or, if both fail, another attended browser you have configured, such as a Live Browser or VNC session. If you give provider sign-in details in chat, the errand skills save them in the agent's credential lane and signed-in browser profile, where available.
 - **Browserbase** (`api.browserbase.com`): only if it is configured. It is used when you ask for a cloud browser session, and the agent can also pick it during an errand you asked for, when a sign-in or verification step is likely or the site blocks the local browser. It uses your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` from the profile's secret scope. Sessions PA creates have recording and logging off, and are kept alive for up to 20 minutes or until PA releases them, billed to your Browserbase account. The session's connection and live-view links, which give control of that browser, and the open tabs' titles and sites pass through the agent and so to your model provider. They are not stored in the ledger. If you set Hermes's own browser to use Browserbase, Hermes creates those sessions itself, with Browserbase's default recording and logging settings.
-- **Google Calendar API:** `calendar_bind` checks the account and the destination calendar. `calendar_sync` creates and updates PA's own events in the one calendar you bind: trip events, single PA actions such as a private appointment you asked for, and any Chief of Staff benchmark slot you approve. New PA events use the bound calendar's default visibility, so people allowed to see event details in that calendar can read their titles, places and descriptions; updates keep an event's existing visibility. Each PA event carries hidden ownership markers in Google: your local Hermes profile path, the source event's UID and, when there is one, its source link. Daily Ops only reads. PA uses the profile's existing Google token file, `google_token.json`, from Hermes's Google Workspace sign-in: it reads that file and refreshes the access token in memory, which contacts Google's token endpoint. PA's Google code never starts a sign-in and never writes the file. (Moving this onto a plugin-declared OAuth client is tracked in #74.)
-- **The `gog` CLI:** if you choose it as your calendar provider, PA's calendar work and Daily Ops run `gog` as a subprocess. Setting it up may involve `gog auth add`, which signs in and stores gog's own credentials. The Daily Ops doctor (`python3 -m personal_assistant.daily_ops.doctor`) checks gog's authorisation.
+- **Google Calendar:** PA holds no Google token and makes no Google API calls. The agent reads and writes calendars with the profile's own calendar tools; Daily Ops reads them through `gog`.
+- **The `gog` CLI:** Daily Ops reads mail and calendar by running `gog` as a subprocess. Setting it up may involve `gog auth add`, which signs in and stores gog's own credentials. The Daily Ops doctor (`python3 -m personal_assistant.daily_ops.doctor`) checks gog's authorisation.
 - **SIM and eSIM research:** a comparison can run several parallel research subagents. These search provider sites and Reddit through other installed skills, use your configured model routes, and write research files outside the ledger.
 - **Open-Meteo** (geocoding and forecasts): only after you accept a trip watch. It receives your departure airport or city, then coordinates. It can be set to `off`.
-- **ElevenLabs** (`api.elevenlabs.io`, read-only): only from the manual `python -m personal_assistant.phone_poll` command. That command reads `ELEVENLABS_API_KEY` from the shell you run it in.
+- **ElevenLabs** (`api.elevenlabs.io`, read-only): only from the manual `python -m personal_assistant.phone_poll` command. That command reads the declared `ELEVENLABS_API_KEY` through Hermes's secret accessor, or from the shell when Hermes is not importable.
 - **Daily Ops (opt-in):**
-  - mail reads through the `gog` CLI, and calendar reads through the profile's Google token or `gog`. Selected mail (subjects, senders, snippets) and calendar items go to your configured model provider to write the brief, with email addresses replaced by aliases. The aliasing is pattern-based: an address in a non-ASCII form, such as `山田@example.com`, passes through. The brief goes to your delivery target;
+  - mail reads through the `gog` CLI, and calendar reads through `gog`. Selected mail (subjects, senders, snippets) and calendar items go to your configured model provider to write the brief, with email addresses replaced by aliases. The aliasing is pattern-based: an address in a non-ASCII form, such as `山田@example.com`, passes through. The brief goes to your delivery target;
   - OpenStreetMap Nominatim and OSRM through `curl`, only after you give geo consent;
   - client sync through the Stripe and Supabase CLIs, only after you give consent.
 
@@ -157,7 +156,6 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
 
 **Developer and maintenance scripts.**
 - The `evals/` harness and the `scripts/evaluate_*` tools call the model provider (and, for the voice check, Fish Audio) only when you run them by hand. The plugin never loads them.
-- `scripts/reinstall_pinned.py` runs `hermes plugins install --force`, which downloads the approved commit, and rewrites `plugins/.install-metadata.json`. Each run keeps a backup of the old package under `$HERMES_HOME/plugin-backups/personal-assistant/`; these backups are never pruned. It also writes a temporary copy of `clients.json` and the Daily Ops config in your Hermes home, which stays there if the run fails.
 - `scripts/probe_installed_version.py` is read-only. It also checks the legacy `~/.openclaw` folders for an older install and runs `git` on the plugin checkout.
 
 **Telemetry and approvals.**

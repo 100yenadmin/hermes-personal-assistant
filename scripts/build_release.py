@@ -103,7 +103,6 @@ def selected_files() -> list[str]:
         "VERSION", "__init__.py", "after-install.md", "plugin.yaml",
         "config/pa-action-gateway-policy.example.json",
         "scripts/check_release.py", "scripts/probe_installed_version.py",
-        "scripts/reinstall_pinned.py",
     }
     missing = sorted(required - set(selected))
     if missing:

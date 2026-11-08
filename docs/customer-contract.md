@@ -14,7 +14,6 @@ state needed for continuity and safe follow-through, including:
 - source revisions and reconciliation obligations;
 - provider-attempt state and bounded safe receipts;
 - automation preferences and notification identities;
-- calendar-binding metadata for an explicitly selected account and calendar;
 - opt-in exact-action authorization envelopes without retained raw tool
   arguments; and
 - an opt-in private conversation-evidence queue.
@@ -84,8 +83,7 @@ systems' retention policies.
 
 Pausing or disabling a workflow stops future work; it does not erase prior local
 history, provider records, model transcripts, host logs, or delivered messages.
-Disconnecting a calendar binding stops future synchronization but does not delete
-existing provider events. Deletion and retention changes are separate operations
+Deletion and retention changes are separate operations
 with their own authority and verification requirements.
 
 ## Optional features

@@ -8,7 +8,7 @@ import tarfile
 from types import SimpleNamespace
 
 
-def test_built_archive_registers_and_exports(tmp_path):
+def test_built_archive_registers_and_exports(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
     subprocess.run(["bash", str(root / "scripts/package_release.sh"),
                     "--output-dir", str(tmp_path / "dist")], check=True, capture_output=True)
@@ -30,8 +30,8 @@ def test_built_archive_registers_and_exports(tmp_path):
     tools, skills, hooks, commands = {}, {}, {}, {}
     home = tmp_path / "profile"
     home.mkdir()
-    ctx = SimpleNamespace(_manager=SimpleNamespace(home_path=home),
-                          get_config=lambda key, default=None: default,
+    monkeypatch.setenv("HERMES_HOME", str(home))  # register() binds the ledger via get_hermes_home().
+    ctx = SimpleNamespace(get_config=lambda key, default=None: default,
                           set_config=lambda key, value: None,
                           register_tool=lambda **kw: tools.update({kw["name"]: kw}),
                           register_hook=lambda name, callback: hooks.update({name: callback}),
@@ -68,7 +68,7 @@ def test_built_archive_registers_and_exports(tmp_path):
         calendar.write_text("BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:archive-event\n"
                             "DTSTART;VALUE=DATE:20260908\nDTEND;VALUE=DATE:20260909\n"
                             "SUMMARY:Archive check\nEND:VEVENT\nEND:VCALENDAR\n")
-        assert call("trip_import", {"trip_id": "archive", "ics_path": str(calendar)})["all_day"] == 1
+        assert call("trip_import", {"trip_id": "archive", "ics_text": calendar.read_text()})["all_day"] == 1
         result = call("export", {"trip_id": "archive", "output_dir": str(home / "exports")})
         assert "UID:archive-event" in Path(result["calendar"]).read_text()
         assert Path(result["reference"]).is_file()

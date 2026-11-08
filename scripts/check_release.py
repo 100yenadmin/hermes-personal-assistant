@@ -111,10 +111,7 @@ def _shell_command(arguments: list[str], *, hermes_home: Path | None = None) -> 
     return command
 
 
-def _replacement_script(installed: dict[str, object], hermes_home: Path) -> Path:
-    package_path = installed.get("package_path")
-    root = Path(str(package_path)).expanduser() if package_path else hermes_home / "plugins" / "personal-assistant"
-    return root.resolve() / "scripts" / "reinstall_pinned.py"
+LOCAL_CONFIG_NAMES = ("clients.json", "daily_ops.config.json", "daily_ops.state.json", "location.json")
 
 
 def check_release(*, gh: str, repository: str, channel: str,
@@ -131,6 +128,7 @@ def check_release(*, gh: str, repository: str, channel: str,
         "selected_release": None,
         "status": "no_release_on_channel",
         "proposed_command": None,
+        "before_command": None,
         "operator_archive_path": None,
         "release_changes": None,
     }
@@ -203,24 +201,22 @@ def check_release(*, gh: str, repository: str, channel: str,
         base["status"] = "installed_newer_or_off_channel"
         return base
     base["status"] = "source_mismatch" if same_version_mismatch else "update_available"
-    replacement = _replacement_script(installed, hermes_home)
+    # Hermes moves a pin itself: a same-source --force install at the approved revision.
+    move = ["hermes", "plugins", "install", repository, "--force", "--ref", source_sha, "--no-enable"]
+    plugin_dir = Path(str(installed.get("package_path") or hermes_home / "plugins" / "personal-assistant")).expanduser()
+    # Some Hermes versions replace the whole plugin folder on --force, and a different source always does.
+    before = (f"Copy {', '.join(LOCAL_CONFIG_NAMES)} out of {plugin_dir} and put them back after the move; "
+              "some Hermes versions replace the whole plugin folder. Check that the installed source is "
+              f"{repository}; moving from a different source replaces the plugin.")
     if installed.get("source_kind") == "native_git":
-        base["proposed_command"] = _shell_command(
-            [
-                "python3", str(replacement), "--source", repository, "--ref", source_sha,
-                "--hermes-home", str(hermes_home),
-            ]
-        )
+        base["proposed_command"] = _shell_command(move, hermes_home=hermes_home)
+        base["before_command"] = before
     elif installed.get("source_kind") in {"native_archive", "native_copy"} and (
         hermes_home / "plugins" / "personal-assistant"
     ).is_dir():
         base["operator_archive_path"] = str((hermes_home / "plugins" / "personal-assistant").resolve())
-        base["proposed_command"] = _shell_command(
-            [
-                "python3", str(replacement), "--archive-dir", "<verified-release-assets-directory>",
-                "--version", release_version, "--hermes-home", str(hermes_home),
-            ]
-        )
+        base["proposed_command"] = _shell_command(move, hermes_home=hermes_home)
+        base["before_command"] = before
     return base
 
 

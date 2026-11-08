@@ -43,10 +43,9 @@ def run(args):
     if runtime_head != args.runtime_head:
         raise ValueError("installed Hermes identity changed")
     sys.path.insert(0, str(hermes))
-    from hermes_cli.auth import _read_codex_tokens
-    token = str(_read_codex_tokens()["tokens"]["access_token"])
+    token = os.environ.get("PA_EVAL_CODEX_TOKEN", "")  # Caller-supplied; no saved login is read.
     if not token:
-        raise ValueError("existing model authorization unavailable")
+        raise ValueError("PA_EVAL_CODEX_TOKEN is not set")
     from hermes_constants import set_hermes_home_override, reset_hermes_home_override
     from hermes_cli.plugins import PluginManager
     from tools.registry import registry

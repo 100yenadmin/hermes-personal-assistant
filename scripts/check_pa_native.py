@@ -75,9 +75,9 @@ with tempfile.TemporaryDirectory(prefix="pa-isolated-") as temporary:
         selected.add_component(event)
     input_path = home / "input.ics"
     input_path.write_bytes(selected.to_ical())
-    data = {"trip_id": "native-check", "ics_path": str(input_path), "title": "Trip export acceptance"}
+    data = {"trip_id": "native-check", "ics_text": input_path.read_text(), "title": "Trip export acceptance"}
     if args.guide:
-        data["guide_path"] = args.guide
+        data["guide_text"] = Path(args.guide).read_text()
     imported = call({"operation": "trip_import", "data": data})
     replay = call({"operation": "trip_import", "data": data})
     assert imported == replay

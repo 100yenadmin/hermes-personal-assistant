@@ -4,6 +4,7 @@ import datetime as dt
 import json
 import os
 import socket
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -29,7 +30,11 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes"))
     if source := os.environ.get("PA_LAB_HERMES_SOURCE"):
         monkeypatch.syspath_prepend(source)
+        if getattr(sys.modules.get("hermes_constants"), "PA_TEST_STAND_IN", False):
+            monkeypatch.delitem(sys.modules, "hermes_constants")  # load the real one from the source
     constants = pytest.importorskip("hermes_constants")
+    if not hasattr(constants, "set_hermes_home_override"):
+        pytest.skip("needs a Hermes checkout, not the package-CI stand-in")
     token = constants.set_hermes_home_override(str(tmp_path / "hermes"))
     yield
     constants.reset_hermes_home_override(token)

@@ -13,11 +13,8 @@ Depending on approved configuration, Daily Ops may read:
 - Personal Assistant trip context from the existing PA ledger; and
 - an explicitly consented customer-owned account connector.
 
-The preferred calendar path reuses existing profile Google authorization and
-verifies the account. `gog` is an explicitly selected alternative, not a
-mandatory second login. The PA-owned write calendar joins the read set only when
-`include_pa_binding` is the literal boolean `true` and the binding account
-matches.
+Calendar reads go through the explicitly configured `gog` CLI and its own
+authorization. PA holds no Google token of its own.
 
 ## What Daily Ops does not do
 

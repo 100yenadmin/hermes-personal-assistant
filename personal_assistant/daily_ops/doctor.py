@@ -132,8 +132,6 @@ def check_gog(cfg=None):
     try:
         return True, f"gog found: {gog_binary()}"
     except DailyOpsError as exc:
-        if isinstance(cfg, dict) and (cfg.get("calendar") or {}).get("provider") == "profile_google":
-            return True, "gog mail collector unavailable; calendar-only packets will report incomplete mail coverage"
         return False, str(exc)
 
 
@@ -156,14 +154,11 @@ def _scope_names(scopes):
 
 def check_scopes(cfg: dict):
     accounts = cfg.get("accounts") or {}
-    calendar_first = (cfg.get("calendar") or {}).get("provider") == "profile_google"
-    requested = [(accounts.get("work"), {"gmail"} if calendar_first else {"gmail", "calendar"}), (accounts.get("personal"), {"gmail"})]
+    requested = [(accounts.get("work"), {"gmail", "calendar"}), (accounts.get("personal"), {"gmail"})]
     requested = [(account, required) for account, required in requested if account]
     try:
         binary = gog_binary()
     except DailyOpsError as exc:
-        if calendar_first:
-            return True, "gog mail auth unavailable; calendar-only packets will report incomplete mail coverage"
         return False, str(exc)
     failures = []
     try:
@@ -171,8 +166,6 @@ def check_scopes(cfg: dict):
         if not isinstance(data, dict) or not isinstance(data.get("accounts"), list):
             raise ValueError
     except (DailyOpsError, ValueError, TypeError):
-        if calendar_first:
-            return True, "gog mail auth unverified; calendar-only packets will report incomplete mail coverage"
         return False, "gog auth check failed; customer must reauthenticate"
     entries = data["accounts"]
     for index, (account, required) in enumerate(requested, 1):
@@ -197,8 +190,6 @@ def check_scopes(cfg: dict):
             failures.append(f"account-{index}: broad scopes present")
         if unsupported and not junk:
             failures.append(f"account-{index}: unsupported extra scopes present")
-    if failures and calendar_first:
-        return True, "gog mail scope unavailable or unverified; calendar-only packets will report incomplete mail coverage"
     return (not failures, "; ".join(failures) if failures else "required least-privilege scopes present")
 
 

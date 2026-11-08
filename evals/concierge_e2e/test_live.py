@@ -164,7 +164,7 @@ def run_scenario(auth, pin, scenario, dest):
         wire = [json.loads(line) for line in wirepath.read_text().splitlines()] if wirepath.exists() else []
         result["wire"] = wire
         result["backend_stop"] = any(r.get("error") or r.get("status", 200) >= 400 for r in wire)
-        if not isolation["placeholder_unchanged"] or not isolation["real_auth_mtime_unchanged"]:
+        if not isolation["placeholder_unchanged"]:
             result.update(status="FAIL", backend_stop=True, reason="auth isolation invariant failed")
         model_wire = [r for r in wire if r.get("model")]
         if not model_wire or any(r.get("model") != "gpt-6.1-sol" or (r.get("reasoning") or {}).get("effort") != "low"

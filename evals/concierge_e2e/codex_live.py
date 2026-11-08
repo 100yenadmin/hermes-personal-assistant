@@ -1,4 +1,4 @@
-"""Direct pinned Hermes Codex auth; never imports or copies a refresh credential."""
+"""Caller-supplied Codex access token for the pinned Hermes child; never reads a saved login or refresh credential."""
 import base64
 import datetime as dt
 import json
@@ -6,19 +6,16 @@ import os
 import re
 import sqlite3
 import time
-from pathlib import Path
 
 PLACEHOLDER = "pa-p4-placeholder-not-a-refresh-token"
 
 
 class LiveAuth:
     def __init__(self):
-        self.real_auth = Path.home() / ".codex/auth.json"
-        source = Path(os.getenv("CODEX_HOME", str(self.real_auth.parent))) / "auth.json"
-        if not source.exists():
-            source = self.real_auth
-        # Read once, select access_token only; no refresh-token field is accessed.
-        self.token = json.loads(source.read_text())["tokens"]["access_token"]
+        # The caller supplies the access token; the harness never opens a saved login.
+        self.token = os.environ.get("PA_EVAL_CODEX_TOKEN", "")
+        if not self.token:
+            raise RuntimeError("NOT_RUN: PA_EVAL_CODEX_TOKEN is not set")
         self.preflight()
 
     def preflight(self):
@@ -26,7 +23,6 @@ class LiveAuth:
         exp = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["exp"]
         if exp <= time.time() + 7200:
             raise RuntimeError("NOT_RUN: token expiring")
-        self.before = self.real_auth.stat().st_mtime_ns
         self.exp = exp
         self.checked_at = time.time()
 
@@ -56,9 +52,7 @@ class LiveAuth:
         auth_path = gateway.hermes_home / "auth.json"
         state = json.loads(auth_path.read_text())
         placeholder_ok = state["providers"]["openai-codex"]["tokens"]["refresh_token"] == PLACEHOLDER
-        after = self.real_auth.stat().st_mtime_ns
-        receipt = dict(placeholder_unchanged=placeholder_ok, real_auth_mtime_before_ns=self.before,
-                       real_auth_mtime_after_ns=after, real_auth_mtime_unchanged=self.before == after,
+        receipt = dict(placeholder_unchanged=placeholder_ok, token_source="PA_EVAL_CODEX_TOKEN",
                        jwt_exp=self.exp, minimum_ttl_seconds=7200, codex_home_unset_in_child=True,
                        expiry_checked_at=self.checked_at, ttl_at_check_seconds=self.exp - self.checked_at,
                        home_isolated=True, refresh_host_not_allowlisted=True)
@@ -79,4 +73,4 @@ class LiveAuth:
                     safe = self.scrub(text)
                     if safe != text:
                         path.write_text(safe)
-        assert placeholder_ok and self.before == after, "auth isolation invariant failed"
+        assert placeholder_ok, "auth isolation invariant failed"

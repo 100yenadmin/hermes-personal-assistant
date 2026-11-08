@@ -33,7 +33,7 @@ class Calls:
         # The simulator only rings with a reason from the persona sheet; the scenario reason is the user's instruction.
         self.ring_reason = self.spec.get("ring_reason") or (persona.get("inbound") or [None])[0]
         # The simulated business is not the assistant: an empty Hermes home keeps PA's hooks out of its prompt.
-        # Its Codex token comes from CODEX_HOME, which the runner sets.
+        # Its model token is PA_EVAL_CODEX_TOKEN, inherited from the caller's environment.
         self.home = tempfile.mkdtemp(prefix="pa-call-sim-")
         self.process = subprocess.Popen([self.python, "-m", "evals.call_sim.server", "--personas", str(directory),
             "--port", "0", "--model-backend", "codex"], cwd=self.package,

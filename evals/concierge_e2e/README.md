@@ -77,12 +77,13 @@ poller, observer and loopback Telegram/weather services. Run `test_live.py`
 with `--results EVIDENCE_ROOT` after setting the prepared Hermes/HB2 paths.
 It runs delay, snow/acceptance and unanswered notices twice, sequentially;
 `--scenario` and `--round` select a bounded subset. It is not a pytest live test.
-The parent reads only the access-token field once. Each run requires a JWT
+The parent takes the access token from `PA_EVAL_CODEX_TOKEN`, which the caller
+sets; it never reads a saved login. Each run requires a JWT
 expiry more than two hours ahead and writes the approved nested auth shape with
 a nonfunctional placeholder refresh token. The child has isolated HOME and no
 CODEX_HOME, with only chatgpt.com added to the loopback network boundary;
-the refresh host is excluded. After stopping, it asserts the placeholder and
-real Codex auth mtime are unchanged and scrubs the isolated credential/logs.
+the refresh host is excluded. After stopping, it asserts the placeholder is
+unchanged and scrubs the isolated credential/logs.
 The synthetic owner arms only a watch; its test cadence is 2s rather than 15m.
 No real provider actions or web tools are available. Snapshots include messages,
 tool transcript, ledger, HB2 rows, gateway logs, wire model/effort/tier metadata,

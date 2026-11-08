@@ -28,58 +28,30 @@ def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None
     }
     complete = calendar.complete
     truncated = calendar.truncated
-    calendar_first = (cfg.get("calendar") or {}).get("provider") == "profile_google"
     for index, account in enumerate((value for value in ((cfg.get("accounts") or {}).get("work"), (cfg.get("accounts") or {}).get("personal")) if value), 1):
-        try:
-            humans = run_mail(account, Q_HUMANS, page_size=25, max_items=500)
-        except DailyOpsError:
-            if not calendar_first:
-                raise
-            humans = None
-        try:
-            bulk = run_mail(account, Q_BULK, page_size=100, max_items=2000)
-        except DailyOpsError:
-            if not calendar_first:
-                raise
-            bulk = None
-        if humans is None:
-            sections[f"humans_{index}"] = {"items": [], "count": 0, "complete": False, "truncated": False, "status": "mail provider unavailable"}
-            complete = False
-        else:
-            sections[f"humans_{index}"] = {
-                "items": humans.items[:25], "count": len(humans.items), "complete": humans.complete, "truncated": humans.truncated,
-            }
-            complete = complete and humans.complete
-            truncated = truncated or humans.truncated
-        if bulk is None:
-            sections[f"bulk_{index}"] = {"count": 0, "exact": False, "lower_bound": 0, "sample": [], "complete": False, "truncated": False, "status": "mail provider unavailable"}
-            complete = False
-        else:
-            bulk_count = bulk.total if bulk.total is not None else len(bulk.items)
-            sections[f"bulk_{index}"] = {
-                "count": bulk_count, "exact": bulk.total is not None and bulk.complete,
-                "lower_bound": len(bulk.items), "sample": bulk.items[:3],
-                "complete": bulk.complete, "truncated": bulk.truncated,
-            }
-            complete = complete and bulk.complete
-            truncated = truncated or bulk.truncated
+        humans = run_mail(account, Q_HUMANS, page_size=25, max_items=500)
+        bulk = run_mail(account, Q_BULK, page_size=100, max_items=2000)
+        sections[f"humans_{index}"] = {
+            "items": humans.items[:25], "count": len(humans.items), "complete": humans.complete, "truncated": humans.truncated,
+        }
+        complete = complete and humans.complete
+        truncated = truncated or humans.truncated
+        bulk_count = bulk.total if bulk.total is not None else len(bulk.items)
+        sections[f"bulk_{index}"] = {
+            "count": bulk_count, "exact": bulk.total is not None and bulk.complete,
+            "lower_bound": len(bulk.items), "sample": bulk.items[:3],
+            "complete": bulk.complete, "truncated": bulk.truncated,
+        }
+        complete = complete and bulk.complete
+        truncated = truncated or bulk.truncated
         booking_query = (cfg.get("travel") or {}).get("booking_query")
         if isinstance(booking_query, str) and booking_query.strip():
-            try:
-                travel = run_mail(account, booking_query, page_size=25, max_items=200)
-            except DailyOpsError:
-                if not calendar_first:
-                    raise
-                travel = None
-            if travel is None:
-                sections[f"travel_detect_{index}"] = {"items": [], "count": 0, "complete": False, "truncated": False, "status": "mail provider unavailable"}
-                complete = False
-            else:
-                sections[f"travel_detect_{index}"] = {
-                    "items": travel.items[:10], "count": len(travel.items), "complete": travel.complete, "truncated": travel.truncated,
-                }
-                complete = complete and travel.complete
-                truncated = truncated or travel.truncated
+            travel = run_mail(account, booking_query, page_size=25, max_items=200)
+            sections[f"travel_detect_{index}"] = {
+                "items": travel.items[:10], "count": len(travel.items), "complete": travel.complete, "truncated": travel.truncated,
+            }
+            complete = complete and travel.complete
+            truncated = truncated or travel.truncated
     return envelope("morning_brief", cfg, current, current + dt.timedelta(hours=36), sections, complete=complete, truncated=truncated)
 
 

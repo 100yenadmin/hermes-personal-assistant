@@ -29,9 +29,10 @@ The current supported Hermes pins are:
 The native matrix uses disposable synthetic profiles. It installs the plugin
 from Git with a full 40-character commit SHA, explicitly enables it, verifies
 `pa` and qualified skill discovery, imports one timed and one all-day event,
-exports them, and checks ledger replay. It then performs an explicit pinned
-reinstall and proves that allowlisted local PA configuration and the profile
-ledger survive. Disable/re-enable and missing dependency/access cases must remain
+exports them, and checks ledger replay. It then moves the pin with
+`hermes plugins install --force --ref`, proves that the profile ledger
+survives, and reports whether that Hermes version carried PA's local
+configuration files across the move (`local_config_carried_by_hermes`). Disable/re-enable and missing dependency/access cases must remain
 truthful. These checks do not use real profiles or provider credentials.
 
 ## Native install and approved revision changes
@@ -57,50 +58,24 @@ authorized idle point:
 hermes plugins enable personal-assistant
 ```
 
-Pinned installations never move automatically. `hermes plugins update` refuses
-them. After a newer revision is approved, use the repository's preservation
-wrapper from the currently installed plugin. It backs up only the documented PA
-configuration files in memory, retains the prior package and its activation
-membership in the profile's `plugin-backups/personal-assistant/` directory,
-runs a full-SHA force reinstall, restores current configuration, and does not
-enable the plugin or restart Hermes:
+Catalog installs update with `hermes plugins update personal-assistant`, which
+moves to the catalog's current reviewed pin. A direct pinned Git install never
+moves automatically; `hermes plugins update` refuses it. After a newer revision
+is approved, move the pin with Hermes itself. A same-source `--force` install
+does not enable the plugin or restart Hermes, but some Hermes versions replace
+the whole plugin folder, dropping PA's local configuration files
+(`clients.json`, `daily_ops.config.json`, `daily_ops.state.json`,
+`location.json`). Copy them out of `<HERMES_HOME>/plugins/personal-assistant/`
+before the move and put them back after it:
 
 ```bash
-python3 ~/.hermes/plugins/personal-assistant/scripts/reinstall_pinned.py \
-  --source 100yenadmin/hermes-personal-assistant \
-  --ref <40-character-approved-commit> \
-  --hermes-home ~/.hermes
+hermes plugins install 100yenadmin/hermes-personal-assistant --force \
+  --ref <40-character-approved-commit> --no-enable
 ```
 
-The result names the retained rollback snapshot. If acceptance fails, roll the
-package back explicitly:
-
-```bash
-python3 ~/.hermes/plugins/personal-assistant/scripts/reinstall_pinned.py \
-  --rollback <snapshot-id> --hermes-home ~/.hermes
-```
-
-Rollback restores the prior package and native install metadata while retaining
-the current local PA configuration and activation membership. Ledger, session,
-memory, job, and provider state live outside the plugin package and are never
-copied or rewound. The rollback itself retains a recovery snapshot of the
-replaced package.
-
-An archive operator downloads the `.tgz`, `.sha256`, and external
-`.manifest.json` into one staging directory. After reviewing the version and
-source SHA, the same helper verifies all three assets, retains the prior package,
-and replaces the canonical discovery path `plugins/personal-assistant`:
-
-```bash
-python3 ~/.hermes/plugins/personal-assistant/scripts/reinstall_pinned.py \
-  --archive-dir /absolute/path/to/verified-release-assets \
-  --version <approved-version> --hermes-home ~/.hermes
-```
-
-The helper removes stale Git install metadata so the read-only probe identifies
-the canonical tree as `native_archive` from its internal release identity. Git
-and archive replacement both preserve current configuration and activation and
-require the same explicit post-replacement inspect/reload decision.
+Ledger, session, memory, job, and provider state live outside the plugin
+package and are never copied or rewound. An extracted release archive is not
+an updateable Git installation; replace it with the same native Git install.
 
 ## Read-only release check
 
@@ -112,8 +87,9 @@ prerelease. The result distinguishes:
 - installed native Git revision or archive metadata;
 - selected release version, source SHA, and asset digest;
 - release notes since the installed version;
-- the exact profile-bound native pinned reinstall command, or the verified
-  archive replacement command and canonical operator archive path.
+- the exact profile-bound `hermes plugins install --force --ref` command, with
+  the local configuration files to copy out first (`before_command`), and
+  for an archive install the canonical operator archive path it replaces.
 
 Missing GitHub access, missing dependencies, absent install metadata, and an
 unreleased installed commit are reported as such. They are never converted into

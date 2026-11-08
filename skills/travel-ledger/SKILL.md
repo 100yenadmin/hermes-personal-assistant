@@ -28,7 +28,7 @@ checkpoints through the `pa` tool. It writes this same ledger and needs no shell
   as in `personal-assistant:personal-assistant`.
 - Browser checkpoint: the same call with `action_kind="checkpoint"`, as in the
   Checkpoints rule of `personal-assistant:personal-assistant`.
-- A trip from a calendar file: `pa(operation="trip_import", data={"trip_id": "...", "ics_path": "..."})`. If `next_step.offer_trip_watch`, load `personal-assistant:trip-concierge` and ask `next_step.question` once.
+- A trip from a calendar file: read the file with `read_file` (join every page and drop the line-number prefixes it adds; if any line ends in `[truncated]`, stop and ask for the file another way rather than import a cut line), then `pa(operation="trip_import", data={"trip_id": "...", "ics_text": "<file text>"})`. If `next_step.offer_trip_watch`, load `personal-assistant:trip-concierge` and ask `next_step.question` once.
 - Read back with `pa(operation="context", data={"kind": "action", "action_id": "<returned action_id>"})`.
 
 The helper below covers the rest (payment readiness, connectivity profiles,

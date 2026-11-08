@@ -18,8 +18,8 @@ def cfg():
         "timezone": "Asia/Bangkok",
         "accounts": {"work": "owner@example.com", "personal": None},
         "calendar": {
-            "provider": "profile_google",
-            "read_scope": {"accepted": True, "calendar_ids": ["primary"], "include_pa_binding": False},
+            "provider": "gog",
+            "read_scope": {"accepted": True, "calendar_ids": ["primary"]},
         },
         "travel": {"leave_by": False},
     }
@@ -45,7 +45,7 @@ def calendar_result(items=None, *, complete=True, truncated=False):
         complete,
         truncated,
         None,
-        [{"source": "calendar-1", "provider": "profile_google", "status": "complete", "complete": complete, "truncated": truncated}],
+        [{"source": "calendar-1", "provider": "gog", "status": "complete", "complete": complete, "truncated": truncated}],
     )
 
 
@@ -87,18 +87,19 @@ def test_actual_packet_bounding_sets_both_fidelity_flags():
     assert packet["complete"] is False and packet["truncated"] is True
 
 
-def test_profile_google_brief_degrades_to_calendar_only_without_gog(monkeypatch):
+def test_mail_failure_is_not_hidden_behind_a_calendar_only_brief(monkeypatch):
     monkeypatch.setattr(morning_brief, "run_calendar", lambda *args, **kwargs: calendar_result())
     monkeypatch.setattr(morning_brief, "run_mail", lambda *args, **kwargs: (_ for _ in ()).throw(DailyOpsError("synthetic missing gog")))
     monkeypatch.setattr(morning_brief.trip_context, "trip_context", lambda *args: {"status": "unknown"})
-    packet = morning_brief.collect(cfg(), profile="/synthetic/profile", moment=MOMENT)
-    assert packet["sections"]["calendar_next_36h"]["count"] == 1
-    assert packet["sections"]["humans_1"]["status"] == "mail provider unavailable"
-    assert packet["sections"]["humans_1"]["complete"] is False
-    assert packet["complete"] is False and packet["truncated"] is False
+    try:
+        morning_brief.collect(cfg(), profile="/synthetic/profile", moment=MOMENT)
+    except DailyOpsError as exc:
+        assert "synthetic missing gog" in str(exc)
+    else:
+        raise AssertionError("a gog-only brief must fail when gog mail is unavailable")
 
 
-def test_profile_google_config_requires_explicit_scope_but_not_gog_login(monkeypatch):
+def test_gog_config_requires_explicit_scope_and_gog(monkeypatch):
     invalid = cfg()
     invalid["calendar"]["read_scope"]["accepted"] = False
     assert any("calendar.read_scope.accepted" in error for error in config.validate_config(invalid))
@@ -107,11 +108,8 @@ def test_profile_google_config_requires_explicit_scope_but_not_gog_login(monkeyp
         raise DailyOpsError("synthetic missing gog")
 
     monkeypatch.setattr(doctor, "gog_binary", missing_gog)
-    assert doctor.check_gog(cfg()) == (
-        True,
-        "gog mail collector unavailable; calendar-only packets will report incomplete mail coverage",
-    )
-    assert doctor.check_scopes(cfg())[0] is True
+    assert doctor.check_gog(cfg()) == (False, "synthetic missing gog")
+    assert doctor.check_scopes(cfg())[0] is False
 
 
 def test_evening_and_watchdog_travel_share_the_same_calendar_scope(monkeypatch):

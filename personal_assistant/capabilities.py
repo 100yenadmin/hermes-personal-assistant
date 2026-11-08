@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import Counter
 import os
-from pathlib import Path
 import shutil
 from typing import Any, Callable, Iterable
 
@@ -77,11 +76,6 @@ def discover(entries: Iterable[Any] | None = None,
             # The operation is implemented by this plugin even in a narrow registry fixture.
             status, evidence = "available", "plugin-native import/export"
             tool_names = ["pa"]
-        elif capability == "calendar" and profile_root is not None and not matched:
-            present = (Path(profile_root) / "google_token.json").is_file()
-            status = "unverified" if present else "needs-setup"
-            evidence = "native PA Google helper; existing profile authorization file present, scopes and account require readback" if present else "native PA Google helper; use an existing integration or configure missing Google access"
-            tool_names = sorted({"pa", *(str(entry.name) for entry in matched)})
         elif not matched:
             status, evidence, tool_names = "unavailable", "no matching active tool registration", []
         else:

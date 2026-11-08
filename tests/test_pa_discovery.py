@@ -1,8 +1,8 @@
 import importlib.util
+import os
 import sys
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -91,17 +91,14 @@ class DiscoveryTests(unittest.TestCase):
                 result = discover([_Entry("calendar_list", check)], lambda fn: cached, profile_root=root)
                 row = next(r for r in result["capabilities"] if r["id"] == "calendar")
                 self.assertEqual(row["status"], expected)
-            (Path(root) / "google_token.json").write_text("not valid credentials")
-            row = next(r for r in discover([_Entry("calendar_list", check)], lambda fn: False, profile_root=root)["capabilities"] if r["id"] == "calendar")
-            self.assertEqual(row["status"], "needs-setup")
 
-    def test_native_google_route_is_discovered_without_reading_credentials(self):
+    def test_pa_offers_no_calendar_route_of_its_own(self):
         with tempfile.TemporaryDirectory() as root:
+            # A Google token file in the profile belongs to another tool; PA never uses it.
             (Path(root) / "google_token.json").write_text("not valid credentials")
-            rows = {r["id"]: r for r in discover([], profile_root=root)["capabilities"]}
-            self.assertEqual(rows["calendar"]["status"], "unverified")
-            self.assertEqual(rows["calendar"]["authentication"], "unverified")
-            self.assertIn("pa", rows["calendar"]["tools"])
+            rows = {r["id"]: r for r in discover([], profile_root=root, which=lambda name: None)["capabilities"]}
+            self.assertEqual(rows["calendar"]["status"], "unavailable")
+            self.assertNotIn("pa", rows["calendar"]["tools"])
 
     def test_capabilities_distinguish_runtime_states_without_auth_claim(self):
         calendar_check = lambda: True
@@ -145,8 +142,6 @@ class DiscoveryTests(unittest.TestCase):
             registrations = []
 
             class Context:
-                _manager = SimpleNamespace(home_path=root)
-
                 def register_tool(self, **kwargs):
                     self.tools = getattr(self, "tools", {})
                     self.tools[kwargs["name"]] = kwargs
@@ -162,7 +157,8 @@ class DiscoveryTests(unittest.TestCase):
                     registrations.append((name, path, description, frontmatter))
 
             ctx = Context()
-            module.register(ctx)
+            with patch.dict(os.environ, {"HERMES_HOME": root}):
+                module.register(ctx)
         sys.modules.pop(spec.name, None)
         self.assertEqual(ctx.tools["pa"]["description"], ctx.tools["pa"]["schema"]["description"])
         self.assertIn("pa_call", ctx.tools)

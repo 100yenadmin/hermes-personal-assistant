@@ -53,15 +53,7 @@ def p1_alerts(cfg: dict, config_dir_: str, now: dt.datetime, *, details: bool = 
         return (records, key_index) if details else ([item["line"] for item in records], key_index)
     complete, truncated = True, False
     for index, account in enumerate(_accounts(cfg), 1):
-        try:
-            found = collect_pages(account, ["gmail", "search", Q_PRIORITY], iter_threads, page_size=25, max_items=1000)
-        except DailyOpsError:
-            if (cfg.get("calendar") or {}).get("provider") != "profile_google":
-                raise
-            if coverage is not None:
-                coverage.update({"complete": False, "truncated": False, "status": "mail provider unavailable"})
-            complete = False
-            continue
+        found = collect_pages(account, ["gmail", "search", Q_PRIORITY], iter_threads, page_size=25, max_items=1000)
         if coverage is not None:
             coverage["complete"] = coverage["complete"] and found.complete
             coverage["truncated"] = coverage["truncated"] or found.truncated

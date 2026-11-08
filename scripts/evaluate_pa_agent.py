@@ -107,25 +107,25 @@ def _run_case(profile: Path, recipe_id: str, name: str, fixture: FixtureProvider
     _dispatch(profile, "status", {}, operations)
     action_id = f"fixture-{recipe_id.lower()}-{name}"
     if recipe_id == "R1" and name == "trip_import":
-        first = _dispatch(profile, "trip_import", {"trip_id": "fixture-trip", "ics_path": str(input_path), "title": "Synthetic trip"}, operations)
-        replay = _dispatch(profile, "trip_import", {"trip_id": "fixture-trip", "ics_path": str(input_path), "title": "Synthetic trip"}, operations)
+        first = _dispatch(profile, "trip_import", {"trip_id": "fixture-trip", "ics_text": input_path.read_text(), "title": "Synthetic trip"}, operations)
+        replay = _dispatch(profile, "trip_import", {"trip_id": "fixture-trip", "ics_text": input_path.read_text(), "title": "Synthetic trip"}, operations)
         _upsert(profile, action_id, name, operations)
         if first == replay and first["timed"] == 1 and first["all_day"] == 1:
             checks.append("timed_and_all_day_facts")
     elif recipe_id == "R1" and name == "trip_change":
-        _dispatch(profile, "trip_import", {"trip_id": "fixture-change", "ics_path": str(input_path)}, operations)
+        _dispatch(profile, "trip_import", {"trip_id": "fixture-change", "ics_text": input_path.read_text()}, operations)
         before = _dispatch(profile, "context", {"kind": "trip", "trip_id": "fixture-change"}, operations)
-        _dispatch(profile, "trip_import", {"trip_id": "fixture-change", "ics_path": str(input_path), "source_notes": {"fixture-timed": ["departure changed"]}}, operations)
+        _dispatch(profile, "trip_import", {"trip_id": "fixture-change", "ics_text": input_path.read_text(), "source_notes": {"fixture-timed": ["departure changed"]}}, operations)
         changed_path = input_path.with_name("changed.ics")
         changed_path.write_bytes(ICS_CHANGED)
-        _dispatch(profile, "trip_import", {"trip_id": "fixture-change", "ics_path": str(changed_path)}, operations)
+        _dispatch(profile, "trip_import", {"trip_id": "fixture-change", "ics_text": changed_path.read_text()}, operations)
         after = _dispatch(profile, "context", {"kind": "trip", "trip_id": "fixture-change"}, operations)
         old, new = before["events"][0], after["events"][0]
         _upsert(profile, action_id, name, operations)
         if new["start"] != old["start"] and new["location"] == "Terminal 1":
             checks.append("changed_start_and_retained_omitted_location")
     elif recipe_id == "R1" and name == "trip_export":
-        _dispatch(profile, "trip_import", {"trip_id": "fixture-export", "ics_path": str(input_path)}, operations)
+        _dispatch(profile, "trip_import", {"trip_id": "fixture-export", "ics_text": input_path.read_text()}, operations)
         export = _dispatch(profile, "export", {"trip_id": "fixture-export", "output_dir": str(profile / "export")}, operations)
         _upsert(profile, action_id, name, operations)
         calendar = Path(export["calendar"])
@@ -391,10 +391,10 @@ RENEWAL_CONFIRMATION = "Confirm renewal synthetic-cloud monthly at 10 KRW."
 
 
 def _recipe_prompts(home: Path) -> list[dict[str, Any]]:
-    ics_path = home / "fixture.ics"
+    ics_text = (home / "fixture.ics").read_text()  # trip_import takes content, not a path.
     export_dir = home / "exports-r1"
     bundles = [
-        {"recipes": ["R1", "R4", "R5"], "required_facts": ["R1_import_export_inputs", "R4_conflict_readback", "R5_brief_and_automation"], "prompt": f"Exercise R1, R4, and R5 with the exact synthetic facts below. All inputs are complete; ask zero questions. Start with pa.status, then pa.recipes for each listed recipe. R1: import trip_id live-trip from the local ICS file {ics_path}, whose synthetic facts are route SFO-ICN, timed event UID fixture-timed, and all-day travel on 2026-09-07; then export trip_id live-trip as credential-free ICS and reference files to {export_dir}. R4: record action_id live-r4-conflict with timezone Asia/Seoul, overlapping events fixture-A 2026-09-06 13:00-14:00 and fixture-B 2026-09-06 13:30-14:30, conflict overlap, and next_action choose non-conflicting slot. R5: record action_id live-r5-brief with timezone UTC, sources calendar and tasks, and next_action review current brief; call pa automations with action status and the synthetic fixture automation_suggest callback. Use action_upsert for R4 and R5 preparation/readback; never use action_prepare or action_result for these nontransaction records. Use pa_fixture_provider only for deterministic synthetic readback after recording the stage; it does not contact a provider. Never send, invite, purchase, install, or change a real calendar. Return one concise outcome sentence."},
+        {"recipes": ["R1", "R4", "R5"], "required_facts": ["R1_import_export_inputs", "R4_conflict_readback", "R5_brief_and_automation"], "prompt": f"Exercise R1, R4, and R5 with the exact synthetic facts below. All inputs are complete; ask zero questions. Start with pa.status, then pa.recipes for each listed recipe. R1: import trip_id live-trip, passing data.ics_text set to exactly this JSON-encoded ICS text {json.dumps(ics_text)}, whose synthetic facts are route SFO-ICN, timed event UID fixture-timed, and all-day travel on 2026-09-07; then export trip_id live-trip as credential-free ICS and reference files to {export_dir}. R4: record action_id live-r4-conflict with timezone Asia/Seoul, overlapping events fixture-A 2026-09-06 13:00-14:00 and fixture-B 2026-09-06 13:30-14:30, conflict overlap, and next_action choose non-conflicting slot. R5: record action_id live-r5-brief with timezone UTC, sources calendar and tasks, and next_action review current brief; call pa automations with action status and the synthetic fixture automation_suggest callback. Use action_upsert for R4 and R5 preparation/readback; never use action_prepare or action_result for these nontransaction records. Use pa_fixture_provider only for deterministic synthetic readback after recording the stage; it does not contact a provider. Never send, invite, purchase, install, or change a real calendar. Return one concise outcome sentence."},
         {"recipes": ["R2"], "required_facts": ["R2_exact_booking_lifecycle"], "prompt": f"Exercise R2 booking with these fully supplied synthetic details and no questions: action_id {BOOKING_ACTION_ID}; provider synthetic-airline; route SFO-ICN; date 2026-09-20; total 10 KRW; submit label Book. Start with pa.status and pa.recipes recipe_id R2. Use action_upsert to record the action, then action_prepare, action_confirm with exactly this confirmation text: {BOOKING_CONFIRMATION} Then action_claim, call pa_fixture_provider operation provider_readback with outcome confirmed, and record its deterministic proof with action_result. Do not invent any provider receipt and do not contact an airline. Return one concise outcome sentence."},
         {"recipes": ["R3", "R6"], "required_facts": ["R3_return_deadline_lifecycle", "R6_selected_draft"], "prompt": f"Exercise R3 and R6 with complete synthetic inputs; ask zero questions. Start with pa.status, then pa.recipes for R3 and R6. R3 is a return: action_id {RETURN_ACTION_ID}, provider synthetic-store, order-77, item black suitcase, deadline 2026-09-30. Prepare the exact scope, confirm with exactly: {RETURN_CONFIRMATION} Then claim, call pa_fixture_provider provider_readback with outcome confirmed, and record only its returned deterministic proof. R6 is selected-inbox draft only: action_id live-r6-draft, accepted scope inbox:travel, recipient alex@example.invalid, body Draft only: confirm the synthetic itinerary. Use action_upsert for this draft and do not prepare, confirm, claim, result, or send it. Never contact a real provider or recipient. Return one concise outcome sentence."},
         {"recipes": ["R7", "R8"], "required_facts": ["R7_receipt_and_renewal_lifecycle", "R8_shopping_comparison"], "prompt": f"Exercise R7 and R8 with fully supplied synthetic inputs and no questions. Start with pa.status, then pa.recipes for R7 and R8. R7 receipt: action_id live-r7-receipt, service synthetic-cloud, receipt_id receipt-42, amount 10 KRW; store the receipt reconciliation with action_upsert. R7 renewal: action_id {RENEWAL_ACTION_ID}, provider synthetic-cloud, term monthly, total 10 KRW; prepare and confirm with exactly: {RENEWAL_CONFIRMATION} Then claim, call pa_fixture_provider provider_readback outcome confirmed, and record its deterministic proof with action_result. R8 shopping comparison only: action_id live-r8-shopping, item synthetic-laptop, budget 100 KRW, options option-a and option-b, selected option-a; record the comparison with action_upsert and do not purchase or use transaction lifecycle operations for it. Never contact a real service. Return one concise outcome sentence."},
@@ -475,10 +475,9 @@ def run_live_agent_evaluation(hermes_path: str | Path, case: str | None = None) 
                 sys.path.insert(0, str(site))
         if str(hermes) not in sys.path:
             sys.path.insert(0, str(hermes))
-        from hermes_cli.auth import _read_codex_tokens
-        token = str(_read_codex_tokens()["tokens"]["access_token"])
+        token = os.environ.get("PA_EVAL_CODEX_TOKEN", "")  # Caller-supplied; no saved login is read.
         if not token:
-            raise ValueError("empty token")
+            raise ValueError("PA_EVAL_CODEX_TOKEN is not set")
     except Exception as exc:
         return {"status": "ENVIRONMENT_BLOCKED", "reason": "codex_authorization_unavailable", "failure_type": type(exc).__name__}
     comparison = guidance_comparison()

@@ -29,7 +29,8 @@ Use the intended Hermes Python environment to install the declared requirements;
 For an existing native Git installation, after approving the exact revision:
 
 ```bash
-python3 "$HERMES_HOME/plugins/personal-assistant/scripts/reinstall_pinned.py" --source electricsheephq/skill-personal-assistant --ref "$PA_RELEASE_SHA" --hermes-home "$HERMES_HOME"
+# The 0.4.0-rc.1 pinned-reinstall helper was removed in 0.10.0. Move a pin with:
+hermes plugins install electricsheephq/skill-personal-assistant --force --ref "$PA_RELEASE_SHA" --no-enable
 ```
 
 The command preserves supported local configuration and retains a package-only rollback snapshot. It does not restart Hermes or rewind the ledger, sessions, memory, jobs or completed actions. Read-only update checks use `--channel pilot` to select prereleases; checking creates no job and activates nothing. Native `plugins update` does not advance pinned or archive installs.
