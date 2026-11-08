@@ -185,4 +185,30 @@ def test_refused_confirmation_preserves_all_state_and_index(ledger, reason):
                               at=CONFIRMED_AT, **B)
     assert snapshot(ledger) == before
     assert store.has_indexed_scope(TOOL, **A)
-    assert not store.has_indexed_scope(TOOL, **B)
+    # The confirming scope is published before the commit, so a refused confirm can
+    # leave it as a hint; the hint defers to the database and changes nothing.
+    gateway = NativeGateway(store, policy())
+    gateway.now = lambda: CONFIRMED_AT
+    assert gateway.evaluate({"tool_name": TOOL, "tool_input": ARGS, **B}) is None
+    assert snapshot(ledger) == before
+
+
+def test_provider_call_racing_the_confirm_commit_is_claimed(ledger, monkeypatch):
+    """B's hook runs after the confirm commits but before confirm_governed returns."""
+    store = NativeActionAuthorizationStore(ledger, ledger.root.name)
+    gateway = NativeGateway(store, policy())
+    gateway.now = lambda: CONFIRMED_AT
+    data = prepare(ledger, store)
+    seen = []
+    readback = store.get
+
+    def hook_then_readback(action_id):
+        if not seen:
+            seen.append(gateway.evaluate({"tool_name": TOOL, "tool_input": ARGS, **B}))
+            seen.append(ledger.get("action", ACTION)["status"])
+        return readback(action_id)
+
+    monkeypatch.setattr(store, "get", hook_then_readback)
+    store.confirm_governed(ACTION, stable_id(data["summary"]), "yes", at=CONFIRMED_AT, **B)
+    assert seen == [None, "claimed_once"]
+    assert gateway.evaluate({"tool_name": TOOL, "tool_input": ARGS, **B})["reason_code"] == "DENY_ALREADY_CLAIMED"

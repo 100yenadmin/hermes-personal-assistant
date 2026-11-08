@@ -77,11 +77,27 @@ class NativeActionAuthorizationStore(ActionAuthorizationStore):
         session_id: str | None = None,
         task_id: str | None = None,
     ) -> dict[str, Any]:
+        # Publish the confirming scope before the confirm commits, as prepare does,
+        # so a provider call in that scope racing the commit reaches the database
+        # lookup instead of missing the index. A hint left by a refused confirm
+        # only costs that lookup; the database remains authoritative.
+        if all(isinstance(value, str) and value for value in (session_id, task_id)):
+            with self.ledger.connect() as conn:
+                rows = conn.execute(
+                    """select distinct tool_name from pa_action_authorizations
+                       where profile_id=? and pa_action_id=? and status<>'superseded'""",
+                    (self.profile_id, pa_action_id),
+                ).fetchall()
+            with self._scope_lock:
+                self._scope_keys.update(
+                    (session_id, task_id, row["tool_name"])
+                    for row in rows
+                    if isinstance(row["tool_name"], str) and row["tool_name"]
+                )
         authorization = super().confirm_governed(
             pa_action_id, summary_digest, confirmation,
             at=at, session_id=session_id, task_id=task_id,
         )
-        # Publish only the committed scope; the database remains authoritative.
         with self._scope_lock:
             self._scope_keys.add((
                 authorization["session_id"], authorization["task_id"], authorization["tool_name"],
