@@ -882,6 +882,7 @@ def test_research_skill_is_routed_and_matches_the_checks():
     assert "No sums you worked out" in flat and "starting price times a headcount is not a quote" in flat
     assert "State each published fee as the page prints it" in flat and "say in words which option costs less" in flat
     assert "`[2][5]`, never `[2,5]` or `[1–3]`" in flat and "right after the amount" in flat
+    assert "When a cell or sentence holds two amounts, each gets its own" in flat and "never one `[n]` at the end for both" in flat
     assert "a price billed annually is not a monthly-billing price" in flat and "not charged per entity" in flat
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
 
@@ -1236,3 +1237,19 @@ def test_worded_cost_comparison_from_the_skill_passes():
     result = evaluate(answer, rows)
     assert all(result["checks"].values()), result["reasons"]
     assert "Cedar's $250 monthly platform fee [1] is counted" in " ".join((Path(__file__).resolve().parents[1] / "skills/research/SKILL.md").read_text().split())
+
+
+# Live s18 on 1934a74 (2 of 3): one run wrote "$29 per employee/month displayed; Treasury Services is a separate
+# $10 per employee/month add-on.[2] | ... [6]", so the $29 took the next cell's unclaimed [6]. The checks keep this
+# strict pairing; the skill now shows one [n] per amount inside a cell.
+def test_two_amounts_in_a_cell_need_one_marker_each():
+    rows = tools("Payroll S$12.50 per employee per month. Payments add-on S$4 per employee per month.") \
+        + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll")
+    cell = "| Cedar Payroll | S$12.50 per employee per month [1] | not published | not published |"
+    one = cell.replace("S$12.50 per employee per month [1] | not published |",
+                       "S$12.50 per employee per month; payments add-on S$4 per employee per month [1] | not published [2] |")
+    each = cell.replace("S$12.50 per employee per month [1]", "S$12.50 per employee per month [1]; payments add-on S$4 per employee per month [1]")
+    assert one in TEMPLATE.replace(cell, one) and each in TEMPLATE.replace(cell, each)
+    assert not evaluate(TEMPLATE.replace(cell, one), rows)["checks"]["cited_and_seen"]
+    result = evaluate(TEMPLATE.replace(cell, each), rows)
+    assert all(result["checks"].values()), result["reasons"]
