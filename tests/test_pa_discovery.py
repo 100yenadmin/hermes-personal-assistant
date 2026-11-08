@@ -122,9 +122,8 @@ class DiscoveryTests(unittest.TestCase):
     def test_recipes_separate_ordinary_work_from_provider_transactions(self):
         recipes = catalog()
         self.assertEqual(recipes["R1"]["transaction_protocol"], [])
-        self.assertEqual(recipes["R4"]["transaction_protocol"], [])
         self.assertEqual(recipes["R5"]["transaction_protocol"], [])
-        for recipe_id in ("R2", "R3", "R6", "R7", "R8"):
+        for recipe_id in ("R2", "R3", "R4", "R6", "R7", "R8"):
             operations = [step["operation"] for step in recipes[recipe_id]["transaction_protocol"]]
             self.assertEqual(operations,
                              ["action_prepare", "action_confirm", "action_result"])

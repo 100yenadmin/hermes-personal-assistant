@@ -165,7 +165,7 @@ def test_review_mode_reports_combined_progress_without_a_next_question(tmp_path)
     setup.record(ledger, {question: ANSWER for question in COS})
     current = setup.request(ledger, None)
     assert current["next_question"] is None
-    assert current["counts"] == {"asked": 0, "answers": 6, "skipped": 0, "covered": 1, "total": 41}
+    assert current["counts"] == {"asked": 0, "answers": 6, "skipped": 0, "covered": 1, "total": 46}
 
 
 def test_fresh_session_check_branches_for_cos():

@@ -18,6 +18,16 @@
     "read_scope": {
       "accepted": false,
       "calendar_ids": []
+    },
+    "write_scope": {
+      "accepted": false,
+      "calendar_ids": [],
+      "invites": false
+    }
+  },
+  "inbox": {
+    "drafts": {
+      "accepted": false
     }
   },
   "priority": {

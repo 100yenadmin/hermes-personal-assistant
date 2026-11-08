@@ -21,7 +21,17 @@ native automation suggestions. It does **not** create a scheduler or daemon.
   messages, complete-or-explicitly-incomplete bulk volume, trip context, and
   possible travel-booking mail.
 - Evening: a bounded JSON packet for tomorrow's timeline, first commitment,
-  preparation flags, and PA trip context.
+  preparation flags, PA trip context, `meetings_to_confirm` (tomorrow's timed
+  meetings with attendee count and aliased emails; `attendees_known: false`
+  when the calendar packet had no attendee list, `attendees_omitted` above 0
+  when a long list was cut), and the same unread-human
+  and bulk mail sections as the morning brief, with the same
+  complete/truncated flags.
+- Both mail packets feed the twice-daily inbox triage in
+  `personal-assistant:r6-inbox-replies` (five buckets, a digest of 5 lines or
+  fewer); `meetings_to_confirm` feeds the 24h-ahead confirmations in
+  `personal-assistant:r4-calendar-meeting`. Both are read-only; drafts, sends
+  and invites wait for the owner's yes.
 - Watchdog: a zero-byte quiet tick, or a bounded JSON packet for a new priority
   thread or one of the two leave-by phases.
 - Optional client matching: an explicitly consented, tenant-bound Stripe or
@@ -50,6 +60,20 @@ native automation suggestions. It does **not** create a scheduler or daemon.
    ("required least-privilege scopes present"), and it never registers jobs. If
    gog cannot read mail, Daily Ops cannot run: say so instead of promising a
    calendar-only brief.
+   **Owner opt-ins** (only when the owner chose them in setup, `rights_drafts`
+   and `cal_write`; never automatic). Provider drafts and sends after a yes:
+   set `"inbox": {"drafts": {"accepted": true}}`. Calendar writes: set
+   `calendar.write_scope` to `{"accepted": true, "calendar_ids": [...], "invites": true|false}`
+   (IDs from `read_scope`; `invites` decides whether guests may be notified).
+   The owner then runs, in a terminal, the read-only grant plus only the
+   opted-in scope: `gog auth add <work email> --services gmail,calendar --readonly --extra-scopes https://www.googleapis.com/auth/gmail.compose,https://www.googleapis.com/auth/calendar.events --force-consent`
+   (drop the scope that was not chosen), and for drafts on the personal account
+   `gog auth add <personal email> --services gmail --readonly --extra-scopes https://www.googleapis.com/auth/gmail.compose --force-consent`.
+   The doctor accepts `gmail.compose` and `calendar.events` only with the
+   matching opt-in and lists them as "owner opt-in write scopes"; it always
+   rejects `gmail.modify`, full mail, full Calendar and full Drive. Without
+   that line, call drafts local and invites unavailable. The collectors stay
+   read-only; the agent writes with its own tools after a yes (R4, R6).
 4. Verify the delivery target through the existing PA automation state. A
    mutable `verified` flag alone is not sufficient.
 5. Ask the existing PA R5 automation flow to suggest accepted routines. The

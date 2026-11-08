@@ -120,6 +120,7 @@ def test_evening_and_watchdog_travel_share_the_same_calendar_scope(monkeypatch):
         return calendar_result([timed_event()])
 
     monkeypatch.setattr(evening_register, "run_calendar", read_calendar)
+    monkeypatch.setattr(evening_register, "run_mail", lambda *args, **kwargs: Collected([], True, False, 0))
     monkeypatch.setattr(evening_register.trip_context, "trip_context", lambda *args: {"status": "unknown"})
     evening = evening_register.collect(cfg(), profile="/synthetic/profile", moment=MOMENT)
     assert evening["sections"]["tomorrow_timeline"]["coverage"][0]["source"] == "calendar-1"

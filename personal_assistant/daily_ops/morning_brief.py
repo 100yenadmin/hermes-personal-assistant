@@ -6,13 +6,10 @@ import json
 import os
 import sys
 
-from .common import envelope, now_utc, run_calendar, run_mail
+from .common import Q_BULK, Q_HUMANS, envelope, mail_accounts, mail_sections, now_utc, run_calendar, run_mail
 from .config import config_dir, load_config, profile_root, validate_or_raise
 from .gog_collector import DailyOpsError
 from . import trip_context
-
-Q_HUMANS = "is:unread -category:promotions -category:updates -category:social -category:forums newer_than:2d"
-Q_BULK = "is:unread (category:promotions OR category:updates OR category:social OR category:forums) newer_than:3d"
 
 
 def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None = None) -> dict:
@@ -28,22 +25,11 @@ def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None
     }
     complete = calendar.complete
     truncated = calendar.truncated
-    for index, account in enumerate((value for value in ((cfg.get("accounts") or {}).get("work"), (cfg.get("accounts") or {}).get("personal")) if value), 1):
-        humans = run_mail(account, Q_HUMANS, page_size=25, max_items=500)
-        bulk = run_mail(account, Q_BULK, page_size=100, max_items=2000)
-        sections[f"humans_{index}"] = {
-            "items": humans.items[:25], "count": len(humans.items), "complete": humans.complete, "truncated": humans.truncated,
-        }
-        complete = complete and humans.complete
-        truncated = truncated or humans.truncated
-        bulk_count = bulk.total if bulk.total is not None else len(bulk.items)
-        sections[f"bulk_{index}"] = {
-            "count": bulk_count, "exact": bulk.total is not None and bulk.complete,
-            "lower_bound": len(bulk.items), "sample": bulk.items[:3],
-            "complete": bulk.complete, "truncated": bulk.truncated,
-        }
-        complete = complete and bulk.complete
-        truncated = truncated or bulk.truncated
+    for index, account in enumerate(mail_accounts(cfg), 1):
+        mail, mail_complete, mail_truncated = mail_sections(account, index, run_mail)
+        sections.update(mail)
+        complete = complete and mail_complete
+        truncated = truncated or mail_truncated
         booking_query = (cfg.get("travel") or {}).get("booking_query")
         if isinstance(booking_query, str) and booking_query.strip():
             travel = run_mail(account, booking_query, page_size=25, max_items=200)
