@@ -17,6 +17,7 @@ table; `next_action` reads these fields.
 | `last_chased_at` | timestamp with offset | The latest chase you made. |
 | `chase_log` | list of `{at, step, how}` | Short log of chases; PA keeps the latest 10. |
 | `confirmation` | `{by, at, evidence}` | Written only when the other side confirms. |
+| `loop_cancelled` | `{by, at}` | The owner withdrew the loop. |
 
 `next_chase_at` is computed by `next_action`; read it there and never set it by
 hand. Do not put chase dates in `due_at`: renewals and other recipes use
@@ -42,6 +43,13 @@ third party, `delegated` for work the owner handed to someone else, and
   until `confirmation` is written.
 - If the owner withdraws the loop, set `status: "cancelled"`. That is not a
   confirmation; say so in the next brief.
+- Prepare every provider step for a loop (a nudge, booking, payment or order) as
+  its own action, `<loop action id>:<purpose>`, never on the loop's own action.
+  If one was prepared on the loop's own action, that row is now a transaction:
+  `action_upsert` there accepts only `confirmation`, `loop_cancelled`,
+  `last_chased_at`, `chase_log`, `snoozed_until` and `next_step`. Record the
+  owner's withdrawal as `loop_cancelled: {"by": "owner", "at": "<timestamp>"}`
+  (or use `action_cancel` while a governed action is still pending).
 
 ## Chase ladder
 

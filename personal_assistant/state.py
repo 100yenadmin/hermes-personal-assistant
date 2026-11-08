@@ -11,6 +11,8 @@ import uuid
 from .privacy import clean
 
 TRANSACTION_FIELDS = {"material_summary", "summary_digest", "confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest"}
+# The only fields an open loop may still write after a provider step was prepared on its own row.
+LOOP_BOOKKEEPING = frozenset({"confirmation", "loop_cancelled", "last_chased_at", "chase_log", "snoozed_until", "next_step"})
 
 _path = Path(__file__).resolve().parents[1] / "skills/travel-ledger/scripts/travel_ledger.py"
 _spec = importlib.util.spec_from_file_location("pa_legacy_ledger", _path)
@@ -156,6 +158,26 @@ class Ledger:
                         preserve = row["action_type"] == "transaction" and row["status"] in {"submitting", "unknown", "confirmed", "completed"}
                         conn.execute("update actions set status=?,fields_json=?,updated_at=? where action_id=?", (row["status"] if preserve else "paused", json.dumps(f), stamp, row["action_id"]))
         return self.get(kind, identity)
+
+    def put_loop_bookkeeping(self, identity, fields):
+        """Chase and closure fields on an open-loop row that a transaction lifecycle now owns.
+
+        Status, action type, provider, trip and every transaction-owned field stay as they are."""
+        from .context import LOOP_KINDS
+        fields = clean(fields)
+        if not isinstance(fields, dict) or not fields or not set(fields) <= LOOP_BOOKKEEPING:
+            raise ValueError("use transaction operations for transaction records; an open-loop row a transaction owns "
+                             "accepts only " + ", ".join(sorted(LOOP_BOOKKEEPING)))
+        with self.connect() as conn:
+            conn.execute("begin immediate")
+            row = conn.execute("select * from actions where action_id=?", (identity,)).fetchone()
+            data = json.loads(row["fields_json"]) if row else {}
+            if not row or row["action_type"] != "transaction" or data.get("loop_kind") not in LOOP_KINDS:
+                raise ValueError("use transaction operations for transaction records")
+            data.update(fields)
+            conn.execute("update actions set fields_json=?,updated_at=? where action_id=?",
+                         (json.dumps(data, ensure_ascii=False), now(), identity))
+        return self.get("action", identity)
 
     def action_id(self, source_id=None, action_kind=None, occurrence=None):
         if source_id is None:
