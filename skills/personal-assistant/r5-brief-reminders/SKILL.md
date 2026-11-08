@@ -23,7 +23,8 @@ Every daily brief lists what is still open in PA's own ledger, whatever the
 calendar and inbox sources say. Read `pa next_action` with `loops_only: true`
 and list each open loop in one line: who owes what, how old it is, and the chase
 step due, for example "Cedar hasn't confirmed the tasting menu (2 days); day-2
-nudge drafted, waiting for your yes." Then list due items from `pa next_action`.
+nudge due." Say a nudge is drafted only when `next_action` shows one in progress.
+Then list the remaining (non-loop) candidates from `pa next_action` as due items.
 If the daily-ops collector or a source cannot be read, say so in one line
 ("Calendar and inbox were not read: not connected yet") and still send the open
 loops and due items. Never send a brief that only reports a source gap while open
