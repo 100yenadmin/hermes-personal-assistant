@@ -308,3 +308,40 @@ def test_multi_item_yes_is_delivered_without_a_simulated_model(tmp_path, monkeyp
     api = SimpleNamespace(entry=SimpleNamespace(dispatch=lambda *a: None))
     cos.dialogue(home, tmp_path, tmp_path, s, api, turn, observer, {}, lambda home: {})
     assert turns == [s["steps"][0]["goal"], sim_user.scripted_yes(s["steps"][1])]
+
+
+def _report(transcript):
+    prose, data = transcript[3]["content"].split("\n", 1)
+    return prose, json.loads(data)
+
+
+@pytest.mark.parametrize("variant", ["item_in_sentence", "proof_text", "deadline_reminder", "paraphrased_next_step", "retried_result"])
+def test_honest_variants_pass(tmp_path, variant):
+    """Honest agent choices the contract allows must not fail any check."""
+    s, tools, transcript, logs, ledger = synthetic()
+    results = [t for t in tools if b.operation(t, "action_result")]
+    if variant == "item_in_sentence":
+        for t in tools:
+            if b.operation(t, "action_confirm"):
+                data = t["structured_args"]["data"]
+                item = data["summary"]["item"]
+                data["summary"] = {"provider": data["summary"]["provider"], "final_action": f"Submit {item} as approved"}
+    elif variant == "proof_text":
+        for t in results:
+            t["structured_args"]["data"]["proof"] = "Readback matched the submitted details"
+    elif variant == "deadline_reminder":
+        deadline = {"label": "Free cancellation ends", "due_at": s["lab"]["offers"][0]["cancellation_deadline"]}
+        results[0]["structured_args"]["data"]["follow_through"]["reminders"].append(deadline)
+        prose, data = _report(transcript)
+        data["lab_summary"]["booking"]["reminders"].append(deadline)
+        transcript[3]["content"] = prose + "\n" + json.dumps(data)
+    elif variant == "paraphrased_next_step":
+        prose, data = _report(transcript)
+        data["lab_summary"]["request"]["loop"]["next_step"] = "I'll follow up if the landlord does not reply"
+        transcript[3]["content"] = prose + "\n" + json.dumps(data)
+    else:
+        failed = pa("action_result", copy.deepcopy(results[1]["structured_args"]["data"]), {"error": "invalid follow_through"})
+        tools.insert(tools.index(results[1]), failed)
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    result = checks.evaluate(tmp_path, s)
+    assert result["all_pass"], [c for st in result["steps"] for c, ok in st["checks"].items() if not ok]
