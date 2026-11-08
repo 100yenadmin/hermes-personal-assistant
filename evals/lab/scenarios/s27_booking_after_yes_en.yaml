@@ -45,7 +45,7 @@ lab:
     Step 1: booking contains reference, start, venue, itinerary (the tool result's follow_through.trip_note),
     reminders (objects with label and due_at), calendar {"ics":"<path>"} or "calendar" only if a calendar write was granted.
     Use the exact governed action_prepare shape in the personal-assistant skill with enforcement_profile exact_action,
-    tool_name lab_booking_submit, complete tool_args, execution_budget 1, and a fresh_until minutes after the synthetic clock.
+    tool_name lab_booking_submit, complete tool_args, execution_budget 1, and a fresh_until 24 hours after the synthetic clock.
     After the owner's yes, action_confirm uses the identical summary and the owner's exact text in data.confirmation.
     Submit once, lab_booking_get by reference, then pa action_result with outcome confirmed, proof and data.follow_through.
     follow_through has trip_id lab-trip-osaka, item {kind:restaurant,title,start,end,timezone,location,reference} from the readback,
