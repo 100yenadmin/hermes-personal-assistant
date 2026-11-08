@@ -153,8 +153,11 @@ binds it to this action. `risk_class` defaults to `external_write`. The shape:
  "expected_readback":"<what the provider must show afterwards>"}}
 ```
 
-- `tool_args` are the exact arguments of the later provider call; the gateway
-  refuses any other call. `semantic_target.paths` are lists of keys into
+- `tool_args` are the exact arguments of the later provider call. After the
+  owner's yes the gateway lets exactly that call through once; it does not
+  block a different call, which is simply outside the approval. Never change
+  the call after confirmation: a changed price, page, code or argument needs a
+  new revision and a new yes. `semantic_target.paths` are lists of keys into
   `tool_args`, and `value` lists what those paths hold.
 - `preconditions` has exactly one entry per required projection. Set each to the
   literal `"confirmed"` only after you checked it on the live page; otherwise

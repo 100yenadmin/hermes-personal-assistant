@@ -70,7 +70,9 @@ def test_the_routine_recipe_uses_real_automation_actions(profile):
     for action in ("preferences", "rule", "suggest"):
         assert f'"action":"{action}"' in text
     assert "/suggestions accept" in text and "PA never creates" in text and '"destination":"origin"' in text
-    assert "never guess a chat ID" in text and "accept_command" in text
+    assert "never guess a chat ID" in text and "accept_command" in text and '"kind":"due_source_check"' in text
+    skill = (ROOT / "skills/personal-assistant/SKILL.md").read_text()
+    assert "does not\n  block a different call" in skill and "refuses any other call" not in skill
     dispatch(profile, {"operation": "automations", "data": {"action": "preferences", "changes": {"timezone": "Asia/Tokyo", "brief_time": "07:30"}}})
     dispatch(profile, {"operation": "automations", "data": {"action": "rule", "rule_id": "daily_brief", "rule": {
         "kind": "daily_brief", "accepted": True, "destination": "origin", "destination_verified": True, "timezone": "Asia/Tokyo"}}})
