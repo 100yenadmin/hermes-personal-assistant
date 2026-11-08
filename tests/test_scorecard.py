@@ -817,8 +817,8 @@ def test_non_finite_run_times_are_malformed(tmp_path, single_test, fields):
 
 def test_s30_credit_is_partial_and_limited_to_trip_expenses():
     for key, covers, label in (
-        ("travel", [5], "stand-in booking charge and forwarded receipt recorded; per-trip expense export"),
-        ("finance", [2], "categorised trip expenses from a readback and a receipt; no card reconciliation"),
+        ("travel", [], "stand-in booking charge and forwarded receipt recorded; per-trip expense export"),
+        ("finance", [], "categorised trip expenses from a readback and a receipt; no card reconciliation"),
     ):
         row = next(t for a in AREAS if a["key"] == key for t in a["tests"] if t["scenario"] == "s30_trip_expenses_en")
         assert row == {"scenario": "s30_trip_expenses_en", "kind": "partial", "covers": covers, "label": label}

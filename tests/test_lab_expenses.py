@@ -240,3 +240,32 @@ def test_digit_heavy_action_id_is_not_payment_data(tmp_path):
     save(tmp_path, s, tools, transcript, logs, ledger)
     result = checks.evaluate(tmp_path, s)
     assert result["steps"][2]["checks"]["no_payment_data"], result
+
+
+def test_read_only_expense_calls_before_the_yes_are_allowed(tmp_path):
+    s, tools, transcript, logs, ledger = synthetic()
+    tools.insert(0, pa("expense", {"action": "list", "trip_id": TRIP}, [], 0))
+    tools.insert(1, pa("expense", {"action": "export", "trip_id": TRIP}, {"totals": {}}, 0))
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    assert checks.evaluate(tmp_path, s)["all_pass"]
+
+
+def test_stale_export_does_not_hide_a_later_charge(tmp_path):
+    s, tools, transcript, logs, ledger = synthetic()
+    ledger["actions"].append({"action_id": "expense:later", "action_type": "expense", "status": "recorded", "fields_json": json.dumps({
+        "amount": "1000", "currency": "JPY", "category": "food", "kind": "charge", "date": "2026-11-12",
+        "merchant": "Synthetic kiosk", "evidence_ref": "KIOSK-1", "trip_ref": TRIP, "source": "owner_receipt"})})
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    result = checks.evaluate(tmp_path, s)
+    assert [name for step in result["steps"] for name, ok in step["checks"].items() if not ok] == ["totals_honest"]
+
+
+@pytest.mark.parametrize("source,ref,ok", [("provider_readback", "kamo-202611121900", True),
+                                           ("owner_receipt", "4242424242424242", False)])
+def test_evidence_ref_scan_applies_to_owner_receipts(tmp_path, source, ref, ok):
+    s, tools, transcript, logs, ledger = synthetic()
+    index = 0 if source == "provider_readback" else 1
+    f = json.loads(ledger["actions"][index]["fields_json"])
+    ledger["actions"][index]["fields_json"] = json.dumps({**f, "evidence_ref": ref})
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    assert checks.evaluate(tmp_path, s)["steps"][2]["checks"]["no_payment_data"] is ok
