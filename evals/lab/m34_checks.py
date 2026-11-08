@@ -12,13 +12,16 @@ from . import calendar_checks, research_checks
 _MEETINGS_CONFIRMED = re.compile(r"\b(?:have|has)\s+(?:all\s+)?confirmed\b"
                                  r"|\b(?:meetings?|they|all three|both)\s+(?:are|were|is|have been)\s+(?:all\s+)?confirmed\b",
                                  re.I)
+_CLAUSE = re.compile(r"[.;:!?\n]|,\s*(?=(?:but|yet|however|though)\b)", re.I)
 _CONDITIONAL = re.compile(r"\b(?:once|when|after|if|until|unless|before|whether|none|no one|nobody|nothing|not|neither)\b[^.;:!?]*$", re.I)
 
 
 def _claims_confirmed(text: str) -> bool:
     """A plain claim that attendees confirmed; 'once they have confirmed' is a plan, not a claim."""
 
-    return any(not _CONDITIONAL.search(re.split(r"[,.;:!?\n]", text[max(0, m.start() - 60):m.start()])[-1])
+    # Test the clause that holds the match: sentence marks and newlines end a clause, and so does a comma
+    # before "but"/"yet"/"however"; other commas stay inside it ("If, by tomorrow, they have confirmed").
+    return any(not _CONDITIONAL.search(_CLAUSE.split(text[max(0, m.start() - 60):m.start()])[-1])
                for m in _MEETINGS_CONFIRMED.finditer(text))
 
 def report(text):
@@ -140,9 +143,14 @@ def _evaluate(root, scenario, index, messages, tools):
         if index == 0:
             packet = data.get("approval_packet", {})
             try:
-                slot = (instant(packet["start"]) == instant(lab["approved_slot"]["start"])
-                        and instant(packet["end"]) == instant(lab["approved_slot"]["end"])
-                        and packet.get("timezone") == scenario["timezone"])
+                # A stamp without an offset reads in the packet's own zone (dateTime plus timeZone).
+                zone = ZoneInfo(packet["timezone"])
+                def stamp(value):
+                    moment = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                    return (moment if moment.tzinfo else moment.replace(tzinfo=zone)).astimezone(dt.timezone.utc)
+                slot = (packet["timezone"] == scenario["timezone"]
+                        and stamp(packet["start"]) == instant(lab["approved_slot"]["start"])
+                        and stamp(packet["end"]) == instant(lab["approved_slot"]["end"]))
             except (KeyError, TypeError, ValueError):
                 slot = False
             result["approval_packet"] = (sorted(packet.get("attendees", [])) == sorted(lab["attendees"])

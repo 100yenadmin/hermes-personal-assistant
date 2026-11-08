@@ -157,13 +157,19 @@ def pa_context_copies(api):
     """`api`'s context module plus the registered plugin's own copy (hermes_plugins.<slug>.personal_assistant.context).
 
     The `pa` tool the agent calls imports PA through the plugin manager's namespace, a separate module object
-    from `api`, so a fixture must patch both for the agent's reads to see it."""
+    from `api`, so a fixture must patch both for the agent's reads to see it. PA imports `.context` lazily, so
+    import it here for every loaded plugin copy of the package before patching."""
     import importlib
     import sys
-    own = importlib.import_module(api.__name__ + ".context")
-    others = [m for name, m in list(sys.modules.items())
-              if name.startswith("hermes_plugins.") and name.endswith(".personal_assistant.context") and hasattr(m, "read_kanban_task")]
-    return list({id(m): m for m in [own, *others]}.values())
+    copies = [importlib.import_module(api.__name__ + ".context")]
+    packages = [name for name, module in list(sys.modules.items())
+                if name.startswith("hermes_plugins.") and name.endswith(".personal_assistant") and hasattr(module, "__path__")]
+    for name in packages:
+        try:
+            copies.append(importlib.import_module(name + ".context"))
+        except ImportError:
+            continue  # Another plugin's subpackage of the same name, not PA.
+    return list({id(m): m for m in copies if hasattr(m, "read_kanban_task")}.values())
 
 
 def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
