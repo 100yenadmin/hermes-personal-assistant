@@ -180,3 +180,26 @@ def test_owner_withdraws_an_ungoverned_loop_before_any_attempt(status):
         row = _upsert(root, fields=WITHDRAW)
         assert row["status"] == before["status"] and row["fields"]["material_summary"] == before["fields"]["material_summary"]
         assert _loops(ledger) == []
+
+
+SUMMARY = {"provider": "restaurant", "final_action": "reserve"}
+
+
+def test_a_withdrawn_step_cannot_be_confirmed_or_submitted_until_prepared_again():
+    with tempfile.TemporaryDirectory() as root:
+        ledger = _promoted(root)
+        _upsert(root, fields=WITHDRAW)
+        with pytest.raises(ValueError, match="withdrew"):
+            ledger.confirm("loop-1", SUMMARY, "yes book it")
+    with tempfile.TemporaryDirectory() as root:
+        ledger = _promoted(root)
+        ledger.confirm("loop-1", SUMMARY, "yes book it")
+        _upsert(root, fields=WITHDRAW)
+        with pytest.raises(ValueError, match="withdrew"):
+            ledger.claim_submission("loop-1", SUMMARY)
+        assert ledger.get("action", "loop-1")["status"] == "authorized" and _loops(ledger) == []
+        ledger.prepare("loop-1", SUMMARY)
+        assert "loop_cancelled" not in ledger.get("action", "loop-1")["fields"]
+        assert [c["action_id"] for c in _loops(ledger)] == ["loop-1"]
+        ledger.confirm("loop-1", SUMMARY, "yes book it")
+        assert ledger.claim_submission("loop-1", SUMMARY)["status"] == "submitting"

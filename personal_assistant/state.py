@@ -200,6 +200,8 @@ class Ledger:
             data = json.loads(row["fields_json"])
             if required_digest is not None and data.get("summary_digest") != required_digest:
                 raise ValueError("material details changed; new confirmation required")
+            if target in {"authorized", "approved_revision", "submitting"} and data.get("loop_cancelled"):
+                raise ValueError("the owner withdrew this step; prepare it again before it can be confirmed or submitted")
             if target == "submitting" and (not data.get("confirmed_at") or not data.get("confirmation_text") or data.get("confirmation_action_id") != identity or data.get("confirmation_digest") != required_digest):
                 raise ValueError("confirmation must belong to this action and current material")
             data.update(clean(fields or {}))
@@ -234,7 +236,8 @@ class Ledger:
                     raise ValueError("unsupported governed action profile")
                 data.update(clean(governed))
                 target_status = "approval_required"
-            for key in ("confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest"):
+            # A new prepare is a new decision: it reopens a step the owner withdrew.
+            for key in ("confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest", "loop_cancelled"):
                 data.pop(key, None)
             stamp = now()
             conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set action_type=excluded.action_type,provider=excluded.provider,status=excluded.status,fields_json=excluded.fields_json,updated_at=excluded.updated_at", (identity, old["trip_id"] if old else None, "transaction", safe["provider"], target_status, json.dumps(data), old["created_at"] if old else stamp, stamp))
