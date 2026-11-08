@@ -92,6 +92,7 @@ def test_unanswered_offers_and_recommendations(ledger):
     assert set(by_kind) == {"unanswered_offer", "unanswered_recommendation"}
     assert by_kind["unanswered_offer"]["offer_type"] == "airport_transfer"
     assert by_kind["unanswered_offer"]["age_days"] == 4
+    assert by_kind["unanswered_offer"]["lead_days"] == 3  # Every radar candidate carries its lead time.
     assert by_kind["unanswered_recommendation"]["action_id"] == "cos:daily:2026-11-01"
     soon = (stamp + dt.timedelta(days=2)).isoformat()
     assert [item["radar_kind"] for item in _read(ledger, at=soon)["candidates"]] == []

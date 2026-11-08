@@ -25,7 +25,9 @@ hand. Do not put chase dates in `due_at`: renewals and other recipes use
 
 ## Record an ask to the owner
 
-Whenever you ask the owner a question or for a decision, record it in the same turn:
+Whenever you ask the owner a question or for a decision, record it in the same turn.
+A Chief of Staff recommendation (`cos:*` note) is the exception: its own review and
+the radar already track it, so it gets no loop.
 
 `pa(operation="action_upsert", data={"source_id":"<chat or task>","action_kind":"ask_owner","occurrence":"<short key>","action_type":"commitment","fields":{"title":"<safe summary of the ask>","loop_kind":"ask_owner","counterparty":"owner","next_actor":"owner","opened_at":"<now with offset>","next_step":"<what you do after the answer>"}})`
 

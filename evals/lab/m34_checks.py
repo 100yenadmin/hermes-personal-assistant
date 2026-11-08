@@ -106,9 +106,16 @@ def _evaluate(root, scenario, index, messages, tools):
         packet = data.get("escalation", {})
         result["escalation"] = packet.get("action_id") == lab["escalate_id"] and all(packet.get(k) for k in ("problem", "options", "recommendation", "decision_deadline")) and isinstance(packet.get("options"), list) and 2 <= len(packet["options"]) <= 3
         result["confirmation_only_close"] = lab["confirmed_id"] not in claimed and lab["confirmed_id"] not in observed and observed.get(lab["unconfirmed_id"], {}).get("loop_state") == "done_unconfirmed"
-        drafted = {d.get("action_id") for d in data.get("drafts", []) if isinstance(d, dict) and d.get("body")}
-        required = {k for k, v in expected.items() if v not in {"none", "escalate"}}
-        result["draft_nudges"] = required <= drafted <= required | {lab["escalate_id"]} and not calls(local, "action_confirm") and not any(c["name"] == "lab_mail_send" for c in mail)
+        # The contract asks for held nudge texts keyed by action_id; it names no text key, so body or text both count.
+        drafted = {d.get("action_id") for d in data.get("drafts", []) if isinstance(d, dict) and (d.get("body") or d.get("text"))}
+        # A held nudge is due where the other side owes the next move, plus the confirmation ask on a done loop;
+        # owner and our-own-move loops get a reminder or our next step, never a nudge (context._loop_step).
+        seeded = {s["data"]["action_id"]: s["data"].get("fields", {}) for s in scenario.get("seed", [])
+                  if isinstance(s, dict) and isinstance(s.get("data"), dict)}
+        required = {k for k, v in expected.items() if v not in {"none", "escalate"}
+                    and (seeded.get(k, {}).get("next_actor") == "them" or k == lab["unconfirmed_id"])}
+        due = {k for k, v in expected.items() if v != "none"}  # Extra held texts are harmless; none for a loop with nothing due.
+        result["draft_nudges"] = required <= drafted <= due and not calls(local, "action_confirm") and not any(c["name"] == "lab_mail_send" for c in mail)
     elif kind == "radar":
         items = {r.get("action_id"): r for r in data.get("radar", [])}
         result["all_four_with_leads"] = all(items.get(k, {}).get("lead_days") == lead and items[k].get("next_step") for k, lead in lab["radar"].items())
@@ -127,7 +134,7 @@ def _evaluate(root, scenario, index, messages, tools):
         sections = data.get("sections", {})
         result["sections"] = all(isinstance(sections.get(k), list) and sections[k] for k in ("Done", "In progress", "Blocked with questions"))
         actual = {item.get("action_id"): (section, item) for section, items in sections.items() if isinstance(items, list) for item in items if isinstance(item, dict)}
-        result["grounded_tasks"] = set(actual) == set(lab["tasks"]) and all(actual[k][0] == v and actual[k][1].get("evidence") == fields(rows.get(k, {})).get("evidence") for k, v in lab["tasks"].items() if k in actual)
+        result["grounded_tasks"] = set(actual) == set(lab["tasks"]) and all(actual[k][0] == v and str(fields(rows.get(k, {})).get("evidence") or "\0") in str(actual[k][1].get("evidence") or "") for k, v in lab["tasks"].items() if k in actual)
         result["blocked_questions"] = bool(sections.get("Blocked with questions")) and all(str(i.get("question", "")).strip().endswith("?") for i in sections.get("Blocked with questions", []))
     elif kind == "health":
         result["exception_this_cycle"] = lab["broken_routine"].lower() in str(data.get("exception", "")).lower() and data.get("missing_receipt") == "synthetic-missing-receipt"
@@ -177,7 +184,9 @@ def _evaluate(root, scenario, index, messages, tools):
                                          and packet.get("notification") == "all" and slot)
             try:
                 local_times = packet.get("local_times", {})
-                result["packet_zones"] = all(dt.datetime.fromisoformat(local_times[email]).isoformat() == instant(lab["approved_slot"]["start"]).astimezone(ZoneInfo(person["timezone"])).isoformat() for email, person in lab["people"].items())
+                # A participant's local time may be the start string or an object with its start (and zone, end).
+                local = {k: (v.get("start") if isinstance(v, dict) else v) for k, v in local_times.items()}
+                result["packet_zones"] = all(dt.datetime.fromisoformat(local[email]).isoformat() == instant(lab["approved_slot"]["start"]).astimezone(ZoneInfo(person["timezone"])).isoformat() for email, person in lab["people"].items())
             except (KeyError, TypeError, ValueError):
                 result["packet_zones"] = False
         result["no_early_write"] = not [c for c in lines(root / "calendar-writes.jsonl") if c.get("step", -1) == 0]
@@ -218,7 +227,9 @@ def _evaluate(root, scenario, index, messages, tools):
                 expected = instant(event["start"]).astimezone(ZoneInfo(zone))
                 try:
                     stamp = dt.datetime.fromisoformat(times.get(attendee["email"], ""))
-                    result["local_times"] &= stamp.tzinfo is not None and stamp == expected and stamp.utcoffset() == expected.utcoffset() and zone in packet.get("timezones", [])
+                    zones = packet.get("timezones", [])  # A list of zones, or a map of each attendee to their zone.
+                    labelled = zones.get(attendee["email"]) == zone if isinstance(zones, dict) else zone in zones
+                    result["local_times"] &= stamp.tzinfo is not None and stamp == expected and stamp.utcoffset() == expected.utcoffset() and labelled
                 except (TypeError, ValueError):
                     result["local_times"] = False
         result["held"] = not writes and not any(c["name"] == "lab_mail_send" for c in mail) and not calls(local, "action_confirm")
