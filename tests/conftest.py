@@ -19,4 +19,5 @@ if importlib.util.find_spec("hermes_constants") is None:
         return Path(os.path.expanduser(value)) if value else Path.home() / ".hermes"
 
     _stub.get_hermes_home = get_hermes_home
+    _stub.PA_TEST_STAND_IN = True  # tests that load a real Hermes source drop it first
     sys.modules["hermes_constants"] = _stub
