@@ -30,6 +30,8 @@ def offline(monkeypatch, tmp_path):
     if source := os.environ.get("PA_LAB_HERMES_SOURCE"):
         monkeypatch.syspath_prepend(source)
     constants = pytest.importorskip("hermes_constants")
+    if not hasattr(constants, "set_hermes_home_override"):
+        pytest.skip("needs a Hermes checkout, not the package-CI stand-in")
     token = constants.set_hermes_home_override(str(tmp_path / "hermes"))
     yield
     constants.reset_hermes_home_override(token)

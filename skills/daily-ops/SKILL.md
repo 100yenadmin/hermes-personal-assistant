@@ -41,10 +41,10 @@ native automation suggestions. It does **not** create a scheduler or daemon.
    `python3 -m personal_assistant.daily_ops.doctor`. It must report the gog
    account and scopes, and it never registers jobs.
 3. Preview the synthetic example in `docs/customer-contract.md`. Verify the
-   selected calendar with a read-only call. Run `gog auth add` only when gog was
-   explicitly selected and its existing setup requires consent. If the selected
-   mail client is unavailable, report calendar-only capability and mark mail
-   sections incomplete instead of requiring a second login.
+   selected calendar with a read-only call. gog reads both mail and calendar; if
+   it is not yet authorised for the selected accounts, run `gog auth add` with
+   the user's consent. If gog cannot read mail, Daily Ops cannot run: say so
+   instead of promising a calendar-only brief.
 4. Verify the delivery target through the existing PA automation state. A
    mutable `verified` flag alone is not sufficient.
 5. Ask the existing PA R5 automation flow to suggest accepted routines. The

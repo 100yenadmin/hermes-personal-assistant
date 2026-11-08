@@ -91,7 +91,6 @@ What you would want to know before installing. Nothing on this list runs on inst
 - call cards and call transcripts;
 - task evidence;
 - action receipts;
-- the bound Google account email and calendar ID, until you run `disconnect`;
 - records that only the shell ledger helper writes: browser checkpoints (page URLs, Browserbase session IDs), payment readiness (budget, funds status, which providers have a card on file) and connectivity profiles (device model, region, trip countries, budget).
 
 Optional features keep their own stores:
