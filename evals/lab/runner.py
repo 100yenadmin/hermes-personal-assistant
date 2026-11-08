@@ -137,7 +137,7 @@ def guard_reply(scenario, reply, simulated):
 
 def system_prompt(scenario):
     if "lab" in scenario:
-        standins = "lab_booking_*" if scenario["lab"].get("kind") == "booking" else "lab_mail_* and lab_calendar_*"
+        standins = "lab_booking_*" if scenario["lab"].get("kind") in {"booking", "expense"} else "lab_mail_* and lab_calendar_*"
         if scenario["lab"].get("kind") == "vendor_request":
             standins = "lab_booking_* and lab_vendor_*"
         if scenario["lab"].get("kind") == "disruption":
@@ -281,7 +281,7 @@ def one(args):
         task_id = "pl" + hashlib.sha256(str(root).encode()).hexdigest()[:8]
         # Hermes' native timestamp + hex shape, deterministic within this run root.
         session_id = (dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc).strftime("%Y%m%d_%H%M%S_")
-                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption"} else None
+                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption", "expense"} else None
 
         def turn(message, user=False, system="", hist=None, platform=None):
             remaining = s["budget_seconds"] - (time.time() - meta["start"])

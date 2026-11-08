@@ -99,6 +99,8 @@ PARITY = {"LAB_RUNS": LAB_RUNS, "REAL_MIN_TASKS": REAL_MIN_TASKS,
 
 # Synthetic lab rows cover only the named duties; live provider/session proof is separate.
 for key, scenario, covers, label in (
+    ("travel", "s30_trip_expenses_en", [5], "stand-in booking charge and forwarded receipt recorded; per-trip expense export"),
+    ("finance", "s30_trip_expenses_en", [2], "categorised trip expenses from a readback and a receipt; no card reconciliation"),
     ("travel", "s29_changed_leg_en", [2, 3], "synthetic cancelled leg: held options, then rebook, moved dinner and retired reminders"),
     ("travel", "s27_booking_after_yes_en", [3], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
     ("errands", "s27_booking_after_yes_en", [3, 4, 5], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),

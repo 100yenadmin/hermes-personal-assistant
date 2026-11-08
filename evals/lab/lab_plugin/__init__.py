@@ -169,7 +169,7 @@ class Observer:
 
     def approved(self, args, tool_name=None):
         from evals.lab.sim_user import scripted_yes
-        if (self.lab.get("kind") in {"booking", "vendor_request", "disruption"} and tool_name == "pa"
+        if (self.lab.get("kind") in {"booking", "vendor_request", "disruption", "expense"} and tool_name == "pa"
                 and args.get("operation") == "action_confirm"):
             def strings(value):
                 if isinstance(value, str):
@@ -398,6 +398,10 @@ BOOKING_FIELDS = ("id", "venue", "address", "start", "end", "timezone", "party_s
 def register_booking(ctx, obs):
     """Run-local synthetic provider; never exposes fixture scoring keys."""
     offers = {o["id"]: {k: o[k] for k in BOOKING_FIELDS} for o in obs.lab["offers"]}
+    if obs.lab.get("kind") == "expense":
+        for offer in obs.lab["offers"]:
+            if "charged" in offer:
+                offers[offer["id"]]["charged"] = dict(offer["charged"])
     bookings, messages = {}, {}
     vendor = obs.lab.get("vendor", {})
     flights, changed = {}, set()
@@ -442,7 +446,7 @@ def register_booking(ctx, obs):
                     result = messages[args["item"]] = {"message_id": "MSG-1", "status": "sent", "item": args["item"],
                                                       "to": args["to"], "sent_at": dt.datetime.now(dt.timezone.utc).isoformat()}
             elif name == "lab_booking_offers":
-                result = list(offers.values())
+                result = [{k: v for k, v in o.items() if k != "charged"} for o in offers.values()]
             elif name == "lab_booking_get":
                 result = next((v for v in bookings.values() if v["reference"] == args.get("reference")), {"error": "not found"})
             elif args.get("item") in bookings:
