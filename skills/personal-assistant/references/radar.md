@@ -14,7 +14,7 @@ Use one commitment action per item:
 | `radar_kind` | `renewal` (passport, visa, insurance, subscription, licence, vehicle), `important_date` (birthday, anniversary), `deadline` (a service or filing due) |
 | `document` | The document or thing's name as a value, for example `Passport` or `Car service` |
 | `expires_on` / `event_date` | The date, `YYYY-MM-DD`, or month-only `YYYY-MM` (read as the 1st); a birthday may use any year |
-| `lead_days` | Days ahead to surface it; defaults 30 (renewal), 14 (important date), 7 (deadline) |
+| `lead_days` | Days ahead to surface it; defaults 30 (renewal), 14 (important date), 7 (deadline). On an unanswered offer in the radar read, it is the `offer_days` wait after which the offer surfaces |
 | `recurs` | `yearly` rolls to next year after the date; `none` stays put |
 | `source_ref` | Where the date came from |
 

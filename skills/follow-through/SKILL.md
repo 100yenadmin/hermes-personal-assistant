@@ -71,7 +71,7 @@ closes it.
 
 At `escalate`, give the owner one escalation packet with exactly these fields:
 `problem`, `options` (2 or 3), `recommendation` and `decision_deadline`. When the
-recommendation is to send a nudge, include that held draft. Put it
+recommendation is to send a nudge, give that held draft beside the packet (in `drafts`), not inside it. Put it
 in the daily brief and in the same chat as the original ask. Then record a
 `chase_log` entry with `step: "escalate"`, and `how` naming where it went.
 Format and example: `references/escalation-packet.md`.

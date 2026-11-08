@@ -146,7 +146,7 @@ Open loops are fields on existing commitment actions, not a separate table:
 `loop_kind` (`ask_owner`, `delegated`, `our_promise`, `waiting_on_them`),
 `counterparty`, `next_actor`, `opened_at`, `next_step`, `last_chased_at`, a
 bounded `chase_log` and `confirmation` (`by`, `at`, `evidence`). The agent
-records each ask it puts to the owner as an `ask_owner` loop. A loop closes only
+records each ask it puts to the owner as an `ask_owner` loop, except a Chief of Staff recommendation, which its own review and the radar already track. A loop closes only
 on the other side's confirmation; a done Kanban task without it stays listed as
 `done_unconfirmed`. Commitments without `loop_kind` keep the existing rule that
 Kanban done or archived drops them.
