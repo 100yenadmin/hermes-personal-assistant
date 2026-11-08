@@ -139,7 +139,9 @@ def _evaluate(root, scenario, index, messages, tools):
         actual = {item.get("action_id"): (section, item) for section, item in entries}
         result["grounded_tasks"] = (set(lab["tasks"]) <= set(actual)
                                     and all(actual[k][0] == v and str(fields(rows.get(k, {})).get("evidence") or "\0") in str(actual[k][1].get("evidence") or "") for k, v in lab["tasks"].items() if k in actual)
+                                    # An extra item must be a real row, done if under Done, and carry its recorded evidence when it has some.
                                     and all(item.get("action_id") in rows and (section != "Done" or rows[item["action_id"]].get("status") in {"completed", "confirmed", "verified"})
+                                            and str(fields(rows[item["action_id"]]).get("evidence") or "") in str(item.get("evidence") or "")
                                             for section, item in entries if item.get("action_id") not in lab["tasks"]))
         result["blocked_questions"] = bool(sections.get("Blocked with questions")) and all(str(i.get("question", "")).strip().endswith("?") for i in sections.get("Blocked with questions", []))
     elif kind == "health":

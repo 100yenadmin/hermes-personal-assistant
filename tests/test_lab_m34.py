@@ -568,6 +568,22 @@ def test_s22_extra_tasks_must_be_grounded_and_done_status_honest(tmp_path, secti
     assert result["all_pass"] is expected
 
 
+@pytest.mark.parametrize("recorded,reported,expected", [
+    ("E1 failed", "E1 passed", False),      # contradicts the ledger
+    ("E1 failed", "Readback: E1 failed", True),
+    (None, "Synthetic note", True),         # nothing recorded to contradict
+])
+def test_s22_extra_items_carry_their_recorded_evidence(tmp_path, recorded, reported, expected):
+    s, data = run(tmp_path, 22)
+    ledger = common.read(tmp_path / "ledger-step-0.json")
+    fields = {"evidence": recorded} if recorded else {}
+    ledger["actions"].append({"action_id": "pa:extra", "status": "completed", "action_type": "note", "fields": fields})
+    common.write(tmp_path / "ledger-step-0.json", ledger)
+    data["sections"]["Done"].append({"action_id": "pa:extra", "evidence": reported})
+    _summary(tmp_path, data)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["grounded_tasks"] is expected
+
+
 @pytest.mark.parametrize("change", ["missing", "wrong_section", "wrong_evidence"])
 def test_s22_expected_tasks_still_required_with_grounded_extras(tmp_path, change):
     s, data = run(tmp_path, 22)
