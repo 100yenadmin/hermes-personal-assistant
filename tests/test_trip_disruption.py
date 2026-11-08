@@ -116,6 +116,80 @@ def test_delayed_status_without_estimate_preserves_unknown_delay(ledger):
     assert read(ledger)["changed_legs"][0]["delay_minutes"] is None
 
 
+def test_delayed_status_with_short_estimate_is_not_changed(ledger):
+    flight(ledger, status="delayed", estimated_arrival="2026-11-10T12:10:00Z")
+    result = read(ledger)
+    assert result["changed_legs"] == [] and result["next_step"] == ""
+
+
+@pytest.mark.parametrize("reason", ["delayed", "rescheduled"])
+@pytest.mark.parametrize("arrival", ["13:00", "13:30"])
+@pytest.mark.parametrize("following_live_leg", [False, True])
+def test_missed_connection_extends_booking_window(ledger, reason, arrival, following_live_leg):
+    first = flight(ledger, destination="ITM")
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", "origin": "ITM",
+        "scheduled_departure": "2026-11-10T13:00:00Z", "scheduled_arrival": "2026-11-10T15:00:00Z"},
+        {**SEGMENT, "number": "103", "status": "cancelled",
+        "scheduled_departure": "2026-11-10T17:00:00Z", "scheduled_arrival": "2026-11-10T18:00:00Z"}], source="user")
+    if following_live_leg:
+        record_facts(ledger, TRIP, [{**SEGMENT, "number": "104", "origin": "CTS", "destination": "HND",
+            "scheduled_departure": "2026-11-11T10:00:00Z", "scheduled_arrival": "2026-11-11T12:00:00Z"}], source="user")
+    trip_watch.plan(ledger, TRIP, at=AT)
+    changes = ({"status": "delayed", "estimated_arrival": f"2026-11-10T{arrival}:00Z"}
+               if reason == "delayed" else {"scheduled_arrival": f"2026-11-10T{arrival}:00Z"})
+    flight(ledger, destination="ITM", **changes)
+    booking(ledger, "before-connection", "2026-11-10T12:30:00Z")
+    booking(ledger, "at-connection", "2026-11-10T13:00:00Z")
+    booking(ledger, "dinner", "2026-11-10T16:00:00Z")
+    booking(ledger, "late-booking", "2026-11-11T10:00:00Z")
+    result = read(ledger)
+    assert result["changed_legs"][0]["segment_id"] == first["segment_id"]
+    assert result["changed_legs"][0]["reason"] == reason
+    assert result["changed_legs"][0]["connection_at_risk"] is True
+    affected = {item["booking_action_id"]: item for item in result["affected"] if item["leg"] == first["segment_id"]}
+    assert affected["before-connection"]["reason"] == "unreachable"
+    assert set(affected) == {"before-connection", "at-connection", "dinner"} | (
+        set() if following_live_leg else {"late-booking"})
+    for identity in set(affected) - {"before-connection"}:
+        assert affected[identity]["reason"] == "after_missed_connection"
+        assert affected[identity]["feasibility"] is None
+
+
+@pytest.mark.parametrize("cancel_first", [False, True])
+def test_rescheduled_baseline_matches_segment_id(ledger, cancel_first):
+    first = flight(ledger, destination="ITM")
+    second = {**SEGMENT, "number": "102", "origin": "ITM",
+              "scheduled_departure": "2026-11-10T13:00:00Z", "scheduled_arrival": "2026-11-10T15:00:00Z"}
+    record_facts(ledger, TRIP, [second], source="user")
+    trip_watch.plan(ledger, TRIP, at=AT)
+    if cancel_first:
+        flight(ledger, destination="ITM", status="cancelled")
+        record_facts(ledger, TRIP, [{**second, "scheduled_departure": "2026-11-10T16:00:00Z",
+            "scheduled_arrival": "2026-11-10T18:00:00Z"}], source="user")
+        identity, minutes = "ZZ102:2026-11-10", 180
+    else:
+        flight(ledger, destination="ITM", scheduled_departure="2026-11-10T14:00:00Z",
+               scheduled_arrival="2026-11-10T16:00:00Z")
+        identity, minutes = first["segment_id"], 240
+    changed = {leg["segment_id"]: leg for leg in read(ledger)["changed_legs"]}
+    assert changed[identity]["reason"] == "rescheduled"
+    assert changed[identity]["shift_minutes"] == minutes
+
+
+@pytest.mark.parametrize("field", ["facts_signature", "facts_schedule"])
+def test_null_saved_baseline_is_read_cleanly(ledger, field):
+    flight(ledger)
+    trip_watch.plan(ledger, TRIP, at=AT)
+    with ledger.connect() as conn:
+        payload = json.loads(conn.execute("select payload_json from pa_events").fetchone()[0])
+        payload["inputs"][field] = None
+        conn.execute("update pa_events set payload_json=?", (json.dumps(payload),))
+    before = rows(ledger)
+    result = read(ledger)
+    assert result["changed_legs"] == [] and result["next_step"] == ""
+    assert rows(ledger) == before
+
+
 @pytest.mark.parametrize("minutes,reason", [(30, None), (45, "rescheduled"), (50, "rescheduled"), (-50, "rescheduled")])
 @pytest.mark.parametrize("field", ["scheduled_departure", "scheduled_arrival"])
 def test_schedule_shift_against_saved_baseline(ledger, minutes, reason, field):
@@ -140,6 +214,13 @@ def test_rescheduled_leg_uses_new_arrival_for_feasibility(ledger):
     assert result["changed_legs"][0]["reason"] == "rescheduled"
     assert result["affected"][0]["reason"] == "unreachable"
     assert result["affected"][0]["feasibility"]["landing_at"] == "2026-11-10T12:50:00+00:00"
+    assert result["affected"][0]["feasibility"]["basis"] == "scheduled"
+
+
+def test_delayed_without_estimate_uses_scheduled_feasibility_basis(ledger):
+    flight(ledger, status="delayed")
+    booking(ledger, "dinner", "2026-11-10T13:00:00Z")
+    assert read(ledger)["affected"][0]["feasibility"]["basis"] == "scheduled"
 
 
 def test_changed_signature_does_not_compare_unrelated_schedule(ledger):

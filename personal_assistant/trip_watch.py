@@ -197,11 +197,10 @@ def disruption(ledger, trip_id, at=None):
         return result
     prior = _plan_row(ledger, trip_id)
     saved = json.loads(prior["payload_json"]).get("inputs", {}) if prior else {}
-    signature, schedule = saved.get("facts_signature", []), saved.get("facts_schedule", [])
-    baseline_legs = [s for s in segments if s["segment_id"] in {entry[0] for entry in signature}]
-    same_signature = [[s["segment_id"], s["status"] == "cancelled", s["origin"], s["destination"]]
-                      for s in baseline_legs] == signature
-    baseline = {s["segment_id"]: times for s, times in zip(baseline_legs, schedule)} if same_signature and len(schedule) == len(signature) else {}
+    signature, schedule = saved.get("facts_signature") or [], saved.get("facts_schedule") or []
+    baseline = {entry[0]: times for entry, times in zip(signature or [], schedule or [])
+                if isinstance(entry, list) and len(entry) == 4 and isinstance(times, list) and len(times) == 2}
+    baseline_routes = {entry[0]: entry[2:] for entry in signature if isinstance(entry, list) and len(entry) == 4}
     events = (ledger.get("trip", trip_id) or {}).get("fields", {}).get("events", [])
     for index, segment in enumerate(segments):
         departure = _time(segment["scheduled_departure"])
@@ -210,12 +209,13 @@ def disruption(ledger, trip_id, at=None):
         arrival = segment["scheduled_arrival"]
         delay = ((_time(segment["estimated_arrival"]) - _time(arrival)).total_seconds() / 60
                  if segment.get("estimated_arrival") else None)
-        old = baseline.get(segment["segment_id"])
+        old = (baseline.get(segment["segment_id"])
+               if baseline_routes.get(segment["segment_id"]) == [segment["origin"], segment["destination"]] else None)
         shift = max(abs((_time(value) - _time(before)).total_seconds()) for value, before in
                     zip((segment["scheduled_departure"], arrival), old)) if old else 0
         if segment["status"] in {"cancelled", "diverted"}:
             reason, detail = segment["status"], {}
-        elif segment["status"] == "delayed" or delay is not None and delay >= 45:
+        elif delay is not None and delay >= 45 or segment["status"] == "delayed" and delay is None:
             reason, detail = "delayed", {"delay_minutes": max(0, delay) if delay is not None else None}
         elif shift >= 2700:
             reason, detail = "rescheduled", {"shift_minutes": shift / 60}
@@ -223,20 +223,29 @@ def disruption(ledger, trip_id, at=None):
             continue
         leg = {k: segment[k] for k in ("segment_id", "origin", "destination", "scheduled_departure",
                                       "scheduled_arrival", "destination_timezone", "estimated_arrival") if k in segment}
+        live_departures = [_time(s["scheduled_departure"]) for s in segments[index + 1:]
+                           if s["status"] != "cancelled"]
+        next_departure = live_departures[0] if live_departures else None
+        connection_at_risk = (reason in {"delayed", "rescheduled"} and next_departure is not None
+                              and _time(segment.get("estimated_arrival") or arrival) >= next_departure)
+        window_end = next_departure
+        if connection_at_risk:
+            detail["connection_at_risk"] = True
+            window_end = live_departures[1] if len(live_departures) > 1 else None
         result["changed_legs"].append({**leg, "reason": reason, **detail})
-        next_departure = next((_time(s["scheduled_departure"]) for s in segments[index + 1:]
-                               if s["status"] != "cancelled"), None)
         for item in events:
             if not item.get("booking_action_id") or not item.get("start"):
                 continue
             start = _time(item["start"])
-            if start <= departure or next_departure is not None and start >= next_departure:
+            if start <= departure or window_end is not None and start >= window_end:
                 continue
             feasibility = None
             affected_reason = "after_" + reason + "_leg"
-            if reason in {"delayed", "rescheduled"}:
+            if connection_at_risk and start >= next_departure:
+                affected_reason = "after_missed_connection"
+            elif reason in {"delayed", "rescheduled"}:
                 feasibility = trip_math.feasibility(arrival, item["start"], segment["destination_timezone"],
-                                                    estimated=segment.get("estimated_arrival") or arrival)
+                                                    estimated=segment.get("estimated_arrival"))
                 if not feasibility["reachable"]:
                     affected_reason = "unreachable"
                 elif feasibility["slack_minutes"] < feasibility["buffer_minutes"] + 30:

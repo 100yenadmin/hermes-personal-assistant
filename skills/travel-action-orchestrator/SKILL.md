@@ -55,7 +55,7 @@ database; do not substitute a host-specific skill path.
 3. For each option, name the replacement leg and what happens to every affected booking (keep, move or cancel), with its cancellation deadline. Give the total cost and arrival-time difference shown on the provider pages; mark missing facts as unknown.
 4. Send ONE approval packet. Change nothing until the owner names one option.
 5. Then prepare the rebooking, followed by each moved or cancelled booking, as separate governed exact actions. Act on each only with its own confirm and read each provider result back.
-6. Record each confirmed readback with `action_result` and `follow_through`. A moved booking's item replaces the old one on the trip, and its reminders move with it.
+6. Record each confirmed readback with `action_result` and `follow_through`. A move or cancellation recorded as its own action does not yet remove the old booking's trip item or reminders: tell the owner which ones remain.
 
 If the owner says no, change nothing and record nothing.
 
