@@ -74,6 +74,33 @@ typed `start`/`end`, IANA timezone, and event URL remain intact. One failed sour
 makes the packet incomplete while successful sources remain usable. Actual item,
 field, string, or depth bounding sets `complete:false` and `truncated:true`.
 
+### Owner opt-ins for drafts and calendar writes
+
+Two optional blocks record choices the owner made in setup (`rights_drafts`,
+`cal_write`). Neither is ever set automatically, and the collectors stay
+read-only either way:
+
+```json
+{
+  "inbox": {"drafts": {"accepted": true}},
+  "calendar": {
+    "write_scope": {"accepted": true, "calendar_ids": ["primary"], "invites": false}
+  }
+}
+```
+
+With `inbox.drafts.accepted: true` the doctor accepts `gmail.compose` (drafts
+and sends) on the mail accounts; with `calendar.write_scope.accepted: true` it
+accepts `calendar.events` on the calendar account. `gmail.readonly` and
+`calendar.readonly` stay required. Write calendar IDs must also be read IDs,
+and `invites` must be a JSON boolean. The doctor lists accepted write scopes as
+"owner opt-in write scopes" and always rejects `gmail.modify`, full mail
+(`https://mail.google.com/`), full Calendar, full Drive and other broad scopes.
+A write scope present without its opt-in is an unsupported extra scope. The
+grant itself is an owner-run `gog auth add` (see the Daily Ops skill). PA
+plugin code never sends mail or writes events; the agent does that with its own
+tools after the owner's yes, through the exact-action path.
+
 Morning mail collection uses the same read-only `gog` path. If it fails, the
 run reports one pipeline failure; it never claims mailbox coverage.
 

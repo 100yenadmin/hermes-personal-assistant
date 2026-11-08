@@ -50,6 +50,20 @@ native automation suggestions. It does **not** create a scheduler or daemon.
    ("required least-privilege scopes present"), and it never registers jobs. If
    gog cannot read mail, Daily Ops cannot run: say so instead of promising a
    calendar-only brief.
+   **Owner opt-ins** (only when the owner chose them in setup, `rights_drafts`
+   and `cal_write`; never automatic). Provider drafts and sends after a yes:
+   set `"inbox": {"drafts": {"accepted": true}}`. Calendar writes: set
+   `calendar.write_scope` to `{"accepted": true, "calendar_ids": [...], "invites": true|false}`
+   (IDs from `read_scope`; `invites` decides whether guests may be notified).
+   The owner then runs, in a terminal, the read-only grant plus only the
+   opted-in scope: `gog auth add <work email> --services gmail,calendar --readonly --extra-scopes https://www.googleapis.com/auth/gmail.compose,https://www.googleapis.com/auth/calendar.events --force-consent`
+   (drop the scope that was not chosen), and for drafts on the personal account
+   `gog auth add <personal email> --services gmail --readonly --extra-scopes https://www.googleapis.com/auth/gmail.compose --force-consent`.
+   The doctor accepts `gmail.compose` and `calendar.events` only with the
+   matching opt-in and lists them as "owner opt-in write scopes"; it always
+   rejects `gmail.modify`, full mail, full Calendar and full Drive. Without
+   that line, call drafts local and invites unavailable. The collectors stay
+   read-only; the agent writes with its own tools after a yes (R4, R6).
 4. Verify the delivery target through the existing PA automation state. A
    mutable `verified` flag alone is not sufficient.
 5. Ask the existing PA R5 automation flow to suggest accepted routines. The

@@ -14,6 +14,13 @@ from .config import load_config, profile_root, validate_config
 from .gog_collector import DailyOpsError, auth_check, gog_binary
 
 BROAD_JUNK = ("cloud-platform", "pubsub", "ediscovery")
+# Always refused, opt-in or not: mailbox modify, full mail, full Calendar and full Drive.
+BROAD_SCOPES = {
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://mail.google.com/",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/drive",
+}
 
 
 def check_config(cfg: dict):
@@ -139,11 +146,15 @@ def _scope_names(scopes):
     exact = {
         "https://www.googleapis.com/auth/gmail.readonly": "gmail",
         "https://www.googleapis.com/auth/calendar.readonly": "calendar",
+        "https://www.googleapis.com/auth/gmail.compose": "gmail.compose",
+        "https://www.googleapis.com/auth/calendar.events": "calendar.events",
     }
     identity = {"openid", "email", "https://www.googleapis.com/auth/userinfo.email"}
     values = set()
     for raw in scopes:
-        if raw in exact:
+        if raw in BROAD_SCOPES:
+            values.add("broad:" + raw)
+        elif raw in exact:
             values.add(exact[raw])
         elif raw in identity:
             values.add("email" if raw == "https://www.googleapis.com/auth/userinfo.email" else raw)
@@ -152,10 +163,26 @@ def _scope_names(scopes):
     return values
 
 
+def _opt_in_scopes(cfg: dict, account: str) -> set[str]:
+    """Write scopes the owner opted into in setup; the readonly scopes stay required."""
+    allowed = set()
+    inbox = cfg.get("inbox") if isinstance(cfg.get("inbox"), dict) else {}
+    drafts = inbox.get("drafts") if isinstance(inbox.get("drafts"), dict) else {}
+    if drafts.get("accepted") is True:
+        allowed.add("gmail.compose")
+    calendar = cfg.get("calendar") if isinstance(cfg.get("calendar"), dict) else {}
+    write_scope = calendar.get("write_scope") if isinstance(calendar.get("write_scope"), dict) else {}
+    calendar_account = calendar.get("account") or (cfg.get("accounts") or {}).get("work")
+    if write_scope.get("accepted") is True and account == calendar_account:
+        allowed.add("calendar.events")
+    return allowed
+
+
 def check_scopes(cfg: dict):
     accounts = cfg.get("accounts") or {}
     requested = [(accounts.get("work"), {"gmail", "calendar"}), (accounts.get("personal"), {"gmail"})]
     requested = [(account, required) for account, required in requested if account]
+    enabled = []
     try:
         binary = gog_binary()
     except DailyOpsError as exc:
@@ -181,16 +208,21 @@ def check_scopes(cfg: dict):
             failures.append(f"account-{index}: auth scope response invalid")
             continue
         names = _scope_names(scopes)
+        allowed = _opt_in_scopes(cfg, account)
         missing = required - names
-        junk = [scope for scope in names if any(token in scope for token in BROAD_JUNK)]
-        unsupported = names - required - {"openid", "userinfo", "email"}
+        junk = [scope for scope in names if scope.startswith("broad:") or any(token in scope for token in BROAD_JUNK)]
+        unsupported = names - required - allowed - {"openid", "userinfo", "email"}
         if missing:
             failures.append(f"account-{index}: missing required scopes ({', '.join(sorted(missing))})")
         if junk:
             failures.append(f"account-{index}: broad scopes present")
         if unsupported and not junk:
             failures.append(f"account-{index}: unsupported extra scopes present")
-    return (not failures, "; ".join(failures) if failures else "required least-privilege scopes present")
+        enabled += [f"account-{index} {scope}" for scope in sorted(allowed & names)]
+    if failures:
+        return False, "; ".join(failures)
+    message = "required least-privilege scopes present"
+    return True, message + (f"; owner opt-in write scopes: {', '.join(enabled)}" if enabled else "")
 
 
 def check_optional_clis(cfg: dict):
