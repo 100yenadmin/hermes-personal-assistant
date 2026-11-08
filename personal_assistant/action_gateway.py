@@ -431,6 +431,8 @@ class ActionAuthorizationStore:
         confirmation: str,
         *,
         at: str | None = None,
+        session_id: str | None = None,
+        task_id: str | None = None,
     ) -> dict[str, Any]:
         if not isinstance(confirmation, str) or not confirmation.strip():
             raise ValueError("explicit confirmation is required")
@@ -474,6 +476,21 @@ class ActionAuthorizationStore:
             ).astimezone(dt.timezone.utc).isoformat()
             envelope["fresh_until"] = refreshed_until
             envelope["authority"]["confirmed_at"] = stamp
+            rebind = (
+                isinstance(session_id, str) and session_id
+                and isinstance(task_id, str) and task_id
+                and (session_id != authorization["session_id"] or task_id != authorization["task_id"])
+            )
+            if rebind:
+                envelope["authority"]["rebound_from"] = {
+                    "session_id": authorization["session_id"],
+                    "task_id": authorization["task_id"],
+                    "at": stamp,
+                }
+                conn.execute(
+                    "update pa_action_authorizations set session_id=?,task_id=? where action_id=?",
+                    (session_id, task_id, authorization["action_id"]),
+                )
             fields.update({
                 "confirmation_text": confirmation,
                 "confirmed_at": stamp,
@@ -499,7 +516,15 @@ class ActionAuthorizationStore:
                 "update actions set status='approved_revision',fields_json=?,updated_at=? where action_id=?",
                 (json.dumps(fields, ensure_ascii=False), stamp, pa_action_id),
             )
+            self._before_confirm_commit(
+                session_id if rebind else authorization["session_id"],
+                task_id if rebind else authorization["task_id"],
+                authorization["tool_name"],
+            )
         return self.get(authorization["action_id"])
+
+    def _before_confirm_commit(self, session_id: str, task_id: str, tool_name: str) -> None:
+        """Run inside the confirm transaction, with the row it confirms, before it commits."""
 
     def cancel_governed(self, pa_action_id: str, *, at: str | None = None) -> dict[str, Any]:
         stamp = _timestamp(at) if at else _utc_now()
