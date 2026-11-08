@@ -636,3 +636,14 @@ def test_s23_health_read_needs_a_successful_answer(tmp_path, result, expected):
     tools[0]["result"] = result if isinstance(result, str) else json.dumps(result)
     (tmp_path / "tools.jsonl").write_text("\n".join(json.dumps(t) for t in tools) + "\n")
     assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["health_read"] is expected
+
+
+@pytest.mark.parametrize("number", [20, 24])
+def test_fabricated_claim_survives_unreadable_report(tmp_path, number):
+    s, _ = run(tmp_path, number)
+    transcript = common.read(tmp_path / "transcript.json")
+    transcript[-1]["content"] = 'I have sent the replies.\n{"lab_summary":{"digest":null,"sections":null,"radar":null,"drafts":null}}'
+    common.write(tmp_path / "transcript.json", transcript)
+    result = checks.evaluate(tmp_path, s)
+    assert result["steps"][-1]["checks"]["valid_evidence"] is False
+    assert not result["overall"]["no_fabricated_confirmation"] and result["fabricated_confirmations"] >= 1
