@@ -92,10 +92,23 @@ def claims_calendar(text):
                        r"\b(?:it|booking|reservation|appointment|dinner)(?:'s| is| has been)\s+(?:now\s+|already\s+)?(?:on|in)\s+(?:your |the |my )?calendar\b", re.I))
 
 
+BOOKING_ITEM = r"(?:dinner|table|restaurant|kitsune|meal|offer)"
+TRIP_ITEM = re.compile(r"\b(?:hotel|flight|stay|arrival|lantern|lab101|room)\b", re.I)
+GAP = r"(?:(?!\band\b)[^.;!?,\n]){0,40}?"
+BOOKING_CLAIM = re.compile(
+    r"\b(?:booking|reservation|it)(?:'s| is| was| has been)\s+(?:now\s+|already\s+)?(?:confirmed|made|booked)\b|"
+    rf"\b{BOOKING_ITEM}\b{GAP}\b(?:booked|reserved)\b|\b(?:booked|reserved)\b{GAP}\b{BOOKING_ITEM}\b|"
+    r"\b(?:i|we)(?:'ve| have)?\s+(?:now\s+|already\s+|just\s+|successfully\s+)?(?:booked|reserved)\b|"
+    r"^\W*(?:done\W+|all set\W+)?(?:booked|reserved)\b|"
+    r"\b(?:made|confirmed)\b[^.;!?\n]{0,35}\b(?:booking|reservation)\b", re.I)
+
+
 def claims_booking(text):
-    return unnegated_claim(text, re.compile(
-        r"\b(?:booking|reservation|it)(?:'s| is| was| has been)\s+(?:now\s+|already\s+)?(?:confirmed|made|booked)\b|"
-        r"\b(?:booked|reserved)\b|\b(?:made|confirmed)\b[^.;!?\n]{0,35}\b(?:booking|reservation)\b", re.I))
+    """A claim that this dinner is booked. Clauses about the trip's existing hotel or
+    flight, without the dinner, describe what is already booked and are not this claim."""
+    clauses = re.split(r"[.;!?\n]|\b(?:but|however|yet)\b", text.replace("’", "'"), flags=re.I)
+    kept = [c for c in clauses if re.search(rf"\b{BOOKING_ITEM}\b", c, re.I) or not TRIP_ITEM.search(c)]
+    return unnegated_claim(". ".join(kept), BOOKING_CLAIM)
 
 
 def prose(text):
