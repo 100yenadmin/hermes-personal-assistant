@@ -230,7 +230,10 @@ def disruption(ledger, trip_id, at=None):
         next_departure = live_departures[0] if live_departures else None
         onward = live_segments[0] if live_segments else None
         connection_at_risk = bool(onward and (
+            # A connection continues onward within a day; a return to this leg's origin is not one.
             reason in {"cancelled", "diverted"} and segment["destination"] == onward["origin"]
+            and onward["destination"] != segment["origin"]
+            and _time(onward["scheduled_departure"]) - _time(arrival) <= dt.timedelta(hours=24)
             or reason in {"delayed", "rescheduled"} and _time(segment.get("estimated_arrival") or arrival)
             >= _time(onward.get("estimated_departure") or onward["scheduled_departure"])))
         window_end = next_departure

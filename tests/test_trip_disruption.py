@@ -63,7 +63,7 @@ def rows(ledger, *, exempt_settings=False):
 @pytest.mark.parametrize("status", ["cancelled", "diverted"])
 def test_cancelled_or_diverted_booking_window_and_no_references(ledger, status):
     first = flight(ledger, status=status)
-    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", "origin": "KIX", "destination": "HND",
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", "origin": "CTS", "destination": "HND",
         "scheduled_departure": "2026-11-11T10:00:00Z", "scheduled_arrival": "2026-11-11T12:00:00Z"}], source="user")
     for identity, start in [("before", "2026-11-10T09:00:00Z"), ("at-departure", "2026-11-10T10:00:00Z"),
                             ("hotel", "2026-11-10T15:00:00Z"), ("dinner", "2026-11-10T18:00:00Z"),
@@ -381,3 +381,16 @@ def test_concierge_disruption_trigger_includes_reschedules():
     sentence = skill.split("For a flight_change whose leg ", 1)[1].split("before offering;", 1)[0]
     assert "or rescheduled by at least 45 minutes" in sentence
     assert "call `pa trip_watch_plan action=disruption trip_id=…`" in sentence
+
+
+@pytest.mark.parametrize("onward", [
+    {"origin": "ITM", "destination": "HND", "scheduled_departure": "2026-11-10T13:00:00Z", "scheduled_arrival": "2026-11-10T15:00:00Z"},
+    {"origin": "ITM", "destination": "CTS", "scheduled_departure": "2026-11-13T13:00:00Z", "scheduled_arrival": "2026-11-13T15:00:00Z"},
+])
+def test_return_or_later_flight_from_the_same_airport_is_not_a_connection(ledger, onward):
+    flight(ledger, destination="ITM", status="cancelled")
+    record_facts(ledger, TRIP, [{**SEGMENT, "number": "102", **onward}], source="user")
+    booking(ledger, "home-dinner", "2026-11-14T18:00:00Z")
+    result = read(ledger)
+    assert "connection_at_risk" not in result["changed_legs"][0]
+    assert "home-dinner" not in {item["booking_action_id"] for item in result["affected"]}
