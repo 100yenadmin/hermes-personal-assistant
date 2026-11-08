@@ -28,6 +28,8 @@ CLI or Desktop), ask the owner to continue in that chat; never guess a chat ID.
 
 1. Save their clock: `{"operation":"automations","data":{"action":"preferences","changes":{"timezone":"<IANA zone>","brief_time":"HH:MM"}}}`.
 2. Record their acceptance: `{"operation":"automations","data":{"action":"rule","rule_id":"daily_brief","rule":{"kind":"daily_brief","accepted":true,"destination":"origin","destination_verified":true,"timezone":"<IANA zone>"}}}`.
+   For the due check use `"rule_id":"due_source_check"` and `"kind":"due_source_check"`
+   instead; each routine keeps its own rule.
    `"origin"` is the chat, including a Telegram topic, where `/suggestions accept`
    runs. `destination_verified: true` records the owner's explicit yes in that chat.
 3. Offer the native job: `{"operation":"automations","data":{"action":"suggest","native":true}}`.
