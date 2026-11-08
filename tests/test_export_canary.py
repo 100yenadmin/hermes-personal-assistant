@@ -15,6 +15,11 @@ NOW = dt.datetime.fromisoformat('2026-11-21T12:00:00+00:00')
 
 @pytest.fixture
 def canary(tmp_path):
+    return _canary(tmp_path)
+
+
+def _canary(tmp_path, missed=()):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     ledger = Ledger(tmp_path)
     preferences(ledger, {'timezone': 'UTC'})
     auto.upsert_automation_rule(ledger, 'daily_brief', {
@@ -28,6 +33,8 @@ def canary(tmp_path):
         day += dt.timedelta(days=1)
     for date in dates:
         for slot in auto.routine_slots(ledger, now=NOW, date=date):
+            if slot['logical'] in missed:
+                continue
             due = auto._value_time(slot['due_at'], 'UTC')
             auto.claim_notification(ledger, slot['occurrence_id'], now=due + dt.timedelta(minutes=1))
             auto.record_notification(ledger, slot['occurrence_id'], 'delivered',
@@ -158,3 +165,34 @@ def test_invalid_timezone_cli_has_clear_error(canary, capsys):
         main([str(canary.root), '--start', '2026-11-09'])
     assert exc.value.code == 2
     assert 'invalid timezone: broken/zone' in capsys.readouterr().err
+
+
+def _hold(ledger, hold):
+    """Holds set after the scored days; history must not move with them."""
+    if hold == 'snooze':
+        preferences(ledger, {'snooze_until': '2026-11-21T13:00:00+00:00'})
+    elif hold == 'rule_snooze':
+        auto.upsert_automation_rule(ledger, 'daily_brief', {
+            **auto._rule_data(ledger.get('action', ledger.action_id('pa-automation-rule', 'rule', 'daily_brief'))),
+            'snooze_until': '2026-11-21T13:00:00+00:00'})
+    elif hold == 'pause_resume':
+        with patch.object(auto, '_now', return_value=NOW):
+            preferences(ledger, {'paused': True})
+            preferences(ledger, {'paused': False})
+    elif hold == 'paused':
+        preferences(ledger, {'paused': True})
+
+
+@pytest.mark.parametrize('hold', ['none', 'snooze', 'rule_snooze', 'pause_resume', 'paused'])
+@pytest.mark.parametrize('when', ['12:00', '14:00', '23:00'])
+def test_historical_scores_do_not_move_with_current_holds_or_quiet_hours(tmp_path, hold, when):
+    now = dt.datetime.fromisoformat('2026-11-21T' + when + ':00+00:00')
+    passing = _canary(tmp_path / 'pass')
+    missing = _canary(tmp_path / 'miss', missed=('2026-11-09',))
+    for ledger in (passing, missing):
+        _hold(ledger, hold)
+    good = export(Ledger(passing.root, read_only=True), start='2026-11-09', now=now)
+    bad = export(Ledger(missing.root, read_only=True), start='2026-11-09', now=now)
+    assert [d['routines'] for d in good['daily']] == ['pass'] * 10
+    assert bad['daily'][0]['routines'] == 'fail'
+    assert [d['routines'] for d in bad['daily'][1:]] == ['pass'] * 9

@@ -29,6 +29,18 @@ def preferences(ledger, changes=None):
                     auto.routine_time(value)
                 except (ValueError, TypeError):
                     raise ValueError(f"{key} must be HH:MM")
+        if changes.get("snooze_until") not in (None, "") and auto._value_time(changes["snooze_until"], "UTC") is None:
+            raise ValueError("snooze_until must be an ISO timestamp")
+        if "quiet_hours" in changes:
+            quiet = changes["quiet_hours"]
+            try:
+                if not isinstance(quiet, dict):
+                    raise TypeError
+                for key in ("start", "end"):
+                    if key in quiet:
+                        auto.routine_time(quiet[key])
+            except (TypeError, ValueError):
+                raise ValueError("quiet_hours start and end must be HH:MM")
         for key in (kind + "_day" for kind in WEEKLY_COS):
             if key in changes and changes[key] not in WEEKDAYS:
                 raise ValueError(f"{key} must be mon..sun")
@@ -284,7 +296,10 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             return _health_failure(ledger, kind, "timezone_conflict", current)
     except (ValueError, TypeError, KeyError):
         return _health_failure(ledger, kind, "invalid_timezone", current)
-    if any(r.get("snooze_until") and auto._value_time(r["snooze_until"], zone) > current for r in rules):
+    snoozes = [auto._value_time(r["snooze_until"], zone) for r in rules if r.get("snooze_until")]
+    if any(until is None for until in snoozes):
+        return _health_failure(ledger, kind, "invalid_snooze", current)
+    if any(until > current for until in snoozes):
         return {"wakeAgent": False, "reason": "routine_snoozed"}
     local = current.astimezone(ZoneInfo(zone))
     if kind == "daily_brief":

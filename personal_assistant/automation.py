@@ -445,27 +445,38 @@ def routine_time(value):
     return dt.time.fromisoformat(value)
 
 
-def _eligible_slot(prefs, rules, at, current, zone):
-    """Delay the grace clock until intentional routine holds have ended."""
+def _after_quiet(prefs, at, zone):
+    """The first moment at or after `at` outside the profile's quiet hours; preferences only, never current state."""
+    quiet = prefs.get("quiet_hours") or DEFAULTS["quiet_hours"]
+    try:
+        start, end = routine_time(quiet.get("start", "22:00")), routine_time(quiet.get("end", "07:00"))
+    except (AttributeError, TypeError, ValueError):
+        raise ValueError("invalid_quiet_hours") from None
+    local = at.astimezone(ZoneInfo(zone))
+    clock = local.time().replace(tzinfo=None)
+    if not (clock >= start or clock < end if start > end else start <= clock < end):
+        return at
+    moved = dt.datetime.combine(local.date(), end, ZoneInfo(zone))
+    return moved + dt.timedelta(days=1) if moved <= local else moved
+
+
+def _eligible_slot(prefs, rules, at, zone):
+    """Today's health clock starts after intentional holds (snooze, pause, resume) and quiet hours end."""
+    if prefs.get("paused") is True or prefs.get("disabled") is True or prefs.get("enabled") is False:
+        return None
     holds = [_value_time(value, zone) for value in (
         prefs.get("snooze_until"), prefs.get("routine_resumed_at"),
         *(r.get(key) for r in rules for key in ("snooze_until", "routine_resumed_at"))) if value]
-    if any(value is None for value in holds): return None
-    at = max(at, *holds) if holds else at
-    state = {**prefs, "timezone": zone, "actions": [{"due": True}]}
-    if not script_precheck(state, now=current)["run"]: return None
-    gate = script_precheck(state, now=at)
-    if gate["reason"] == "quiet_hours":
-        quiet = prefs.get("quiet_hours") or DEFAULTS["quiet_hours"]
-        end = dt.time.fromisoformat(quiet.get("end", "07:00"))
-        local = at.astimezone(ZoneInfo(zone))
-        at = dt.datetime.combine(local.date(), end, ZoneInfo(zone))
-        if at <= local: at += dt.timedelta(days=1)
-    return at if at <= current else None
+    if any(value is None for value in holds):
+        raise ValueError("invalid_snooze")
+    return _after_quiet(prefs, max(at, *holds) if holds else at, zone)
 
 
-def routine_slots(ledger, *, now=None, date=None, findings=None):
-    """Known calendar slots for accepted rules, without claiming or repairing."""
+def routine_slots(ledger, *, now=None, date=None, findings=None, health=False):
+    """Known calendar slots for accepted rules, without claiming or repairing.
+
+    The schedule comes from preferences alone, so historical scoring never depends on today's holds.
+    `health=True` (today only) also starts each slot's clock after intentional holds end."""
     prefs = (ledger.get("action", "pa:preferences") or {}).get("fields", {})
     current = _now(now, "UTC")
     grouped = {}
@@ -497,8 +508,13 @@ def routine_slots(ledger, *, now=None, date=None, findings=None):
                 continue
             at = dt.datetime.combine(day, clock, ZoneInfo(zone))
             if at > current or any(_value_time(r.get("accepted_at"), zone) and _value_time(r["accepted_at"], zone) > at for r in rules): continue
-            at = _eligible_slot(prefs, rules, at, current, zone)
-            if at is None: continue
+            try:
+                at = _eligible_slot(prefs, rules, at, zone) if health else _after_quiet(prefs, at, zone)
+            except ValueError as error:
+                if findings is not None:
+                    findings.append({"id": stable_id(kind, str(error)), "kind": kind, "reason": str(error), "at": current.isoformat()})
+                continue
+            if at is None or at > current: continue
             eligible = at.astimezone(ZoneInfo(zone))
             if eligible.date() != day: continue  # The precheck only claims today's period.
             if kind == "daily_brief" and not suffix and eligible.strftime("%H:%M") >= prefs.get("eod_time", DEFAULTS["eod_time"]): continue
@@ -529,8 +545,10 @@ def routine_health(ledger, *, now=None, grace_minutes=60):
             findings.append({"id": stable_id("receipt_missing", row["action_id"]), "kind": fields.get("routine_kind", fields.get("rule_id")),
                              "reason": "receipt_missing", "at": claimed.isoformat(), "occurrence_id": fields.get("notification_occurrence_id")})
     invalid = []
-    for slot in routine_slots(ledger, now=current, findings=invalid):
+    for slot in routine_slots(ledger, now=current, findings=invalid, health=True):
         if current >= _value_time(slot["due_at"], "UTC") + grace and not notification_receipt(ledger, slot["occurrence_id"]):
             findings.append({"id": stable_id("slot_unclaimed", slot["occurrence_id"]), "reason": "slot_unclaimed", **slot})
-    findings.extend(f for f in invalid if not any((f["kind"], f["reason"]) == (old.get("kind"), old["reason"]) for old in findings))
+    for finding in invalid:  # One finding per routine and cause, even when both of its clocks hit it.
+        if not any((finding["kind"], finding["reason"]) == (old.get("kind"), old.get("reason")) for old in findings):
+            findings.append(finding)
     return {"status": "attention" if any(not f.get("recovered_at") for f in findings) else "healthy", "findings": findings, "read_only": True}

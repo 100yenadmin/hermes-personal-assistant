@@ -322,3 +322,43 @@ def test_brief_time_rejects_bad_input_and_stored_value_is_health_finding(ledger)
 def test_escalate_step_is_reported_without_a_separate_wake():
     text = (ROOT / 'skills/personal-assistant/r5-brief-reminders/SKILL.md').read_text()
     assert '`escalate`' in text and 'daily brief or radar' in text and 'no separate wake' in text
+
+
+def test_missed_brief_is_reported_during_later_quiet_hours(ledger):
+    rule(ledger)
+    findings = auto.routine_health(ledger, now=at('2026-11-09T23:00'))['findings']
+    assert any(f['reason'] == 'slot_unclaimed' and f['kind'] == 'daily_brief' for f in findings)
+
+
+@pytest.mark.parametrize('where', ['rule', 'stored_preference'])
+def test_unreadable_snooze_is_a_finding_not_a_silent_hold(ledger, where):
+    if where == 'rule':
+        rule(ledger, snooze_until='later')
+    else:
+        rule(ledger)
+        ledger.put('action', 'pa:preferences', {'snooze_until': 'later'})
+    health = auto.routine_health(ledger, now=at('2026-11-09T09:00'))
+    assert health['status'] == 'attention'
+    assert [f['reason'] for f in health['findings'] if f.get('kind') == 'daily_brief'].count('invalid_snooze') == 1
+    if where == 'rule':
+        wake = cron_precheck(ledger, 'daily_brief', enabled=True, moment=at('2026-11-09T09:00'))
+        assert wake == {'wakeAgent': False, 'reason': 'invalid_snooze'}
+
+
+def test_unreadable_stored_quiet_hours_is_a_finding(ledger):
+    rule(ledger)
+    ledger.put('action', 'pa:preferences', {'quiet_hours': {'start': '22:00', 'end': '7:00'}})
+    findings = auto.routine_health(ledger, now=at('2026-11-09T09:00'))['findings']
+    assert any(f['reason'] == 'invalid_quiet_hours' for f in findings)
+
+
+@pytest.mark.parametrize('changes', [{'snooze_until': 'tomorrow'}, {'quiet_hours': {'start': '22:00', 'end': '7:00'}},
+                                     {'quiet_hours': 'nights'}])
+def test_preferences_reject_unreadable_holds(ledger, changes):
+    with pytest.raises(ValueError):
+        preferences(ledger, changes)
+
+
+def test_clearing_a_snooze_is_allowed(ledger):
+    preferences(ledger, {'snooze_until': '2026-11-09T20:00:00+00:00'})
+    assert preferences(ledger, {'snooze_until': None}).get('snooze_until') is None
