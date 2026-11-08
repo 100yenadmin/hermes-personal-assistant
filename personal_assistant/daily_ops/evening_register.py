@@ -13,6 +13,9 @@ from .gog_collector import DailyOpsError
 from . import trip_context
 
 
+ATTENDEES_SHOWN = 25
+
+
 def _event_start(event: dict, zone: ZoneInfo):
     start = event.get("start") if isinstance(event, dict) else None
     if not isinstance(start, dict):
@@ -77,7 +80,9 @@ def _meeting_to_confirm(event: dict, item: dict, own: set[str]) -> dict | None:
             others.append(email)
     if not others:
         return None
-    return {**row, "attendees_known": True, "attendee_count": len(others), "attendees": others[:25]}
+    # Up to ATTENDEES_SHOWN addresses are listed; a longer list is cut, which makes the packet truncated.
+    return {**row, "attendees_known": True, "attendee_count": len(others), "attendees": others[:ATTENDEES_SHOWN],
+            "attendees_omitted": max(len(others) - ATTENDEES_SHOWN, 0)}
 
 
 def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None = None) -> dict:
@@ -110,6 +115,8 @@ def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None
         "meetings_to_confirm": {"items": meetings, "count": len(meetings), "coverage": calendar.coverage},
     }
     complete, truncated = calendar.complete, calendar.truncated
+    if any(row.get("attendees_omitted") for row in meetings):
+        complete, truncated = False, True
     # The second daily triage: the same humans and bulk reads as the morning brief.
     for index, account in enumerate(mail_accounts(cfg), 1):
         mail, mail_complete, mail_truncated = mail_sections(account, index, run_mail)

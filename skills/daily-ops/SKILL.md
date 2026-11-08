@@ -23,7 +23,8 @@ native automation suggestions. It does **not** create a scheduler or daemon.
 - Evening: a bounded JSON packet for tomorrow's timeline, first commitment,
   preparation flags, PA trip context, `meetings_to_confirm` (tomorrow's timed
   meetings with attendee count and aliased emails; `attendees_known: false`
-  when the calendar packet had no attendee list), and the same unread-human
+  when the calendar packet had no attendee list, `attendees_omitted` above 0
+  when a long list was cut), and the same unread-human
   and bulk mail sections as the morning brief, with the same
   complete/truncated flags.
 - Both mail packets feed the twice-daily inbox triage in

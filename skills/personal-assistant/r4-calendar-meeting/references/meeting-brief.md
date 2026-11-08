@@ -2,8 +2,9 @@
 
 The evening register lists `meetings_to_confirm` for tomorrow: event ID,
 title, start, end, attendee count and (aliased) attendee emails, read-only.
-When `attendees_known` is false, the calendar packet carried no attendee list:
-read the event with the calendar tool before drafting, and say so.
+When `attendees_known` is false, the calendar packet carried no attendee list;
+when `attendees_omitted` is above 0, the list was cut. In either case read the
+event with the calendar tool before drafting, and say so.
 
 ## One-page brief per meeting
 

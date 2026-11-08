@@ -113,7 +113,9 @@ non-cancelled events with at least one other attendee, each with `event_id`,
 `summary`, `start`, `end`, `attendee_count` and aliased `attendees`. Events the
 owner declined, all-day entries and solo events are left out. When the
 calendar packet carries no attendee list, the row says `attendees_known:
-false` with `attendee_count: null` instead of claiming nobody was invited.
+false` with `attendee_count: null` instead of claiming nobody was invited. At
+most 25 attendee addresses are listed; `attendees_omitted` counts the rest and
+makes the packet incomplete and truncated.
 
 The morning window is the next 36 hours. The evening window is tomorrow in the
 configured timezone, including all-day events as timeline facts but never as

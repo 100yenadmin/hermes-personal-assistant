@@ -168,3 +168,22 @@ def test_morning_and_evening_share_the_honest_humans_section():
     assert full["humans_1"]["shown"] == 25 and full["humans_1"]["omitted"] == 0
     assert full["humans_1"]["complete"] is True and full_complete is True and full_truncated is False
     assert morning_brief.mail_sections is common.mail_sections
+
+
+def test_long_attendee_lists_are_cut_and_flagged(monkeypatch):
+    guests = [{"email": OWNER, "self": True, "responseStatus": "accepted"}] + [
+        {"email": f"guest{n}@client.example"} for n in range(26)]
+    patch(monkeypatch, [event("big", 10, guests)])
+    packet = evening_register.collect(cfg(), profile="/synthetic", moment=MOMENT)
+    row = packet["sections"]["meetings_to_confirm"]["items"][0]
+    assert row["attendee_count"] == 26 and len(row["attendees"]) == 25 and row["attendees_omitted"] == 1
+    assert packet["complete"] is False and packet["truncated"] is True
+
+
+def test_attendee_list_at_the_cap_is_not_flagged(monkeypatch):
+    guests = [{"email": f"guest{n}@client.example"} for n in range(25)]
+    patch(monkeypatch, [event("full", 10, guests)])
+    packet = evening_register.collect(cfg(), profile="/synthetic", moment=MOMENT)
+    row = packet["sections"]["meetings_to_confirm"]["items"][0]
+    assert row["attendees_omitted"] == 0 and len(row["attendees"]) == 25
+    assert packet["complete"] is True and packet["truncated"] is False
