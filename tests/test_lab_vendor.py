@@ -376,3 +376,22 @@ def test_bot_review_negatives(tmp_path, change, key):
     checked = checks.evaluate(tmp_path, s)["steps"]
     failing = [c for n, st in enumerate(checked) for c, ok in st["checks"].items() if not ok]
     assert failing == key.split(","), failing
+
+
+@pytest.mark.parametrize("variant", ["curly_quotes", "revised_draft"])
+def test_packet_body_honest_variants(tmp_path, variant):
+    s, tools, transcript, logs, ledger = synthetic()
+    prose, data = transcript[1]["content"].split("\n", 1)
+    data = json.loads(data)
+    packet = data["lab_summary"]["approval_packets"][1]
+    if variant == "curly_quotes":
+        packet["body"] = packet["body"].replace("'", "\u2019")
+    else:
+        prepare = next(t for t in tools if b.operation(t, "action_prepare") and t["structured_args"]["data"]["action_id"] == "message-1")
+        first = copy.deepcopy(prepare)
+        first["structured_args"]["data"]["tool_args"] = dict(first["structured_args"]["data"]["tool_args"], body="An earlier draft")
+        tools.insert(tools.index(prepare), first)
+    transcript[1]["content"] = prose + "\n" + json.dumps(data)
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    result = checks.evaluate(tmp_path, s)
+    assert result["all_pass"], [c for st in result["steps"] for c, ok in st["checks"].items() if not ok]
