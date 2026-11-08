@@ -16,6 +16,7 @@ budget_seconds: 900
 seed:
 - {operation: action_upsert, data: {action_id: 'lab:loop-1', action_type: commitment, status: open, fields: {title: Synthetic loop 1, loop_kind: our_promise, counterparty: Cedar Demo, next_actor: us, opened_at: '@days_ago_1@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
 - {operation: action_upsert, data: {action_id: 'lab:loop-2', action_type: commitment, status: open, fields: {title: Synthetic loop 2, loop_kind: ask_owner, counterparty: Owner, next_actor: owner, opened_at: '@days_ago_2@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:waiting-on-them-2', action_type: commitment, status: open, fields: {title: Synthetic third-party loop 2, loop_kind: waiting_on_them, counterparty: Cedar Demo, next_actor: them, opened_at: '@days_ago_2@', next_step: Await the draft update, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
 - {operation: action_upsert, data: {action_id: 'lab:loop-5', action_type: commitment, status: open, fields: {title: Synthetic loop 5, loop_kind: delegated, counterparty: Cedar Demo, next_actor: us, opened_at: '@days_ago_5@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
 - {operation: action_upsert, data: {action_id: 'lab:loop-10', action_type: commitment, status: open, fields: {title: Synthetic loop 10, loop_kind: ask_owner, counterparty: Owner, next_actor: owner, opened_at: '@days_ago_10@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
 - {operation: action_upsert, data: {action_id: 'lab:loop-12', action_type: commitment, status: open, fields: {title: Synthetic loop 12, loop_kind: waiting_on_them, counterparty: Cedar Demo, next_actor: them, opened_at: '@days_ago_12@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
@@ -29,6 +30,7 @@ lab:
   chases:
     lab:loop-1: none
     lab:loop-2: day2
+    lab:waiting-on-them-2: day2
     lab:loop-5: day5
     lab:loop-10: day10
     lab:loop-12: escalate
