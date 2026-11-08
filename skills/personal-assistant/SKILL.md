@@ -158,7 +158,8 @@ binds it to this action. `risk_class` defaults to `external_write`. The shape:
   `tool_args`, and `value` lists what those paths hold.
 - `preconditions` has exactly one entry per required projection. Set each to the
   literal `"confirmed"` only after you checked it on the live page; otherwise
-  `action_confirm` refuses and you prepare again once it holds.
+  `action_confirm` refuses. Once it holds, prepare again with a new
+  `action_revision` (a prepared revision cannot change).
 - A rejected prepare names the missing or invalid keys: fix those and retry once.
 
 Obtain final confirmation with `action_confirm` and the

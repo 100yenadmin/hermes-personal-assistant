@@ -22,17 +22,19 @@ Load `personal-assistant:personal-assistant` for the exact tool argument and sta
 
 ## Turning on a routine
 
-When the owner asks for the morning brief (or the due check), in the chat where
-they asked:
+When the owner asks for the morning brief (or the due check), set it up from the
+chat that should receive it. If this surface cannot receive pushed messages (the
+CLI or Desktop), ask the owner to continue in that chat; never guess a chat ID.
 
 1. Save their clock: `{"operation":"automations","data":{"action":"preferences","changes":{"timezone":"<IANA zone>","brief_time":"HH:MM"}}}`.
-2. Record their acceptance, with this chat as the destination: `{"operation":"automations","data":{"action":"rule","rule_id":"daily_brief","rule":{"kind":"daily_brief","accepted":true,"destination":"<platform>:<chat id>","destination_verified":true,"timezone":"<IANA zone>"}}}`.
-   The destination is verified because the owner is asking in it; for any other
-   destination, verify delivery first.
+2. Record their acceptance: `{"operation":"automations","data":{"action":"rule","rule_id":"daily_brief","rule":{"kind":"daily_brief","accepted":true,"destination":"origin","destination_verified":true,"timezone":"<IANA zone>"}}}`.
+   `"origin"` is the chat, including a Telegram topic, where `/suggestions accept`
+   runs. `destination_verified: true` records the owner's explicit yes in that chat.
 3. Offer the native job: `{"operation":"automations","data":{"action":"suggest","native":true}}`.
-   Then tell the owner to send Hermes's `/suggestions accept <id>` with the
-   returned suggestion id. Their acceptance creates the job; PA never creates
-   jobs itself.
+   Give the owner the returned `accept_command` (Hermes's `/suggestions accept <id>`)
+   to send in that chat. When no command comes back (the job exists, was accepted,
+   dismissed, or the backlog is full), follow the returned `next_step`. The owner's
+   acceptance creates the job; PA never creates jobs itself.
 
 ## Scheduled notification receipt
 

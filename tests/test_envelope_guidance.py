@@ -47,9 +47,11 @@ def test_preconditions_name_the_required_keys(profile):
 def test_an_unconfirmed_precondition_is_named_at_confirmation(profile):
     data = {**governed_data(), "preconditions": {"authority": "pending"}}
     _prepare(profile, data)
-    with pytest.raises(ValueError, match='not confirmed: authority; check each on the live page'):
+    with pytest.raises(ValueError, match='not confirmed: authority; check each on the live page, then prepare again with a new action_revision'):
         dispatch(profile, {"operation": "action_confirm", "data": {
             "action_id": data["action_id"], "summary": data["summary"], "confirmation": "yes"}}, runtime_scope=SCOPE)
+    # Following the message works: a new revision with the precondition confirmed is accepted.
+    assert _prepare(profile, {**governed_data(revision="r2")})["status"] == "approval_required"
 
 
 def test_the_documented_envelope_matches_the_code():
@@ -67,9 +69,10 @@ def test_the_routine_recipe_uses_real_automation_actions(profile):
     text = (ROOT / "skills/personal-assistant/r5-brief-reminders/SKILL.md").read_text()
     for action in ("preferences", "rule", "suggest"):
         assert f'"action":"{action}"' in text
-    assert "/suggestions accept" in text and "PA never creates" in text
+    assert "/suggestions accept" in text and "PA never creates" in text and '"destination":"origin"' in text
+    assert "never guess a chat ID" in text and "accept_command" in text
     dispatch(profile, {"operation": "automations", "data": {"action": "preferences", "changes": {"timezone": "Asia/Tokyo", "brief_time": "07:30"}}})
     dispatch(profile, {"operation": "automations", "data": {"action": "rule", "rule_id": "daily_brief", "rule": {
-        "kind": "daily_brief", "accepted": True, "destination": "telegram:1", "destination_verified": True, "timezone": "Asia/Tokyo"}}})
+        "kind": "daily_brief", "accepted": True, "destination": "origin", "destination_verified": True, "timezone": "Asia/Tokyo"}}})
     status = dispatch(profile, {"operation": "automations", "data": {"action": "status"}})
     assert status["preferences"]["brief_time"] == "07:30" and status["rules"][0]["fields"]["automation_rule"]["accepted"]

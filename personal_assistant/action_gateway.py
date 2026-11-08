@@ -48,7 +48,7 @@ def _validate_json(value: Any, path: str = "$") -> None:
 
 def _unconfirmed(missing):
     return ("required precondition is not confirmed: " + ", ".join(missing) + "; check each on the live page, then "
-            "prepare again with the value \"confirmed\" before asking for confirmation")
+            "prepare again with a new action_revision and the value \"confirmed\" before asking for confirmation")
 
 
 def canonical_json(value: Any) -> str:
