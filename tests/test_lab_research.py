@@ -1088,6 +1088,33 @@ def test_research_claims_a_rejected_pair_does_not_hide_a_later_claim(text):
     assert research_checks.claims_done(text)
 
 
+def test_source_excerpt_picks_the_occurrence_the_claim_is_about():
+    # Live s18: Deel's pricing page lists "$10" for benefits management and "$10" for Treasury Services; the judge was
+    # shown the benefits line for a correct Treasury claim and failed the run.
+    page = ("Benefits management Best for teams adding local benefits. S$12.50 per employee per month. " + "x " * 120
+            + "Treasury Services Best for companies wanting payroll funding and disbursement. S$12.50 per employee per month.")
+    answer = ANSWER.replace("S$12.50 per employee per month [1]", "Treasury Services add-on: S$12.50 per employee per month [1]")
+    [row] = evaluate(answer, tools(page))["source_excerpts"]
+    assert "Treasury Services" in row["source_text"]
+    [row] = evaluate(ANSWER.replace("S$12.50 per employee per month [1]", "benefits management: S$12.50 per employee per month [1]"), tools(page))["source_excerpts"]
+    assert "Benefits management" in row["source_text"]
+
+
+def test_source_excerpt_common_pricing_words_do_not_outvote_the_product():
+    # Review of #82: "per", "employee" and "month" must not beat the product name.
+    page = "Treasury Services S$12.50 flat fee. " + "x " * 120 + "Benefits management S$12.50 per employee per month."
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].", "- Treasury Services: S$12.50 per employee per month [1].")
+    [row] = evaluate(answer, tools(page))["source_excerpts"]
+    assert "Treasury Services" in row["source_text"]
+
+
+def test_source_excerpt_uses_the_clause_around_the_amount():
+    page = "Payroll S$12.50 per employee. " + "x " * 120 + "Benefits S$12.50 per employee, Treasury Services add-on S$10."
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].",
+                            "- Payroll S$12.50 per employee [1]; Treasury Services add-on S$10 [1].")
+    rows = evaluate(answer, tools(page))["source_excerpts"]
+    assert rows[0]["amount"] == "S$12.50" and rows[0]["source_text"].startswith(("Payroll", "https://cedar.invalid/pricing Payroll"))
+
 # Live s18 (M2-e smoke on 8cc4e9f): all three runs listed sources as a Markdown numbered list under one shared read
 # date, and two had no "Comparison" heading over the table. Loosening the parser for these forms opened false
 # passes in review (unchecked amounts on numbered lines, any early date read as the read date, a second table naming
@@ -1148,3 +1175,12 @@ def test_answer_written_to_the_skill_template_passes():
     rows = tools() + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll")
     result = evaluate(TEMPLATE, rows)
     assert all(result["checks"].values()), result["reasons"]
+
+
+def test_source_excerpt_equal_amounts_in_two_clauses_use_their_own_clause():
+    # Codex review of #82: both S$10 claims took the first clause's words.
+    page = "Treasury Services S$10 flat fee. " + "x " * 120 + "Benefits S$10 per employee."
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].",
+                            "- Benefits S$10 per employee [1]; Treasury Services S$10 flat fee [1].")
+    rows = [r for r in evaluate(answer, tools(page))["source_excerpts"] if r.get("amount") == "S$10"]
+    assert "Benefits" in rows[0]["source_text"] and "Treasury Services" in rows[1]["source_text"]
