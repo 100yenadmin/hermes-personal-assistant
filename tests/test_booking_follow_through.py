@@ -380,3 +380,25 @@ def test_moved_booking_pauses_derived_actions(ledger):
     record(ledger, moved)
     derived = ledger.get("action", "fixture-derived")
     assert derived["status"] == "paused" and "leave_by" not in derived["fields"]
+
+
+@pytest.mark.parametrize("status,paused", [
+    ("claimed_once", False), ("provider_result", False), ("verified", False), ("reconciled", False),
+    ("submitting", False), ("approval_required", True),
+])
+def test_moved_booking_never_pauses_an_attempted_transaction(ledger, status, paused):
+    prepare(ledger)
+    follow = record(ledger)["follow_through"]
+    # A second booking whose time was derived from the first one's itinerary event.
+    fields = {"enforcement_profile": "exact_action", "source_record_id": follow["trip_item"], "source_fields": ["start"]}
+    stamp = "2026-11-09T00:00:00+00:00"
+    with ledger.connect() as conn:
+        conn.execute("insert into actions values(?,?,?,?,?,?,?,?)",
+                     ("fixture-transfer", None, "transaction", "fixture-provider", status, json.dumps(fields), stamp, stamp))
+    moved = copy.deepcopy(READBACK)
+    moved["item"]["start"] = "2026-11-12T16:00:00+09:00"
+    record(ledger, moved)
+    assert ledger.get("action", "fixture-transfer")["status"] == ("paused" if paused else status)
+    if status in {"claimed_once", "provider_result"}:
+        # The attempted booking can still record its readback.
+        assert ledger.result("fixture-transfer", "confirmed", "Synthetic transfer readback")["status"] == "verified"

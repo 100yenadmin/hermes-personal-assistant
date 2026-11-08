@@ -31,6 +31,10 @@ def stable_id(*parts):
     return hashlib.sha256(json.dumps(parts, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+# Transaction states whose provider step was attempted or settled; invalidation never pauses them.
+_ATTEMPTED = {"submitting", "unknown", "confirmed", "completed", "claimed_once", "provider_result", "verified", "reconciled"}
+
+
 class Ledger:
     def __init__(self, profile_root, *, timeout=10, read_only=False):
         self.timeout, self.read_only = timeout, read_only
@@ -154,8 +158,8 @@ class Ledger:
                         f["blocked_reason"] = "source details changed; recompute before resuming"
                         for derived in f.get("derived_fields", []):
                             f.pop(derived, None)
-                        # A source refresh cannot undo an attempted provider action.
-                        preserve = row["action_type"] == "transaction" and row["status"] in {"submitting", "unknown", "confirmed", "completed"}
+                        # A source refresh cannot undo an attempted provider action, legacy or governed.
+                        preserve = row["action_type"] == "transaction" and row["status"] in _ATTEMPTED
                         conn.execute("update actions set status=?,fields_json=?,updated_at=? where action_id=?", (row["status"] if preserve else "paused", json.dumps(f), stamp, row["action_id"]))
         return self.get(kind, identity)
 
