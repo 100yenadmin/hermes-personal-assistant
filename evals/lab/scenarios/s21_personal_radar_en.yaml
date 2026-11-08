@@ -1,0 +1,37 @@
+id: s21_personal_radar_en
+language: en
+area: personal_admin
+capabilities:
+- personal_admin
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- {operation: action_upsert, data: {action_id: 'lab:renewal', action_type: commitment, status: open, fields: {title: Passport renewal, radar_kind: renewal, document: Travel document, expires_on: '@in_7_months@', lead_days: 270, recurs: none, source_ref: 'synthetic:owner'}}}
+- {operation: action_upsert, data: {action_id: 'lab:birthday', action_type: commitment, status: open, fields: {title: Spouse birthday, radar_kind: important_date, document: Family date, event_date: '@in_21_days@', lead_days: 30, recurs: yearly, source_ref: 'synthetic:owner'}}}
+- {operation: action_upsert, data: {action_id: 'lab:service', action_type: commitment, status: open, fields: {title: Car service, radar_kind: deadline, document: Car service, event_date: '@in_5_days@', lead_days: 14, recurs: none, source_ref: 'synthetic:owner'}}}
+- {operation: action_upsert, data: {action_id: 'pa:offer:synthetic:service', action_type: offer, status: open, trip_id: synthetic, fields: {title: Unanswered service offer, outcome: offered, offered_at: '@days_ago_5@T12:00:00+08:00', history: [{outcome: offered, at: '@days_ago_5@T12:00:00+08:00'}], offer_type: service, trip_id: synthetic}}}
+lab:
+  kind: radar
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. radar is a list of {action_id, lead_days, next_step}; gift_shortlist and service_slot are proposals.'
+  radar:
+    lab:renewal: 270
+    lab:birthday: 30
+    lab:service: 14
+    pa:offer:synthetic:service: 3
+steps:
+- goal: Run daily brief. Read pa next_action radar:true with at:@now@. Include the unanswered offer, owner-set passport lead 270 days, birthday and car service. Propose a gift shortlist and service slot; no purchase, booking or send.
+  capability: personal_admin
+  answers: {}
+  hour: 12
+  expect:
+    lab: radar
+  type: scheduled
+  job: daily_brief

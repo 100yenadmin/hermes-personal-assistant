@@ -1,0 +1,53 @@
+id: s25_calendar_invite_en
+language: en
+area: calendar
+capabilities:
+- calendar
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 2
+budget_seconds: 900
+seed: []
+lab:
+  kind: invite
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. approval_packet contains attendees (emails), notification:"all", start, end, timezone, and participant local_times. After yes use lab_calendar_create with item approved-slot and send_updates:all, then lab_calendar_get before claiming invited.'
+  events:
+  - {id: focus, summary: Deep work, start: '@in_1_days@T09:00:00+08:00', end: '@in_1_days@T11:00:00+08:00', timezone: Asia/Singapore, focus: true, attendees: []}
+  - {id: existing, summary: Earlier meeting, start: '@in_1_days@T15:00:00+08:00', end: '@in_1_days@T16:00:00+08:00', timezone: Asia/Singapore, focus: false, attendees: []}
+  buffer_minutes: 15
+  attendees:
+  - cedar@example.invalid
+  - birch@example.invalid
+  approved_slot:
+    start: '@in_1_days@T16:15:00+08:00'
+    end: '@in_1_days@T17:00:00+08:00'
+  people:
+    cedar@example.invalid:
+      timezone: Europe/London
+      busy: []
+    birch@example.invalid:
+      timezone: America/New_York
+      busy: []
+steps:
+- goal: Read the seeded week. Prepare invite for Cedar and Birch, tomorrow 16:15–17:00 Asia/Singapore (item approved-slot). Show attendees, notification and every local time; keep 15-minute buffers and focus. Wait for yes.
+  capability: calendar
+  answers: {}
+  hour: 12
+  expect:
+    lab: invite
+- goal: Create only approved-slot and read it back.
+  capability: calendar
+  answers: {}
+  hour: 12
+  expect:
+    lab: invite
+  scripted_yes:
+    item: approved-slot
+    tool: lab_calendar_create
+    text: Yes, invite Cedar and Birch to approved-slot tomorrow 16:15–17:00 Asia/Singapore, notify both attendees.

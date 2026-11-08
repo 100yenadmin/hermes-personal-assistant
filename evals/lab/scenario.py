@@ -8,6 +8,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
+LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin"}
 
 
 def validate(s):
@@ -22,10 +23,11 @@ def validate(s):
     if "modes" in s:
         require(isinstance(s["modes"], dict) and s["modes"] == {"chief_of_staff": True}, "modes")
     cos = s.get("modes", {}).get("chief_of_staff") is True
-    require(s.get("area") in (None, *READ_ONLY_AREAS), "area")
+    lab = isinstance(s.get("lab"), dict)
+    require(s.get("area") in (None, *READ_ONLY_AREAS, *LAB_AREAS), "area")
     research = s.get("area") == "research"
-    calendar = s.get("area") == "calendar"
-    require(s.get("area") not in READ_ONLY_AREAS or (not cos and caps == [s["area"]]), "capabilities")
+    calendar = s.get("area") == "calendar" and not lab
+    require(lab or s.get("area") not in READ_ONLY_AREAS or (not cos and caps == [s["area"]]), "capabilities")
     require(("calendar" in s) == calendar, "calendar")
     if calendar:
         from .calendar_checks import expand
@@ -42,17 +44,18 @@ def validate(s):
                 require(type(event["focus"]) is bool, "calendar.events.focus")
         except (KeyError, TypeError, ValueError, AttributeError, ZoneInfoNotFoundError) as exc:
             raise ValueError(f"calendar: {exc}") from None
-    if cos:
+    if cos or lab:
         require(isinstance(s.get("user_md"), str) and bool(s["user_md"].strip()), "user_md")
+    if cos or lab or "timezone" in s or any(st.get("type") == "scheduled" for st in s.get("steps", []) if isinstance(st, dict)):
         try:
             ZoneInfo(s.get("timezone", ""))
         except (ZoneInfoNotFoundError, ValueError, TypeError):
             raise ValueError("timezone: expected IANA timezone") from None
     if "preferences" in s:  # Optional per-scenario overrides of the seeded CoS slots.
-        require(cos and isinstance(s["preferences"], dict) and set(s["preferences"]) <= {
+        require((cos or lab) and isinstance(s["preferences"], dict) and set(s["preferences"]) <= {"brief_time", "eod_time",
             "cos_daily_time", "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time"}, "preferences")
     groups = [("persona", ("name", "email", "phone", "home_city", "notes"))]
-    if "trip" in s or not (cos or research or calendar):
+    if "trip" in s or not (cos or research or calendar or lab):
         groups.append(("trip", ("origin", "destination", "depart_date", "return_date", "travellers")))
     for group, keys in groups:
         require(isinstance(s.get(group), dict), group)
@@ -78,7 +81,12 @@ def validate(s):
         require(isinstance(step, dict), prefix)
         require(step.get("type", "chat") in ("chat", "scheduled"), prefix + ".type")
         if step.get("type") == "scheduled":
-            require(cos and step.get("job") in ("cos_daily", "cos_kickoff", "cos_weekly"), prefix + ".job")
+            require(step.get("job") in (("cos_daily", "cos_kickoff", "cos_weekly") if cos else ("daily_brief", "due_source_check")), prefix + ".job")
+        require(type(step.get("hour", 12)) is int and 0 <= step.get("hour", 12) <= 23, prefix + ".hour")
+        require(type(step.get("max_tool_gap", 1)) is int and step.get("max_tool_gap", 1) > 0, prefix + ".max_tool_gap")
+        if "scripted_yes" in step:
+            from .sim_user import scripted_yes
+            require(lab and bool(scripted_yes(step)), prefix + ".scripted_yes")
         require(isinstance(step.get("goal"), str) and bool(step["goal"].strip()), prefix + ".goal")
         require(step.get("capability") in caps, prefix + ".capability")
         require((step.get("capability") == "research") == research, prefix + ".capability")
@@ -99,7 +107,7 @@ def validate(s):
             require((step.get("type") == "scheduled") == (ex["cos"] in ("daily", "silence", "kickoff", "weekly")), prefix + ".type")
             if step.get("type") == "scheduled":
                 require(step["job"] == {"kickoff": "cos_kickoff", "weekly": "cos_weekly"}.get(ex["cos"], "cos_daily"), prefix + ".job")
-        require("final" in ex or ex.get("or_handoff") or "calls" in s or cos or ex.get("research") or ex.get("calendar"), prefix + ".expect.final")
+        require("final" in ex or ex.get("or_handoff") or "calls" in s or cos or ex.get("research") or ex.get("calendar") or (lab and ex.get("lab") == s["lab"].get("kind")), prefix + ".expect.final")
         if "final" in ex:
             for key in ("url_any", "text_any"):
                 values = ex["final"].get(key) if isinstance(ex["final"], dict) else None
@@ -112,14 +120,16 @@ def validate(s):
         require(isinstance(allowed, list) and all(isinstance(o, str) for o in allowed) and set(allowed) <= set(CALL_OUTCOMES), "calls.allowed_outcomes")
     require(s.get("requires") in (None, "gateway"), "requires")
     require(isinstance(s.get("seed", []), list), "seed")
-    if cos:
+    if cos or lab:
         require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
             require(isinstance(item, dict) and item.get("operation") == "action_upsert"
                     and isinstance(item.get("data"), dict), f"seed[{i}]")
             data = item["data"]
-            require(data.get("action_type") in ("note", "commitment") and isinstance(data.get("fields"), dict)
+            require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
+    if lab:
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings"}, "lab.kind")
     return s
 
 

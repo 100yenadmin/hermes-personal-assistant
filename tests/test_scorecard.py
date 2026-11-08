@@ -86,7 +86,8 @@ def test_catalogue():
             assert (ROOT / "evals/lab/scenarios" / f"{t['scenario']}.yaml").is_file()
             assert t["kind"] in {"full", "partial"}
             assert t["label"]
-            assert t["covers"] == {"research": [0, 1, 2, 3, 4], "calendar": [1, 2, 6]}.get(a["key"], [])
+            assert t["covers"] == sorted(set(t["covers"]))
+            assert all(0 <= i < len(a["duties"]) for i in t["covers"])
     research = next(a for a in AREAS if a["key"] == "research")
     assert research["tests"] == [{"scenario": "s18_research_payroll_en", "kind": "full",
                                   "label": "payroll providers, two countries", "covers": [0, 1, 2, 3, 4]}]
@@ -106,6 +107,15 @@ def test_partial_pass_never_establishes_full_area(tmp_path, single_test):
     assert a["tests"][0]["run_ids"] == [f"{tmp_path.name}/r{i}" for i in range(3)]
     assert single_test.keys() == {"scenario", "kind", "label", "covers"}  # Never mutate the catalogue.
     assert single_test["covers"] == []
+
+
+def test_s24_credit_is_limited_to_verified_inbox_duties(tmp_path):
+    for i in range(3):
+        run(tmp_path, f"inbox-{i}", scenario="s24_inbox_triage_en")
+    inbox = area(card(tmp_path), "inbox")
+    assert inbox["tests"][0]["covers"] == [1, 3]
+    assert inbox["tests"][0]["state"] == "pass"
+    assert inbox["lab"] == "unproven"
 
 
 @pytest.mark.parametrize("n,failed,expected", [(3, False, "pass"), (3, True, "fail"),
@@ -404,7 +414,7 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 2, "none": 11}
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 5, "none": 8}
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()

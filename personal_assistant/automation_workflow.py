@@ -141,13 +141,16 @@ def prepare_suggestions(ledger, *, native=False, get_config=None, reoffer=False)
         skills = list(dict.fromkeys(skills))
         # Hermes accepts only create_job arguments in job_spec. Keep display
         # metadata outside it so accepting the suggestion creates a native job.
+        brief_rule = (" Every brief lists PA's open loops (pa next_action with loops_only true) and due items, even when a"
+                      " collector or source cannot be read; report a source gap in one line, never instead of them."
+                      if brief else "")
         job["collector"] = collector
         job["due_rule"] = due_rule
         job["job_spec"] = {"name": job["name"], "schedule": "*/5 * * * *",
             "script": str(_precheck_path(ledger, job["kind"])),
             "skills": skills,
             "deliver": job["deliver"],  # Hermes delivers the final response; cron runs have no send tool.
-            "prompt": job["prompt"] + f" Use the accepted daily-ops source in its configured timezone; {due_rule}. For an end_of_day or routine_health occurrence, use R5 reporting with evidence, next_action and health; do not invoke the gog collector. Otherwise invoke the read-only collector {collector} only after the local precheck. The evening collector is the due-source check, not a third scheduled job. The script supplies an already claimed notification occurrence. Your final response is the owner message, which Hermes delivers to the verified destination; never use a message tool. For a useful message, first record the occurrence with pa automations receipt unknown and note \"Final response handed to Hermes cron delivery\"; if nothing is useful, record suppressed and reply exactly [SILENT]. Never resend an existing occurrence. Refresh source checkpoints only after successful reads. Do not create jobs or make purchases."}
+            "prompt": job["prompt"] + f" Use the accepted daily-ops source in its configured timezone; {due_rule}. For an end_of_day or routine_health occurrence, use R5 reporting with evidence, next_action and health; do not invoke the gog collector. Otherwise invoke the read-only collector {collector} only after the local precheck.{brief_rule} The evening collector is the due-source check, not a third scheduled job. The script supplies an already claimed notification occurrence. Your final response is the owner message, which Hermes delivers to the verified destination; never use a message tool. For a useful message, first record the occurrence with pa automations receipt unknown and note \"Final response handed to Hermes cron delivery\"; if nothing is useful, record suppressed and reply exactly [SILENT]. Never resend an existing occurrence. Refresh source checkpoints only after successful reads. Do not create jobs or make purchases."}
     if native:
         native_profile_guard(ledger)
         from cron.jobs import list_jobs

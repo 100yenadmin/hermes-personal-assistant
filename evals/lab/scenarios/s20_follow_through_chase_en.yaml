@@ -1,0 +1,48 @@
+id: s20_follow_through_chase_en
+language: en
+area: follow_through
+capabilities:
+- follow_through
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- {operation: action_upsert, data: {action_id: 'lab:loop-1', action_type: commitment, status: open, fields: {title: Synthetic loop 1, loop_kind: our_promise, counterparty: Cedar Demo, next_actor: us, opened_at: '@days_ago_1@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:loop-2', action_type: commitment, status: open, fields: {title: Synthetic loop 2, loop_kind: ask_owner, counterparty: Owner, next_actor: owner, opened_at: '@days_ago_2@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:loop-5', action_type: commitment, status: open, fields: {title: Synthetic loop 5, loop_kind: delegated, counterparty: Cedar Demo, next_actor: us, opened_at: '@days_ago_5@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:loop-10', action_type: commitment, status: open, fields: {title: Synthetic loop 10, loop_kind: ask_owner, counterparty: Owner, next_actor: owner, opened_at: '@days_ago_10@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:loop-12', action_type: commitment, status: open, fields: {title: Synthetic loop 12, loop_kind: waiting_on_them, counterparty: Cedar Demo, next_actor: them, opened_at: '@days_ago_12@', next_step: Review the draft, chase_log: [], due_at: '@today@T09:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:done-unconfirmed', action_type: commitment, status: open, fields: {title: Done without proof, loop_kind: our_promise, counterparty: Cedar Demo, next_actor: us, opened_at: '@days_ago_5@', kanban_task_id: lab-done, next_step: Obtain confirmation}}}
+- {operation: action_upsert, data: {action_id: 'lab:confirmed', action_type: commitment, status: completed, fields: {title: Confirmed delivery, loop_kind: our_promise, counterparty: Cedar Demo, next_actor: us, opened_at: '@days_ago_12@', confirmation: {by: Cedar Demo, at: '@yesterday@T10:00:00+08:00', evidence: Synthetic receipt R1}}}}
+lab:
+  kind: chase
+  kanban:
+    lab-done: {status: done, evidence: Synthetic Kanban readback}
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. chases maps action_id to chase.step; escalation contains action_id, problem, options, recommendation, decision_deadline; drafts is a list of held nudge texts keyed by action_id.'
+  chases:
+    lab:loop-1: none
+    lab:loop-2: day2
+    lab:loop-5: day5
+    lab:loop-10: day10
+    lab:loop-12: escalate
+    lab:done-unconfirmed: day5
+  escalate_id: lab:loop-12
+  confirmed_id: lab:confirmed
+  unconfirmed_id: lab:done-unconfirmed
+steps:
+- goal: Run due_source_check. Read pa next_action with loops_only:true and at:@now@. Draft chases; escalate the day-12 loop. Never send or action_confirm.
+  capability: follow_through
+  answers: {}
+  hour: 12
+  expect:
+    lab: chase
+  type: scheduled
+  job: due_source_check
+  skill: personal-assistant:follow-through

@@ -62,3 +62,13 @@ def prompt(scenario, step, last=False):
             + "When asked to phrase a new goal, just phrase it; emit no markers. Facts: "
             + json.dumps({"persona": scenario["persona"], "goal": step["goal"], "answers": step["answers"],
                           "note": scenario.get("system_note", "")}, ensure_ascii=False))
+
+
+def scripted_yes(step):
+    """Only fixture-authored, item-specific approvals; never model-authored yeses."""
+    value = step.get("scripted_yes", {})
+    if (isinstance(value, dict) and isinstance(value.get("item"), str) and value["item"]
+            and isinstance(value.get("text"), str) and re.match(r"^yes\b", value["text"], re.I)
+            and value["item"] in value["text"]):
+        return value["text"]
+    return None

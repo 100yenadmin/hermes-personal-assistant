@@ -136,6 +136,11 @@ def guard_reply(scenario, reply, simulated):
 
 
 def system_prompt(scenario):
+    if "lab" in scenario:
+        return ("You are the synthetic owner's personal assistant. Use pa and the local lab_mail_* and lab_calendar_* stand-ins; "
+                "no real providers. All outward actions are draft-and-hold until an item-specific explicit yes. "
+                "Read before claiming completion. Reply in " + scenario["language"] + ". USER.md: " + scenario["user_md"]
+                + "\n" + scenario["lab"]["output_contract"])
     if scenario.get("area") == "calendar":
         zone = scenario["calendar"]["owner_timezone"]
         label = {"Asia/Singapore": "SGT"}.get(zone, zone)
@@ -196,14 +201,19 @@ def ledger(hh):
 def one(args):
     root, hermes = Path(args.out).resolve(), Path(args.hermes).resolve()
     s, meta = read(root / "scenario.json"), read(root / "run.json")
+    frozen = cos.variables(s.get("timezone", "UTC"), dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc))
+    s = {**cos.expand({k: v for k, v in s.items() if k != "steps"}, frozen), "steps": s["steps"]}
+    write(root / "scenario.json", s)
     if "calendar" in s:
         from .calendar_checks import expand
         s["calendar"] = expand(s["calendar"], dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc))
         write(root / "scenario.json", s)  # Freeze once, before plugin discovery and dialogue.
     home, hh = root / "home", root / "home/.hermes"
     sys.path.insert(0, str(hermes))
+    judge_home = judge.caller_codex_home()  # Resolve caller identity before disposable HOME.
     api_key = token()  # Before HOME changes; no refresh or auth writes.
     os.environ.update(HOME=str(home), HERMES_HOME=str(hh), PA_LAB_OUT=str(root), HERMES_DISABLE_LAZY_INSTALLS="1")
+    os.environ.pop("CODEX_HOME", None)  # The agent never receives the caller's judge sign-in home.
     os.environ.pop("TRAVEL_LEDGER_DB", None)
     os.environ.pop("HERMES_SAFE_MODE", None)
     os.chdir(home)
@@ -242,12 +252,13 @@ def one(args):
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
         from lab_installed_pa.entry import dispatch
-        if not cos.enabled(s):
+        scripted = cos.enabled(s) or "lab" in s or any(st.get("type") == "scheduled" for st in s["steps"])
+        if not scripted:
             for seed in s.get("seed", []):
-                dispatch(hh, seed)
+                dispatch(hh, cos.expand(seed, frozen))
         plugin_sets = {registry.get_entry(n, scope=str(hh)).toolset for p in manager._plugins.values() if p.enabled for n in p.tools_registered}
         allowed = sorted(plugin_sets | {n for n in ("browser", "skills", "todo", "vision", "web") if n in TOOLSETS})
-        if "calendar" not in s:
+        if "calendar" not in s and not s.get("lab", {}).get("events"):
             allowed = [n for n in allowed if n != "lab_calendar"]
         names = sorted({t for n in allowed for t in resolve_toolset(n)})
         forbidden = {"terminal", "file", "code_execution", "delegation", "cronjob", "send_message"}
@@ -285,19 +296,20 @@ def one(args):
             finally:
                 agent.close()
         system = system_prompt(s)
-        if cos.enabled(s):
+        if scripted:
             import lab_installed_pa.automation
             import lab_installed_pa.automation_workflow
             transcript = cos.dialogue(hh, root, package, s, module, turn, observer, meta, ledger)
         step, message = 0, s["steps"][0]["goal"]
         if calls:
             message = calls.message(s["language"], message)
-        for number in range(0 if cos.enabled(s) else s["max_user_turns"]):
+        for number in range(0 if scripted else s["max_user_turns"]):
             observer.step, observer.turn = step, number
             before = ledger(hh)
             transcript.append({"role": "user", "content": message, "step": step})
             result = turn(message, system=system, hist=history)
             history = result.get("messages") or []
+            write(root / f"history-step-{step}.json", history)
             reply = result.get("final_response", "")
             transcript.append({"role": "assistant", "content": reply, "step": step})
             evidence = observer.capture(number)
@@ -331,7 +343,7 @@ def one(args):
     except Exception as exc:
         meta.update(status="timeout" if isinstance(exc, TimeoutError) else "error", error=type(exc).__name__)
     finally:
-        if cos.enabled(s):
+        if cos.enabled(s) or "lab" in s or any(st.get("type") == "scheduled" for st in s["steps"]):
             transcript = read(root / "transcript.json", transcript)
         if calls:
             try:
@@ -347,7 +359,7 @@ def one(args):
             (root / name).touch(exist_ok=True)
         write(root / "checks.json", checks.evaluate(root, s))
         try:
-            verdict = judge.run(root) if args.judge != "none" else {"skipped": True, "reason": "--judge none"}
+            verdict = judge.run(root, codex_home=judge_home) if args.judge != "none" else {"skipped": True, "reason": "--judge none"}
         except Exception as exc:
             verdict = {"pass": False, "error": type(exc).__name__}
         write(root / "judge.json", verdict)

@@ -11,6 +11,8 @@ import uuid
 from .privacy import clean
 
 TRANSACTION_FIELDS = {"material_summary", "summary_digest", "confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest"}
+# The only fields an open loop may still write after a provider step was prepared on its own row.
+LOOP_BOOKKEEPING = frozenset({"confirmation", "loop_cancelled", "last_chased_at", "chase_log", "snoozed_until", "next_step"})
 
 _path = Path(__file__).resolve().parents[1] / "skills/travel-ledger/scripts/travel_ledger.py"
 _spec = importlib.util.spec_from_file_location("pa_legacy_ledger", _path)
@@ -157,6 +159,33 @@ class Ledger:
                         conn.execute("update actions set status=?,fields_json=?,updated_at=? where action_id=?", (row["status"] if preserve else "paused", json.dumps(f), stamp, row["action_id"]))
         return self.get(kind, identity)
 
+    def put_loop_bookkeeping(self, identity, fields):
+        """Chase and closure fields on an open-loop row that a transaction lifecycle now owns.
+
+        Status, action type, provider, trip and every transaction-owned field stay as they are."""
+        from .context import LOOP_KINDS, _NUDGE_IN_FLIGHT, _UNRESOLVED_ATTEMPT
+        fields = clean(fields)
+        with self.connect() as conn:
+            conn.execute("begin immediate")
+            row = conn.execute("select * from actions where action_id=?", (identity,)).fetchone()
+            data = json.loads(row["fields_json"]) if row else {}
+            if not row or row["action_type"] != "transaction" or data.get("loop_kind") not in LOOP_KINDS:
+                raise ValueError("use transaction operations for transaction records")
+            if not isinstance(fields, dict) or not fields or not set(fields) <= LOOP_BOOKKEEPING:
+                raise ValueError("use transaction operations for transaction records; an open-loop row a transaction owns "
+                                 "accepts only " + ", ".join(sorted(LOOP_BOOKKEEPING)))
+            # The owner may withdraw a loop whose ungoverned provider step was prepared but never attempted;
+            # a governed action is cancelled with action_cancel, and an attempt in flight is settled first.
+            withdraw = ("confirmation" not in fields and data.get("enforcement_profile") != "exact_action"
+                        and row["status"] not in _UNRESOLVED_ATTEMPT)
+            if {"confirmation", "loop_cancelled"} & set(fields) and row["status"] in _NUDGE_IN_FLIGHT and not withdraw:
+                raise ValueError("this loop's transaction is still pending or unresolved; cancel an approval-governed "
+                                 "action with action_cancel or record its result with action_result before closing the loop")
+            data.update(fields)
+            conn.execute("update actions set fields_json=?,updated_at=? where action_id=?",
+                         (json.dumps(data, ensure_ascii=False), now(), identity))
+        return self.get("action", identity)
+
     def action_id(self, source_id=None, action_kind=None, occurrence=None):
         if source_id is None:
             return uuid.uuid4().hex
@@ -171,6 +200,8 @@ class Ledger:
             data = json.loads(row["fields_json"])
             if required_digest is not None and data.get("summary_digest") != required_digest:
                 raise ValueError("material details changed; new confirmation required")
+            if target in {"authorized", "approved_revision", "submitting"} and data.get("loop_cancelled"):
+                raise ValueError("the owner withdrew this step; prepare it again before it can be confirmed or submitted")
             if target == "submitting" and (not data.get("confirmed_at") or not data.get("confirmation_text") or data.get("confirmation_action_id") != identity or data.get("confirmation_digest") != required_digest):
                 raise ValueError("confirmation must belong to this action and current material")
             data.update(clean(fields or {}))
@@ -205,7 +236,8 @@ class Ledger:
                     raise ValueError("unsupported governed action profile")
                 data.update(clean(governed))
                 target_status = "approval_required"
-            for key in ("confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest"):
+            # A new prepare is a new decision: it reopens a step the owner withdrew.
+            for key in ("confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest", "loop_cancelled"):
                 data.pop(key, None)
             stamp = now()
             conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set action_type=excluded.action_type,provider=excluded.provider,status=excluded.status,fields_json=excluded.fields_json,updated_at=excluded.updated_at", (identity, old["trip_id"] if old else None, "transaction", safe["provider"], target_status, json.dumps(data), old["created_at"] if old else stamp, stamp))

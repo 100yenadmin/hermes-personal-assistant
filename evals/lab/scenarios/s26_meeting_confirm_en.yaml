@@ -1,0 +1,33 @@
+id: s26_meeting_confirm_en
+language: en
+area: calendar
+capabilities:
+- calendar
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- {operation: action_upsert, data: {action_id: 'lab:evening-wake', action_type: commitment, status: open, fields: {title: Evening register due, due_at: '@today@T17:00:00+08:00'}}}
+lab:
+  kind: meetings
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. meetings is a list of {event_id, confirmation_draft, brief (<=500 words), local_times (email: RFC3339 local timestamp), timezones (IANA names)}.'
+  events:
+  - {id: meeting-1, summary: Synthetic meeting 1, start: '@tomorrow@T16:00:00+08:00', end: '@tomorrow@T16:45:00+08:00', timezone: Asia/Singapore, attendees: [{email: cedar@example.invalid, timezone: Europe/London}, {email: birch@example.invalid, timezone: America/New_York}, {email: morgan@example.invalid, timezone: Asia/Singapore, self: true}]}
+  - {id: meeting-2, summary: Synthetic meeting 2, start: '@tomorrow@T17:00:00+08:00', end: '@tomorrow@T17:45:00+08:00', timezone: Asia/Singapore, attendees: [{email: cedar@example.invalid, timezone: Europe/London}, {email: birch@example.invalid, timezone: America/New_York}, {email: morgan@example.invalid, timezone: Asia/Singapore, self: true}]}
+  - {id: meeting-3, summary: Synthetic meeting 3, start: '@tomorrow@T18:00:00+08:00', end: '@tomorrow@T18:45:00+08:00', timezone: Asia/Singapore, attendees: [{email: cedar@example.invalid, timezone: Europe/London}, {email: birch@example.invalid, timezone: America/New_York}, {email: morgan@example.invalid, timezone: Asia/Singapore, self: true}]}
+steps:
+- goal: Run the evening register (due_source_check). Read all three tomorrow meetings through lab_calendar_events/get, including attendees. Prepare a held confirmation draft and a one-page brief for each; show every participant local time. No send or calendar writes.
+  capability: calendar
+  answers: {}
+  hour: 19
+  expect:
+    lab: meetings
+  type: scheduled
+  job: due_source_check

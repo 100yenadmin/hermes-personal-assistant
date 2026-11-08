@@ -137,6 +137,8 @@ def loop_fields(fields: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"{name} must be an ISO date or timestamp")
     if "confirmation" in fields and not _confirmed(fields):
         raise ValueError("confirmation must be an object with by, at and evidence")
+    if "loop_cancelled" in fields and not _cancelled(fields):
+        raise ValueError("loop_cancelled must be an object with by and at")
     if "chase_log" in fields:
         log = fields["chase_log"]
         if not isinstance(log, list) or any(
@@ -217,11 +219,17 @@ def _confirmed(fields: dict[str, Any]) -> bool:
             and _iso_time(confirmation.get("at"), timestamp=True))
 
 
+def _cancelled(fields: dict[str, Any]) -> bool:
+    cancelled = fields.get("loop_cancelled")
+    return (isinstance(cancelled, dict) and isinstance(cancelled.get("by"), str) and bool(cancelled["by"].strip())
+            and _iso_time(cancelled.get("at"), timestamp=True))
+
+
 def loop_state(action: dict[str, Any], kanban: dict[str, Any]) -> str | None:
     fields = action.get("fields", {})
     if not isinstance(fields.get("loop_kind"), str) or fields["loop_kind"] not in LOOP_KINDS:
         return None
-    if _confirmed(fields) or action.get("status") == "cancelled":
+    if _confirmed(fields) or _cancelled(fields) or action.get("status") == "cancelled":
         return "closed"
     done = kanban.get("status") in _KANBAN_DONE or action.get("status") in {"completed", "confirmed", "done"}
     return "done_unconfirmed" if done else "open"
@@ -388,7 +396,10 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         status = action.get("status")
         if loop:
             # The other side's confirmation closes a loop, and so does the owner's cancellation.
-            if state == "closed":
+            # A pending or unresolved transaction stays listed even on a closed loop, so its step still shows.
+            live = action.get("action_type") == "transaction" and status in _NUDGE_IN_FLIGHT and not (
+                _cancelled(fields) and fields.get("enforcement_profile") != "exact_action" and status not in _UNRESOLVED_ATTEMPT)
+            if state == "closed" and not live:
                 excluded_closed_loops += 1
                 continue
         elif kanban.get("status") in _KANBAN_DONE:
