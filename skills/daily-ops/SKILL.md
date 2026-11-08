@@ -37,17 +37,19 @@ native automation suggestions. It does **not** create a scheduler or daemon.
    identities, destination and timezone with the customer's choices. The
    example and a mutable flag do not establish delivery verification.
 2. Set `calendar.provider` to `gog` (PA holds no Google token of its own).
-   Set `calendar.read_scope.accepted: true` with exact `calendar_ids`. Then run
-   `python3 -m personal_assistant.daily_ops.doctor`. Its scope check must pass
-   ("required least-privilege scopes present"), and it never registers jobs.
-3. Preview the synthetic example in `docs/customer-contract.md`. Verify the
-   selected calendar with a read-only call. gog reads both mail and calendar; if
-   it is not yet authorised for the selected accounts, and the user consents,
+   Set `calendar.read_scope.accepted: true` with exact `calendar_ids`. Calendars
+   are read from the work account: leave `calendar.account` unset or set it to
+   `accounts.work`, because the doctor checks Calendar access only there.
+3. Preview the synthetic example in `docs/customer-contract.md`. gog reads both
+   mail and calendar; if it is not yet authorised for the selected accounts, and the user consents,
    authorise read-only access and nothing more: the work account with
    `gog auth add <work email> --services gmail,calendar --readonly`, the personal
    account with `gog auth add <personal email> --services gmail --readonly`. The
-   doctor fails on broader scopes. If gog cannot read mail, Daily Ops cannot
-   run: say so instead of promising a calendar-only brief.
+   doctor fails on broader scopes. Then verify the selected calendar with a
+   read-only call and run `python3 -m personal_assistant.daily_ops.doctor`: its scope check must pass
+   ("required least-privilege scopes present"), and it never registers jobs. If
+   gog cannot read mail, Daily Ops cannot run: say so instead of promising a
+   calendar-only brief.
 4. Verify the delivery target through the existing PA automation state. A
    mutable `verified` flag alone is not sufficient.
 5. Ask the existing PA R5 automation flow to suggest accepted routines. The
