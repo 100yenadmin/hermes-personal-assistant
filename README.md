@@ -123,7 +123,7 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
 - Inbox and travel-mail work you ask for reads messages and their attachments through the mail integration your agent already has, and can write drafts in your mail provider. Sending is a separate action that needs your yes.
 - While signing in to a provider during an errand, the agent may read your connected email or SMS to pick up a sign-in link or verification code, if those integrations are connected.
 - Chief of Staff jobs (opt-in, each accepted separately) run scheduled agent turns. These read PA's ledger and USER.md or the manual, and may read your calendar and inbox through integrations you have already authorised. The weekly closeout also searches the web for tools related to your saved radar topics.
-- Trip import reads the `.ics` or guide file you give it.
+- For a trip import, the agent reads the `.ics` or guide file you give it with its own file tool and passes the text to PA; PA itself opens no file or URL.
 - Observer, precheck and mode reads use the profile's `config.yaml`. `/pa mode` also writes the plugin's mode setting there.
 - PA's own code reads Hermes's Kanban database and its cron job and suggestion stores.
 
