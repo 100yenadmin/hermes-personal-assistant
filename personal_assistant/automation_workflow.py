@@ -323,7 +323,8 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             page = next_actions(ledger, {"loops_only": True, "at": current.isoformat(), "limit": 20, "offset": offset})
             open_loops.update(item["action_id"] for item in page["candidates"])
             # A due chase step wakes for a chase or, on a loop done without the other side's confirmation, to ask for it.
-            chases.extend(item for item in page["candidates"] if item["chase"]["step"] != "none"
+            # Escalation surfaces through the brief or radar, never as its own wake.
+            chases.extend(item for item in page["candidates"] if item["chase"]["step"] not in {"none", "escalate"}
                           and item["next_step"].startswith(("Chase", "Kanban or status shows done"))
                           and item["action_id"] not in snoozed
                           and not auto.notification_receipt(ledger, auto.notification_occurrence_id("chase-step", item["action_id"], item["chase"]["step"])))
@@ -346,7 +347,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             task = read_kanban_task(fields["kanban_task_id"], fields.get("kanban_board"))
             if task.get("status") in {"done", "archived"}:
                 continue
-        if fields.get("snooze_until") and auto._value_time(fields["snooze_until"], zone) > current:
+        if fields.get("snooze_until") and (auto._value_time(fields["snooze_until"], zone) or current) > current:
             continue
         trip = next((t for t in trips if t["trip_id"] == row.get("trip_id")), None)
         if trip and not auto._trip_active([trip], current) and row["action_type"] not in {"refund", "return"}:

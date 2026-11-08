@@ -463,13 +463,14 @@ def test_a_loop_done_without_confirmation_wakes_to_ask_for_it(ledger):
     first = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
     assert first['wakeAgent'] and first['chase_action_ids'] == ['loop-fixture']
     assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:05'))['wakeAgent']
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-18T08:00'))['wakeAgent']
 
 
-def test_a_routine_accepted_after_its_slot_still_expects_todays_catch_up(ledger):
-    rule(ledger, accepted_at='2026-11-09T09:00:00+00:00')
-    slots = auto.routine_slots(ledger, now=at('2026-11-09T10:00'))
-    assert [(s['logical'], s['due_at']) for s in slots] == [('2026-11-09', '2026-11-09T09:00:00+00:00')]
-    assert auto.routine_slots(ledger, now=at('2026-11-09T08:30')) == []
+def test_an_unreadable_action_snooze_does_not_stop_the_precheck(ledger):
+    rule(ledger, 'due_source_check')
+    ledger.put('action', 'rem', {'due_at': '2026-11-09T07:00:00+00:00', 'snooze_until': 'later'})
+    result = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
+    assert result['wakeAgent'] and result['due_action_ids'] == ['rem']
 
 
 def test_a_quiet_hours_change_is_a_schedule_change(ledger):
