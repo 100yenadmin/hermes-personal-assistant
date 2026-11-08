@@ -87,7 +87,10 @@ def save(ledger, identity, fields, source, source_action_id=None, trip_id=None):
     if trip_id is not None:
         fields["trip_ref"] = trip_id
     old = ledger.get("action", identity)
-    keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields.get(k) for k in ("amount", "currency", "kind", "date"))
+    # A voided readback stays void unless the money changed (its default date moves with verified_at).
+    # A voided receipt recorded again with a changed amount, currency, kind, date or merchant is a correction.
+    money = ("amount", "currency", "kind") + (("date", "merchant") if source == "owner_receipt" else ())
+    keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields.get(k) for k in money)
     return ledger.put("action", identity, fields, action_type="expense", status="void" if keep else "recorded",
                       remove=[k for k in (*FIELDS, "trip_ref", "source_action_id", "void_reason")
                               if k not in fields and not (keep and k == "void_reason")])
@@ -174,7 +177,7 @@ def dispatch(ledger, data):
                      or live.get("merchant") and fields.get("merchant") and live["merchant"] != fields["merchant"]):
             # One evidence_ref is one receipt; a different charge under it would silently replace the first.
             raise ValueError("this evidence_ref already records a different receipt; use the forwarded message id or the merchant plus receipt number, or void the old row first")
-        if live and "source_action_id" in data and data["source_action_id"] != live.get("source_action_id") and not trip_id:
+        if live.get("trip_ref") and "source_action_id" in data and data["source_action_id"] != live.get("source_action_id") and not trip_id:
             raise ValueError("source_action_id changed: pass trip_id for the new association")
         # A re-record that omits the trip or source keeps them, so the row stays in its trip export.
         return save(ledger, identity, fields, "owner_receipt",

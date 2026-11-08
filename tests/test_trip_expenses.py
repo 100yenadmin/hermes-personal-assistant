@@ -292,3 +292,28 @@ def test_nothing_is_inherited_from_a_voided_row(ledger):
     expense(ledger, "void", expense_id=row["action_id"], reason="not mine")
     fresh = expense(ledger, "record", expense={**RECEIPT, "amount": "30"})
     assert fresh["status"] == "recorded" and "trip_ref" not in fresh["fields"] and "source_action_id" not in fresh["fields"]
+
+
+def test_voided_expense_only_readback_stays_void_on_a_later_day(ledger, monkeypatch):
+    prepare(ledger)
+    record(ledger, {"expense": EXPENSE})
+    identity = ACTION + ":expense"
+    expense(ledger, "void", expense_id=identity, reason="duplicate of the receipt")
+    later = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).isoformat()
+    monkeypatch.setattr(state, "now", lambda: later)
+    record(ledger, {"expense": EXPENSE})
+    row = ledger.get("action", identity)
+    assert row["status"] == "void" and row["fields"]["void_reason"] == "duplicate of the receipt"
+
+
+def test_merchant_typo_is_corrected_after_void(ledger):
+    row = expense(ledger, "record", expense={**RECEIPT, "merchant": "Synthetc Inn"}, trip_id=TRIP)
+    expense(ledger, "void", expense_id=row["action_id"], reason="typo")
+    fixed = expense(ledger, "record", expense={**RECEIPT, "merchant": "Synthetic Inn"}, trip_id=TRIP)
+    assert fixed["status"] == "recorded" and fixed["fields"]["merchant"] == "Synthetic Inn"
+
+
+def test_tripless_receipt_can_change_its_source(ledger):
+    expense(ledger, "record", **RECEIPT, source_action_id=ACTION)
+    moved = expense(ledger, "record", **RECEIPT, source_action_id="booking-B")
+    assert moved["fields"]["source_action_id"] == "booking-B" and "trip_ref" not in moved["fields"]
