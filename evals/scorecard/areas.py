@@ -103,7 +103,7 @@ for key, scenario, covers, label in (
     ("personal_admin", "s21_personal_radar_en", [0, 1], "personal radar and held proposals"),
     ("recurring_ops", "s22_eod_note_en", [0, 1], "evidence-grounded end-of-day note"),
     ("recurring_ops", "s23_broken_routine_en", [2], "same-cycle routine health exception"),
-    ("inbox", "s24_inbox_triage_en", [0, 1, 2, 3, 5], "synthetic triage, drafts and buried deadlines"),
+    ("inbox", "s24_inbox_triage_en", [1, 3], "synthetic drafts and five-line digest"),
     ("calendar", "s25_calendar_invite_en", [0, 1, 6], "synthetic approved invite and readback"),
     ("calendar", "s26_meeting_confirm_en", [3, 4, 6], "held confirmations and one-page briefs"),
 ):

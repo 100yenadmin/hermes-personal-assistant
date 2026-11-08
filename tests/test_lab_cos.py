@@ -498,6 +498,7 @@ def test_kickoff_violations_fail(tmp_path, failure, key):
     ("Calendar and inbox are disconnected. I can offer calendar setup.", True),
     ("This is not calendar-verified. I can offer calendar setup.", True),
     ("I have no calendar access. I can offer calendar setup.", True),
+    ("No calendar access problems: I checked Tuesday. I can offer calendar setup.", False),
     ("I checked your calendar; coverage is complete. I can offer calendar setup.", False),
 ])
 def test_no_calendar_honesty_paraphrases(tmp_path, wording, expected):

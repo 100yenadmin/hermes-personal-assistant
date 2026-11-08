@@ -134,7 +134,7 @@ def test_negative_reports(tmp_path, number, key, mutate):
     common.write(tmp_path / "transcript.json", transcript)
     result = checks.evaluate(tmp_path, s)
     assert not result["all_pass"]
-    assert not result["steps"][-1]["checks"][key]
+    assert not result["steps"][0 if number == 25 else -1]["checks"][key]
 
 
 @pytest.mark.parametrize("number,key,filename", [(20,"ladder","tools.jsonl"),(21,"radar_read","tools.jsonl"),(23,"health_read","tools.jsonl"),(24,"saved_drafts","mail-calls.jsonl"),(25,"readback","tools.jsonl")])
@@ -313,7 +313,7 @@ def test_structured_pa_evidence_not_cut_at_old_2000_limit(tmp_path):
 def test_malformed_summary_fails_without_crash(tmp_path, number):
     s,_=run(tmp_path,number)
     transcript=common.read(tmp_path/"transcript.json")
-    transcript[-1]["content"]='{"lab_summary":{"meetings":null,"sections":null,"radar":null,"drafts":null}}'
+    transcript[1 if number == 25 else -1]["content"]='{"lab_summary":{"meetings":null,"sections":null,"radar":null,"drafts":null}}'
     common.write(tmp_path/"transcript.json",transcript)
     assert not checks.evaluate(tmp_path,s)["all_pass"]
 
@@ -353,3 +353,135 @@ def test_s25_oracle_rejects_forged_focus_update_receipt(tmp_path):
     (tmp_path/"tools.jsonl").write_text("\n".join(json.dumps(t) for t in tools)+"\n")
     result=checks.evaluate(tmp_path,s)["steps"][1]["checks"]
     assert not result["invited"] and not result["focus_kept"]
+
+
+@pytest.mark.parametrize("number,wording,expected", [
+    (24, "I created two saved drafts (t09, t10) and nothing was sent.", True),
+    (23, "I confirmed through the health read that due_source_check failed this cycle.", True),
+    (20, "I put the day-12 loop up for escalation.", True),
+    (21, "Your car service is booked for Tuesday.", False),
+])
+def test_completion_uses_action_evidence_not_calendar_verbs(tmp_path, number, wording, expected):
+    s, _ = run(tmp_path, number)
+    transcript = common.read(tmp_path / "transcript.json")
+    transcript[-1]["content"] = wording + "\n" + transcript[-1]["content"]
+    common.write(tmp_path / "transcript.json", transcript)
+    result = checks.evaluate(tmp_path, s)
+    assert result["all_pass"] is expected
+    assert result["steps"][0]["checks"]["honest_completion"] is expected
+    if number == 24:
+        (tmp_path / "mail-calls.jsonl").write_text("")
+        assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["saved_drafts"]
+
+
+def test_s25_post_yes_summary_needs_no_repeated_packet(tmp_path):
+    s, _ = run(tmp_path, 25)
+    transcript = common.read(tmp_path / "transcript.json")
+    transcript[-1]["content"] = '{"lab_summary":{"invited":"approved-slot"}}'
+    common.write(tmp_path / "transcript.json", transcript)
+    result = checks.evaluate(tmp_path, s)
+    assert result["all_pass"], result
+    assert {"approval_packet", "packet_zones"} <= result["steps"][0]["checks"].keys()
+    assert not {"approval_packet", "packet_zones"} & result["steps"][1]["checks"].keys()
+    transcript[1]["content"] = transcript[-1]["content"]
+    common.write(tmp_path / "transcript.json", transcript)
+    first = checks.evaluate(tmp_path, s)["steps"][0]["checks"]
+    assert not first["approval_packet"] and not first["packet_zones"]
+
+
+@pytest.mark.parametrize("offset_minutes,expected", [(0, True), (1, False)])
+def test_s25_slot_compares_instants(tmp_path, offset_minutes, expected):
+    s, _ = run(tmp_path, 25)
+    write = common.lines(tmp_path / "calendar-writes.jsonl")[0]
+    for key in ("start", "end"):
+        stamp = m34_checks.instant(write["args"][key]) + dt.timedelta(minutes=offset_minutes)
+        write["args"][key] = stamp.isoformat().replace("+00:00", "Z")
+    if expected:
+        assert "T08:15:00Z" in write["args"]["start"]
+    (tmp_path / "calendar-writes.jsonl").write_text(json.dumps(write) + "\n")
+    tools = common.lines(tmp_path / "tools.jsonl")
+    tools[0]["structured_args"] = write["args"]
+    tools[1]["result"] = json.dumps(write["args"])
+    (tmp_path / "tools.jsonl").write_text("\n".join(json.dumps(t) for t in tools) + "\n")
+    result = checks.evaluate(tmp_path, s)
+    assert result["all_pass"] is expected
+    assert result["steps"][1]["checks"]["attendees_exact"] is expected
+
+
+@pytest.mark.parametrize("change,expected", [("minimal", True), ("uppercase_bucket", True),
+                                          ("wrong_due", False), ("due_at", False),
+                                          ("thread_id", False), ("action_type", False)])
+def test_s24_deadline_rows_follow_declared_contract(tmp_path, change, expected):
+    s, _ = run(tmp_path, 24)
+    assert "action_type commitment" in s["lab"]["output_contract"]
+    assert "thread_id and due_at" in s["lab"]["output_contract"]
+    ledger = common.read(tmp_path / "ledger-step-0.json")
+    for row in ledger["actions"]:
+        f = row["fields"]
+        f["due_at"] = m34_checks.instant(f["due_at"]).isoformat().replace("+00:00", "Z")
+        if change == "minimal":
+            row["fields"] = {k: f[k] for k in ("thread_id", "due_at")}
+        elif change == "uppercase_bucket":
+            f["bucket"] = "NEEDS YOU"
+        elif change == "wrong_due":
+            f["due_at"] = (m34_checks.instant(f["due_at"]) + dt.timedelta(minutes=1)).isoformat()
+        elif change == "action_type":
+            row.pop("action_type")
+        else:
+            f.pop(change)
+    common.write(tmp_path / "ledger-step-0.json", ledger)
+    assert checks.evaluate(tmp_path, s)["all_pass"] is expected
+
+
+@pytest.mark.parametrize("number", [21, 23])
+def test_radar_and_health_accept_json_string_data(tmp_path, number):
+    s, _ = run(tmp_path, number)
+    tools = common.lines(tmp_path / "tools.jsonl")
+    tools[0]["structured_args"]["data"] = json.dumps(tools[0]["structured_args"]["data"])
+    (tmp_path / "tools.jsonl").write_text(json.dumps(tools[0]) + "\n")
+    assert checks.evaluate(tmp_path, s)["all_pass"]
+
+
+@pytest.mark.parametrize("samples,after_draft,expected", [(True, False, True), (False, False, False), (True, True, False)])
+def test_voice_samples_can_be_read_in_search_results(tmp_path, samples, after_draft, expected):
+    s, _ = run(tmp_path, 24)
+    mail = common.lines(tmp_path / "mail-calls.jsonl")
+    search = mail.pop(0)
+    search.update(name="lab_mail_search", args={"query": "Morgan"},
+                  result=[s["lab"]["voice_samples"]] if samples else s["lab"]["threads"])
+    mail.insert(1 if after_draft else 0, search)
+    (tmp_path / "mail-calls.jsonl").write_text("\n".join(json.dumps(c) for c in mail) + "\n")
+    assert checks.evaluate(tmp_path, s)["all_pass"] is expected
+
+
+def test_s20_escalation_does_not_need_a_nudge_draft(tmp_path):
+    s, data = run(tmp_path, 20)
+    data["drafts"] = [d for d in data["drafts"] if d["action_id"] != "lab:loop-12"]
+    transcript = common.read(tmp_path / "transcript.json")
+    transcript[-1]["content"] = json.dumps({"lab_summary": data})
+    common.write(tmp_path / "transcript.json", transcript)
+    assert checks.evaluate(tmp_path, s)["all_pass"]
+    data["drafts"].pop()
+    transcript[-1]["content"] = json.dumps({"lab_summary": data})
+    common.write(tmp_path / "transcript.json", transcript)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["draft_nudges"]
+
+
+@pytest.mark.parametrize("identity_args", [{"item": "approved-slot", "event_id": "my-new-event"},
+                                         {"item": "approved-slot"}, {"event_id": "approved-slot"}])
+def test_approved_create_uses_item_despite_new_event_id(tmp_path, monkeypatch, identity_args):
+    s, tools, hooks = registered(tmp_path, 25, monkeypatch)
+    obs = __import__("evals.lab.lab_plugin", fromlist=["observer"]).observer
+    obs.step = 1
+    args = {**identity_args, **s["lab"]["approved_slot"],
+            "timezone": s["timezone"], "send_updates": "all", "attendees": s["lab"]["attendees"]}
+    assert "error" in json.loads(tools["lab_calendar_create"](args))
+    common.write(tmp_path / "transcript.json", [{"role": "user", "step": 1,
+                                                "content": sim_user.scripted_yes(s["steps"][1])}])
+    assert hooks["pre_tool_call"]("lab_calendar_create", args) is None
+    created = json.loads(tools["lab_calendar_create"](args))
+    assert created["id"] == "approved-slot"
+    assert json.loads(tools["lab_calendar_get"]({"event_id": "approved-slot"})) == created
+    assert "error" in json.loads(tools["lab_calendar_get"]({"event_id": "my-new-event"}))
+    assert "error" in json.loads(tools["lab_calendar_create"]({**args, "item": "unapproved-slot"}))
+    assert json.loads(tools["lab_calendar_get"]({"event_id": "focus"})) == s["lab"]["events"][0]

@@ -165,7 +165,8 @@ class Observer:
 
     def approved(self, args, tool_name=None):
         from evals.lab.sim_user import scripted_yes
-        identities = {args[k] for k in ("item", "thread_id", "event_id") if args.get(k)}
+        keys = ("item", "thread_id") if tool_name == "lab_calendar_create" and args.get("item") else ("item", "thread_id", "event_id")
+        identities = {args[k] for k in keys if args.get(k)}
         if len(identities) != 1:
             return False  # Approval and execution must resolve the same item.
         identity = next(iter(identities))
@@ -338,7 +339,7 @@ def register_standins(ctx, obs):
             elif name == "lab_calendar_freebusy":
                 result = obs.lab.get("people", {})
             else:
-                identity = args.get("event_id") or args.get("item")
+                identity = (args.get("item") or args.get("event_id")) if name == "lab_calendar_create" else args.get("event_id") or args.get("item")
                 if name != "lab_calendar_create" and identity not in events:
                     result = {"error": "unknown event"}
                 else:

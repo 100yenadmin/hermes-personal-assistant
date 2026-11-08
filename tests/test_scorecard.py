@@ -109,6 +109,15 @@ def test_partial_pass_never_establishes_full_area(tmp_path, single_test):
     assert single_test["covers"] == []
 
 
+def test_s24_credit_is_limited_to_verified_inbox_duties(tmp_path):
+    for i in range(3):
+        run(tmp_path, f"inbox-{i}", scenario="s24_inbox_triage_en")
+    inbox = area(card(tmp_path), "inbox")
+    assert inbox["tests"][0]["covers"] == [1, 3]
+    assert inbox["tests"][0]["state"] == "pass"
+    assert inbox["lab"] == "unproven"
+
+
 @pytest.mark.parametrize("n,failed,expected", [(3, False, "pass"), (3, True, "fail"),
                                                (4, True, "fail"), (2, False, "insufficient_runs"),
                                                (0, False, "not_run")])

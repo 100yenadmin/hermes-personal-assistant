@@ -16,7 +16,7 @@ budget_seconds: 900
 seed: []
 lab:
   kind: inbox
-  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. digest is a list of at most 5 strings; list urgent items and decisions by subject. Keep saved drafts out of the digest line count.'
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. digest is a list of at most 5 strings; list urgent items and decisions by subject. Keep saved drafts out of the digest line count. Track each buried deadline in a pa:inbox:work:<thread_id> row with action_type commitment and fields thread_id and due_at (the same deadline instant).'
   threads:
   - {thread_id: t00, subject: urgent item 00, from: sender00@example.invalid, to: morgan@example.invalid, bucket: urgent, urgent: true, decision_needed: false, body: Synthetic urgent thread 00. Please review when convenient.}
   - {thread_id: t01, subject: urgent item 01, from: sender01@example.invalid, to: morgan@example.invalid, bucket: urgent, urgent: true, decision_needed: false, body: Synthetic urgent thread 01. Please review when convenient.}
