@@ -82,9 +82,11 @@ recommendation:
   one column per criterion.
 - **Every amount from a source**, anywhere in the answer and in the appendix
   detail, carries the `[n]` of the page that shows it, right after the amount:
-  `$29 per employee/month [2]`. Give each source its own brackets: `[2][5]`,
-  never `[2,5]` or `[1–3]`. Amounts the owner gave you, such as a budget, need
-  no `[n]`.
+  `$29 per employee/month [2]`. When a cell or sentence holds two amounts, each
+  gets its own: `$29 per employee/month [2]; <add-on, in the page's words> $10
+  per employee/month [2]`, never one `[n]` at the end for both. Give each source
+  its own brackets: `[2][5]`, never `[2,5]` or `[1–3]`. Amounts the owner gave
+  you, such as a budget, need no `[n]`.
 - **No sums you worked out.** State each published fee as the page prints it,
   each with its own `[n]`, but do not combine them: no price times the
   headcount, no fees added together, no saving or effective rate. A starting
