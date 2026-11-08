@@ -151,6 +151,9 @@ def import_trip(ledger, trip_id, ics, *, title="Trip", timezone="Asia/Seoul", gu
     else:
         # A missing item is a source gap, not cancellation authorization.
         for identity in old.keys() - seen:
+            if old[identity].get("source") == "provider_readback":
+                parsed.append(old[identity])  # A booked item is not in the trip's ICS; keep it as recorded.
+                continue
             stale = dict(old[identity])
             stale["source_missing"] = True
             stale["warnings"] = list(stale.get("warnings", [])) + ["Absent from latest source; confirm before changing calendar."]

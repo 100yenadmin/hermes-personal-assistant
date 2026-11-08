@@ -287,3 +287,44 @@ def test_follow_through_schema():
     request["data"]["follow_through"] = READBACK
     request["data"]["outcome"] = "failed"
     assert list(validator.iter_errors(request))
+
+
+def test_rerecord_keeps_handled_reminders(ledger):
+    prepare(ledger)
+    record(ledger)
+    first, second = f"{ACTION}:reminder:1", f"{ACTION}:reminder:2"
+    ledger.put("action", first, {}, status="completed")
+    ledger.put("action", second, {}, status="dismissed")
+    one = copy.deepcopy(READBACK)
+    one["reminders"] = one["reminders"][:1]
+    record(ledger, one)
+    # Same time: a handled reminder is not reopened; a dropped handled one is not cancelled.
+    assert ledger.get("action", first)["status"] == "completed"
+    assert ledger.get("action", second)["status"] == "dismissed"
+    moved = copy.deepcopy(one)
+    moved["reminders"][0]["due_at"] = "2026-11-10T18:00:00+09:00"
+    record(ledger, moved)
+    assert ledger.get("action", first)["status"] == "pending"
+
+
+def test_calendar_scope_read_from_the_profile_config(ledger, monkeypatch):
+    monkeypatch.delenv("DAILY_OPS_CONFIG", raising=False)
+    monkeypatch.chdir(ledger.root.parent)
+    (ledger.root / "daily_ops.config.json").write_text(
+        json.dumps({"calendar": {"write_scope": {"accepted": True}}}), encoding="utf-8")
+    prepare(ledger)
+    assert record(ledger)["follow_through"]["calendar_write_allowed"] is True
+
+
+def test_trip_reimport_keeps_the_booked_item(ledger):
+    from personal_assistant.trips import import_trip
+    prepare(ledger)
+    record(ledger)
+    ics = (b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//fixture//EN\r\nBEGIN:VEVENT\r\nUID:flight-1\r\n"
+           b"DTSTAMP:20261101T000000Z\r\nDTSTART:20261112T010000Z\r\nDTEND:20261112T030000Z\r\n"
+           b"SUMMARY:Fixture flight\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+    import_trip(ledger, TRIP, ics, title="Fixture trip", timezone="Asia/Tokyo")
+    events = ledger.get("trip", TRIP)["fields"]["events"]
+    booked = [e for e in events if e.get("uid") == f"pa-booking:{ACTION}"]
+    assert len(booked) == 1 and not booked[0].get("source_missing")
+    assert any(e.get("uid") == "untouched" and e.get("source_missing") for e in events)

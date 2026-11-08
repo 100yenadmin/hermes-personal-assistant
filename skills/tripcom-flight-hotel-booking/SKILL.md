@@ -69,9 +69,10 @@ Stop for an explicit yes before the final change or cancel control, including fr
 
 ## Final Report
 
-After action, report:
 With a confirmed readback, call `action_result` with `follow_through` using its own item values and reminders such as leave-by, check-in or the cancellation deadline. Never add a value the readback does not show.
 Do the returned `next_step`. Report exactly what is on the itinerary, which reminders are set, and whether the booking is on the calendar or only in the ICS file.
+
+After action, report:
 
 - Provider and confirmation id.
 - Route or hotel details.

@@ -1,5 +1,6 @@
 """Bookkeeping sourced only from a confirmed provider readback."""
 import datetime as dt
+import os
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .privacy import clean
@@ -97,6 +98,9 @@ def validate(ledger, current, value):
     return clean(item), clean(reminders), trip_id
 
 
+_HANDLED = {"completed", "confirmed", "dismissed"}
+
+
 def complete(ledger, identity, item, reminders, trip_id):
     from .trips import add_booked_item, export_booked_item
     from .daily_ops import config
@@ -111,14 +115,21 @@ def complete(ledger, identity, item, reminders, trip_id):
                       "timezone": item["timezone"], "booking_action_id": identity, "reminder_kind": "booking"}
             if trip_id:
                 fields["trip_ref"] = trip_id
-            ledger.put("action", reminder_id, fields, action_type="commitment", status="pending",
+            old = ledger.get("action", reminder_id)
+            # A reminder the owner already handled stays handled unless its time changed.
+            keep = old and old["status"] in _HANDLED and old["fields"].get("due_at") == reminder["due_at"]
+            ledger.put("action", reminder_id, fields, action_type="commitment", status=None if keep else "pending",
                        remove=[] if trip_id else ["trip_ref"])
             reminder_ids.append(reminder_id)
-        elif ledger.get("action", reminder_id):
-            ledger.put("action", reminder_id, {}, status="cancelled")
+        else:
+            old = ledger.get("action", reminder_id)
+            if old and old["status"] not in _HANDLED | {"cancelled"}:
+                ledger.put("action", reminder_id, {}, status="cancelled")
     ics_path = export_booked_item(ledger, identity, item)
     try:
-        allowed = config.load_config().get("calendar", {}).get("write_scope", {}).get("accepted") is True
+        # pa-setup writes daily_ops.config.json in the profile; the plugin process does not run from there.
+        path = os.environ.get("DAILY_OPS_CONFIG") or str(ledger.root / "daily_ops.config.json")
+        allowed = config.load_config(path).get("calendar", {}).get("write_scope", {}).get("accepted") is True
     except Exception:
         # A missing, malformed or unreadable config never grants calendar scope.
         allowed = False
