@@ -205,3 +205,31 @@ def test_nudge_send_records_a_chase_not_a_second_loop(ledger):
             "follow_through": {"loop": dict(LOOP)}}})
     assert ledger.get("action", nudge) == before
     assert ledger.get("action", f"{nudge}:loop") is None
+
+
+def test_rerecord_refreshes_only_bookkeeping_on_a_transaction_owned_loop(ledger):
+    """A step prepared on the generated loop's own row makes it a transaction; a re-record must not fail half-way."""
+    prepare_vendor(ledger)
+    record(ledger, {"loop": LOOP})
+    ledger.prepare(LOOP_ID, {"provider": "fixture-provider", "final_action": "book the repair visit"})
+    before = ledger.get("action", LOOP_ID)
+    assert before["action_type"] == "transaction"
+    result = record(ledger, {"loop": {**LOOP, "next_step": "Confirm the repair slot"}})
+    assert result["status"] == "verified" and result["follow_through"]["loop_id"] == LOOP_ID
+    after = ledger.get("action", LOOP_ID)
+    assert (after["action_type"], after["status"], after["trip_id"]) == (
+        before["action_type"], before["status"], before["trip_id"])
+    assert after["fields"]["next_step"] == "Confirm the repair slot"
+    assert {k: v for k, v in after["fields"].items() if k != "next_step"} == {
+        k: v for k, v in before["fields"].items() if k != "next_step"}
+
+
+def test_loop_keeps_the_trip_of_its_request(ledger):
+    """A vendor request on a trip opens a loop that trip-scoped next_action still lists."""
+    prepare_vendor(ledger)
+    record(ledger, {"trip_id": TRIP, "loop": LOOP})
+    assert ledger.get("action", LOOP_ID)["trip_id"] == TRIP
+    preferences(ledger, {"timezone": "Asia/Tokyo"})
+    scoped = dispatch(ledger.root, {"operation": "next_action", "data": {
+        "loops_only": True, "trip_id": TRIP, "at": STAMP}})
+    assert LOOP_ID in [row["action_id"] for row in scoped["candidates"]]

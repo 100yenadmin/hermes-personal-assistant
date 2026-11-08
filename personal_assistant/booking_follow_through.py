@@ -172,13 +172,17 @@ def complete(ledger, identity, item, reminders, trip_id, loop=None):
         fields = old["fields"] if old else {}
         closed = old and ("confirmation" in fields or "loop_cancelled" in fields
                           or old["status"] in {"completed", "cancelled", "dismissed"})
-        if not closed:
+        if not closed and old and old["action_type"] == "transaction":
+            # A step prepared on the loop's own row now owns it; refresh only the chase bookkeeping it allows.
+            ledger.put_loop_bookkeeping(loop_id, {k: loop[k] for k in ("next_step", "snoozed_until") if k in loop})
+            tracked = True
+        elif not closed:
             refresh = {**loop, "title": loop.get("title", f"Waiting on {loop['counterparty']}")}
             if not old:
                 refresh.update(loop_kind="waiting_on_them", next_actor="them", chase_log=[],
                                opened_at=ledger.get("action", identity)["fields"]["verified_at"], source_action_id=identity)
             ledger.put("action", loop_id, refresh, action_type="commitment", status=None if old else "open",
-                       remove=[] if "snoozed_until" in loop else ["snoozed_until"])
+                       remove=[] if "snoozed_until" in loop else ["snoozed_until"], trip_id=trip_id)
             tracked = True
     result = {
         "trip_item": trip_item, "trip_note": ("no item in this readback" if item is None else
