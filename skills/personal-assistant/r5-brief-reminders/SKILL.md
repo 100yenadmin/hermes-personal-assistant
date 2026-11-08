@@ -39,7 +39,8 @@ verified provider receipt can resolve `unknown` through the receipt operation.
 Read `../references/reporting.md` for reporting, one corrected tool_call retry,
 progress notes, escalation and pre-send checks. For `routine_health`, report the
 precheck's findings immediately in the scheduled final response; never repair jobs.
-For `end_of_day`, skip the gog morning collector. Read `pa evidence action=list`,
+The `end_of_day` slot (default `eod_time` 18:00) runs only when it falls after `brief_time`;
+an evening brief replaces it. For `end_of_day`, skip the gog morning collector. Read `pa evidence action=list`,
 `pa next_action`, and `pa automations action=health`. Page relevant evidence using
 focused context; missing evidence stays unknown. Write the owner's note with all
 three sections: **Done / In progress / Blocked with questions**. Every blocked
