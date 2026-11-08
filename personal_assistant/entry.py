@@ -352,12 +352,15 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     if op == "action_confirm":
         action = ledger.get("action", identity)
         if action and action["fields"].get("enforcement_profile") == "exact_action":
+            scope = runtime_scope or {}
             store = _authorization_store(profile_root, ledger, runtime_scope)
             store.confirm_governed(
                 identity,
                 stable_id(data["summary"]),
                 data["confirmation"],
                 at=data.get("at"),
+                session_id=scope.get("session_id"),
+                task_id=scope.get("task_id"),
             )
             return ledger.get("action", identity)
         return ledger.confirm(identity, data["summary"], data["confirmation"])

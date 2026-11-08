@@ -431,6 +431,8 @@ class ActionAuthorizationStore:
         confirmation: str,
         *,
         at: str | None = None,
+        session_id: str | None = None,
+        task_id: str | None = None,
     ) -> dict[str, Any]:
         if not isinstance(confirmation, str) or not confirmation.strip():
             raise ValueError("explicit confirmation is required")
@@ -474,6 +476,20 @@ class ActionAuthorizationStore:
             ).astimezone(dt.timezone.utc).isoformat()
             envelope["fresh_until"] = refreshed_until
             envelope["authority"]["confirmed_at"] = stamp
+            if (
+                isinstance(session_id, str) and session_id
+                and isinstance(task_id, str) and task_id
+                and (session_id != authorization["session_id"] or task_id != authorization["task_id"])
+            ):
+                envelope["authority"]["rebound_from"] = {
+                    "session_id": authorization["session_id"],
+                    "task_id": authorization["task_id"],
+                    "at": stamp,
+                }
+                conn.execute(
+                    "update pa_action_authorizations set session_id=?,task_id=? where action_id=?",
+                    (session_id, task_id, authorization["action_id"]),
+                )
             fields.update({
                 "confirmation_text": confirmation,
                 "confirmed_at": stamp,

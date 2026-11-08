@@ -67,6 +67,27 @@ class NativeActionAuthorizationStore(ActionAuthorizationStore):
                 self._scope_keys.add((session_id, task_id, tool_name))
         return super().prepare(envelope, session_id=session_id, task_id=task_id, at=at)
 
+    def confirm_governed(
+        self,
+        pa_action_id: str,
+        summary_digest: str,
+        confirmation: str,
+        *,
+        at: str | None = None,
+        session_id: str | None = None,
+        task_id: str | None = None,
+    ) -> dict[str, Any]:
+        authorization = super().confirm_governed(
+            pa_action_id, summary_digest, confirmation,
+            at=at, session_id=session_id, task_id=task_id,
+        )
+        # Publish only the committed scope; the database remains authoritative.
+        with self._scope_lock:
+            self._scope_keys.add((
+                authorization["session_id"], authorization["task_id"], authorization["tool_name"],
+            ))
+        return authorization
+
     def has_indexed_scope(self, tool_name: str, session_id: object, task_id: object) -> bool:
         if any(not isinstance(value, str) or not value for value in (tool_name, session_id, task_id)):
             return False
