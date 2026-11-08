@@ -13,10 +13,11 @@ so in the digest. A failed mail read is a failure to report, never an empty
 inbox.
 
 `humans_N` lists the first `shown` threads; `omitted` counts unread human
-threads that were read but not listed. When `omitted` is above 0, triage the
-rest before calling the inbox covered: run the same read-only `gog gmail search`
-query for that account and page past the listed threads. If you cannot, the
-digest says how many unread threads were not triaged.
+threads that were read but not listed, and such a section is incomplete and
+truncated. When `omitted` is above 0, triage the rest before calling the inbox
+covered: run a read-only `gog gmail search` for that account with exactly the
+section's `query` string and page past the listed threads. Never widen the
+query. If you cannot, the digest says how many unread threads were not triaged.
 
 ## Five buckets
 

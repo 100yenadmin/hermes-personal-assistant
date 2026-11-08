@@ -160,14 +160,16 @@ def mail_sections(account: str, index: int, read_mail: Callable[..., Collected])
     humans = read_mail(account, Q_HUMANS, page_size=25, max_items=500)
     bulk = read_mail(account, Q_BULK, page_size=100, max_items=2000)
     bulk_count = bulk.total if bulk.total is not None else len(bulk.items)
-    # The packet lists the first HUMANS_SHOWN threads; any more were read but not listed, so the
-    # section is truncated and says how many the agent still has to triage.
+    # The packet lists the first HUMANS_SHOWN threads. Any more were read but not listed: like any
+    # bounded section the packet is then incomplete and truncated, and it carries the exact query
+    # so the agent can read the rest within the same accepted scope.
     omitted = max(len(humans.items) - HUMANS_SHOWN, 0)
+    humans_complete = humans.complete and omitted == 0
     humans_truncated = humans.truncated or omitted > 0
     sections = {
         f"humans_{index}": {
             "items": humans.items[:HUMANS_SHOWN], "count": len(humans.items), "shown": min(len(humans.items), HUMANS_SHOWN),
-            "omitted": omitted, "complete": humans.complete, "truncated": humans_truncated,
+            "omitted": omitted, "query": Q_HUMANS, "complete": humans_complete, "truncated": humans_truncated,
         },
         f"bulk_{index}": {
             "count": bulk_count, "exact": bulk.total is not None and bulk.complete,
@@ -175,4 +177,4 @@ def mail_sections(account: str, index: int, read_mail: Callable[..., Collected])
             "complete": bulk.complete, "truncated": bulk.truncated,
         },
     }
-    return sections, humans.complete and bulk.complete, humans_truncated or bulk.truncated
+    return sections, humans_complete and bulk.complete, humans_truncated or bulk.truncated

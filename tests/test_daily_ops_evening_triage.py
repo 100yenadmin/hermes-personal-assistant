@@ -147,8 +147,9 @@ def test_threads_past_the_listed_ones_make_the_section_truncated(monkeypatch):
     packet = evening_register.collect(cfg(), profile="/synthetic", moment=MOMENT)
     humans = packet["sections"]["humans_1"]
     assert humans["count"] == 26 and humans["shown"] == 25 and humans["omitted"] == 1
-    assert len(humans["items"]) == 25 and humans["complete"] is True and humans["truncated"] is True
-    assert packet["truncated"] is True
+    assert len(humans["items"]) == 25 and humans["complete"] is False and humans["truncated"] is True
+    assert humans["query"] == common.Q_HUMANS
+    assert packet["complete"] is False and packet["truncated"] is True
 
 
 def test_morning_and_evening_share_the_honest_humans_section():
@@ -157,7 +158,13 @@ def test_morning_and_evening_share_the_honest_humans_section():
         return Collected([{"id": f"x{n}"} for n in range(size)], True, False, None)
     sections, complete, truncated = common.mail_sections("owner@example.invalid", 1, read)
     assert sections["humans_1"]["omitted"] == 5 and sections["humans_1"]["truncated"] is True
-    assert complete is True and truncated is True
-    small, _, small_truncated = common.mail_sections("owner@example.invalid", 1, lambda *a, **k: Collected([{"id": "y"}], True, False, None))
-    assert small["humans_1"]["omitted"] == 0 and small["humans_1"]["shown"] == 1 and small_truncated is False
+    assert complete is False and truncated is True
+    small, small_complete, small_truncated = common.mail_sections(
+        "owner@example.invalid", 1, lambda *a, **k: Collected([{"id": "y"}], True, False, None))
+    assert small["humans_1"]["omitted"] == 0 and small["humans_1"]["shown"] == 1
+    assert small_complete is True and small_truncated is False
+    exact = lambda account, query, **k: Collected([{"id": f"z{n}"} for n in range(25 if query == common.Q_HUMANS else 1)], True, False, None)
+    full, full_complete, full_truncated = common.mail_sections("owner@example.invalid", 1, exact)
+    assert full["humans_1"]["shown"] == 25 and full["humans_1"]["omitted"] == 0
+    assert full["humans_1"]["complete"] is True and full_complete is True and full_truncated is False
     assert morning_brief.mail_sections is common.mail_sections
