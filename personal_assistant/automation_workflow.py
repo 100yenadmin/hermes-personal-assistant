@@ -425,8 +425,8 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             marker = auto.notification_occurrence_id("chase-step", chase["action_id"], chase["chase"]["step"])
             if auto.claim_notification(ledger, marker, rule_id="chase-step", now=current)["claimed"]:
                 auto.record_notification(ledger, marker, "unknown", now=current)
-        if chases and due:
-            # The same due work without chases is now handled too, so the next tick does not resend it.
+        if chases:
+            # The same due work and sources without chases are now handled too, so the next tick does not resend them.
             plain = auto.routine_occurrence(kind, base, rules)
             if auto.claim_notification(ledger, plain, rule_id=rule_id, payload=payload, now=current)["claimed"]:
                 auto.record_notification(ledger, plain, "unknown", now=current)

@@ -451,3 +451,11 @@ def test_an_evening_brief_is_not_replaced_by_the_default_end_of_day(ledger):
     assert [s['logical'] for s in auto.routine_slots(ledger, now=at('2026-11-09T21:30'))] == ['2026-11-09']
     preferences(ledger, {'brief_time': '08:00', 'eod_time': '18:00'})
     assert auto.eod_clock(preferences(ledger)) == '18:00'
+
+
+def test_a_chase_tick_also_settles_due_sources(ledger):
+    rule(ledger, 'due_source_check', source_ref='src-1', last_checked_at='2026-11-08T00:00:00+00:00')
+    loop(ledger)
+    first = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
+    assert first['wakeAgent'] and first['chase_action_ids'] == ['loop-fixture']
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:05'))['wakeAgent']
