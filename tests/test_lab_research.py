@@ -877,6 +877,11 @@ def test_research_skill_is_routed_and_matches_the_checks():
     assert "If they have no preference, take lowest total cost, say so, and go" in flat
     assert "state your assumption and go" in flat and "here or in their saved preferences" in flat
     assert "never relabel a fee" in flat and 'Before you write "Could not find"' in flat
+    # Live s18 on 97eb90e (M2-e wave): team totals and savings worked out from cited unit prices, a range citation,
+    # and widened fee terms (an annual price as monthly billing, a one-time fee per entity).
+    assert "No sums you worked out" in flat and "a starting price times a headcount is not a quote" in flat
+    assert "`[2][5]`, never `[2,5]` or `[1–3]`" in flat and "right after the amount" in flat
+    assert "a price billed annually is not a monthly-billing price" in flat and "not charged per entity" in flat
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
 
 
@@ -1184,3 +1189,17 @@ def test_source_excerpt_equal_amounts_in_two_clauses_use_their_own_clause():
                             "- Benefits S$10 per employee [1]; Treasury Services S$10 flat fee [1].")
     rows = [r for r in evaluate(answer, tools(page))["source_excerpts"] if r.get("amount") == "S$10"]
     assert "Benefits" in rows[0]["source_text"] and "Treasury Services" in rows[1]["source_text"]
+
+
+# Live s18 on 97eb90e (M2-e wave, 0 of 3): two runs wrote team totals and savings from cited unit prices
+# ("$29 → $348/month [1]", "$108/month", "US$77.33/employee"), and one cited three prices with one range "[1–3]".
+# No page shows a worked-out sum, so the checks keep failing these forms; the research skill now asks for unit
+# prices only, each with its own [n] right after it.
+def test_live_worked_out_sums_and_range_citations_still_fail():
+    rows = tools() + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll")
+    summed = TEMPLATE.replace("S$12.50 per employee per month [1]", "S$12.50 per employee → S$150/month [1]")
+    assert not evaluate(summed, rows)["checks"]["cited_and_seen"]
+    assert [e["amount"] for e in evaluate(summed, rows)["factual_errors"]] == ["S$150"]
+    ranged = TEMPLATE.replace("## Recommendation\nUse Cedar Payroll",
+                              "## Recommendation\nCedar Payroll is S$12.50 versus S$14 at Birch.[1–2] Use Cedar Payroll")
+    assert not evaluate(ranged, rows)["checks"]["amounts_cited"]
