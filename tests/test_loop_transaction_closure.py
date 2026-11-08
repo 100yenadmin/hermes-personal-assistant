@@ -124,13 +124,28 @@ def test_loop_cancelled_closes_an_ordinary_loop_too():
         assert _loops(ledger) == []
 
 
-@pytest.mark.parametrize("status", [None, "approval_required", "authorized", "approved_revision", "submitting",
-                                    "unknown", "claimed_once", "provider_result", "paused"])
-@pytest.mark.parametrize("closure", [{"confirmation": {"by": "Cedar", "at": "2026-11-19T12:00:00+09:00", "evidence": "reply"}},
-                                     {"loop_cancelled": {"by": "owner", "at": "2026-11-19T12:00:00+09:00"}}])
-def test_a_pending_or_unresolved_transaction_blocks_closure(status, closure):
+CONFIRM = {"confirmation": {"by": "Cedar", "at": "2026-11-19T12:00:00+09:00", "evidence": "reply"}}
+WITHDRAW = {"loop_cancelled": {"by": "owner", "at": "2026-11-19T12:00:00+09:00"}}
+
+
+def _govern(ledger):
+    with ledger.connect() as conn:
+        row = conn.execute("select fields_json from actions where action_id='loop-1'").fetchone()
+        fields = {**__import__("json").loads(row["fields_json"]), "enforcement_profile": "exact_action"}
+        conn.execute("update actions set fields_json=? where action_id='loop-1'", (__import__("json").dumps(fields),))
+
+
+@pytest.mark.parametrize("status,closure,governed", [
+    *[(s, CONFIRM, False) for s in (None, "approval_required", "authorized", "approved_revision", "submitting",
+                                    "unknown", "claimed_once", "provider_result", "paused")],
+    *[(s, WITHDRAW, False) for s in ("submitting", "unknown", "claimed_once", "provider_result")],
+    *[(s, WITHDRAW, True) for s in ("approval_required", "approved_revision", "submitting")],
+])
+def test_a_pending_or_unresolved_transaction_blocks_closure(status, closure, governed):
     with tempfile.TemporaryDirectory() as root:
         ledger = _promoted(root, status)
+        if governed:
+            _govern(ledger)
         before = ledger.get("action", "loop-1")
         with pytest.raises(ValueError, match="pending or unresolved"):
             _upsert(root, fields=closure)
@@ -155,3 +170,13 @@ def test_a_closed_loop_with_a_live_transaction_stays_listed(status):
         listed = _loops(ledger)
         assert [c["action_id"] for c in listed] == ["loop-1"]
         assert "Chase" not in listed[0]["next_step"]
+
+
+@pytest.mark.parametrize("status", [None, "authorized", "paused"])
+def test_owner_withdraws_an_ungoverned_loop_before_any_attempt(status):
+    with tempfile.TemporaryDirectory() as root:
+        ledger = _promoted(root, status)
+        before = ledger.get("action", "loop-1")
+        row = _upsert(root, fields=WITHDRAW)
+        assert row["status"] == before["status"] and row["fields"]["material_summary"] == before["fields"]["material_summary"]
+        assert _loops(ledger) == []

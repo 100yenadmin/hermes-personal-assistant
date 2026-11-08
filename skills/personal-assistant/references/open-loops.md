@@ -49,9 +49,9 @@ third party, `delegated` for work the owner handed to someone else, and
   `action_upsert` there accepts only `confirmation`, `loop_cancelled`,
   `last_chased_at`, `chase_log`, `snoozed_until` and `next_step`. Record the
   owner's withdrawal as `loop_cancelled: {"by": "owner", "at": "<timestamp>"}`.
-  While its transaction is still pending or unresolved, first cancel it with
-  `action_cancel` or record its result with `action_result`; PA refuses to close
-  the loop before then.
+  A step that was only prepared can be withdrawn directly. Cancel an
+  approval-governed action with `action_cancel` first, and settle an attempt in
+  flight with `action_result` first; PA refuses to close the loop before then.
 
 ## Chase ladder
 

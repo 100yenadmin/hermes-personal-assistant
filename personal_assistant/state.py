@@ -163,7 +163,7 @@ class Ledger:
         """Chase and closure fields on an open-loop row that a transaction lifecycle now owns.
 
         Status, action type, provider, trip and every transaction-owned field stay as they are."""
-        from .context import LOOP_KINDS, _NUDGE_IN_FLIGHT
+        from .context import LOOP_KINDS, _NUDGE_IN_FLIGHT, _UNRESOLVED_ATTEMPT
         fields = clean(fields)
         with self.connect() as conn:
             conn.execute("begin immediate")
@@ -174,10 +174,13 @@ class Ledger:
             if not isinstance(fields, dict) or not fields or not set(fields) <= LOOP_BOOKKEEPING:
                 raise ValueError("use transaction operations for transaction records; an open-loop row a transaction owns "
                                  "accepts only " + ", ".join(sorted(LOOP_BOOKKEEPING)))
-            if {"confirmation", "loop_cancelled"} & set(fields) and row["status"] in _NUDGE_IN_FLIGHT:
-                # A pending or unresolved provider step outlives the loop; settle it before the loop can close.
-                raise ValueError("this loop's transaction is still pending or unresolved; cancel it with action_cancel "
-                                 "or record its result with action_result before closing the loop")
+            # The owner may withdraw a loop whose ungoverned provider step was prepared but never attempted;
+            # a governed action is cancelled with action_cancel, and an attempt in flight is settled first.
+            withdraw = ("confirmation" not in fields and data.get("enforcement_profile") != "exact_action"
+                        and row["status"] not in _UNRESOLVED_ATTEMPT)
+            if {"confirmation", "loop_cancelled"} & set(fields) and row["status"] in _NUDGE_IN_FLIGHT and not withdraw:
+                raise ValueError("this loop's transaction is still pending or unresolved; cancel an approval-governed "
+                                 "action with action_cancel or record its result with action_result before closing the loop")
             data.update(fields)
             conn.execute("update actions set fields_json=?,updated_at=? where action_id=?",
                          (json.dumps(data, ensure_ascii=False), now(), identity))

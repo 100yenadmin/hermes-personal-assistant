@@ -390,7 +390,9 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         if loop:
             # The other side's confirmation closes a loop, and so does the owner's cancellation.
             # A pending or unresolved transaction stays listed even on a closed loop, so its step still shows.
-            if state == "closed" and not (action.get("action_type") == "transaction" and status in _NUDGE_IN_FLIGHT):
+            live = action.get("action_type") == "transaction" and status in _NUDGE_IN_FLIGHT and not (
+                _cancelled(fields) and fields.get("enforcement_profile") != "exact_action" and status not in _UNRESOLVED_ATTEMPT)
+            if state == "closed" and not live:
                 excluded_closed_loops += 1
                 continue
         elif kanban.get("status") in _KANBAN_DONE:
