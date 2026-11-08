@@ -48,8 +48,10 @@ third party, `delegated` for work the owner handed to someone else, and
   If one was prepared on the loop's own action, that row is now a transaction:
   `action_upsert` there accepts only `confirmation`, `loop_cancelled`,
   `last_chased_at`, `chase_log`, `snoozed_until` and `next_step`. Record the
-  owner's withdrawal as `loop_cancelled: {"by": "owner", "at": "<timestamp>"}`
-  (or use `action_cancel` while a governed action is still pending).
+  owner's withdrawal as `loop_cancelled: {"by": "owner", "at": "<timestamp>"}`.
+  While its transaction is still pending or unresolved, first cancel it with
+  `action_cancel` or record its result with `action_result`; PA refuses to close
+  the loop before then.
 
 ## Chase ladder
 

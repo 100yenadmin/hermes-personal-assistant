@@ -163,17 +163,21 @@ class Ledger:
         """Chase and closure fields on an open-loop row that a transaction lifecycle now owns.
 
         Status, action type, provider, trip and every transaction-owned field stay as they are."""
-        from .context import LOOP_KINDS
+        from .context import LOOP_KINDS, _NUDGE_IN_FLIGHT
         fields = clean(fields)
-        if not isinstance(fields, dict) or not fields or not set(fields) <= LOOP_BOOKKEEPING:
-            raise ValueError("use transaction operations for transaction records; an open-loop row a transaction owns "
-                             "accepts only " + ", ".join(sorted(LOOP_BOOKKEEPING)))
         with self.connect() as conn:
             conn.execute("begin immediate")
             row = conn.execute("select * from actions where action_id=?", (identity,)).fetchone()
             data = json.loads(row["fields_json"]) if row else {}
             if not row or row["action_type"] != "transaction" or data.get("loop_kind") not in LOOP_KINDS:
                 raise ValueError("use transaction operations for transaction records")
+            if not isinstance(fields, dict) or not fields or not set(fields) <= LOOP_BOOKKEEPING:
+                raise ValueError("use transaction operations for transaction records; an open-loop row a transaction owns "
+                                 "accepts only " + ", ".join(sorted(LOOP_BOOKKEEPING)))
+            if {"confirmation", "loop_cancelled"} & set(fields) and row["status"] in _NUDGE_IN_FLIGHT:
+                # A pending or unresolved provider step outlives the loop; settle it before the loop can close.
+                raise ValueError("this loop's transaction is still pending or unresolved; cancel it with action_cancel "
+                                 "or record its result with action_result before closing the loop")
             data.update(fields)
             conn.execute("update actions set fields_json=?,updated_at=? where action_id=?",
                          (json.dumps(data, ensure_ascii=False), now(), identity))

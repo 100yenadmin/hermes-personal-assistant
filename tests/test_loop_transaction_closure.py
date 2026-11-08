@@ -33,7 +33,7 @@ def _loops(ledger):
                         kanban_reader=lambda task_id, board: UNKNOWN)["candidates"]
 
 
-@pytest.mark.parametrize("status", [None, "completed", "failed"])
+@pytest.mark.parametrize("status", ["completed", "failed"])
 def test_confirmation_closes_a_promoted_loop(status):
     with tempfile.TemporaryDirectory() as root:
         ledger = _promoted(root, status)
@@ -122,3 +122,36 @@ def test_loop_cancelled_closes_an_ordinary_loop_too():
         dispatch(root, {"operation": "action_upsert", "data": {"action_id": "loop-2", "fields": {
             "loop_cancelled": {"by": "owner", "at": "2026-11-19T12:00:00+09:00"}}}})
         assert _loops(ledger) == []
+
+
+@pytest.mark.parametrize("status", [None, "approval_required", "authorized", "approved_revision", "submitting",
+                                    "unknown", "claimed_once", "provider_result", "paused"])
+@pytest.mark.parametrize("closure", [{"confirmation": {"by": "Cedar", "at": "2026-11-19T12:00:00+09:00", "evidence": "reply"}},
+                                     {"loop_cancelled": {"by": "owner", "at": "2026-11-19T12:00:00+09:00"}}])
+def test_a_pending_or_unresolved_transaction_blocks_closure(status, closure):
+    with tempfile.TemporaryDirectory() as root:
+        ledger = _promoted(root, status)
+        before = ledger.get("action", "loop-1")
+        with pytest.raises(ValueError, match="pending or unresolved"):
+            _upsert(root, fields=closure)
+        assert ledger.get("action", "loop-1") == before
+        assert [c["action_id"] for c in _loops(ledger)] == ["loop-1"]
+        _upsert(root, fields={"last_chased_at": "2026-11-12T09:00:00+09:00"})  # Chase bookkeeping still works.
+
+
+@pytest.mark.parametrize("status", ["prepared", "unknown", "approved_revision"])
+def test_a_closed_loop_with_a_live_transaction_stays_listed(status):
+    with tempfile.TemporaryDirectory() as root:
+        ledger = Ledger(root)
+        ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"}, action_type="preferences")
+        ledger.put("action", "loop-1", {"title": "Book", "loop_kind": "our_promise", "counterparty": "Cedar",
+                                        "next_actor": "us", "opened_at": OPENED,
+                                        "confirmation": {"by": "Cedar", "at": "2026-11-15T12:00:00+09:00", "evidence": "reply"}},
+                   action_type="commitment")
+        assert _loops(ledger) == []
+        ledger.prepare("loop-1", {"provider": "restaurant", "final_action": "reserve"})
+        with ledger.connect() as conn:
+            conn.execute("update actions set status=? where action_id='loop-1'", (status,))
+        listed = _loops(ledger)
+        assert [c["action_id"] for c in listed] == ["loop-1"]
+        assert "Chase" not in listed[0]["next_step"]
