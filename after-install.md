@@ -38,8 +38,9 @@ or downloads. The travel ledger remains in the profile at
 `state/travel-ledger/travel.sqlite`.
 
 To update a catalog install, run `hermes plugins update personal-assistant`;
-Hermes moves it to the catalog's current reviewed pin and keeps your local
-files. A direct Git install pinned with `--ref` moves only with
+Hermes moves it to the catalog's current reviewed pin. Hermes 0.23.0 and later
+carry PA's local configuration files across; on an older Hermes, copy them out
+first, as for a pinned move below. A direct Git install pinned with `--ref` moves only with
 `hermes plugins install 100yenadmin/hermes-personal-assistant --force --ref
 <40-character-approved-commit> --no-enable`; some Hermes versions drop PA's
 local configuration files on that move, so copy them out first (see
