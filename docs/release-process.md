@@ -87,7 +87,8 @@ prerelease. The result distinguishes:
 - installed native Git revision or archive metadata;
 - selected release version, source SHA, and asset digest;
 - release notes since the installed version;
-- the exact profile-bound `hermes plugins install --force --ref` command, and
+- the exact profile-bound `hermes plugins install --force --ref` command, with
+  the local configuration files to copy out first (`before_command`), and
   for an archive install the canonical operator archive path it replaces.
 
 Missing GitHub access, missing dependencies, absent install metadata, and an

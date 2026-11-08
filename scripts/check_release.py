@@ -111,6 +111,9 @@ def _shell_command(arguments: list[str], *, hermes_home: Path | None = None) -> 
     return command
 
 
+LOCAL_CONFIG_NAMES = ("clients.json", "daily_ops.config.json", "daily_ops.state.json", "location.json")
+
+
 def check_release(*, gh: str, repository: str, channel: str,
                   system_home: Path, hermes_home: Path) -> dict[str, object]:
     installed = probe(system_home, hermes_home)
@@ -125,6 +128,7 @@ def check_release(*, gh: str, repository: str, channel: str,
         "selected_release": None,
         "status": "no_release_on_channel",
         "proposed_command": None,
+        "before_command": None,
         "operator_archive_path": None,
         "release_changes": None,
     }
@@ -199,13 +203,20 @@ def check_release(*, gh: str, repository: str, channel: str,
     base["status"] = "source_mismatch" if same_version_mismatch else "update_available"
     # Hermes moves a pin itself: a same-source --force install at the approved revision.
     move = ["hermes", "plugins", "install", repository, "--force", "--ref", source_sha, "--no-enable"]
+    plugin_dir = Path(str(installed.get("package_path") or hermes_home / "plugins" / "personal-assistant")).expanduser()
+    # Some Hermes versions replace the whole plugin folder on --force, and a different source always does.
+    before = (f"Copy {', '.join(LOCAL_CONFIG_NAMES)} out of {plugin_dir} and put them back after the move; "
+              "some Hermes versions replace the whole plugin folder. Check that the installed source is "
+              f"{repository}; moving from a different source replaces the plugin.")
     if installed.get("source_kind") == "native_git":
         base["proposed_command"] = _shell_command(move, hermes_home=hermes_home)
+        base["before_command"] = before
     elif installed.get("source_kind") in {"native_archive", "native_copy"} and (
         hermes_home / "plugins" / "personal-assistant"
     ).is_dir():
         base["operator_archive_path"] = str((hermes_home / "plugins" / "personal-assistant").resolve())
         base["proposed_command"] = _shell_command(move, hermes_home=hermes_home)
+        base["before_command"] = before
     return base
 
 

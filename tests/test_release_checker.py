@@ -60,6 +60,7 @@ def test_explicit_pilot_can_propose_newer_publication_despite_lower_numeric_vers
     assert result["status"] == "update_available"
     assert "hermes plugins install owner/repo --force --ref " + "d" * 40 in result["proposed_command"]
     assert result["proposed_command"].startswith(f"HERMES_HOME={tmp_path / '.hermes'} ")
+    assert "daily_ops.config.json" in result["before_command"] and "owner/repo" in result["before_command"]
     assert result["downloaded"] is False and result["executed"] is False
 
 
@@ -74,6 +75,7 @@ def test_archive_install_gets_canonical_path_and_explicit_replacement_proposal(t
         )
     assert result["operator_archive_path"] == str(tmp_path / ".hermes/plugins/personal-assistant")
     assert "--force --ref " + "e" * 40 in result["proposed_command"]
+    assert "location.json" in result["before_command"]
     assert result["proposed_command"].startswith("HERMES_HOME=")
 
 
