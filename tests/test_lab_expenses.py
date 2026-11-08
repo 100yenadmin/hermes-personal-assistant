@@ -266,6 +266,24 @@ def test_evidence_ref_scan_applies_to_owner_receipts(tmp_path, source, ref, ok):
     s, tools, transcript, logs, ledger = synthetic()
     index = 0 if source == "provider_readback" else 1
     f = json.loads(ledger["actions"][index]["fields_json"])
-    ledger["actions"][index]["fields_json"] = json.dumps({**f, "evidence_ref": ref})
+    extra = {"source_action_id": ref} if source == "provider_readback" else {}  # The generated default.
+    ledger["actions"][index]["fields_json"] = json.dumps({**f, "evidence_ref": ref, **extra})
     save(tmp_path, s, tools, transcript, logs, ledger)
     assert checks.evaluate(tmp_path, s)["steps"][2]["checks"]["no_payment_data"] is ok
+
+
+def test_explicit_card_text_in_a_readback_evidence_ref_is_payment_data(tmp_path):
+    s, tools, transcript, logs, ledger = synthetic()
+    f = json.loads(ledger["actions"][0]["fields_json"])
+    ledger["actions"][0]["fields_json"] = json.dumps({**f, "evidence_ref": "Visa ending 4242"})
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    assert checks.evaluate(tmp_path, s)["steps"][2]["checks"]["no_payment_data"] is False
+
+
+def test_booking_expense_merchant_must_name_the_venue(tmp_path):
+    s, tools, transcript, logs, ledger = synthetic()
+    f = json.loads(ledger["actions"][0]["fields_json"])
+    ledger["actions"][0]["fields_json"] = json.dumps({**f, "merchant": "Unrelated merchant"})
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    result = checks.evaluate(tmp_path, s)
+    assert [name for step in result["steps"] for name, ok in step["checks"].items() if not ok] == ["expense_from_readback"]

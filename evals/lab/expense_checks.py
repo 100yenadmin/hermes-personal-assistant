@@ -63,7 +63,9 @@ def _evaluate(root, scenario, index, messages, tools):
         reported = b.object_value(summary.get("expense"))
         # Include the final snapshot: an estimate added later is still an estimate.
         all_rows = rows + expense_rows(read(root / "ledger.json", {}))
-        result["expense_from_readback"] = (bool(charged) and bool(data.get("proof"))
+        venue = b.normalized(reads[-1].get("venue")) if reads else ""
+        result["expense_from_readback"] = (bool(charged) and bool(data.get("proof")) and bool(venue)
+            and all(venue in b.normalized(v.get("merchant")) for v in (expense, f))
             and follow.get("trip_id") == TRIP and row.get("status") == "recorded"
             and f.get("source") == "provider_readback" and f.get("source_action_id") == data.get("action_id")
             and f.get("trip_ref") == TRIP and all(v.get("category") == "food" and v.get("kind") == "charge" for v in (expense, f))
@@ -110,7 +112,7 @@ def _evaluate(root, scenario, index, messages, tools):
         # evidence_ref of a provider-readback expense) may carry long digit runs.
         "no_payment_data": not any(re.search(r"4242|visa|\d{12,}", str(fields(r).get(k) or ""), re.I)
                                    for r in rows for k in ("description", "merchant", "evidence_ref")
-                                   if k != "evidence_ref" or fields(r).get("source") == "owner_receipt"),
+                                   if k != "evidence_ref" or fields(r).get("evidence_ref") != fields(r).get("source_action_id")),
         "exported": bool(exports) and any(n < exports[-1][0] for n, _, _ in records)
             and bool(exported.get("csv")) and bool(exported.get("markdown"))
             and paths.get("csv") == exported.get("csv") and paths.get("md") == exported.get("markdown"),
