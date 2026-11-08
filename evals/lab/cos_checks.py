@@ -23,7 +23,8 @@ def aware(value):
         return False
 
 
-OUTCOME_LABELS = ("used", r"declined(?:\s*/\s*rejected)?", r"ignored(?:\s*/\s*skipped)?", "unknown")
+# A qualifier word or two before the second label is fine ("Ignored / explicitly skipped:").
+OUTCOME_LABELS = ("used", r"declined(?:\s*/\s*(?:[a-z]+\s+){0,2}rejected)?", r"ignored(?:\s*/\s*(?:[a-z]+\s+){0,2}skipped)?", "unknown")
 SETUP_OFFER = re.compile(r"\b(?:can|could|happy to|want me to|i'll|i will|offer|help)\b[^.?!\n]{0,40}?"
                          r"(?:\bset\b\s*(?:\w+\s+){0,2}up\b|setup|connect|bind)", re.I)
 NEGATION = re.compile(r"n't\b|\b(?:not|cannot|unable)\b", re.I)

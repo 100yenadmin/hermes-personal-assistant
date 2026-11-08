@@ -459,6 +459,10 @@ def test_outcome_and_setup_wording_variants(tmp_path):
     message = common.lines(path)[0]
     original = message["message"]
     for text, expected in ((original.replace("Ignored:", "- **Ignored/skipped:**"), True),
+                           # The 0.12.0-rc.1 wave's honest wording.
+                           (original.replace("Ignored:", "- **Ignored / explicitly skipped:**"), True),
+                           (original.replace("Declined:", "- **Declined / explicitly rejected:**"), True),
+                           (original.replace("Ignored:", "Ignored / explicitly used:"), False),
                            (original.replace("Ignored: prior export benchmark, explicit skip.\n", ""), False),
                            (original.replace("Ignored:", "Ignored/used:"), False),
                            (original.replace("Declined:", "Used/declined:"), False)):
