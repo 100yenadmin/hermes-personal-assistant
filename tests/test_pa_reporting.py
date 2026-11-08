@@ -459,3 +459,11 @@ def test_a_chase_tick_also_settles_due_sources(ledger):
     first = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
     assert first['wakeAgent'] and first['chase_action_ids'] == ['loop-fixture']
     assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:05'))['wakeAgent']
+
+
+def test_a_chase_only_tick_does_not_block_a_later_source_refresh(ledger):
+    rule(ledger, 'due_source_check', source_ref='src-1', last_checked_at='2026-11-09T07:00:00+00:00')
+    loop(ledger)
+    first = cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T08:00'))
+    assert first['wakeAgent'] and first['chase_action_ids'] == ['loop-fixture'] and not first['due_sources']
+    assert cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T13:00'))['wakeAgent']
