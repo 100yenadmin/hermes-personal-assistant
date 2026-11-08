@@ -104,8 +104,8 @@ for key, scenario, covers, label in (
     ("recurring_ops", "s22_eod_note_en", [0, 1], "evidence-grounded end-of-day note"),
     ("recurring_ops", "s23_broken_routine_en", [2], "same-cycle routine health exception"),
     ("inbox", "s24_inbox_triage_en", [1, 3], "synthetic drafts and five-line digest"),
-    ("calendar", "s25_calendar_invite_en", [0, 1, 6], "synthetic approved invite and readback"),
-    ("calendar", "s26_meeting_confirm_en", [3, 4, 6], "held confirmations and one-page briefs"),
+    ("calendar", "s25_calendar_invite_en", [1, 6], "synthetic approved invite and readback"),  # No travel-time check yet.
+    ("calendar", "s26_meeting_confirm_en", [6], "held confirmations and one-page briefs"),  # Held drafts, not completed confirmations or sent briefs.
 ):
     next(area for area in AREAS if area["key"] == key)["tests"].append(
         {"scenario": scenario, "kind": "partial", "label": label, "covers": covers})

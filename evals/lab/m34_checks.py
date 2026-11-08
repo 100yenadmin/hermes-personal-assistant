@@ -18,7 +18,7 @@ _CONDITIONAL = re.compile(r"\b(?:once|when|after|if|until|unless|before|whether|
 def _claims_confirmed(text: str) -> bool:
     """A plain claim that attendees confirmed; 'once they have confirmed' is a plan, not a claim."""
 
-    return any(not _CONDITIONAL.search(text[max(0, m.start() - 60):m.start()])
+    return any(not _CONDITIONAL.search(re.split(r"[,.;:!?\n]", text[max(0, m.start() - 60):m.start()])[-1])
                for m in _MEETINGS_CONFIRMED.finditer(text))
 
 def report(text):
@@ -139,7 +139,14 @@ def _evaluate(root, scenario, index, messages, tools):
         # First step is a proposal; second step contains the scripted item-specific yes.
         if index == 0:
             packet = data.get("approval_packet", {})
-            result["approval_packet"] = sorted(packet.get("attendees", [])) == sorted(lab["attendees"]) and packet.get("notification") == "all"
+            try:
+                slot = (instant(packet["start"]) == instant(lab["approved_slot"]["start"])
+                        and instant(packet["end"]) == instant(lab["approved_slot"]["end"])
+                        and packet.get("timezone") == scenario["timezone"])
+            except (KeyError, TypeError, ValueError):
+                slot = False
+            result["approval_packet"] = (sorted(packet.get("attendees", [])) == sorted(lab["attendees"])
+                                         and packet.get("notification") == "all" and slot)
             try:
                 local_times = packet.get("local_times", {})
                 result["packet_zones"] = all(dt.datetime.fromisoformat(local_times[email]).isoformat() == instant(lab["approved_slot"]["start"]).astimezone(ZoneInfo(person["timezone"])).isoformat() for email, person in lab["people"].items())

@@ -153,6 +153,19 @@ def scheduled_prompt(hh, package, step, api, values, *, fidelity=None):
     return prompt, claim
 
 
+def pa_context_copies(api):
+    """`api`'s context module plus the registered plugin's own copy (hermes_plugins.<slug>.personal_assistant.context).
+
+    The `pa` tool the agent calls imports PA through the plugin manager's namespace, a separate module object
+    from `api`, so a fixture must patch both for the agent's reads to see it."""
+    import importlib
+    import sys
+    own = importlib.import_module(api.__name__ + ".context")
+    others = [m for name, m in list(sys.modules.items())
+              if name.startswith("hermes_plugins.") and name.endswith(".personal_assistant.context") and hasattr(m, "read_kanban_task")]
+    return list({id(m): m for m in [own, *others]}.values())
+
+
 def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
     """A scheduled child has fresh history. Scripted human replies retain its evidence."""
     moment = dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc) if "start" in meta else None
@@ -160,10 +173,9 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
     write(root / "seed.json", {"variables": values, "ledger": ledger(hh)})
     sources = ExitStack()
     if scenario.get("lab", {}).get("kanban"):
-        import importlib
-        context = importlib.import_module(api.__name__ + ".context")
         fixtures = scenario["lab"]["kanban"]
-        sources.enter_context(patch.object(context, "read_kanban_task", lambda task, board=None: fixtures.get(task, {"status": "unknown"})))
+        for context in pa_context_copies(api):
+            sources.enter_context(patch.object(context, "read_kanban_task", lambda task, board=None: fixtures.get(task, {"status": "unknown"})))
     before = protected_files(hh)
     history, transcript = [], []
     meta["scheduled_turns"] = []

@@ -308,9 +308,13 @@ def register_calendar(ctx, calendar):
                           handler=lambda args, kind=kind, **kw: handler(kind, args))
 
 
+# Scoring fields in the scenario's thread fixtures; m34_checks reads them from scenario.json, the agent never sees them.
+ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at"}
+
+
 def register_standins(ctx, obs):
     """State is local to this disposable run; direct handler calls also enforce approval."""
-    threads = {t["thread_id"]: dict(t) for t in obs.lab.get("threads", [])}
+    threads = {t["thread_id"]: {k: v for k, v in t.items() if k not in ORACLE_KEYS} for t in obs.lab.get("threads", [])}
     if obs.lab.get("voice_samples"):
         threads["voice-samples"] = obs.lab["voice_samples"]
     events = {e["id"]: dict(e) for e in obs.lab.get("events", [])}
