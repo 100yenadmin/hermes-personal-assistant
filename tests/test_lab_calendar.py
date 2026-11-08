@@ -938,3 +938,14 @@ def test_s19_parsed_summary_in_digest(tmp_path):
     synthetic_run(tmp_path / "r")
     rows = judge.digest(tmp_path / "r")["calendar"]["summary_rows"]
     assert rows == [{"step": 0, "rows": cal.summary(answer())}]
+
+
+@pytest.mark.parametrize("focus,kept", [
+    ("Focus: Keep Deep work Monday 01:00–04:00 Europe/London (09:00–12:00 SGT) unchanged.", True),
+    ("Focus: Keep Deep work Monday 09:00–12:00 SGT (01:00–04:00 London) unchanged.", True),
+    ("Focus: Keep Deep work Monday 02:00–05:00 Europe/London (09:00–12:00 SGT) unchanged.", False),
+])
+def test_focus_line_reads_each_range_in_its_own_zone(focus, kept):
+    s = scenario()
+    text = answer(s).replace("Focus: Keep Deep work Monday 09:00–12:00 SGT unchanged.", focus)
+    assert evaluate(text, s)["checks"]["focus_kept"] is kept

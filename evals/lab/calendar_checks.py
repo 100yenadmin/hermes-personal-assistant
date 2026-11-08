@@ -117,10 +117,12 @@ def range_start(start, end):
     return clock(start)
 
 
+ZONE_RANGE = r"\b(" + ZONE + r")\b\s*[):]?\s*\(?\s*" + RANGE + "|" + RANGE + r"\s*(?:\(\s*)?(?:in\s+)?(" + ZONE + r")\b"
+
+
 def zone_times(text):
-    pattern = r"\b(" + ZONE + r")\b\s*[):]?\s*\(?\s*" + RANGE + "|" + RANGE + r"\s*(?:\(\s*)?(?:in\s+)?(" + ZONE + r")\b"
     mentions = []
-    for m in re.finditer(pattern, text, re.I):
+    for m in re.finditer(ZONE_RANGE, text, re.I):
         start, end = m[2] or m[4], m[3] or m[5]
         offset = trailing_offset(text[m.end():])
         mentions.append((start, end, m[1] or m[6], offset))
@@ -191,7 +193,9 @@ def focus_matches(text, event, owner):
     days = {m[0][:3].lower() for m in WEEKDAY.finditer(text)}
     if days and days != {DAYS[local.weekday()]}:
         return False
-    mention = re.search(RANGE, text, re.I)
+    # The owner-zone check reads the first range with no zone label; labelled ranges are checked by ranges_match.
+    labelled = [m.span() for m in re.finditer(ZONE_RANGE, text, re.I)]
+    mention = next((m for m in re.finditer(RANGE, text, re.I) if not any(a <= m.start() < b for a, b in labelled)), None)
     if mention and (range_start(mention[1], mention[2]) != (local.hour, local.minute)
                     or mention[2] and clock(mention[2]) != (end.astimezone(local.tzinfo).hour, end.astimezone(local.tzinfo).minute)):
         return False
