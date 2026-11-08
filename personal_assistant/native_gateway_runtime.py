@@ -67,6 +67,14 @@ class NativeActionAuthorizationStore(ActionAuthorizationStore):
                 self._scope_keys.add((session_id, task_id, tool_name))
         return super().prepare(envelope, session_id=session_id, task_id=task_id, at=at)
 
+    def _before_confirm_commit(self, session_id: str, task_id: str, tool_name: str) -> None:
+        # Index the scope the confirm transaction commits, before the commit, as prepare
+        # does, so no provider call can see the authorization while its scope is
+        # unindexed. A hint left by a rolled-back confirm only costs a database lookup.
+        if all(isinstance(value, str) and value for value in (session_id, task_id, tool_name)):
+            with self._scope_lock:
+                self._scope_keys.add((session_id, task_id, tool_name))
+
     def has_indexed_scope(self, tool_name: str, session_id: object, task_id: object) -> bool:
         if any(not isinstance(value, str) or not value for value in (tool_name, session_id, task_id)):
             return False
