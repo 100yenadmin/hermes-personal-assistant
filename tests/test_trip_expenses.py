@@ -261,3 +261,34 @@ def test_voided_receipt_can_be_corrected_under_the_same_reference(ledger):
 def test_reason_hint_survives_without_combinators():
     reason = SCHEMA["parameters"]["properties"]["data"]["properties"]["reason"]
     assert reason["type"] == "string" and "declined" in reason["description"]
+
+
+def test_date_correction_after_void_is_recorded(ledger):
+    row = expense(ledger, "record", **RECEIPT, trip_id=TRIP)
+    expense(ledger, "void", expense_id=row["action_id"], reason="wrong date")
+    fixed = expense(ledger, "record", expense={**RECEIPT, "date": "2026-11-11"}, trip_id=TRIP)
+    assert fixed["status"] == "recorded" and fixed["fields"]["date"] == "2026-11-11"
+
+
+@pytest.mark.parametrize("change", [{"kind": "refund"}, {"merchant": "Other Shop"}])
+def test_same_reference_different_receipt_is_refused(ledger, change):
+    expense(ledger, "record", expense={**RECEIPT, "merchant": "Synthetic Inn"}, trip_id=TRIP)
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="different receipt"):
+        expense(ledger, "record", expense={**RECEIPT, "merchant": "Synthetic Inn", **change}, trip_id=TRIP)
+    assert ledger.path.read_bytes() == before
+
+
+def test_changed_source_needs_an_explicit_trip(ledger):
+    expense(ledger, "record", **RECEIPT, trip_id=TRIP, source_action_id=ACTION)
+    with pytest.raises(ValueError, match="pass trip_id"):
+        expense(ledger, "record", **RECEIPT, source_action_id="booking-B")
+    moved = expense(ledger, "record", **RECEIPT, source_action_id="booking-B", trip_id=TRIP)
+    assert moved["fields"]["source_action_id"] == "booking-B"
+
+
+def test_nothing_is_inherited_from_a_voided_row(ledger):
+    row = expense(ledger, "record", **RECEIPT, trip_id=TRIP, source_action_id=ACTION)
+    expense(ledger, "void", expense_id=row["action_id"], reason="not mine")
+    fresh = expense(ledger, "record", expense={**RECEIPT, "amount": "30"})
+    assert fresh["status"] == "recorded" and "trip_ref" not in fresh["fields"] and "source_action_id" not in fresh["fields"]

@@ -87,7 +87,7 @@ def save(ledger, identity, fields, source, source_action_id=None, trip_id=None):
     if trip_id is not None:
         fields["trip_ref"] = trip_id
     old = ledger.get("action", identity)
-    keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields[k] for k in ("amount", "currency", "kind"))
+    keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields.get(k) for k in ("amount", "currency", "kind", "date"))
     return ledger.put("action", identity, fields, action_type="expense", status="void" if keep else "recorded",
                       remove=[k for k in (*FIELDS, "trip_ref", "source_action_id", "void_reason")
                               if k not in fields and not (keep and k == "void_reason")])
@@ -168,13 +168,17 @@ def dispatch(ledger, data):
             _text(data["source_action_id"], "source_action_id", 1000)
         identity = "expense:" + stable_id("receipt", fields["evidence_ref"])
         old = ledger.get("action", identity)
-        if old and old["status"] != "void" and any(old["fields"].get(k) != fields[k] for k in ("amount", "currency", "date")):
+        # A voided row is history: nothing is inherited from it, and a corrected receipt may replace it.
+        live = (old or {}).get("fields", {}) if old and old["status"] != "void" else {}
+        if live and (any(live.get(k) != fields.get(k) for k in ("amount", "currency", "date", "kind"))
+                     or live.get("merchant") and fields.get("merchant") and live["merchant"] != fields["merchant"]):
             # One evidence_ref is one receipt; a different charge under it would silently replace the first.
-            raise ValueError("this evidence_ref already records a different receipt; use the message id or receipt number, or void the old row first")
-        old_fields = (old or {}).get("fields", {})
+            raise ValueError("this evidence_ref already records a different receipt; use the forwarded message id or the merchant plus receipt number, or void the old row first")
+        if live and "source_action_id" in data and data["source_action_id"] != live.get("source_action_id") and not trip_id:
+            raise ValueError("source_action_id changed: pass trip_id for the new association")
         # A re-record that omits the trip or source keeps them, so the row stays in its trip export.
         return save(ledger, identity, fields, "owner_receipt",
-                    data.get("source_action_id", old_fields.get("source_action_id")), trip_id or old_fields.get("trip_ref"))
+                    data.get("source_action_id", live.get("source_action_id")), trip_id or live.get("trip_ref"))
     if action == "void":
         identity = _text(data.get("expense_id"), "expense_id", 1000)
         reason = _text(data.get("reason"), "reason", 200, allow_empty=True)
