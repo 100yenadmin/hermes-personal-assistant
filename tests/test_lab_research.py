@@ -865,8 +865,18 @@ def test_research_skill_is_routed_and_matches_the_checks():
     root = Path(__file__).resolve().parents[1] / "skills"
     text = (root / "research/SKILL.md").read_text()
     assert "Load `personal-assistant:research` for comparison" in (root / "personal-assistant/SKILL.md").read_text()
-    assert text.index("**Question**") < text.index("**Criteria**") < text.index("**Recommendation**") < text.index("**Comparison**")
-    assert "one row per option" in text and "`[n] title, URL, read YYYY-MM-DD`" in text
+    order = ["## Question", "## Criteria", "## Recommendation", "## Comparison", "## Could not find", "## Appendix"]
+    assert [text.index(h) for h in order] == sorted(text.index(h) for h in order)
+    flat = " ".join(text.split())
+    assert "Use these six headings, exactly and in this order" in flat and "never open with the recommendation" in flat
+    assert "one row per option" in flat and "[1] <title>, <URL>, read YYYY-MM-DD" in text
+    assert 'Do not use one shared "All sources read" line' in flat and "Every amount from a source" in flat
+    # Live s18 judge failures on the template build: an assumed priority, a relabelled fee, a missed setup fee.
+    assert "ask it first in one short question" in flat and "with the owner's top priority first" in flat
+    assert 'A direct lookup ("what does plan X cost?") needs no priority' in flat and "<criterion 3>" in text
+    assert "If they have no preference, take lowest total cost, say so, and go" in flat
+    assert "state your assumption and go" in flat and "here or in their saved preferences" in flat
+    assert "never relabel a fee" in flat and 'Before you write "Could not find"' in flat
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
 
 
@@ -1104,3 +1114,64 @@ def test_source_excerpt_uses_the_clause_around_the_amount():
                             "- Payroll S$12.50 per employee [1]; Treasury Services add-on S$10 [1].")
     rows = evaluate(answer, tools(page))["source_excerpts"]
     assert rows[0]["amount"] == "S$12.50" and rows[0]["source_text"].startswith(("Payroll", "https://cedar.invalid/pricing Payroll"))
+
+# Live s18 (M2-e smoke on 8cc4e9f): all three runs listed sources as a Markdown numbered list under one shared read
+# date, and two had no "Comparison" heading over the table. Loosening the parser for these forms opened false
+# passes in review (unchecked amounts on numbered lines, any early date read as the read date, a second table naming
+# an option), so the checks stay as they are: these forms are accepted false fails (#77), and the research skill now
+# gives the exact template instead.
+LIVE = """## Criteria
+Monthly payroll cost per employee first; payslips and statutory filings in both countries, without EOR.
+## Recommendation
+Use Cedar Payroll because its published monthly price best matches your cost priority; verify both countries' filing coverage before signing anything.
+
+| Provider | Cost |
+|---|---|
+| **Cedar Payroll** | S$12.50 per employee per month [1] |
+| **Birch Payroll** | requires a quote [2] |
+
+**Could not find:** binding quotes for Birch Payroll, or complete filing coverage for either country.
+
+## Appendix: sources
+All read **2026-10-21**.
+
+1. [Cedar pricing](https://cedar.invalid/pricing)
+2. [Birch payroll](https://birch.invalid/payroll)
+"""
+
+TEMPLATE = """## Question
+Which payroll provider should a 12-person team with entities in Singapore and Japan use?
+## Criteria
+- Monthly payroll cost per employee
+- Payslips and statutory filings in both countries, without EOR
+- Setup effort for a 12-person team
+## Recommendation
+Use Cedar Payroll because its published monthly price best matches your cost priority; verify both countries' filing coverage before signing anything.
+## Comparison
+| Option | Monthly cost | Filings | Setup |
+|---|---|---|---|
+| Cedar Payroll | S$12.50 per employee per month [1] | not published | not published |
+| Birch Payroll | requires a quote [2] | not published | not published |
+## Could not find
+Binding quotes for Birch Payroll, or complete filing coverage for either country.
+## Appendix
+[1] Cedar pricing, https://cedar.invalid/pricing, read 2026-10-21
+[2] Birch payroll, https://birch.invalid/payroll, read 2026-10-21
+"""
+
+
+def test_live_numbered_sources_and_unlabelled_table_are_accepted_false_fails():
+    checks = evaluate(LIVE)["checks"]
+    assert not checks["sources_dated"] and not checks["cited_and_seen"] and not checks["recommendation_reason"]
+
+
+def test_shared_read_date_line_does_not_date_the_entries():
+    # Live s18 on the template build wrote one "All sources read <date>" line above "[n]" lines that carry no date.
+    shared = TEMPLATE.replace("## Appendix\n", "## Appendix\nAll sources read 2026-10-21.\n").replace(", read 2026-10-21", "")
+    assert not evaluate(shared, tools() + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll"))["checks"]["sources_dated"]
+
+
+def test_answer_written_to_the_skill_template_passes():
+    rows = tools() + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll")
+    result = evaluate(TEMPLATE, rows)
+    assert all(result["checks"].values()), result["reasons"]
