@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.9.0, 8 November 2026)
+## Where we are (0.10.0-rc.1, 8 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -26,10 +26,12 @@ interview (27 questions), owner memory (corrections, people, SOPs and trust
 levels) and the day-30 review. The persona rig passes for zero re-asked facts
 across two sittings. The M1 exit test on the pilot agent is next.
 
-**Measuring parity (M2), in progress.** 0.9.0 adds the VA scorecard builder and
-the `evidence` operation, which records real owner tasks, the owner's baseline
-and the day-30 time check. The research and calendar lab scenarios and the
-first measured scorecard (0.10.0) are next.
+**Measuring parity (M2), in progress.** 0.10.0-rc.1 ships the first measured
+scorecard (27 live lab runs on its reviewed commit). Calendar and recurring
+routines pass their partial checks 3 of 3; travel prep passes 8 of 9; general
+research passes 1 of 3 on the judge, though every run passes the fixed checks.
+Next: research and travel to 3 of 3, and the owner's real tasks and day-30
+baseline on the pilot agent.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
