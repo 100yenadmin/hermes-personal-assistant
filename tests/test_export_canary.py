@@ -205,3 +205,10 @@ def test_excused_occurrences_are_not_scored(tmp_path):
     note = missing.get('action', 'pa:canary:2026-11-09')['fields']
     missing.put('action', 'pa:canary:2026-11-09', {**note, 'excused_occurrences': held})
     assert score(missing)['daily'][0]['routines'] == 'pass'
+
+
+def test_malformed_excused_entries_are_ignored(tmp_path):
+    missing = _canary(tmp_path, missed=('2026-11-09',))
+    note = missing.get('action', 'pa:canary:2026-11-09')['fields']
+    missing.put('action', 'pa:canary:2026-11-09', {**note, 'excused_occurrences': [{'occurrence_id': 'x'}, 5]})
+    assert score(missing)['daily'][0]['routines'] == 'fail'

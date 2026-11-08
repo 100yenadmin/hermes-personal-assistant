@@ -390,3 +390,14 @@ def test_moving_a_snooze_later_or_clearing_an_expired_one_stamps_no_resume(ledge
     ledger.put('action', 'pa:preferences', {'snooze_until': '2026-11-09T09:00:00+00:00'})
     with patch.object(auto, '_now', return_value=at('2026-11-09T09:40')):
         assert 'routine_resumed_at' not in preferences(ledger, {'snooze_until': None})
+
+
+def test_clearing_an_offsetless_snooze_restarts_grace_in_owner_zone(tmp_path):
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {'timezone': 'America/Los_Angeles'})
+    rule(ledger, timezone='America/Los_Angeles')
+    rule(ledger, 'due_source_check', timezone='America/Los_Angeles')
+    ledger.put('action', 'pa:preferences', {'snooze_until': '2026-11-09T10:00'})
+    with patch.object(auto, '_now', return_value=at('2026-11-09T17:30')):
+        assert preferences(ledger, {'snooze_until': None})['routine_resumed_at'] == '2026-11-09T17:30:00+00:00'
+    assert not cron_precheck(ledger, 'due_source_check', enabled=True, moment=at('2026-11-09T17:30'))['wakeAgent']

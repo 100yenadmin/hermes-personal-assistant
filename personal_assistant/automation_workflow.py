@@ -57,7 +57,7 @@ def preferences(ledger, changes=None):
         updates = dict(changes)
         old = (prior or {}).get("fields", {})
         if ((old.get("paused") and changes.get("paused") is False)
-                or ("snooze_until" in changes and auto.snooze_released(old.get("snooze_until"), changes["snooze_until"]))):
+                or ("snooze_until" in changes and auto.snooze_released(old.get("snooze_until"), changes["snooze_until"], merged.get("timezone") or "UTC"))):
             updates["routine_resumed_at"] = auto._now(None, "UTC").isoformat()
         if prior and any(key in changes and changes[key] != old.get(key, auto.DEFAULTS.get(key))
                          for key in ("timezone", "brief_time", "eod_time", *WEEKLY_SLOT_KEYS, "cos_daily_time")):

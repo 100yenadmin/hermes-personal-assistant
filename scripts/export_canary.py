@@ -55,7 +55,8 @@ def export(ledger, *, start, days=10, now=None):
         # Occurrences the observer recorded as intentionally held (a snooze or pause) were never due.
         excused = note.get('excused_occurrences')
         if isinstance(excused, list):
-            slots = [s for s in slots if s['occurrence_id'] not in set(excused)]
+            held = {e for e in excused if isinstance(e, str)}
+            slots = [s for s in slots if s['occurrence_id'] not in held]
         results = []
         for slot in slots:
             receipt = auto.notification_receipt(ledger, slot['occurrence_id'])
