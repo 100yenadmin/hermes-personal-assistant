@@ -879,7 +879,8 @@ def test_research_skill_is_routed_and_matches_the_checks():
     assert "never relabel a fee" in flat and 'Before you write "Could not find"' in flat
     # Live s18 on 97eb90e (M2-e wave): team totals and savings worked out from cited unit prices, a range citation,
     # and widened fee terms (an annual price as monthly billing, a one-time fee per entity).
-    assert "No sums you worked out" in flat and "a starting price times a headcount is not a quote" in flat
+    assert "No sums you worked out" in flat and "starting price times a headcount is not a quote" in flat
+    assert "State each published fee as the page prints it" in flat and "say in words which option costs less" in flat
     assert "`[2][5]`, never `[2,5]` or `[1–3]`" in flat and "right after the amount" in flat
     assert "a price billed annually is not a monthly-billing price" in flat and "not charged per entity" in flat
     assert "contact a vendor without a yes" in text and '"closed_on"' in text and '"facing":"money"' in text
@@ -1203,3 +1204,34 @@ def test_live_worked_out_sums_and_range_citations_still_fail():
     ranged = TEMPLATE.replace("## Recommendation\nUse Cedar Payroll",
                               "## Recommendation\nCedar Payroll is S$12.50 versus S$14 at Birch.[1–2] Use Cedar Payroll")
     assert not evaluate(ranged, rows)["checks"]["amounts_cited"]
+    # The live mechanism: with a later [n] on the line, the range's prices fall to that page.
+    ranged_live = TEMPLATE.replace("## Recommendation\nUse Cedar Payroll because its published monthly price",
+                                   "## Recommendation\nBirch Payroll is S$14 versus S$15 at Maple.[1–2] Use Cedar Payroll [1] because its published monthly price")
+    result = evaluate(ranged_live, rows)
+    assert result["checks"]["amounts_cited"] and not result["checks"]["cited_and_seen"]
+    assert {e["amount"] for e in result["factual_errors"]} == {"S$14", "S$15"}
+
+
+def test_one_bracket_per_source_passes_when_one_page_shows_the_amount():
+    # The form the skill asks for: `[2][5]`, the amount on only one of the two pages.
+    rows = tools() + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll")
+    for marker in ("[2][1]", "[2] [1]", "[2], [1]"):
+        answer = TEMPLATE.replace("S$12.50 per employee per month [1]", "S$12.50 per employee per month " + marker)
+        result = evaluate(answer, rows)
+        assert all(result["checks"].values()), (marker, result["reasons"])
+    assert not evaluate(TEMPLATE.replace("S$12.50 per employee per month [1]", "S$12.50 per employee per month [2,1]"), rows)["checks"]["amounts_cited"]
+
+
+def test_worded_cost_comparison_from_the_skill_passes():
+    # The skill's example for a cost-decided pick: each published fee with its own [n], no sum written.
+    cedar, birch = "https://cedar.invalid/pricing", "https://birch.invalid/pricing"
+    answer = TEMPLATE.replace(
+        "Use Cedar Payroll because its published monthly price best matches your cost priority; verify both countries' filing coverage before signing anything.",
+        "Use Birch Payroll: at 12 people, Birch's flat S$29 per employee [2] beats Cedar's S$20 per employee [1] once Cedar's S$250 monthly platform fee [1] is added.",
+    ).replace("| Cedar Payroll | S$12.50 per employee per month [1] |", "| Cedar Payroll | S$20 per employee per month [1] plus a S$250 monthly platform fee [1] |"
+    ).replace("| Birch Payroll | requires a quote [2] |", "| Birch Payroll | S$29 per employee per month [2] |"
+    ).replace("[2] Birch payroll, https://birch.invalid/payroll", "[2] Birch pricing, " + birch)
+    rows = tools("Payroll S$20 per employee per month. Platform fee S$250 per month.", cedar) + tools("Payroll S$29 per employee per month.", birch)
+    result = evaluate(answer, rows)
+    assert all(result["checks"].values()), result["reasons"]
+    assert "Cedar's $250 monthly platform fee [1] is added" in " ".join((Path(__file__).resolve().parents[1] / "skills/research/SKILL.md").read_text().split())

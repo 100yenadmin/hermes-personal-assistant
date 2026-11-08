@@ -85,12 +85,15 @@ recommendation:
   `$29 per employee/month [2]`. Give each source its own brackets: `[2][5]`,
   never `[2,5]` or `[1–3]`. Amounts the owner gave you, such as a budget, need
   no `[n]`.
-- **No sums you worked out.** Do not multiply a price by the headcount, add
-  fees together, or work out a saving or an effective rate: a starting price
-  times a headcount is not a quote, and no page shows that number. Compare in
-  words ("the lowest published price", "adds a monthly platform fee"), and put
-  the all-in total under "Could not find" as something to get in a written
-  quote.
+- **No sums you worked out.** State each published fee as the page prints it,
+  each with its own `[n]`, but do not combine them: no price times the
+  headcount, no fees added together, no saving or effective rate. A starting
+  price times a headcount is not a quote, and no page shows that number. When
+  cost decides the pick, say in words which option costs less at the owner's
+  headcount and which fee decides it ("at 12 people, Birch's flat $29 per
+  employee [2] beats Cedar's $20 per employee [1] once Cedar's $250 monthly
+  platform fee [1] is added"), and put the all-in total under "Could not
+  find" as something to get in a written quote.
 - **Could not find**: never leave it out; write "nothing material" only when
   that is true.
 - **Appendix**: one `[n]` line per source, each carrying its own read date on
