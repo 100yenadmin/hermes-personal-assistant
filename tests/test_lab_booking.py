@@ -151,6 +151,16 @@ def test_packet_fields(tmp_path, key):
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["packet"]
 
 
+@pytest.mark.parametrize("price,ok", [("JPY 5000 per person", False), ("about 6000 yen", True), ("JPY 6,000/person", True)])
+def test_packet_price_must_show_the_offer_figure(tmp_path, price, ok):
+    s, tools, transcript, receipts = synthetic()
+    packet = booking_checks.report(transcript[1]["content"])
+    packet["approval_packet"]["price_text"] = price
+    transcript[1]["content"] = json.dumps({"lab_summary": packet})
+    save(tmp_path, s, tools, transcript, receipts)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["packet"] is ok
+
+
 def utc(value):
     return booking_checks.stamp(value).astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 

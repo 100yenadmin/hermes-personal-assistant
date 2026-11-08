@@ -52,7 +52,10 @@ def same_fact(key, value, expected):
         if key == "venue":
             return value.strip().casefold() == expected.strip().casefold()
         if key == "price_text":
-            return isinstance(value, str) and bool(value.strip())
+            # Wording may differ; the offer's figures (thousands separators ignored) must all appear.
+            def figures(text):
+                return set(re.findall(r"\d+(?:\.\d+)?", text.replace(",", "")))
+            return isinstance(value, str) and bool(value.strip()) and figures(expected) <= figures(value)
         return value == expected
     except (TypeError, ValueError, AttributeError):
         return False
