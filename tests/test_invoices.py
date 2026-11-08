@@ -344,3 +344,10 @@ def test_reference_codes_and_generated_ids_are_not_payment_data(ledger, monkeypa
     monkeypatch.setattr(inv, "_private", lambda value: seen.append(value) or real(value))
     call(ledger, "paid", invoice_id=identity, paid_on="2026-11-12", evidence="Remittance email from Acme")
     assert all("invoice_id" not in v for v in seen if isinstance(v, dict))
+
+
+def test_a_real_iban_in_the_reference_is_refused(ledger):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="payment or account"):
+        record(ledger, reference="FR14 2004 1010 0505 0001 3M02 606")
+    assert ledger.path.read_bytes() == before

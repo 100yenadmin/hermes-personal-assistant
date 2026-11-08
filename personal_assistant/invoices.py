@@ -66,7 +66,7 @@ def _validate(data):
     if _private({k: v for k, v in data.items() if k != "invoice_id"}):  # Generated hex ids are not owner text.
         raise ValueError("PA does not store payment or account numbers or credentials")
     for key, value in data.items():
-        if isinstance(value, str) and (key != "reference" and _iban(value)
+        if isinstance(value, str) and (_iban(value)
                 or key in {"counterparty", "description", "evidence_ref", "reference"}
                 and re.search(r"\d{%d,}" % (17 if key == "reference" else 8), value)):
             raise ValueError("PA does not store payment or account numbers")
