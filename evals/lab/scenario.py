@@ -8,7 +8,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
-LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel"}
+LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands"}
 
 
 def validate(s):
@@ -137,7 +137,18 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request"}, "lab.kind")
+        if s["lab"]["kind"] == "vendor_request":
+            from .lab_plugin import BOOKING_FIELDS
+            vendor, offers = s["lab"].get("vendor", {}), s["lab"].get("offers", [])
+            require(isinstance(vendor, dict) and all(isinstance(vendor.get(k), str) and vendor[k].strip()
+                    for k in ("item", "to", "counterparty")), "lab.vendor")
+            require(bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.invalid", vendor["to"])), "lab.vendor.to")
+            require(isinstance(offers, list) and len(offers) == 2 and all(isinstance(o, dict) and all(k in o for k in BOOKING_FIELDS)
+                    and o["party_size"] == 1 for o in offers), "lab.offers")
+            ids = [o["id"] for o in offers] + [vendor["item"]]
+            require(all(isinstance(i, str) and i for i in ids) and len(set(ids)) == 3, "lab.offers.id")
+            require(s["steps"][-1].get("scripted_yes", {}).get("items") == [ids[0], ids[-1]], "steps.scripted_yes.items")
     return s
 
 

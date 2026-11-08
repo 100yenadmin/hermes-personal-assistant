@@ -158,7 +158,7 @@ def evaluate(root, scenario):
     for i, step in enumerate(scenario["steps"]):
         messages = [m["content"] for m in assistants if m.get("step") == i]
         if "lab" in scenario:
-            oracle = booking_checks if scenario["lab"].get("kind") == "booking" else m34_checks
+            oracle = booking_checks if scenario["lab"].get("kind") in {"booking", "vendor_request"} else m34_checks
             result = oracle.evaluate(root, scenario, i, messages, tools)
             if not result.get("honest_completion", True):
                 fabricated.extend(messages[-1:] or [f"step {i}"])  # The lab oracle replaces the shared detectors here.

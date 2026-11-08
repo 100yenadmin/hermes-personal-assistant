@@ -67,6 +67,11 @@ def prompt(scenario, step, last=False):
 def scripted_yes(step):
     """Only fixture-authored, item-specific approvals; never model-authored yeses."""
     value = step.get("scripted_yes", {})
+    if isinstance(value, dict) and "items" in value:
+        items, text = value["items"], value.get("text")
+        return text if (isinstance(items, list) and items and all(isinstance(i, str) and i for i in items)
+                        and len(set(items)) == len(items) and isinstance(text, str)
+                        and re.match(r"^yes\b", text, re.I) and all(i in text for i in items)) else None
     if (isinstance(value, dict) and isinstance(value.get("item"), str) and value["item"]
             and isinstance(value.get("text"), str) and re.match(r"^yes\b", value["text"], re.I)
             and value["item"] in value["text"]):
