@@ -271,6 +271,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
             raise ValueError("evidence records are written with operation evidence")
         from .context import loop_fields
         fields = loop_fields(data.pop("fields", {}))
+        columns = {"remove", "invalidate", "title", "status", "action_type", "trip_id", "provider"}
+        if existing and existing["action_type"] == "transaction" and not columns & set(data):
+            return ledger.put_loop_bookkeeping(identity, fields)  # Refuses anything but loop bookkeeping fields.
         return _call_with_supported_data(ledger.put, "action", identity, fields, data=data)
     identity = data.pop("action_id")
     if str(identity).startswith("pa:browser-session:"):  # Every remaining op here mutates the action row.
