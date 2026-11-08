@@ -84,6 +84,11 @@ native automation suggestions. It does **not** create a scheduler or daemon.
    release, not a 09:45 job. Do not add a third routine or claim scheduled sync
    from a config field alone.
 
+The collectors add calendar and inbox sections. They never replace PA's own
+open loops and due items: when a collector fails or is not configured, the brief
+reports that in one line and still lists them (see `What every brief contains`
+in `personal-assistant:r5-brief-reminders`).
+
 The executable collectors are:
 
 ```text
