@@ -385,6 +385,10 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         item["commitment_evidence"] = kanban.get("evidence", "native Kanban evidence unavailable")
         waiting_for = fields.get("waiting_for")
         snoozed_until = fields.get("snoozed_until")
+        if loop and snoozed_until:
+            snoozed = local_time(snoozed_until, zone)
+            if snoozed is not None and snoozed <= moment:
+                snoozed_until = None
         stale = fields.get("stale") is True or fields.get("freshness") in {"stale", "unknown"}
         if snoozed_until:
             item["next_step"] = f"Wait until {snoozed_until}, then re-read source and Kanban state; do not execute now."
@@ -411,7 +415,8 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         if loop:
             item["loop_state"] = state
             item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
-            guidance = None if status == "paused" or stale else _loop_step(fields, item)
+            hold = snoozed_until or waiting_for or stale or status in {"paused", "submitting", "unknown"}
+            guidance = None if hold else _loop_step(fields, item)
             if guidance:
                 item["next_step"] = guidance
         candidates.append(item)

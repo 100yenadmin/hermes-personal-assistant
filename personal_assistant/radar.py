@@ -68,13 +68,16 @@ def _offered_at(fields: dict[str, Any]) -> str | None:
     return stamps[-1] if stamps else None
 
 
-def _unanswered(action: dict[str, Any], moment: dt.datetime, offer_days: int, local) -> dict[str, Any] | None:
+def _unanswered(action: dict[str, Any], moment: dt.datetime, offer_days: int, local,
+                opt_outs: set[str]) -> dict[str, Any] | None:
     fields, identity = action.get("fields", {}), action["action_id"]
     if action.get("action_type") == "offer" and fields.get("outcome") == "offered":
         offered = local(_offered_at(fields) or action.get("updated_at"))
         if offered is None or moment - offered <= dt.timedelta(days=offer_days):
             return None
         offer_type = identity.split(":")[3] if identity.count(":") >= 3 else None
+        if f"pa:offer:*:{offer_type}" in opt_outs:
+            return None
         return {"action_id": identity, "radar_kind": "unanswered_offer", "trip_id": action.get("trip_id"),
                 "offer_type": offer_type, "offered_at": offered.isoformat(),
                 "age_days": (moment - offered).days, "surfaced": True}
@@ -101,7 +104,10 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
     include_upcoming = data.get("include_upcoming") is True
     today = moment.astimezone(zone).date()
     items, upcoming = [], []
-    for action in ledger.list("action"):
+    actions = ledger.list("action")
+    opt_outs = {action["action_id"] for action in actions
+                if action.get("action_type") == "offer" and action.get("fields", {}).get("outcome") == "opted_out"}
+    for action in actions:
         if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
             continue
         fields = action.get("fields", {})
@@ -125,7 +131,8 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
                     continue
             items.append(item)
             continue
-        offer = _unanswered(action, moment, offer_days, lambda value: local_time(value, zone) if value else None)
+        offer = _unanswered(action, moment, offer_days, lambda value: local_time(value, zone) if value else None,
+                            opt_outs)
         if offer:
             items.append(offer)
     items.sort(key=lambda row: (not row["surfaced"], row.get("date") or row.get("offered_at") or row.get("review_at") or "",

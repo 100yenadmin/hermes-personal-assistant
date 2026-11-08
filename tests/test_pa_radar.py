@@ -232,3 +232,54 @@ def test_radar_and_next_actions_share_loop_closure(ledger, status, task, confirm
         result = next_actions(ledger, {"radar": radar, "at": "2026-11-08T12:00:00Z"},
                               kanban_reader=lambda *_: {"status": "done" if task else "unknown"})
         assert [i["loop_state"] for i in result["candidates"]] == ([expected] if expected else [])
+
+
+@pytest.mark.parametrize("status,extra,instruction", [
+    ("unknown", {}, "Read provider state for the claimed attempt; do not submit again."),
+    ("submitting", {}, "Read provider state for the claimed attempt; do not submit again."),
+    ("pending", {"waiting_for": "owner reply"}, "Wait for owner reply;"),
+    ("paused", {}, "Keep paused for"),
+    ("pending", {"stale": True}, "Refresh stale or unknown source evidence"),
+    ("pending", {"freshness": "unknown"}, "Refresh stale or unknown source evidence"),
+    ("pending", {"snoozed_until": "2026-11-10T10:00:00+09:00"}, "Wait until 2026-11-10"),
+])
+def test_loop_chase_preserves_safety_and_wait_instructions(ledger, status, extra, instruction):
+    opened = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=6)).isoformat()
+    ledger.put("action", "our-promise", {"loop_kind": "our_promise", "next_actor": "us",
+               "opened_at": opened, **extra}, action_type="commitment", status=status)
+    item = next_actions(ledger, {"at": AT}, kanban_reader=lambda *_: UNKNOWN)["candidates"][0]
+    assert item["loop_state"] == "open"
+    assert item["next_step"].startswith(instruction)
+    assert "do our next step now" not in item["next_step"]
+
+
+@pytest.mark.parametrize("status,kanban_status", [("completed", "unknown"), ("pending", "done")])
+def test_done_unconfirmed_loop_waits_for_snooze_then_asks(ledger, status, kanban_status):
+    snooze = (dt.datetime.fromisoformat(AT) + dt.timedelta(days=2)).isoformat()
+    ledger.put("action", "done-loop", {"loop_kind": "our_promise", "next_actor": "us",
+               "opened_at": "2026-11-02", "snoozed_until": snooze, "kanban_task_id": "task"},
+               action_type="commitment", status=status)
+    for at, instruction in ((AT, f"Wait until {snooze}"),
+                            ("2026-11-11T10:00:00+09:00", "Kanban or status shows done")):
+        item = next_actions(ledger, {"at": at}, kanban_reader=lambda *_: {
+            "status": kanban_status})["candidates"][0]
+        assert item["loop_state"] == "done_unconfirmed"
+        assert item["next_step"].startswith(instruction)
+
+
+@pytest.mark.parametrize("opt_out", [False, True])
+@pytest.mark.parametrize("trip_id", [None, "seoul"])
+def test_unanswered_offer_respects_lasting_type_opt_out(ledger, opt_out, trip_id):
+    offered = (dt.datetime.fromisoformat(AT) - dt.timedelta(days=5)).isoformat()
+    for offer_type in ("airport_transfer", "dinner"):
+        ledger.put("action", f"pa:offer:seoul:{offer_type}:n_1234abcd", {
+            "outcome": "offered", "history": [{"outcome": "offered", "at": offered}]},
+            action_type="offer", trip_id="seoul")
+    if opt_out:
+        ledger.put("action", "pa:offer:*:airport_transfer", {"outcome": "opted_out"},
+                   action_type="offer", trip_id="*")
+    rows, files = ledger.list("action"), _fingerprint(ledger.root)
+    items = _read(ledger, trip_id=trip_id)["candidates"]
+    assert {item["offer_type"] for item in items} == ({"dinner"} if opt_out else {"airport_transfer", "dinner"})
+    assert all(item["radar_kind"] == "unanswered_offer" and item["age_days"] == 5 for item in items)
+    assert ledger.list("action") == rows and _fingerprint(ledger.root) == files
