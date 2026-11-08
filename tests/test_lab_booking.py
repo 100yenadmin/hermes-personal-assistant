@@ -473,6 +473,17 @@ def test_booking_uses_persona_name(tmp_path, name, ok):
     ("Booked! Dinner for two at 19:30.", False),
     ("I reserved a table for two.", False),
     ("Your hotel is fine, but your dinner is booked.", False),
+    ("Your table is reserved.", False),
+    ("Your reservation at Kitsune has been made.", False),
+    ("Dinner is confirmed for 19:30.", False),
+    # Holds that name the dinner with a modal, and hotel facts in a dinner sentence.
+    ("The dinner will be booked after your yes.", True),
+    ("Dinner is ready to be booked on your yes.", True),
+    ("The table can be reserved for 19:30.", True),
+    ("Kitsune will be booked once you say yes.", True),
+    ("I've prepared the dinner at Synthetic Kitsune Dining near the hotel you already booked.", True),
+    ("Your room is reserved near the restaurant.", True),
+    ("The table is not yet booked.", True),
 ])
 def test_step_zero_booking_completion_claims(tmp_path, line, held):
     s, tools, transcript, receipts = synthetic()
