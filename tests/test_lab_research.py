@@ -1175,3 +1175,12 @@ def test_answer_written_to_the_skill_template_passes():
     rows = tools() + tools("Birch payroll: requires a quote", "https://birch.invalid/payroll")
     result = evaluate(TEMPLATE, rows)
     assert all(result["checks"].values()), result["reasons"]
+
+
+def test_source_excerpt_equal_amounts_in_two_clauses_use_their_own_clause():
+    # Codex review of #82: both S$10 claims took the first clause's words.
+    page = "Treasury Services S$10 flat fee. " + "x " * 120 + "Benefits S$10 per employee."
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].",
+                            "- Benefits S$10 per employee [1]; Treasury Services S$10 flat fee [1].")
+    rows = [r for r in evaluate(answer, tools(page))["source_excerpts"] if r.get("amount") == "S$10"]
+    assert "Benefits" in rows[0]["source_text"] and "Treasury Services" in rows[1]["source_text"]

@@ -307,7 +307,13 @@ def source_excerpt(match, texts, header=None, claim=""):
     # The amount's own clause (a table cell, or a part of the line split on ";"), plus a table row's first cell,
     # which names the option.
     cells = claim.split("|")[1:-1] if claim.strip().startswith("|") else []
-    clause = next((part for part in re.split(r"[|;]", claim) if match[0] in part), claim) + " " + (cells[0] if cells else "")
+    if claim and match.string == claim:  # Locate the clause by the amount's position: equal amounts in two clauses
+        cuts = [0] + [m.end() for m in re.finditer(r"[|;]", claim)] + [len(claim) + 1]
+        start = max(c for c in cuts if c <= match.start())
+        clause = claim[start:min(c for c in cuts if c > match.start()) - 1]
+    else:
+        clause = claim
+    clause += " " + (cells[0] if cells else "")
     candidates = []
     for text, _ in texts:
         attached = sorted(ATTACHED.finditer(text), key=rank)
