@@ -414,3 +414,11 @@ def test_reminders_must_be_created_by_pa(tmp_path):
     save(tmp_path, s, tools, transcript, logs, ledger)
     failing = [c for st in checks.evaluate(tmp_path, s)["steps"] for c, ok in st["checks"].items() if not ok]
     assert failing == ["recorded"], failing
+
+
+def test_created_reminder_must_be_active(tmp_path):
+    s, tools, transcript, logs, ledger = synthetic()
+    next(r for r in ledger["actions"] if r["action_id"] == "garage-1:reminder:1")["status"] = "cancelled"
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    failing = [c for st in checks.evaluate(tmp_path, s)["steps"] for c, ok in st["checks"].items() if not ok]
+    assert failing == ["recorded"], failing

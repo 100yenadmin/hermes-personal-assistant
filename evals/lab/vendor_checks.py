@@ -105,7 +105,8 @@ def _evaluate(root, scenario, index, messages, tools):
     zone = ZoneInfo(scenario["timezone"])
     db = read(root / f"ledger-step-{index}.json", read(root / "ledger.json", {}))
     # PA, not the request, is the evidence: each returned reminder id is a ledger row with a requested due time.
-    rows = {r.get("action_id"): fields(r) for r in db.get("actions", [])}
+    # Active rows only: next_action drops a cancelled or dismissed reminder.
+    rows = {r.get("action_id"): fields(r) for r in db.get("actions", []) if r.get("status") not in {"cancelled", "dismissed"}}
     made = effects[0].get("reminders") if isinstance(effects[0].get("reminders"), list) else []
     created = len(made) == len(reminders) and {b.stamp(rows.get(i, {}).get("due_at")) if rows.get(i, {}).get("due_at") else None for i in made} == due
     result["recorded"] = (created and all(records) and all(r.get("outcome") == "confirmed" for r in records) and item.get("kind") == "appointment"
