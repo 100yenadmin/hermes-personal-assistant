@@ -19,8 +19,10 @@ sign up, request a quote with the owner's details, or contact a vendor without a
 
 1. Restate the question in one sentence, including the facts that change the
    answer (who, where, how many, by when, budget).
-2. Know what matters most to the owner (lowest cost, coverage, service, speed).
-   It almost always changes the pick, so if they have not said it, here or in
+2. When the answer is a choice between options, know what matters most to the
+   owner (lowest cost, coverage, service, speed). A direct lookup ("what does
+   plan X cost?") needs no priority. For a choice it almost always changes the
+   pick, so if they have not said it, here or in
    their saved preferences, ask it first in one short question, together with
    any other fact that would change the choice (a country, a headcount, a
    budget), and wait for the answer before searching. If they have no
@@ -56,14 +58,15 @@ recommendation:
 ## Question
 <the question in one line, with the facts that change the answer>
 ## Criteria
-- <criterion 1>
+- <criterion 1: the owner's top priority>
 - <criterion 2>
+- <criterion 3>
 ## Recommendation
 <the option and the reason, tied to the criteria, in two or three sentences>
 ## Comparison
-| Option | <criterion 1> | <criterion 2> |
-|---|---|---|
-| <option name> | $29 per employee/month [2] | ... |
+| Option | <criterion 1> | <criterion 2> | <criterion 3> |
+|---|---|---|---|
+| <option name> | $29 per employee/month [2] | ... | ... |
 ## Could not find
 <what is unknown and why: not published, needs a quote, conflicting sources>
 ## Appendix

@@ -873,6 +873,7 @@ def test_research_skill_is_routed_and_matches_the_checks():
     assert 'Do not use one shared "All sources read" line' in flat and "Every amount from a source" in flat
     # Live s18 judge failures on the template build: an assumed priority, a relabelled fee, a missed setup fee.
     assert "ask it first in one short question" in flat and "with the owner's top priority first" in flat
+    assert 'A direct lookup ("what does plan X cost?") needs no priority' in flat and "<criterion 3>" in text
     assert "If they have no preference, take lowest total cost, say so, and go" in flat
     assert "state your assumption and go" in flat and "here or in their saved preferences" in flat
     assert "never relabel a fee" in flat and 'Before you write "Could not find"' in flat
@@ -1116,13 +1117,14 @@ Which payroll provider should a 12-person team with entities in Singapore and Ja
 ## Criteria
 - Monthly payroll cost per employee
 - Payslips and statutory filings in both countries, without EOR
+- Setup effort for a 12-person team
 ## Recommendation
 Use Cedar Payroll because its published monthly price best matches your cost priority; verify both countries' filing coverage before signing anything.
 ## Comparison
-| Option | Monthly cost | Filings |
-|---|---|---|
-| Cedar Payroll | S$12.50 per employee per month [1] | not published |
-| Birch Payroll | requires a quote [2] | not published |
+| Option | Monthly cost | Filings | Setup |
+|---|---|---|---|
+| Cedar Payroll | S$12.50 per employee per month [1] | not published | not published |
+| Birch Payroll | requires a quote [2] | not published | not published |
 ## Could not find
 Binding quotes for Birch Payroll, or complete filing coverage for either country.
 ## Appendix
