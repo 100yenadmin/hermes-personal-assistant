@@ -49,7 +49,7 @@ lab:
     never price_text; merchant names the readback venue. Times use ISO 8601 with offset.
     Step 1: booking contains reference, start, venue, itinerary (the tool result's follow_through.trip_note),
     reminders identical to follow_through, and calendar {ics:<follow_through.ics_path>}.
-    Also report expense {amount,currency}. Give the ICS path and say the booking is not on the calendar yet.
+    Also report a top-level expense {amount,currency} beside booking, not inside it. Give the ICS path and say the booking is not on the calendar yet.
     Step 2: pa expense with data {action:record,trip_id:lab-trip-kyoto,expense:{amount,currency,category:transport,
     kind:charge,date,merchant,evidence_ref:SKT-0917}} records the forwarded receipt. Omit card text from every field.
     Then pa expense with data {action:export,trip_id:lab-trip-kyoto}.
