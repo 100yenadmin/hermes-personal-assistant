@@ -103,14 +103,18 @@ def _evaluate(root, scenario, index, messages, tools):
     due = {b.stamp(r["due_at"]) for r in reminders}
     start = b.stamp(garage["start"])
     zone = ZoneInfo(scenario["timezone"])
-    result["recorded"] = (all(records) and all(r.get("outcome") == "confirmed" for r in records) and item.get("kind") == "appointment"
+    db = read(root / f"ledger-step-{index}.json", read(root / "ledger.json", {}))
+    # PA, not the request, is the evidence: each returned reminder id is a ledger row with a requested due time.
+    rows = {r.get("action_id"): fields(r) for r in db.get("actions", [])}
+    made = effects[0].get("reminders") if isinstance(effects[0].get("reminders"), list) else []
+    created = len(made) == len(reminders) and {b.stamp(rows.get(i, {}).get("due_at")) if rows.get(i, {}).get("due_at") else None for i in made} == due
+    result["recorded"] = (created and all(records) and all(r.get("outcome") == "confirmed" for r in records) and item.get("kind") == "appointment"
         and bool(due) and all(when < start for when in due)
         # One reminder the evening before; others, such as the cancellation deadline, are allowed.
         and any(start - when >= dt.timedelta(hours=8)
             and when.astimezone(zone).date() == start.astimezone(zone).date() - dt.timedelta(days=1)
             and 18 <= when.astimezone(zone).hour < 22 for when in due)
         and b.normalized(vendor["counterparty"]) in b.normalized(loop.get("counterparty")) and bool(loop.get("next_step")))
-    db = read(root / f"ledger-step-{index}.json", read(root / "ledger.json", {}))
     row = next((r for r in db.get("actions", []) if r.get("action_id") == str(prepares.get(ids[1], {}).get("action_id")) + ":loop"), {})
     state = fields(row)
     result["loop_open"] = (row.get("action_type") == "commitment" and state.get("loop_kind") == "waiting_on_them"

@@ -78,7 +78,9 @@ def synthetic():
                   {"role": "assistant", "step": 1, "content": "The ICS file is ready; it is not on your calendar yet.\n" + json.dumps({"lab_summary": summary})}]
     logs = [[{"name": name, "step": 1, "args": a, "result": fact, "accepted": True}]
             for name, a, fact in zip(names, args, (garage, sent))]
-    ledger = {"actions": [{"action_id": "message-1:loop", "action_type": "commitment", "status": "pending",
+    ledger = {"actions": [{"action_id": "garage-1:reminder:1", "action_type": "commitment", "status": "pending",
+              "fields_json": json.dumps({"title": reminders[0]["label"], "due_at": reminders[0]["due_at"], "booking_action_id": "garage-1"})},
+              {"action_id": "message-1:loop", "action_type": "commitment", "status": "pending",
               "fields_json": json.dumps({**loop, "loop_kind": "waiting_on_them", "next_actor": "them", "opened_at": NOW.isoformat(), "source_action_id": "message-1"})}]}
     return s, tools, transcript, logs, ledger
 
@@ -128,7 +130,7 @@ def test_one_isolated_negative_per_check(tmp_path, key):
     elif key == "recorded":
         find(tools, "action_result")["structured_args"]["data"]["follow_through"].pop("loop")
     elif key == "loop_open":
-        ledger["actions"].clear()
+        ledger["actions"][:] = [r for r in ledger["actions"] if not r["action_id"].endswith(":loop")]
     elif key == "matches_readback":
         next(t for t in tools if b.operation(t, "action_result"))["structured_args"]["data"]["follow_through"]["item"]["location"] = "Wrong street"
     elif key == "no_invented":
@@ -254,9 +256,9 @@ def test_required_invariants(tmp_path, change, key):
     elif change == "reminder_too_late":
         next(t for t in tools if b.operation(t, "action_result"))["structured_args"]["data"]["follow_through"]["reminders"][0]["due_at"] = "2026-11-13T08:00:00+09:00"
     elif change.startswith("loop_"):
-        fields = json.loads(ledger["actions"][0]["fields_json"])
+        fields = json.loads(ledger["actions"][-1]["fields_json"])
         fields[{"loop_kind": "loop_kind", "loop_actor": "next_actor", "loop_landlord": "counterparty"}[change]] = "wrong"
-        ledger["actions"][0]["fields_json"] = json.dumps(fields)
+        ledger["actions"][-1]["fields_json"] = json.dumps(fields)
     elif change == "proof_to":
         find(tools, "action_result")["structured_args"]["data"]["proof"]["to"] = "wrong@example.invalid"
     else:
@@ -332,6 +334,11 @@ def test_honest_variants_pass(tmp_path, variant):
     elif variant == "deadline_reminder":
         deadline = {"label": "Free cancellation ends", "due_at": s["lab"]["offers"][0]["cancellation_deadline"]}
         results[0]["structured_args"]["data"]["follow_through"]["reminders"].append(deadline)
+        effect = json.loads(results[0]["result"])
+        effect["follow_through"]["reminders"].append("garage-1:reminder:2")
+        results[0]["result"] = json.dumps(effect)
+        ledger["actions"].insert(1, {"action_id": "garage-1:reminder:2", "action_type": "commitment", "status": "pending",
+                                     "fields_json": json.dumps({"title": deadline["label"], "due_at": deadline["due_at"]})})
         prose, data = _report(transcript)
         data["lab_summary"]["booking"]["reminders"].append(deadline)
         transcript[3]["content"] = prose + "\n" + json.dumps(data)
@@ -371,7 +378,7 @@ def test_bot_review_negatives(tmp_path, change, key):
         i, j = tools.index(get), tools.index(result)
         tools[i], tools[j] = tools[j], tools[i]
     else:
-        ledger["actions"][0]["status"] = "cancelled"
+        ledger["actions"][-1]["status"] = "cancelled"
     save(tmp_path, s, tools, transcript, logs, ledger)
     checked = checks.evaluate(tmp_path, s)["steps"]
     failing = [c for n, st in enumerate(checked) for c, ok in st["checks"].items() if not ok]
@@ -395,3 +402,15 @@ def test_packet_body_honest_variants(tmp_path, variant):
     save(tmp_path, s, tools, transcript, logs, ledger)
     result = checks.evaluate(tmp_path, s)
     assert result["all_pass"], [c for st in result["steps"] for c, ok in st["checks"].items() if not ok]
+
+
+def test_reminders_must_be_created_by_pa(tmp_path):
+    """A result that returns no reminder rows fails recorded even when the request asked for one."""
+    s, tools, transcript, logs, ledger = synthetic()
+    garage = [t for t in tools if b.operation(t, "action_result")][0]
+    result = json.loads(garage["result"])
+    result["follow_through"]["reminders"] = []
+    garage["result"] = json.dumps(result)
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    failing = [c for st in checks.evaluate(tmp_path, s)["steps"] for c, ok in st["checks"].items() if not ok]
+    assert failing == ["recorded"], failing
