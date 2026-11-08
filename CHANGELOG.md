@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.11.0 — 2026-11-09
+
+It ships `releases/0.11.0/scorecard.md`, built from 48 Capability Lab runs (16 scenarios, 3 runs each) pinned to the reviewed commit: real Hermes v0.22.2, real web pages, `gpt-6.1-sol`. 40 of 48 runs pass. Inbox triage (s24), the personal radar (s21), the broken-routine catch (s23), meeting confirmations (s26), calendar conflicts (s19), general research (s18) and the daily, quiet-day and kickoff routines pass 3 of 3 each. Follow-through chasing (s20) and the end-of-day note (s22) pass 2 of 3. In the s20 miss the run claimed the right chase steps, but the check reads only the agent's last loop read, taken after the chase steps were recorded, when no step was due any more (a check gap, #105). In the s22 miss the note listed an extra item that was not one of the tasks. The weekly routine passes 2 of 3 (one reply did not offer calendar setup outright). Calendar invites pass 1 of 3: every run had the right times and the judge passed all three, but the lab contract does not fix the format of participant local times, so two runs wrote formats the check cannot read (#105). Travel prep passes 6 of 9: the Tokyo-to-Seoul trip 3 of 3, Seoul-to-Tokyo 2 of 3 and San Francisco 1 of 3; two runs gave a restaurant the price range of a different restaurant, and one left a step without a final page or hand-off. No area reaches parity yet. No run booked, paid or submitted anything (zero tripwire hits). A first wave on the pre-release commit found that the new rule to record every owner ask as a loop also opened a second tracker for Chief of Staff recommendations, so daily and kickoff fell to 1 of 3; #104 fixed that before this wave, with radar lead times, end-of-day grounding and lab checks that wrongly failed honest runs.
+
+This release closes loops (roadmap M3, #49 and #50) and adds inbox triage and calendar writes (M4, #51 and #52). Both milestones landed together, so 0.11.0 carries both; ROADMAP.md moves M4 from 0.12.0 to this release.
+
+Follow-through (M3):
+
+- **Open loops (#49).** Commitment actions can carry a loop: who owes what (`loop_kind`: ask_owner, delegated, our_promise, waiting_on_them), the counterparty, who acts next, the next step and when to chase. `pa next_action` with `loops_only` lists them with the chase step due today.
+  - The chase ladder is day 2, 5 and 10, then an escalation from day 11, counted on the owner's calendar.
+  - A loop closes only with a confirmation (who, when, evidence) or the owner's cancellation. A Kanban task marked done without one stays listed as `done_unconfirmed`.
+  - Nudges are drafts. PA's code never sends; the agent sends only after the owner's yes. While a nudge is in flight, its loop waits: no second nudge and no wake for the loop's own deadline.
+  - A loop promoted to a transaction keeps its transaction step; a live transaction blocks closure. The owner can withdraw a loop whose step was only prepared, and a withdrawn step cannot be confirmed or submitted until it is prepared again (#92).
+- **Follow-through skill.** The new `personal-assistant:follow-through` skill runs the ladder and writes an escalation as a short decision packet: the problem, two or three options, a recommendation and a decision deadline.
+- **Personal radar.** `pa next_action` with `radar` lists renewals, important dates and deadlines when they come within their lead time (defaults 30, 14 and 7 days; the owner can set a longer lead, for example for a passport). Month-only dates such as `2027-03` are accepted.
+- **Chase wakes.** A due chase step wakes the due-source check once per step, including a loop marked done without the other side's confirmation, so the agent asks for it. A loop held by a snooze, a wait, a transaction state or an in-flight nudge does not wake; an open loop with its own deadline wakes for it.
+- **Every brief lists open loops and due items (#101).** A source that cannot be read is reported in one line, never instead of the loops.
+- **Reporting norms (#50).** `skills/personal-assistant/references/reporting.md`: at most one corrected retry after a tool_call error, exceptions reported in the same turn (unattended ones wait out quiet hours unless the owner allowed them), a four-field escalation packet, progress notes on long tasks, and a pre-send check.
+- **End-of-day note.** A second slot on the existing daily-brief job runs after `eod_time` (default 18:00) as Done / In progress / Blocked with questions. An evening brief (one set after `eod_time`) replaces it.
+- **Routine health.** `pa automations action=health` reports claims with no receipt after 60 minutes, passed slots nobody claimed and recorded precheck failures. The other routine wakes once for a new finding; health never changes jobs. An accepted job whose prompt, delivery or skills drifted from the current spec reports `job_outdated` with a remove-and-re-suggest step.
+- **Scheduled receipts** are recorded as `unknown` (handed to Hermes cron delivery), never `delivered`.
+- **Canary exporter.** `scripts/export_canary.py` scores the 10-working-day M3 canary; missing data reads unproven.
+
+Inbox and calendar (M4):
+
+- **Inbox triage (R6).** Twice a day, in the existing morning brief and evening register, PA sorts mail into urgent, needs you, handled, FYI and junk, and sends a digest of five lines or fewer that names every urgent item and every decision. Each urgent or needs-you thread is tracked as a loop until a reply goes out or a decision is recorded.
+  - Drafts follow the owner's voice and person rules. Nothing is sent, archived, deleted or relabelled without the owner's yes; junk is only reported.
+  - A failed mail read shows as a failure, never as an empty inbox.
+- **Calendar writes and invites (R4).** Writes keep the owner's buffers and focus blocks, and every time carries its time zone. The approval packet lists the attendees and says whether guests are notified; PA reads the event back before saying anyone was invited. Find-a-time proposes 2 or 3 slots labelled in every participant's local time and flags daylight-saving weeks.
+- **24-hour confirmations.** The evening register lists tomorrow's meetings (`meetings_to_confirm`); R4 prepares a one-page brief and a confirmation draft for each, sent only after a yes.
+- **Write access is the owner's choice.** Daily Ops stays read-only unless the owner opts in during setup (`inbox.drafts.accepted`, `calendar.write_scope`); broader Google scopes are always refused.
+- **Setup asks five more questions** (32 in all): inbox habits, draft and send rights, calendar write rights, life dates for the radar, and chase style.
+
+Approvals and routines in practice (found in live runs):
+
+- **Governed exact actions (#97).** The skill gives the full `action_prepare` envelope for an exact action, and a rejected envelope names the missing keys. After the owner's yes, the gateway lets that one sealed call through once and blocks nothing else; a changed request needs a new `action_revision`.
+- **Turning on a routine.** The R5 skill gives the steps: the rule with the `origin` destination and its own kind, a native suggestion, and the returned `accept_command` the owner sends.
+
+Lab (#93): seven new scenarios, s20-s26, cover loops, the radar, inbox triage, calendar writes and confirmations against local mail and calendar stand-ins, with checks grounded on evidence.
+
 ## 0.10.0 — 2026-11-08
 
 The Hermes plugin catalog release. It contains 0.10.0-rc.1 below plus the catalog review fixes (NousResearch/hermes-agent#150855, #86) and three catalog screenshots (#88). It ships `releases/0.10.0/scorecard.md`, built from 27 Capability Lab runs pinned to the reviewed commit (real Hermes v0.22.2, real web pages, `gpt-6.1-sol`). General research now passes its lab test, 3 of 3 runs (1 of 3 in rc.1). Calendar (s19) and the daily, quiet-day and kickoff routines pass their partial checks in 3 of 3 runs each. The weekly routine passed the judge in all 3 runs but missed a fixed check in each: in two, the check's wording was too narrow (the agent wrote that the calendar is "disconnected", which the check does not yet accept), and in one, the reply did not keep its outcomes separate. Travel prep passes 6 of 9 runs: the Seoul and Tokyo trips pass 3 of 3, and the San Francisco trip fails 3 of 3, where the judge found a food cart and a restaurant price the evidence did not show, and one run left the taxi without a hand-off. No area reaches parity yet. No run booked, paid or submitted anything (zero tripwire hits).
