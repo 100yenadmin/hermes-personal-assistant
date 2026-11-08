@@ -233,6 +233,19 @@ class OpenLoopTests(unittest.TestCase):
             only = self._read(ledger, {"t1": {"status": "ready", "evidence": "fixture"}}, loops_only=True)
             self.assertEqual([item["action_id"] for item in only["candidates"]], ["a-loop"])
 
+    def test_inbox_rows_are_loops_and_close_on_confirmation(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "pa:inbox:work:thread-1", {"loop_kind": "ask_owner", "counterparty": "owner",
+                       "next_actor": "owner", "opened_at": "2026-11-17T09:00:00+09:00"}, action_type="commitment")
+            ledger.put("action", "pa:inbox:personal:thread-2", {"loop_kind": "waiting_on_them", "counterparty": "Sam",
+                       "next_actor": "them", "opened_at": "2026-11-15T09:00:00+09:00",
+                       "confirmation": {"by": "Sam", "at": AT, "evidence": "reply read back"}}, action_type="commitment")
+            result = self._read(ledger, loops_only=True)
+            self.assertEqual([item["action_id"] for item in result["candidates"]], ["pa:inbox:work:thread-1"])
+            self.assertEqual(result["candidates"][0]["chase"]["step"], "day2")
+            self.assertEqual(result["excluded_closed_loops"], 1)
+
     def test_upsert_validates_loop_enums_and_bounds_chase_log(self):
         with tempfile.TemporaryDirectory() as root:
             log = [{"at": f"2026-11-{day:02d}T09:00:00+00:00", "step": "day2", "how": "reminder"} for day in range(1, 16)]

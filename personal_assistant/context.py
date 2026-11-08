@@ -309,7 +309,12 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
     limit, offset = _paging(data)
     reader = kanban_reader or read_kanban_task
     moment, zone = evaluation_moment(data), owner_zone(ledger)
+    from .radar import radar_item, scan
+    if data.get("radar") is True:
+        return scan(ledger, data, kanban_reader=reader, moment=moment, zone=zone)
     loops_only = data.get("loops_only") is True
+    today = moment.astimezone(zone).date()
+    excluded_radar_upcoming = 0
     candidates = []
     excluded_completed = 0
     excluded_terminal_unlinked = 0
@@ -337,7 +342,13 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         elif not task_id and status in {"completed", "confirmed", "failed", "cancelled"}:
             excluded_terminal_unlinked += 1
             continue
+        radar = radar_item(action, today)
+        if radar and not radar["surfaced"]:
+            excluded_radar_upcoming += 1  # A renewal or date waits on the radar until its lead time.
+            continue
         item = _action_summary(action)
+        if radar:
+            item["radar"] = {key: radar[key] for key in ("radar_kind", "date", "surface_at", "days_until")}
         item["commitment_status"] = kanban.get("status", "unknown")
         item["commitment_evidence"] = kanban.get("evidence", "native Kanban evidence unavailable")
         waiting_for = fields.get("waiting_for")
@@ -377,6 +388,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
     page = _page(candidates, limit, offset)
     return {"candidates": page.pop("items"), "excluded_completed": excluded_completed,
             "excluded_terminal_unlinked": excluded_terminal_unlinked,
-            "excluded_closed_loops": excluded_closed_loops, **page,
+            "excluded_closed_loops": excluded_closed_loops,
+            "excluded_radar_upcoming": excluded_radar_upcoming, **page,
             "owner_timezone": str(zone),
             "commitment_authority": "native Hermes Kanban; unknown when readback is unavailable"}

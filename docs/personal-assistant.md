@@ -159,6 +159,13 @@ the governed exact-action path. Escalation gives the owner the problem, two or
 three options, a recommendation and a decision deadline. PA adds no scheduler
 and no new send path.
 
+The life-admin radar is a read-only `next_action` view (`radar: true`).
+Renewals, important dates and deadlines are commitment actions with
+`radar_kind`, `document`, `expires_on` or `event_date`, `lead_days`, `recurs`
+and `source_ref`; each surfaces at its date minus `lead_days`, and yearly dates
+roll to the next year. The view also lists trip offers still `offered` after
+three days and Chief of Staff notes still `unknown` past `review_at`.
+
 ## Generic state loop
 
 The state loop keeps management state synchronized with operational events:
