@@ -1250,6 +1250,8 @@ def test_two_amounts_in_a_cell_need_one_marker_each():
                        "S$12.50 per employee per month; payments add-on S$4 per employee per month [1] | not published [2] |")
     each = cell.replace("S$12.50 per employee per month [1]", "S$12.50 per employee per month [1]; payments add-on S$4 per employee per month [1]")
     assert one in TEMPLATE.replace(cell, one) and each in TEMPLATE.replace(cell, each)
-    assert not evaluate(TEMPLATE.replace(cell, one), rows)["checks"]["cited_and_seen"]
+    failed = evaluate(TEMPLATE.replace(cell, one), rows)
+    assert not failed["checks"]["cited_and_seen"]
+    assert [(e["amount"], e["source"]) for e in failed["factual_errors"]] == [("S$12.50", "https://birch.invalid/payroll")]
     result = evaluate(TEMPLATE.replace(cell, each), rows)
     assert all(result["checks"].values()), result["reasons"]
