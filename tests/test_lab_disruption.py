@@ -236,6 +236,9 @@ def test_seed_real_pa_disruption_and_full_bookkeeping_path(tmp_path, monkeypatch
     assert actual["changed_legs"][0]["segment_id"].startswith("NH101:")
     assert actual["affected"][0]["booking_action_id"] == "seed-dinner-kitsune"
     assert len(actual["reminders"]) == 2
+    # The real step-0 snapshot shows the seeded dinner untouched; the final evaluate reads it too.
+    common.write(tmp_path / "ledger-step-0.json", runner.ledger(home))
+    assert disruption_checks.untouched_seed(tmp_path, s)
     tools[0]["result"] = json.dumps(actual)
     ledger = Ledger(home)
     gateway = Gateway(ActionAuthorizationStore(ledger, home.name), GatewayPolicy.from_dict({"protocol": "pa.gateway-policy/v1", "version": "fixture-v1", "pass_through_tools": [], "denied_tools": []}), now=lambda: NOW.isoformat())
@@ -321,19 +324,27 @@ def test_moved_claims(text, expected):
     assert disruption_checks.claims_moved(text) is expected
 
 
-@pytest.mark.parametrize("change", ["replaced", "reminder"])
+@pytest.mark.parametrize("change", ["replaced", "reminder", "status", "event_removed", "event_moved"])
 def test_step_zero_ledger_change_fails_held(tmp_path, change):
     s, tools, transcript, logs, ledger = synthetic()
-    seeded = [{"action_id": "seed-dinner-kitsune", "fields_json": json.dumps({})}]
+    seeded = [{"action_id": "seed-dinner-kitsune", "status": "confirmed", "fields_json": json.dumps({})}]
     seeded += [{"action_id": f"seed-dinner-kitsune:reminder:{n}", "status": "pending"} for n in (1, 2)]
+    event = {"booking_action_id": "seed-dinner-kitsune", "summary": "Synthetic Kitsune Dining", "start": s["lab"]["offers"][0]["start"]}
+    trips = [{"trip_id": "lab-trip-osaka", "fields_json": json.dumps({"events": [event]})}]
     save(tmp_path, s, tools, transcript, logs, ledger)
-    common.write(tmp_path / "ledger-step-0.json", {"actions": seeded})
+    common.write(tmp_path / "ledger-step-0.json", {"actions": seeded, "trips": trips})
     assert checks.evaluate(tmp_path, s)["all_pass"]
     if change == "replaced":
         seeded[0]["fields_json"] = json.dumps({"replaced_by": "dinner-1"})
-    else:
+    elif change == "reminder":
         seeded[1]["status"] = "cancelled"
-    common.write(tmp_path / "ledger-step-0.json", {"actions": seeded})
+    elif change == "status":
+        seeded[0]["status"] = "cancelled"
+    elif change == "event_removed":
+        trips[0]["fields_json"] = json.dumps({"events": []})
+    else:
+        trips[0]["fields_json"] = json.dumps({"events": [{**event, "start": s["lab"]["offers"][1]["start"]}]})
+    common.write(tmp_path / "ledger-step-0.json", {"actions": seeded, "trips": trips})
     result = checks.evaluate(tmp_path, s)
     assert [name for step in result["steps"] for name, ok in step["checks"].items() if not ok] == ["held"]
 
