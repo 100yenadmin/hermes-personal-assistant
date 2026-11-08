@@ -29,8 +29,11 @@ the recipient's zone. Save it as a provider draft only when the owner opted in
 (`inbox.drafts.accepted`) and is in this conversation; otherwise keep it in the
 brief. Show it,
 and send only after the owner's yes through `pa.action_prepare` with
-`enforcement_profile: "exact_action"` and `pa.action_confirm`; then read the
-sent message back. No yes means no send; never mark a meeting confirmed
+`enforcement_profile: "exact_action"` and `pa.action_confirm`, following the
+Send rules in `personal-assistant:r6-inbox-replies` `references/drafts-and-sends.md`:
+prefer a send command that carries the approved text and recipients itself,
+and send a saved draft by ID only after a same-turn readback matches what the
+owner approved. Then read the sent message back. No yes means no send; never mark a meeting confirmed
 because a draft exists.
 
 ## Action items within 24 hours
