@@ -83,8 +83,7 @@ systems' retention policies.
 
 Pausing or disabling a workflow stops future work; it does not erase prior local
 history, provider records, model transcripts, host logs, or delivered messages.
-Disconnecting a calendar binding stops future synchronization but does not delete
-existing provider events. Deletion and retention changes are separate operations
+Deletion and retention changes are separate operations
 with their own authority and verification requirements.
 
 ## Optional features

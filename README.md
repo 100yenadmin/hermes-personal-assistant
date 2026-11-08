@@ -144,7 +144,7 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
 - **Open-Meteo** (geocoding and forecasts): only after you accept a trip watch. It receives your departure airport or city, then coordinates. It can be set to `off`.
 - **ElevenLabs** (`api.elevenlabs.io`, read-only): only from the manual `python -m personal_assistant.phone_poll` command. That command reads the declared `ELEVENLABS_API_KEY` through Hermes's secret accessor, or from the shell when Hermes is not importable.
 - **Daily Ops (opt-in):**
-  - mail reads through the `gog` CLI, and calendar reads through the profile's Google token or `gog`. Selected mail (subjects, senders, snippets) and calendar items go to your configured model provider to write the brief, with email addresses replaced by aliases. The aliasing is pattern-based: an address in a non-ASCII form, such as `山田@example.com`, passes through. The brief goes to your delivery target;
+  - mail reads through the `gog` CLI, and calendar reads through `gog`. Selected mail (subjects, senders, snippets) and calendar items go to your configured model provider to write the brief, with email addresses replaced by aliases. The aliasing is pattern-based: an address in a non-ASCII form, such as `山田@example.com`, passes through. The brief goes to your delivery target;
   - OpenStreetMap Nominatim and OSRM through `curl`, only after you give geo consent;
   - client sync through the Stripe and Supabase CLIs, only after you give consent.
 

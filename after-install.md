@@ -41,4 +41,6 @@ To update a catalog install, run `hermes plugins update personal-assistant`;
 Hermes moves it to the catalog's current reviewed pin and keeps your local
 files. A direct Git install pinned with `--ref` moves only with
 `hermes plugins install 100yenadmin/hermes-personal-assistant --force --ref
-<40-character-approved-commit> --no-enable`.
+<40-character-approved-commit> --no-enable`; some Hermes versions drop PA's
+local configuration files on that move, so copy them out first (see
+`docs/release-process.md`).
