@@ -167,3 +167,14 @@ def test_voided_owner_receipt_without_merchant_stays_void(ledger):
     receipt.pop("merchant")
     row = dispatch(ledger.root, {"operation": "expense", "data": {"action": "record", "expense": receipt}})
     assert row["status"] == "void" and row["fields"]["void_reason"] == "duplicate"
+
+
+def test_replaced_booking_cannot_come_back_by_rerecording_its_readback(ledger):
+    booked(ledger)
+    prepare(ledger, action_id=NEW)
+    replace(ledger, {**copy.deepcopy(READBACK), "replaces": ACTION})
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="replaced"):
+        record(ledger, copy.deepcopy(READBACK))
+    assert ledger.path.read_bytes() == before
+    assert ledger.get("action", f"{ACTION}:reminder:1")["status"] == "cancelled"

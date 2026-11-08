@@ -127,6 +127,9 @@ def validate(ledger, current, value, verified_at=None):
     trip_id = row_trip or supplied or recorded
     if trip_id and not ledger.get("trip", trip_id):
         raise ValueError("action.trip_id must name an existing trip")
+    if ((current or {}).get("fields") or {}).get("replaced_by") and {"item", "reminders"}.intersection(value):
+        # A replaced booking stays off the trip; re-recording its old readback must not bring it back.
+        raise ValueError("this booking was replaced; record the replacement action instead")
     replaces = value.get("replaces")
     if "replaces" in value:
         _text(replaces, "follow_through.replaces")
