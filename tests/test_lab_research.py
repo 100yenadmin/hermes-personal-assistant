@@ -1088,3 +1088,19 @@ def test_source_excerpt_picks_the_occurrence_the_claim_is_about():
     assert "Treasury Services" in row["source_text"]
     [row] = evaluate(ANSWER.replace("S$12.50 per employee per month [1]", "benefits management: S$12.50 per employee per month [1]"), tools(page))["source_excerpts"]
     assert "Benefits management" in row["source_text"]
+
+
+def test_source_excerpt_common_pricing_words_do_not_outvote_the_product():
+    # Review of #82: "per", "employee" and "month" must not beat the product name.
+    page = "Treasury Services S$12.50 flat fee. " + "x " * 120 + "Benefits management S$12.50 per employee per month."
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].", "- Treasury Services: S$12.50 per employee per month [1].")
+    [row] = evaluate(answer, tools(page))["source_excerpts"]
+    assert "Treasury Services" in row["source_text"]
+
+
+def test_source_excerpt_uses_the_clause_around_the_amount():
+    page = "Payroll S$12.50 per employee. " + "x " * 120 + "Benefits S$12.50 per employee, Treasury Services add-on S$10."
+    answer = ANSWER.replace("- **Cedar Payroll**: S$12.50 per employee per month [1].",
+                            "- Payroll S$12.50 per employee [1]; Treasury Services add-on S$10 [1].")
+    rows = evaluate(answer, tools(page))["source_excerpts"]
+    assert rows[0]["amount"] == "S$12.50" and rows[0]["source_text"].startswith(("Payroll", "https://cedar.invalid/pricing Payroll"))

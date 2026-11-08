@@ -279,10 +279,18 @@ def source_matches(match, texts, header=None):
     return currency_ok and numeric(match[0] if header else groups["prefix"] or groups["suffix"]) in seen
 
 
+# Generic pricing words say nothing about which product a number belongs to.
+PRICE_WORDS = {"per", "the", "and", "for", "from", "with", "each", "employee", "employees", "month", "monthly", "mo",
+               "price", "prices", "pricing", "plan", "plans", "fee", "fees", "cost", "costs", "usd", "sgd", "starts",
+               "starting", "only", "all"}
+
+
 def source_excerpt(match, texts, header=None, claim=""):
-    """Source text around the cited number, so the judge can check its unit and conditions. With several
-    occurrences, the window sharing the most words with the claim line wins (live s18: a page listing a $10
-    benefits fee and a $10 treasury fee); a tie keeps the first occurrence."""
+    """Source text around the cited number, so the judge can check its unit and conditions. Candidates come from
+    every fetched text of the cited sources; the cited currency ranks first across all of them. Among equals, the
+    window sharing the most distinctive words with the claim's clause wins (live s18: one page listed a $10 benefits
+    fee and a $10 treasury fee). Words found in every candidate window ("per", "employee") do not count; a tie keeps
+    the first occurrence."""
     groups = match.groupdict()
     value = numeric(match[0] if header else groups["prefix"] or groups["suffix"])
     family = currency_family(header or groups["pcurrency"] or groups["scurrency"])
@@ -293,22 +301,27 @@ def source_excerpt(match, texts, header=None, claim=""):
         sign = (found[0][:found.start(group) - found.start()] + found[0][found.end(group) - found.start():]).strip()
         return 0 if currency_family(sign) in same else 1
 
-    wanted = {w for w in re.findall(r"[a-z]{3,}", claim.lower())}
-    best, best_key = None, None
-    order = 0
+    def words(text):
+        return set(re.findall(r"[a-z]{3,}", URL.sub(" ", text).lower())) - PRICE_WORDS
+
+    # The amount's own clause (a table cell, or a part of the line split on ";"), plus a table row's first cell,
+    # which names the option.
+    cells = claim.split("|")[1:-1] if claim.strip().startswith("|") else []
+    clause = next((part for part in re.split(r"[|;]", claim) if match[0] in part), claim) + " " + (cells[0] if cells else "")
+    candidates = []
     for text, _ in texts:
         attached = sorted(ATTACHED.finditer(text), key=rank)
         spans = [(rank(m), m.span(1 if m[1] else 2)) for m in attached] + [(2, m.span()) for m in NUMBERS.finditer(text)]
         for tier, (start, end) in spans:
             if numeric(text[start:end]) == value:
                 begin = max(0, (start + end) // 2 - 100)
-                window = " ".join(text[begin:begin + 200].split())
-                overlap = len(wanted & set(re.findall(r"[a-z]{3,}", window.lower())))
-                key = (tier, -overlap, order)  # cited currency first, then shared words, then first seen
-                if best_key is None or key < best_key:
-                    best, best_key = window, key
-                order += 1
-    return best
+                candidates.append((tier, len(candidates), " ".join(text[begin:begin + 200].split())))
+    if not candidates:
+        return None
+    sets = [words(window) for _, _, window in candidates]
+    common = set.intersection(*sets) if len(sets) > 1 else set()
+    wanted = words(clause) - common
+    return min(candidates, key=lambda c: (c[0], -len(wanted & sets[c[1]]), c[1]))[2]
 
 
 VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:\w+\s+)?orders?|reserved|cancell?ed|signed\s+(?:you\s+|us\s+|me\s+)?up|registered"
