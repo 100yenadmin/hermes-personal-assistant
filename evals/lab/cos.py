@@ -97,7 +97,12 @@ def seed(hh, scenario, dispatch, moment=None):
         "cos_weekly_day": values["weekday"], "cos_kickoff_day": values["weekday"], "cos_kickoff_time": "11:00",
         "quiet_hours": {"start": "22:00", "end": "07:00"}, **scenario.get("preferences", {})}}})
     for item in scenario.get("seed", []):
-        dispatch(hh, expand(item, values))
+        item = expand(item, values)
+        if scenario.get("lab", {}).get("kind") == "booking" and item["operation"] == "trip_import":
+            # Relative day tokens are ISO dates; ICS requires compact basic dates.
+            item["data"]["ics_text"] = re.sub(r"(?m)^(DT(?:START|END)[^:\n]*:)(\d{4})-(\d{2})-(\d{2})T",
+                                             r"\1\2\3\4T", item["data"]["ics_text"])
+        dispatch(hh, item)
     for kind in {s["job"] for s in scenario["steps"] if s.get("type") == "scheduled"}:
         dispatch(hh, {"operation": "automations", "data": {"action": "rule", "rule_id": "lab-" + kind,
             "rule": {"kind": kind, "accepted": True, "destination": DESTINATION,

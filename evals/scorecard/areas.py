@@ -99,6 +99,8 @@ PARITY = {"LAB_RUNS": LAB_RUNS, "REAL_MIN_TASKS": REAL_MIN_TASKS,
 
 # Synthetic lab rows cover only the named duties; live provider/session proof is separate.
 for key, scenario, covers, label in (
+    ("travel", "s27_booking_after_yes_en", [3], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
+    ("errands", "s27_booking_after_yes_en", [3, 4, 5], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
     ("working_norms", "s20_follow_through_chase_en", [1, 3, 4], "confirmation-only loops and draft chase ladder"),
     ("personal_admin", "s21_personal_radar_en", [0, 1], "personal radar and held proposals"),
     ("recurring_ops", "s22_eod_note_en", [0, 1], "evidence-grounded end-of-day note"),

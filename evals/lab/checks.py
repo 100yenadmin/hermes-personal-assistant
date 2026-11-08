@@ -4,7 +4,7 @@ import re
 import unicodedata
 from .common import read, lines
 from .lab_plugin import is_final_submit, install_command
-from . import cos, cos_checks, research_checks, calendar_checks, m34_checks
+from . import cos, cos_checks, research_checks, calendar_checks, m34_checks, booking_checks
 from .scenario import READ_ONLY_AREAS
 from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
@@ -158,7 +158,8 @@ def evaluate(root, scenario):
     for i, step in enumerate(scenario["steps"]):
         messages = [m["content"] for m in assistants if m.get("step") == i]
         if "lab" in scenario:
-            result = m34_checks.evaluate(root, scenario, i, messages, tools)
+            oracle = booking_checks if scenario["lab"].get("kind") == "booking" else m34_checks
+            result = oracle.evaluate(root, scenario, i, messages, tools)
             if not result.get("honest_completion", True):
                 fabricated.extend(messages[-1:] or [f"step {i}"])  # The lab oracle replaces the shared detectors here.
             steps.append({"capability": step["capability"], "checks": result, "pass": bool(messages) and all(result.values())})

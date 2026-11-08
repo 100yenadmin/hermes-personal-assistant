@@ -26,9 +26,9 @@ def offline(monkeypatch):
 
 def test_catalog_and_plan():
     catalog = load_catalog()
-    assert len(catalog) == 26
+    assert len(catalog) == 27
     jobs = runner.plan(catalog, runs=3)
-    assert len(jobs) == 78 and len({j['run_id'] for j in jobs}) == 78
+    assert len(jobs) == 81 and len({j['run_id'] for j in jobs}) == 81
     args = SimpleNamespace(scenarios=__import__('evals.lab.scenario', fromlist=['CATALOG']).CATALOG, scenario='all', runs=3, workers=2, dry_run=True)
     assert runner.wave(args) == {'workers': 2, 'jobs': jobs}
     assert jobs[0]['run_id'] == 's01_seoul_tokyo_en__r001'
@@ -640,7 +640,9 @@ def test_approval_packets_and_judge_skip_cannot_pass(tmp_path):
     assert render(tmp_path)['scenarios'][s['id']]['pass_rate'] == 0
 
 
-def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypatch):
+@pytest.mark.parametrize('booking', [False, True, 'other_lab'])
+def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypatch,booking):
+    import hashlib
     import os
     import sys
     import time
@@ -648,6 +650,10 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
     s = fixture_run(root,True)
     s['steps'] = s['steps'][:1]
     s['steps'][0]['expect']['ledger'] = False
+    if booking:
+        s = copy.deepcopy(load_catalog()['s27_booking_after_yes_en'])
+        if booking == 'other_lab':
+            s['lab']['kind'] = 'chief_of_staff'
     common.write(root/'scenario.json',s)
     common.write(root/'run.json',{'scenario':s['id'],'index':1,'start':time.time()})
     hh = root/'home/.hermes'
@@ -655,6 +661,8 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
     package.mkdir(parents=True)
     (package/'__init__.py').write_text('')
     (package/'entry.py').write_text('def dispatch(root,args): return None\n')
+    for name in ('automation', 'automation_workflow'):
+        (package/(name+'.py')).write_text('')
     (hh/'config.yaml').write_text('plugins:\n  enabled: [personal-assistant]\n')
     monkeypatch.chdir(tmp_path)
     for key in ('HOME','HERMES_HOME','PA_LAB_OUT','TRAVEL_LEDGER_DB','HERMES_SAFE_MODE','HERMES_DISABLE_LAZY_INSTALLS'):
@@ -670,16 +678,22 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
         def discover_and_load(self):
             assert plugins._plugin_manager is self
     plugins.PluginManager = Manager
+    constructions, histories = [], []
     class Agent:
         session_input_tokens, session_output_tokens, session_total_tokens = 3, 2, 5
         def __init__(self,**kw):
+            constructions.append(kw)
             self.user = not kw['enabled_toolsets']
             self.valid_tool_names = set() if self.user else {'pa'}
             assert kw['api_key'] == 'fixture-token-value' and kw['model'] == 'gpt-6.1-sol'
             assert kw['reasoning_config'] == {'effort':'low'} and kw['skip_memory']
         def run_conversation(self,message,conversation_history=None,**kw):
             assert all('step' not in m for m in conversation_history or [])
-            return {'final_response':'[[END]]' if self.user else 'Login required; demo stopped.', 'messages':[]}
+            if not self.user:
+                histories.append(conversation_history)
+            return {'final_response':'[[END]]' if self.user else 'Login required; demo stopped.',
+                    'messages':list(conversation_history or []) + [{'role':'user','content':message},
+                                                                 {'role':'assistant','content':'fixture reply'}]}
         def close(self): pass
     for name,module in {'hermes_constants':SimpleNamespace(set_hermes_home_override=lambda p:None),
         'hermes_cli':SimpleNamespace(plugins=plugins),'hermes_cli.plugins':plugins,
@@ -688,13 +702,32 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
         'run_agent':SimpleNamespace(AIAgent=Agent)}.items():
         monkeypatch.setitem(sys.modules,name,module)
     monkeypatch.setattr(runner.subprocess,'check_output',lambda *a,**kw:'a'*40)
+    if booking:
+        def dialogue(hh,root,package,s,api,turn,observer,meta,ledger):
+            first = turn('Prepare', hist=[])
+            turn('Reply', user=True, hist=[])
+            turn('Confirm', hist=first['messages'])
+            return []
+        monkeypatch.setattr(runner.cos,'dialogue',dialogue)
     try:
         result = runner.one(SimpleNamespace(out=str(root),hermes=str(tmp_path),judge='none'))
-        assert result['status'] == 'ok' and len(result['usage']) == 2
-        assert common.read(root/'checks.json')['all_pass']
+        assert result['status'] == 'ok' and len(result['usage']) == (3 if booking else 2)
+        assistants = [kw for kw in constructions if kw['enabled_toolsets']]
+        assert all('session_id' not in kw for kw in constructions if not kw['enabled_toolsets'])
+        if booking is True:
+            import re
+            ids = [kw.get('session_id') for kw in assistants]
+            assert len(ids) == 2 and ids[0] == ids[1] and isinstance(ids[0], str)
+            assert re.fullmatch(r'\d{8}_\d{6}_[0-9a-f]{6}', ids[0])
+            assert ids[0].endswith(hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:6])
+            assert histories == [None, [{'role':'user','content':'Prepare'}, {'role':'assistant','content':'fixture reply'}]]
+        else:
+            assert all('session_id' not in kw for kw in assistants)
+            if not booking:
+                assert common.read(root/'checks.json')['all_pass']
         assert all('fixture-token-value' not in p.read_text() for p in root.glob('*.json'))
     finally:
-        for name in ('lab_installed_pa','lab_installed_pa.entry'):
+        for name in ('lab_installed_pa','lab_installed_pa.entry','lab_installed_pa.automation','lab_installed_pa.automation_workflow'):
             sys.modules.pop(name,None)
 
 

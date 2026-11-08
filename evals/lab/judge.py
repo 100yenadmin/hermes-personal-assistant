@@ -342,6 +342,8 @@ def digest(root):
                          "mail_calls": lines(root / "mail-calls.jsonl"),
                          "calendar_writes": lines(root / "calendar-writes.jsonl"),
                          "tools": tools}
+        if "offers" in scenario["lab"]:
+            result["m34"]["booking_calls"] = lines(root / "booking-calls.jsonl")
     return result
 
 

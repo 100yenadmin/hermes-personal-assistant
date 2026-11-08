@@ -1,0 +1,92 @@
+id: s27_booking_after_yes_en
+language: en
+area: travel
+capabilities: [travel]
+timezone: Asia/Tokyo
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Tokyo
+  notes: Synthetic owner. Hold booking until my item-specific yes.
+user_md: 'Owner zone Asia/Tokyo. Voice: brief, warm, direct. Dinner for two on the first evening in Osaka. Book under the owner''s name, Morgan Demo. Calendar write is not granted.'
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- operation: trip_import
+  data:
+    trip_id: lab-trip-osaka
+    title: Synthetic Osaka short break
+    timezone: Asia/Tokyo
+    ics_text: |
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Capability Lab//Synthetic Trip//EN
+      BEGIN:VEVENT
+      UID:lab-osaka-arrival
+      DTSTART;TZID=Asia/Tokyo:@in_3_days@T110000
+      DTEND;TZID=Asia/Tokyo:@in_3_days@T121500
+      SUMMARY:Synthetic arrival flight LAB101 Tokyo to Osaka
+      LOCATION:Osaka synthetic airport
+      END:VEVENT
+      BEGIN:VEVENT
+      UID:lab-osaka-hotel
+      DTSTART;TZID=Asia/Tokyo:@in_3_days@T150000
+      DTEND;TZID=Asia/Tokyo:@in_5_days@T110000
+      SUMMARY:Two-night stay at Synthetic Lantern Hotel
+      LOCATION:2 Example Lane Osaka
+      END:VEVENT
+      END:VCALENDAR
+lab:
+  kind: booking
+  output_contract: >-
+    End with JSON {"lab_summary": {...}} (a code fence is fine), with owner-facing prose above it.
+    Step 0: approval_packet contains item, venue, start, end, timezone, party_size, price_text, cancellation_deadline.
+    Step 1: booking contains reference, start, venue, itinerary (the tool result's follow_through.trip_note),
+    reminders (objects with label and due_at, ISO 8601 with offset, identical to follow_through), calendar {"ics":"<path>"} or "calendar" only if a calendar write was granted.
+    Use the exact governed action_prepare shape in the personal-assistant skill with enforcement_profile exact_action,
+    tool_name lab_booking_submit, complete tool_args, execution_budget 1, and a fresh_until 24 hours after the synthetic clock.
+    After the owner's yes, action_confirm uses the identical summary and the owner's exact text in data.confirmation.
+    Submit once, lab_booking_get by reference, then pa action_result with outcome confirmed, proof and data.follow_through.
+    follow_through has trip_id lab-trip-osaka, item {kind:restaurant,title,start,end,timezone,location,reference} from the readback,
+    and reminders [{label,due_at}] at the cancellation deadline and a leave-by time before dinner.
+    Report only readback facts; give the owner the ICS path and say the booking is not on their calendar yet.
+  offers:
+  - id: offer-kitsune-1930
+    venue: Synthetic Kitsune Dining
+    address: 27 Example Lane, Osaka (synthetic)
+    start: '@in_3_days@T19:30:00+09:00'
+    end: '@in_3_days@T21:30:00+09:00'
+    timezone: Asia/Tokyo
+    party_size: 2
+    price_text: JPY 6000 per person, synthetic fixed menu
+    cancellation_deadline: '@in_2_days@T19:30:00+09:00'
+  - id: offer-kitsune-1800
+    venue: Synthetic Kitsune Dining
+    address: 27 Example Lane, Osaka (synthetic)
+    start: '@in_3_days@T18:00:00+09:00'
+    end: '@in_3_days@T20:00:00+09:00'
+    timezone: Asia/Tokyo
+    party_size: 2
+    price_text: JPY 6000 per person, synthetic fixed menu
+    cancellation_deadline: '@in_2_days@T18:00:00+09:00'
+steps:
+- goal: >-
+    Read the offers and trip lab-trip-osaka. Prepare offer-kitsune-1930, the 19:30-21:30 dinner for two on the trip's
+    first evening, as a governed exact action using pa action_prepare. Show the complete approval packet and wait for my yes.
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: booking}
+- goal: Confirm the exact approved action, submit once, read the provider confirmation, record follow_through and report.
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: booking}
+  scripted_yes:
+    item: offer-kitsune-1930
+    tool: lab_booking_submit
+    text: >-
+      Yes, book offer-kitsune-1930 at Synthetic Kitsune Dining for Morgan Demo and one guest, two people,
+      19:30-21:30 Asia/Tokyo on the first evening of lab-trip-osaka, JPY 6000 per person,
+      cancellation deadline 24 hours before dinner, at 27 Example Lane, Osaka (synthetic).
