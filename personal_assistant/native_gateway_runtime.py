@@ -67,42 +67,13 @@ class NativeActionAuthorizationStore(ActionAuthorizationStore):
                 self._scope_keys.add((session_id, task_id, tool_name))
         return super().prepare(envelope, session_id=session_id, task_id=task_id, at=at)
 
-    def confirm_governed(
-        self,
-        pa_action_id: str,
-        summary_digest: str,
-        confirmation: str,
-        *,
-        at: str | None = None,
-        session_id: str | None = None,
-        task_id: str | None = None,
-    ) -> dict[str, Any]:
-        # Publish the confirming scope before the confirm commits, as prepare does,
-        # so a provider call in that scope racing the commit reaches the database
-        # lookup instead of missing the index. A hint left by a refused confirm
-        # only costs that lookup; the database remains authoritative.
-        if all(isinstance(value, str) and value for value in (session_id, task_id)):
-            with self.ledger.connect() as conn:
-                rows = conn.execute(
-                    """select distinct tool_name from pa_action_authorizations
-                       where profile_id=? and pa_action_id=? and status<>'superseded'""",
-                    (self.profile_id, pa_action_id),
-                ).fetchall()
+    def _before_confirm_commit(self, session_id: str, task_id: str, tool_name: str) -> None:
+        # Index the scope the confirm transaction commits, before the commit, as prepare
+        # does, so no provider call can see the authorization while its scope is
+        # unindexed. A hint left by a rolled-back confirm only costs a database lookup.
+        if all(isinstance(value, str) and value for value in (session_id, task_id, tool_name)):
             with self._scope_lock:
-                self._scope_keys.update(
-                    (session_id, task_id, row["tool_name"])
-                    for row in rows
-                    if isinstance(row["tool_name"], str) and row["tool_name"]
-                )
-        authorization = super().confirm_governed(
-            pa_action_id, summary_digest, confirmation,
-            at=at, session_id=session_id, task_id=task_id,
-        )
-        with self._scope_lock:
-            self._scope_keys.add((
-                authorization["session_id"], authorization["task_id"], authorization["tool_name"],
-            ))
-        return authorization
+                self._scope_keys.add((session_id, task_id, tool_name))
 
     def has_indexed_scope(self, tool_name: str, session_id: object, task_id: object) -> bool:
         if any(not isinstance(value, str) or not value for value in (tool_name, session_id, task_id)):

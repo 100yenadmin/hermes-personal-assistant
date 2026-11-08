@@ -185,8 +185,8 @@ def test_refused_confirmation_preserves_all_state_and_index(ledger, reason):
                               at=CONFIRMED_AT, **B)
     assert snapshot(ledger) == before
     assert store.has_indexed_scope(TOOL, **A)
-    # The confirming scope is published before the commit, so a refused confirm can
-    # leave it as a hint; the hint defers to the database and changes nothing.
+    # Every refusal raises before the confirm publishes its scope.
+    assert not store.has_indexed_scope(TOOL, **B)
     gateway = NativeGateway(store, policy())
     gateway.now = lambda: CONFIRMED_AT
     assert gateway.evaluate({"tool_name": TOOL, "tool_input": ARGS, **B}) is None
@@ -212,3 +212,57 @@ def test_provider_call_racing_the_confirm_commit_is_claimed(ledger, monkeypatch)
     store.confirm_governed(ACTION, stable_id(data["summary"]), "yes", at=CONFIRMED_AT, **B)
     assert seen == [None, "claimed_once"]
     assert gateway.evaluate({"tool_name": TOOL, "tool_input": ARGS, **B})["reason_code"] == "DENY_ALREADY_CLAIMED"
+
+
+class _BeforeBegin:
+    """Connection proxy that runs a callback once, just before a transaction begins."""
+
+    def __init__(self, conn, state):
+        self._conn, self._state = conn, state
+
+    def execute(self, sql, *args):
+        if sql.strip().lower() == "begin immediate" and self._state:
+            self._state.pop()()
+        return self._conn.execute(sql, *args)
+
+    def __enter__(self):
+        self._conn.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        return self._conn.__exit__(*exc)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+def test_confirm_indexes_the_tool_of_the_row_it_commits(ledger, monkeypatch):
+    """A replacement revision with another tool lands just before the confirm transaction."""
+    store = NativeActionAuthorizationStore(ledger, ledger.root.name)
+    gateway = NativeGateway(store, policy())
+    gateway.now = lambda: CONFIRMED_AT
+    data = prepare(ledger, store)
+    replacement = TOOL + "_replacement"
+    real_connect = ledger.connect
+
+    def replace_tool():
+        with real_connect() as conn:
+            conn.execute("update pa_action_authorizations set tool_name=? where pa_action_id=?",
+                         (replacement, ACTION))
+
+    state = [replace_tool]
+    monkeypatch.setattr(ledger, "connect", lambda: _BeforeBegin(real_connect(), state))
+    seen = []
+    readback = store.get
+
+    def hook_then_readback(action_id):
+        if not seen:
+            seen.append(gateway.evaluate({"tool_name": replacement, "tool_input": ARGS, **B}))
+            seen.append(ledger.get("action", ACTION)["status"])
+        return readback(action_id)
+
+    monkeypatch.setattr(store, "get", hook_then_readback)
+    store.confirm_governed(ACTION, stable_id(data["summary"]), "yes", at=CONFIRMED_AT, **B)
+    assert not state
+    assert seen == [None, "claimed_once"]
+    assert store.has_indexed_scope(replacement, **B)
