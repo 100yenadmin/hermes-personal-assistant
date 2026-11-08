@@ -62,7 +62,8 @@ same action, keeping earlier entries:
 
 A held draft the owner has not approved is still a chase step done: record
 `how: "nudge draft held"`. When the other side confirms, write
-`confirmation` `{by, at, evidence}`; only that closes the loop.
+`confirmation` `{by, at, evidence}`; that, or the owner cancelling the loop,
+closes it.
 
 ## Escalate
 
