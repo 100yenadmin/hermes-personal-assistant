@@ -23,12 +23,12 @@ def clock(monkeypatch):
     monkeypatch.setattr(state, "now", lambda: STAMP)
 
 
-def prepare_vendor(ledger):
+def prepare_vendor(ledger, action_id=ACTION):
     summary = {"provider": "fixture-provider", "final_action": "send repair request"}
     scope = {"session_id": "fixture-session", "task_id": "fixture-task"}
     args = {"recipient": "landlord@example.invalid", "message": "Please repair the heater"}
     dispatch(ledger.root, {"operation": "action_prepare", "data": {
-        "action_id": ACTION, "summary": summary, "enforcement_profile": "exact_action",
+        "action_id": action_id, "summary": summary, "enforcement_profile": "exact_action",
         "action_revision": "r1", "workflow_id": "vendor-request", "workflow_revision": "v1",
         "tool_name": "fixture_send", "tool_args": args,
         "semantic_target": {"paths": [["recipient"]], "value": [args["recipient"]]},
@@ -37,13 +37,13 @@ def prepare_vendor(ledger):
         "expected_readback": "sent/v1",
     }}, runtime_scope=scope)
     dispatch(ledger.root, {"operation": "action_confirm", "data": {
-        "action_id": ACTION, "summary": summary, "confirmation": "Send this exact repair request",
+        "action_id": action_id, "summary": summary, "confirmation": "Send this exact repair request",
     }}, runtime_scope=scope)
     policy = GatewayPolicy.from_dict({"protocol": "pa.gateway-policy/v1", "version": "fixture-v1",
                                       "pass_through_tools": [], "denied_tools": []})
     gateway = Gateway(ActionAuthorizationStore(ledger, ledger.root.name), policy, now=lambda: STAMP)
     assert gateway.evaluate({"tool_name": "fixture_send", "tool_input": args, **scope}) is None
-    assert ledger.get("action", ACTION)["status"] == "claimed_once"
+    assert ledger.get("action", action_id)["status"] == "claimed_once"
 
 
 def next_loop(ledger, at):
@@ -191,3 +191,17 @@ def test_tool_schema_accepts_loop_only_and_keeps_loop_closed_to_extra_fields():
     assert not list(validator.iter_errors(request))
     request["data"]["follow_through"]["loop"] = {**LOOP, "extra": True}
     assert list(validator.iter_errors(request))
+
+
+
+def test_nudge_send_records_a_chase_not_a_second_loop(ledger):
+    """A nudge on an existing loop must not open its own ladder for the same counterparty."""
+    nudge = f"{LOOP_ID}:nudge:day2"
+    prepare_vendor(ledger, nudge)
+    before = ledger.get("action", nudge)
+    with pytest.raises(ValueError, match="records a chase on that loop"):
+        dispatch(ledger.root, {"operation": "action_result", "data": {
+            "action_id": nudge, "outcome": "confirmed", "proof": "Synthetic provider readback",
+            "follow_through": {"loop": dict(LOOP)}}})
+    assert ledger.get("action", nudge) == before
+    assert ledger.get("action", f"{nudge}:loop") is None

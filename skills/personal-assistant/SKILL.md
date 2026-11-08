@@ -176,7 +176,7 @@ provider dispatch; do not manually claim a governed action. If approval is
 withdrawn before dispatch, use `action_cancel`. Read provider state and then call
 `action_result` with confirmed/failed/unknown and safe provider evidence.
 With a confirmed readback, pass `follow_through` with its own item values and reminders such as leave-by, check-in or the cancellation deadline. Never add a value the readback does not show.
-Do the returned `next_step`. Report exactly what is on the itinerary, which reminders are set, and whether the booking is on the calendar or only in the ICS file. After a verified vendor request or any sent message awaiting a reply, pass `follow_through.loop` with the counterparty and our next step, without a separate `action_upsert` loop, and report that the reply is now chased.
+Do the returned `next_step`. Report exactly what is on the itinerary, which reminders are set, and whether the booking is on the calendar or only in the ICS file. After a verified vendor request or any sent message awaiting a reply, pass `follow_through.loop` with the counterparty and our next step, without a separate `action_upsert` loop, and report that the reply is now chased. A nudge or any other step on an existing loop never gets its own `follow_through.loop`: record it as a chase on that loop.
 
 A changed price, recipient, item, itinerary, terms, tool argument, semantic
 target, action revision, or workflow revision requires a newly prepared and

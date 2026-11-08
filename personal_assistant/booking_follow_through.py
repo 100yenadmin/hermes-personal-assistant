@@ -86,6 +86,10 @@ def validate(ledger, current, value):
         raise ValueError("reminders require item.start")
     loop = value.get("loop")
     if "loop" in value:
+        row_id = str((current or {}).get("action_id") or "")
+        if ":nudge:" in row_id or ((current or {}).get("fields") or {}).get("loop_kind"):
+            # A second ladder for the same counterparty would chase them twice.
+            raise ValueError("a nudge or a step on an existing loop records a chase on that loop, not a new loop")
         schema = FOLLOW_THROUGH_SCHEMA["properties"]["loop"]
         _object(loop, schema["properties"], schema["required"], "loop")
         for key in loop:
