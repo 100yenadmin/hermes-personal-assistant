@@ -90,10 +90,11 @@ recommendation:
   headcount, no fees added together, no saving or effective rate. A starting
   price times a headcount is not a quote, and no page shows that number. When
   cost decides the pick, say in words which option costs less at the owner's
-  headcount and which fee decides it ("at 12 people, Birch's flat $29 per
-  employee [2] beats Cedar's $20 per employee [1] once Cedar's $250 monthly
-  platform fee [1] is added"), and put the all-in total under "Could not
-  find" as something to get in a written quote.
+  headcount and which fee decides it ("at the published prices and 10 people,
+  Birch's $29 per employee [2], with no platform fee, costs less than Cedar's
+  $20 per employee [1] once Cedar's $250 monthly platform fee [1] is
+  counted"), and put the all-in total under "Could not find" as something to
+  get in a written quote.
 - **Could not find**: never leave it out; write "nothing material" only when
   that is true.
 - **Appendix**: one `[n]` line per source, each carrying its own read date on

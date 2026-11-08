@@ -1227,11 +1227,12 @@ def test_worded_cost_comparison_from_the_skill_passes():
     cedar, birch = "https://cedar.invalid/pricing", "https://birch.invalid/pricing"
     answer = TEMPLATE.replace(
         "Use Cedar Payroll because its published monthly price best matches your cost priority; verify both countries' filing coverage before signing anything.",
-        "Use Birch Payroll: at 12 people, Birch's flat S$29 per employee [2] beats Cedar's S$20 per employee [1] once Cedar's S$250 monthly platform fee [1] is added.",
+        "Use Birch Payroll: at the published prices and 10 people, Birch's S$29 per employee [2], with no platform fee, costs less than Cedar's S$20 per employee [1] once Cedar's S$250 monthly platform fee [1] is counted.",
     ).replace("| Cedar Payroll | S$12.50 per employee per month [1] |", "| Cedar Payroll | S$20 per employee per month [1] plus a S$250 monthly platform fee [1] |"
     ).replace("| Birch Payroll | requires a quote [2] |", "| Birch Payroll | S$29 per employee per month [2] |"
     ).replace("[2] Birch payroll, https://birch.invalid/payroll", "[2] Birch pricing, " + birch)
     rows = tools("Payroll S$20 per employee per month. Platform fee S$250 per month.", cedar) + tools("Payroll S$29 per employee per month.", birch)
+    assert "costs less than Cedar's" in answer and "S$250 monthly platform fee [1] |" in answer and "S$29 per employee per month [2] |" in answer
     result = evaluate(answer, rows)
     assert all(result["checks"].values()), result["reasons"]
-    assert "Cedar's $250 monthly platform fee [1] is added" in " ".join((Path(__file__).resolve().parents[1] / "skills/research/SKILL.md").read_text().split())
+    assert "Cedar's $250 monthly platform fee [1] is counted" in " ".join((Path(__file__).resolve().parents[1] / "skills/research/SKILL.md").read_text().split())
