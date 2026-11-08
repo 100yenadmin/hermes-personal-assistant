@@ -30,10 +30,12 @@ across two sittings. The M1 exit test on the pilot agent is next.
 (27 live lab runs on its reviewed commit). General research now passes its lab
 test 3 of 3. Calendar and the daily, quiet-day and kickoff routines pass their
 partial checks 3 of 3; the weekly routine passes the judge 3 of 3 but misses a
-fixed check whose wording is too narrow. Travel prep passes 6 of 9 (the San
-Francisco trip fails on unsupported cart and price claims). Next: travel to 3 of
-3, the weekly check's wording, and the owner's real tasks and day-30 baseline on
-the pilot agent.
+fixed check in each run: in two, the check's wording is too narrow ("disconnected"
+is honest but not accepted); in one, the reply did not keep its outcomes
+separate. Travel prep passes 6 of 9 (the San Francisco trip fails on unsupported
+cart and price claims, and one run left the taxi without a hand-off). Next:
+travel to 3 of 3, the weekly check's wording and separate outcomes, and the
+owner's real tasks and day-30 baseline on the pilot agent.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
