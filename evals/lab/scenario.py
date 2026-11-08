@@ -122,11 +122,11 @@ def validate(s):
     require(isinstance(s.get("seed", []), list), "seed")
     for i, item in enumerate(s.get("seed", [])):
         if isinstance(item, dict) and item.get("operation") == "trip_import":
-            require(lab and s["lab"].get("kind") in {"booking", "disruption"}, f"seed[{i}].operation")
+            require(lab and s["lab"].get("kind") in {"booking", "disruption", "expense"}, f"seed[{i}].operation")
     if cos or lab:
         require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
-            if lab and s["lab"].get("kind") in {"booking", "disruption"} and isinstance(item, dict) and item.get("operation") == "trip_import":
+            if lab and s["lab"].get("kind") in {"booking", "disruption", "expense"} and isinstance(item, dict) and item.get("operation") == "trip_import":
                 data = item.get("data", {})
                 require(isinstance(data, dict) and bool(data.get("trip_id"))
                         and isinstance(data.get("ics_text"), str) and bool(data["ics_text"].strip()), f"seed[{i}].data")
@@ -145,7 +145,22 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense"}, "lab.kind")
+        if s["lab"]["kind"] == "expense":
+            from .lab_plugin import BOOKING_FIELDS
+            from personal_assistant.expenses import validate as expense_valid
+            offers = s["lab"].get("offers")
+            require(isinstance(offers, list) and len(offers) == 1 and isinstance(offers[0], dict)
+                    and all(k in offers[0] for k in BOOKING_FIELDS), "lab.offers")
+            charged = offers[0].get("charged")
+            require(isinstance(charged, dict) and set(charged) == {"amount", "currency", "text"}
+                    and isinstance(charged["text"], str) and bool(charged["text"].strip()), "lab.offers.charged")
+            try:
+                expense_valid({"amount": charged["amount"], "currency": charged["currency"], "category": "food"})
+            except ValueError as exc:
+                raise ValueError(f"lab.offers.charged: {exc}") from None
+            require(len(s["steps"]) == 3 and s["steps"][1].get("scripted_yes", {}).get("items") == [offers[0]["id"]],
+                    "steps.scripted_yes.items")
         if s["lab"]["kind"] == "disruption":
             from .lab_plugin import BOOKING_FIELDS
             offers, options = s["lab"].get("offers", []), s["lab"].get("flight_options", [])
