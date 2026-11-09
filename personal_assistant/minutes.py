@@ -20,7 +20,7 @@ LIMIT = 2 * 1024 * 1024
 TEXT = {"type": "string", "minLength": 1, "maxLength": 500}
 QUOTE = {"type": "string", "minLength": 8, "maxLength": 500}
 DATE = {"type": "string", "format": "date"}
-OP_SCHEMA = {"type": "object", "additionalProperties": False,
+SAVE_SCHEMA = {"type": "object", "additionalProperties": False,
              "required": ["action", "path", "name", "title", "meeting_date", "owner_name", "attendees", "overview",
                           "decisions", "action_items"],
              "properties": {
@@ -42,6 +42,14 @@ OP_SCHEMA = {"type": "object", "additionalProperties": False,
                  "open_questions": {"type": "array", "maxItems": 50, "items": {
                      "type": "object", "additionalProperties": False, "required": ["question"],
                      "properties": {"question": TEXT, "quote": QUOTE}}}}}
+READ_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["action", "path"],
+               "properties": {"action": {"const": "read"}, "path": {"type": "string", "minLength": 1},
+                              "offset": {"type": "integer", "minimum": 0}}}
+# read returns the transcript's numbered lines so the agent can draft from them; save writes the minutes.
+OP_SCHEMA = {"type": "object", "required": ["action"],
+             "if": {"properties": {"action": {"const": "read"}}, "required": ["action"]},
+             "then": READ_SCHEMA, "else": SAVE_SCHEMA}
+PAGE = 40_000  # Characters of transcript text per read call; next_offset pages the rest.
 PLACEHOLDER = {"tbd", "tba", "unknown", "unassigned", "someone", "anyone", "n/a", "na", "none", "?", "-", "owner tbd",
                "i", "me", "we", "us", "you", "they", "them", "team", "the team", "all", "everyone", "everybody"}
 STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "has", "had", "was", "are", "its",
@@ -136,7 +144,7 @@ def _read(root, relative_text):
 
 
 def _validate(data, transcript):
-    error = best_match(Draft7Validator(OP_SCHEMA, format_checker=FormatChecker()).iter_errors(data))
+    error = best_match(Draft7Validator(SAVE_SCHEMA, format_checker=FormatChecker()).iter_errors(data))
     if error:
         where = "/".join(map(str, error.absolute_path)) or "data"
         hint = (" (each action item needs text, owner, due_date YYYY-MM-DD, due_wording and a transcript quote of 8+ characters)"
@@ -256,8 +264,28 @@ def _put(conn, identity, fields, status, remove=()):
                   (old or {}).get("created_at", stamp), stamp))
 
 
+def _page(root, data):
+    """Numbered transcript lines from offset, at most PAGE characters; writes nothing."""
+    error = best_match(Draft7Validator(READ_SCHEMA).iter_errors(data))
+    if error:
+        raise ValueError(f"invalid minutes read at {'/'.join(map(str, error.absolute_path)) or 'data'}: {error.message[:200]}")
+    lines = _read(root, data["path"]).splitlines()
+    start = data.get("offset", 0)
+    out, size = [], 0
+    for n, text in enumerate(lines[start:], start + 1):
+        if out and size + len(text) > PAGE:
+            break
+        out.append({"n": n, "text": text})
+        size += len(text)
+    end = start + len(out)
+    return {"path": data["path"], "total_lines": len(lines), "offset": start, "lines": out,
+            "next_offset": end if end < len(lines) else None, "sent": False}
+
+
 def dispatch(ledger, data):
     try:
+        if isinstance(data, dict) and data.get("action") == "read":
+            return _page(ledger.root, data)
         transcript = _read(ledger.root, data.get("path", "")) if isinstance(data.get("path"), str) else ""
         _validate(data, transcript)
         try:

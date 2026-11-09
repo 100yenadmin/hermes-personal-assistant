@@ -438,3 +438,59 @@ def test_restored_item_chases_afresh(home):
     save(home)
     restored = loops(home)[ids[0]]["fields"]
     assert "last_chased_at" not in restored and "snoozed_until" not in restored and restored["chase_log"] == []
+
+
+def read(home, **data):
+    return entry.dispatch(home, {"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", **data}})
+
+
+def test_read_returns_numbered_lines_and_writes_nothing(home):
+    ledger_file = Ledger(home).path
+    before = ledger_file.read_bytes()
+    result = read(home)
+    assert result["total_lines"] == 7 and result["offset"] == 0 and result["next_offset"] is None and result["sent"] is False
+    assert result["lines"][2] == {"n": 3, "text": "Jordan: Great, I'll send Birch the revised logo files by Friday."}
+    assert not (home / "exports").exists()
+    assert ledger_file.read_bytes() == before
+    # What read returns is exactly what save quotes against.
+    assert "error" not in save(home)
+
+
+def test_read_pages_a_long_transcript(home, monkeypatch):
+    from personal_assistant import minutes
+    monkeypatch.setattr(minutes, "PAGE", 120)
+    seen, offset = [], 0
+    while offset is not None:
+        page = read(home, offset=offset)
+        assert page["lines"] and page["lines"][0]["n"] == offset + 1
+        seen += [line["text"] for line in page["lines"]]
+        offset = page["next_offset"]
+    assert seen == TRANSCRIPT.splitlines()
+    assert read(home, offset=99)["lines"] == [] and read(home, offset=99)["next_offset"] is None
+
+
+@pytest.mark.parametrize("data", [
+    {"path": "/etc/hosts"}, {"path": "imports/../secret.txt"}, {"path": "notes/sync.txt"},
+    {"path": "imports/meetings/missing.txt"}, {"offset": -1}, {"offset": "2"}, {"name": "x"}])
+def test_read_refusals(home, data):
+    assert "error" in read(home, **data)
+
+
+def test_read_refuses_a_symlink_and_a_large_file(home, tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text("Avery: secret\n")
+    (home / "imports/meetings/link.txt").symlink_to(outside)
+    assert "symlink" in read(home, path="imports/meetings/link.txt")["error"]
+    (home / "imports/meetings/big.txt").write_bytes(b"a" * (2 * 1024 * 1024 + 1))
+    assert "2 MB" in read(home, path="imports/meetings/big.txt")["error"]
+
+
+def test_public_schema_accepts_read_and_save_shapes():
+    schema = entry.SCHEMA["parameters"]
+    ok = Draft7Validator(schema).is_valid
+    assert ok({"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt"}})
+    assert ok({"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", "offset": 40}})
+    assert ok({"operation": "minutes", "data": copy.deepcopy(MINUTES)})
+    assert not ok({"operation": "minutes", "data": {"action": "read"}})
+    assert not ok({"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", "name": "x"}})
+    assert not ok({"operation": "minutes", "data": {"action": "save", "path": "imports/meetings/sync.txt"}})
