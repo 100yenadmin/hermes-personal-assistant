@@ -40,6 +40,16 @@ Family admin (#157, #178):
 - **Household vendors.** PA drafts the request with the address, access and preferred windows, shows the owner the full draft, and holds the send. Access codes go only to that vendor.
 - **Year at a glance.** Twelve months of birthdays, renewals and appointments. When a birthday is near, PA adds a three-idea gift shortlist that respects recorded sizes, likes and allergies.
 
+Follow-through (#49, #185):
+
+- **A task marked done but never confirmed** now always gets one short confirmation request to the other side, held for the owner's yes, whatever kind of loop it is. Only the other side's reply or receipt confirms it; Kanban done does not. In 0.15.0-rc.1 one s20 run said the item "remains open pending confirmation" and drafted nothing.
+
+README (#183, #184):
+
+- **A new opening.** It starts with the banner, one sentence on what PA does, the tested install line for the stable release and three "Try it" steps; the architecture text moves under "How it works".
+- **The calendar's one standing exception** is stated once, in the same words as the catalog card. Every calendar write needs the owner's yes for that item, except minimal private trip events during trip work.
+- **New sections:** Troubleshooting, and a bug and security reporting route. Installation details explain `--enable`, `--yes-deps` (Hermes 0.22 or newer) and the full-commit `--ref`.
+
 Lab:
 
 - **New scenarios:**

@@ -7,7 +7,7 @@
   "status": "release-selection",
   "published": false,
   "source_commit": "resolved at build from the exact release PR main merge commit",
-  "reviewed_implementation_commit": "622160e89fd6143599aa5a66256a1b9f88ddedb9",
+  "reviewed_implementation_commit": "d694d1d814900287e0fc37efebe190cc47880421",
   "source_identity_location": "external manifest source_sha and packaged .travel-agent-skills-release.json source_commit",
   "artifact": {
     "name": "travel-agent-skills-0.16.0-rc.1.tgz",
