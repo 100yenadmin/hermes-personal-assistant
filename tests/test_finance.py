@@ -339,9 +339,18 @@ def test_past_as_of_counts_invoices_outstanding_then(ledger):
     balance(ledger, as_of="2026-11-01", amount="1000")
     invoice(ledger, "paid-later", status="paid", direction="payable", amount="100",
             due_date="2026-11-02", paid_on="2026-11-05")
-    invoice(ledger, "issued-later", direction="payable", amount="7", issue_date="2026-11-03", due_date="2026-11-04")
+    invoice(ledger, "paid-before", status="paid", direction="payable", amount="5",
+            issue_date="2026-11-02", due_date="2026-11-03", paid_on="2026-11-04")
     past = call(ledger, "cash_position", as_of="2026-11-01")["currencies"]["USD"]
-    assert past["payables"]["due_7d"]["total"] == "100"
+    assert past["payables"]["due_7d"]["total"] == "100"  # paid-before was not issued yet on 11-01
     assert past["projected_7d"]["amount"] == "900"
     later = call(ledger, "cash_position", as_of="2026-11-06")["currencies"]["USD"]
-    assert later["payables"]["overdue"]["total"] == "7" and later["payables"]["due_7d"]["total"] == "0"
+    assert later["payables"]["overdue"]["total"] == "0" and later["payables"]["due_7d"]["total"] == "0"
+
+
+def test_open_bill_issued_after_as_of_still_counts(ledger):
+    balance(ledger, amount="1000")
+    invoice(ledger, "early-dated", direction="payable", amount="300", issue_date="2026-11-12", due_date="2026-11-15")
+    view = call(ledger, "cash_position")["currencies"]["USD"]
+    assert view["payables"]["due_7d"]["total"] == "300"
+    assert view["projected_7d"]["amount"] == "700"

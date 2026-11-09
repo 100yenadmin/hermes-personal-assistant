@@ -99,9 +99,10 @@ def _cash_position(rows, expenses, as_of):
             # One account label can hold several currencies; each keeps its own latest balance.
             latest[(_normalize(row["fields"]["account_label"]), row["fields"]["currency"])] = row
     balances = list(latest.values())
-    # Outstanding at as_of: issued by then and not paid by then. Void rows carry no date and stay out.
-    invoices = [r for r in rows if r["action_type"] == "invoice" and r["fields"]["issue_date"] <= as_of
-                and (r["status"] == "open" or r["status"] == "paid" and r["fields"]["paid_on"] > as_of)]
+    # Every open invoice counts (an early-dated bill is still owed). A paid one counts when it was
+    # issued by as_of and paid after it. Void rows carry no date and stay out.
+    invoices = [r for r in rows if r["action_type"] == "invoice" and (r["status"] == "open" or (
+        r["status"] == "paid" and r["fields"]["issue_date"] <= as_of < r["fields"]["paid_on"]))]
     recent = [r for r in expenses if start <= r["fields"]["date"] <= as_of]
     currencies = sorted({r["fields"]["currency"] for r in balances + invoices + recent})
     result = {"as_of": as_of, "currencies": {}, "gaps": []}
