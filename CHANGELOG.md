@@ -7,7 +7,7 @@ This release continues M6 (VA parity) with three more duties from the 9 November
 - **Weekly customer report.** PA gives a read-only report of customer and vendor mail: volume, response time, recurring complaints and the open items.
 - **Family admin.** PA handles appointments, household vendors and a year at a glance.
 
-It still never books, pays or sends without the owner's yes.
+PA's skills still stop every booking, payment and send for the owner's yes.
 
 It ships `releases/0.16.0-rc.1/scorecard.md`, built from {{RUNS}} Capability Lab runs ({{SCEN}} scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. {{RESULTS}} (81 of 84 in 0.15.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits).
 
