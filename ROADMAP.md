@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.14.0-rc.1, 10 November 2026)
+## Where we are (0.15.0-rc.1, 10 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -63,6 +63,12 @@ Replies under policy passed 2 of 3 in the wave, before a policy-wording fix.
 
 In the 0.14.0-rc.1 wave (78 runs on real Hermes, 73 passing), minutes (s34), invoices (s33), contacts (s32), onboarding (s35) and the read-but-unanswered inbox (s36) each passed 3 of 3.
 
+0.15.0-rc.1 adds:
+- an approval day: every decision the owner owes arrives finished (options, one recommendation, a decide-by date and the draft), and a yes in a later chat carries out the prepared action once (#160);
+- social and content admin: a dated content calendar per channel and the first posts drafted in the owner's voice, every post held for the yes (#157).
+
+In the 0.15.0-rc.1 wave (84 runs on real Hermes, {{TOTAL}} passing), the approval day (s37) and the content calendar (s38) each passed 3 of 3.
+
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
 - the safe-action gateway and the durable ledger;
@@ -73,7 +79,7 @@ In the 0.14.0-rc.1 wave (78 runs on real Hermes, 73 passing), minutes (s34), inv
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
 - attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1), but no live role run has happened yet (#151);
 - a yes that leads to finished work: no live send, invite or booking completed yet (#152);
-- office work in the owner's own systems, statement reconciliation, the tax pack, content admin and personal life admin (#146, #156, #157);
+- office work in the owner's own systems, statement reconciliation, the tax pack, personal life admin and the weekly customer report (#146, #156, #157);
 - real phone calls (#4).
 
 **Missing against the Chief of Staff bar:** everything that involves the team.
@@ -98,7 +104,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3); meeting minutes with owners and dates (lab s34 3 of 3); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
 | Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); no tax pack yet | M6 |
 | Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1, lab s31 2 of 3; vendor-chase fix #137 after the wave) | M6 |
-| Social and content admin | missing | M6 |
+| Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1, lab s38 3 of 3); no comment replies, mention monitoring or weekly report yet | M6 |
 
 ## Gap review (9 November 2026): what changes in the order
 
@@ -115,10 +121,10 @@ A code inventory, an adversarial cross-model plan review and the live lab result
 - card statements (#146), then a read-only accounting feed and the tax pack;
 - documents in the owner's Drive and CRM (#156);
 - the blind voice test, run during inbox onboarding instead of at the end of M6;
-- personal and family admin, social and content admin, and the weekly customer report (#157).
+- personal and family admin and the weekly customer report (#157); social and content admin started in 0.15.0-rc.1.
 
 **How it is measured.**
-- An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption.
+- An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption. Built in 0.15.0-rc.1 (lab s37: a yes in a new chat confirms the prepared booking once).
 - A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161).
 
 **Trimmed.**
@@ -388,7 +394,7 @@ In the release wave, replies under policy (s31) passed 2 of 3; the miss came fro
 
 Since then, meeting minutes with an owner and a date on every action item have been built (M6-d, #145; lab scenario s34 in review), and card statement import is in progress (M6-e, #146).
 
-Still missing: the week-one VA core (#151–#155), agendas and spreadsheets in the owner's systems (#156), the tax pack, content and personal admin (#157), the voice test and the parity evidence.
+Still missing: the week-one VA core (#151–#155), agendas and spreadsheets in the owner's systems (#156), the tax pack, personal admin and the weekly customer report (#157), the voice test and the parity evidence.
 
 **Order inside M6.** The week-one VA core comes first; see "Gap review" above.
 
