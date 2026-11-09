@@ -55,7 +55,7 @@ deviation. Homes are removed after runs unless `--keep-home`; never publish home
 
 Costs: assistant and simulated-user tokens appear separately in `run.json` and
 `cost.json`. Dollar cost is unknown rather than guessed; judge CLI usage is billed
-separately. The default wave makes 38 jobs (114 with three runs), including explicit skips; each live
+separately. The default wave makes 39 jobs (117 with three runs), including explicit skips; each live
 job has its scenario's dialogue budget (`budget_seconds`: 900, or 1,500–1,800 for
 multi-errand scenarios) plus 120 seconds of subprocess grace. Reports
 are local exploratory results until the operator creates the required result
@@ -63,5 +63,9 @@ card and publishes approved evidence. Source/unit proof establishes no live task
 booking, publication, runtime or customer success.
 
 - `s37_approval_day_en`: finished owner decisions and a dinner approval that survives a new session; a repeated yes reports the existing booking without another action.
+`s38_content_calendar_en` uses mail voice samples and collaborator dates to plan
+two weeks of LinkedIn/Instagram slots and three held drafts with `content-admin`.
+Its synthetic oracle checks voice-read order, dates, cadence, event coverage,
+sign-off and channel limits, exact ledger drafts, and no sends or posting claims.
 
 - `s41_family_admin_en` (`family`, booking oracle route): family facts, a held dentist appointment and household vendor request, and twelve months of radar dates with gift ideas; no booking, send or purchase.

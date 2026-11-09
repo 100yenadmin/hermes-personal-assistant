@@ -237,7 +237,8 @@ The built-in recipe router covers eight bounded areas:
 Additional qualified skills provide travel execution, Browserbase continuity,
 payment-readiness guidance, reservations, rides, food delivery, check-in,
 weather, and itinerary support. These are optional domain modules over the same
-PA control plane.
+PA control plane. `personal-assistant:content-admin` plans dated social content
+and newsletter drafts in the owner's voice, held for approval; nothing posts automatically.
 
 ## Installation
 

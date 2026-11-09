@@ -169,7 +169,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "family", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "onboarding"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "content", "onboarding", "family"}, "lab.kind")
         if s["lab"]["kind"] == "onboarding":
             threads = s["lab"].get("threads", [])
             require(isinstance(threads, list) and len(threads) >= 2 and all(isinstance(t, dict) and t.get("thread_id") and t.get("bucket") for t in threads), "lab.threads")
