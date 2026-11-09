@@ -4,7 +4,7 @@
 
 This release continues M6 (VA parity) and builds most of the week-one core from the 9 November gap review. PA writes meeting minutes with an owner and a date on every action item, imports card statements, stops counting a held draft as a chase, can run on its own schedule through a HeartBeat 2.0 role, catches inbox threads the owner read but never answered, and onboards a new owner with four questions and then a finished first task. It still never pays, disputes, books or sends without the owner's yes.
 
-It ships `releases/0.14.0-rc.1/scorecard.md`, built from 78 Capability Lab runs (26 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 73 of 78 runs pass (57 of 63 in 0.13.0-rc.1). No run booked, paid or submitted anything (zero tripwire hits).
+It ships `releases/0.14.0-rc.1/scorecard.md`, built from 78 Capability Lab runs (26 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 73 of 78 runs pass (57 of 63 in 0.13.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits); the booking in s27 goes to a stand-in provider.
 
 - **22 of 26 scenarios pass 3 of 3.** That includes meeting minutes (s34), onboarding (s35) and the read-but-unanswered inbox (s36) in their first release wave, along with invoices (s33), contacts (s32) and replies under policy (s31).
 - **Seoul to Tokyo (s01) passes 2 of 3 and San Francisco to Tokyo (s03) 1 of 3.** All deterministic checks pass. The judge failed three claims about real pages:
@@ -26,8 +26,8 @@ Meeting minutes (M6-d, #145, #163):
 
 Card statements (M6-e, #165):
 
-- **`pa expense import`** first previews a card statement CSV from `imports/statements/` without writing anything. It then records every line in one transaction, with the agent's category for each, and writes a private reconciliation report.
-- **Identity.** A re-export with inserted or reordered lines keeps each charge's identity and any void.
+- **`pa expense import`** first previews a card statement CSV from `imports/statements/` without writing anything. It then records every line it can read in one transaction, with the agent's category for each, and writes a private reconciliation report. Lines it cannot read are listed as skipped, with the reason, for the owner to review.
+- **Identity.** A re-export with inserted or reordered lines keeps each charge's identity and any void, as long as it is imported from the same path. A renamed or moved file counts as a new statement: its charges get new records, and a voided charge can come back.
 - **Possible duplicates** are listed, never merged: same merchant, amount and currency, at most 3 days apart, with no later refund. A refund request is drafted and held for each one.
 - A card number anywhere in the file refuses the whole import.
 

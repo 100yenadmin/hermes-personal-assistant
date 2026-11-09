@@ -33,7 +33,6 @@
         {
           "covers": [
             1,
-            2,
             5
           ],
           "kind": "partial",
@@ -69,6 +68,7 @@
       "title": "Inbox",
       "uncovered_duties": [
         "Triage at least twice a day: urgent / needs-you / handled / FYI / junk",
+        "Track every open thread to a reply or decision",
         "Meet the agreed SLA"
       ]
     },
@@ -914,9 +914,7 @@
       },
       "tests": [
         {
-          "covers": [
-            1
-          ],
+          "covers": [],
           "kind": "partial",
           "label": "essentials intake, one review and apply, then the triaged inbox as the first win; no terminal steps",
           "passed": 3,
@@ -933,6 +931,7 @@
       "title": "Onboarding",
       "uncovered_duties": [
         "Interview in short bursts across business, principal, communication, rights, preferences, calendar, history and access",
+        "Write a living profile, read back for correction and never re-ask recorded answers",
         "Capture, correct and own recurring-task SOPs",
         "Arrange named least-privilege delegated access before day one",
         "Stage shadowing, process ownership, judgement and independence across the first 30 days",

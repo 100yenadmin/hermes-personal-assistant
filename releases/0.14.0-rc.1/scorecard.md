@@ -34,6 +34,7 @@ Count: 0
 ### Inbox
 
 - Triage at least twice a day: urgent / needs-you / handled / FYI / junk
+- Track every open thread to a reply or decision
 - Meet the agreed SLA
 
 ### Calendar
@@ -111,6 +112,7 @@ Count: 0
 ### Onboarding
 
 - Interview in short bursts across business, principal, communication, rights, preferences, calendar, history and access
+- Write a living profile, read back for correction and never re-ask recorded answers
 - Capture, correct and own recurring-task SOPs
 - Arrange named least-privilege delegated access before day one
 - Stage shadowing, process ownership, judgement and independence across the first 30 days
