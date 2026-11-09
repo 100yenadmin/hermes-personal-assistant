@@ -747,8 +747,7 @@
           "covers": [
             0,
             1,
-            2,
-            6
+            2
           ],
           "kind": "partial",
           "label": "two-week content calendar and three drafts in the owner's voice, each slot a dated item held for the yes; nothing posted",
@@ -767,7 +766,8 @@
       "uncovered_duties": [
         "Answer routine comments and DMs",
         "Monitor mentions",
-        "Report weekly"
+        "Report weekly",
+        "Publish only inside the principal's chosen approval flow"
       ]
     },
     {

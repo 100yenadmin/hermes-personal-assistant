@@ -98,6 +98,7 @@ Count: 0
 - Answer routine comments and DMs
 - Monitor mentions
 - Report weekly
+- Publish only inside the principal's chosen approval flow
 
 ### Recurring ops
 
