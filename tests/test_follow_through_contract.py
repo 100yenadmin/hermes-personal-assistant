@@ -133,9 +133,14 @@ def test_follow_through_role_wakes_and_owner_approved_dates_outside_roles():
         assert "chase date or approval timeout" in normalized
         assert "at most 3 per turn" in normalized
         assert "none already armed for the same loop and step" in normalized
+        assert "HB2 header `role`" in normalized
         assert "within HB2's limits" in normalized
         assert "Report a refusal; never work around it" in normalized
         assert "On any HB2 wake turn, HB2 delivers the final reply; never also use a message tool" in normalized
+    assert "never for your own chase dates or from a follow-up turn" in " ".join(outside.split())
+    assert "`pulse` `list`" in reference and "PA follow-through wake: <action id> <step>" in reference
+    child = reference.split("Inside a PA follow-through role turn", 1)[1].split("Outside a role turn:", 1)[0]
+    assert "owner_asked\":" not in child.replace("(no `owner_asked`)", "")
 
 
 def test_nudges_are_prepared_as_their_own_action():

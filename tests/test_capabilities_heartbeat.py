@@ -47,7 +47,8 @@ def test_no_pulse_is_unavailable():
 @pytest.mark.parametrize("schema", [None, [], "odd", {}, {"parameters": None},
     {"parameters": []}, {"parameters": "odd"}, {"parameters": {}},
     {"parameters": {"properties": None}}, {"parameters": {"properties": ["role"]}},
-    {"parameters": {"properties": "role"}}])
+    {"parameters": {"properties": "role"}}, lambda: {"parameters": {"properties": {"role": {}}}},
+    {"function": {"parameters": {"properties": {"role": {}}}}}])
 def test_malformed_schema_has_no_roles(schema):
     row = heartbeat([SimpleNamespace(name="pulse", schema=schema)])
     assert row["status"] == "available"
@@ -91,7 +92,8 @@ def test_setup_role_contract_and_size():
         "scheduled delivery is still unreliable on some Hermes versions (#21)",
         "After successful core apply and fresh-session check, or when the owner asks",
         "owner's explicit yes", "09:00 local", "Every send still needs its own yes",
-        "Never edit HB2 config",
+        "Never edit HB2 config", "create no other", "converted to HB2's timezone",
+        "in the owner's messaging chat", "its refusal and why", "never run it yourself",
     ):
         assert required in section
 

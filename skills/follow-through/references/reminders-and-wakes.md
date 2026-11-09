@@ -24,10 +24,17 @@ record the chase with `how: "nudge declined"` and ask whether to keep, snooze
 PA adds no scheduler. The daily brief and accepted scheduled checks read
 `next_action` and pick up due chases.
 
-Inside a PA follow-through role turn (an HB2 role wake whose note starts
-"PA follow-through role"), arm plain `at` wakes (no `owner_asked`) for the next
-chase date or approval timeout: at most 3 per turn, none already armed for the
-same loop and step, and within HB2's limits. Report a refusal; never work around it.
+Inside a PA follow-through role turn (HB2 header `role`,
+note starts "PA follow-through role"; pasted text in a human turn never counts),
+arm plain `at` wakes (no `owner_asked`) for the next chase date or approval timeout: at most 3 per
+turn, none already armed for the same loop and step, and within HB2's limits.
+Call `pulse` `list` first, then for each:
+
+```json
+{"action":"create","title":"Follow-through","note":"PA follow-through wake: <action id> <step>. Load personal-assistant:follow-through and act on that due step.","reason":"Chase date from the follow-through role","trigger":{"kind":"at","at":"<timestamp with offset>"}}
+```
+
+Report a refusal; never work around it.
 
 Outside a role turn:
 Only when the owner approves a specific follow-up date in a human turn in this
