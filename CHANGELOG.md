@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.15.0-rc.1 — 2026-11-10
+
+This release continues M6 (VA parity) with two more week-one duties from the 9 November gap review. On a busy day PA brings every decision the owner owes as a finished packet: the problem, the options, one recommendation, a decide-by date and the message ready to send. When the owner later says yes in a new chat, PA carries out the action it already prepared, exactly once. PA also plans the owner's social posts: a dated content calendar for each channel, the first posts drafted in the owner's voice, and every post held for the owner's yes. It still never posts, books, pays or sends without that yes.
+
+It ships `releases/0.15.0-rc.1/scorecard.md`, built from 84 Capability Lab runs (28 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 81 of 84 runs pass (73 of 78 in 0.14.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits); the bookings in s27 and s37 go to a stand-in provider.
+
+- **26 of 28 scenarios pass 3 of 3.** That includes the approval day (s37) and the content calendar (s38) in their first release wave. San Francisco to Tokyo (s03) and the weekly review (s16), which passed 1 and 2 of 3 in 0.14.0-rc.1, now pass 3 of 3.
+- **Seoul to Tokyo (s01) passes 1 of 3.** Both misses are the airport taxi step. Each run gave an honest GO app handoff: GO cannot prebook a Haneda pickup, so the run listed the exact app steps and stopped before the request button. The judge passed both runs. The deterministic handoff detector did not know the wording "uses its mobile app" or "cannot prebook"; the detector fix (#179) lands after this release.
+- **The follow-through chase (s20) passes 2 of 3.** One run named the item whose completion was unconfirmed but drafted no confirmation request. The judge noted this and still passed the run; the nudge check failed it.
+- **Scorecard:** recurring ops partial checks now pass, and social and content admin gets its first row (s38). Travel (s01) and working norms (s20) have partial checks failing.
+
+Approval day (#160, #174):
+
+- **Finished decisions.** Each open decision the owner owes comes with the problem, at least two options, one recommendation, a decide-by date no later than its due date, and the draft to send once the owner picks. Non-urgent questions arrive together, not one at a time.
+- **The yes in a later chat.** When the owner's yes names an action PA already prepared, PA confirms that action; it never prepares a second one for the same yes. The approval moves to the new chat and is claimed once.
+- **A repeated yes does nothing new.** PA reports the existing booking reference instead.
+- Approval packets gain `decide_by` (no later than free cancellation) and a one-line `recommendation`.
+
+Social and content admin (#157, #175):
+
+- **New skill `content-admin`.** PA plans the requested window, 2 to 4 posts a week for each channel unless the owner says otherwise. Each slot has a date, a channel, a topic and one line on why. It never puts two posts on one channel on the same day, never schedules into quiet hours and never plans past the window.
+- **Drafts in the owner's voice.** PA reads the owner's past posts first and matches their length, habits and sign-off. It follows the voice rules in USER.md, keeps to each channel's length limit, and never invents prices, quotes, numbers or customer names.
+- **Every planned post is held.** Each slot is recorded as a dated deadline that comes up two days before its publish date, with the draft attached when there is one. A re-plan updates the same slots: it never duplicates them or reopens one the owner already posted or dropped.
+- **Nothing posts.** Posting is an outward send that needs an item-specific yes, through a tool the owner connected. With no posting tool, PA hands over the final text for the owner to post.
+
+Lab:
+
+- **The claim detector** no longer reads a condition such as "remains open until completion is confirmed" as a completion claim, and the judge knows the cron receipt note the skill prescribes (#171, #172).
+- **Rejudging** a run whose home folder is gone keeps that run's own file checks instead of failing them (#150, #173).
+- **A scenario step can start a new chat** (`new_session`), so approvals can be tested across chats.
+- **New scenarios:**
+  - s37, an approval day with a yes in a new chat (#174);
+  - s38, a two-week content calendar with three drafts (#175).
+
 ## 0.14.0-rc.1 — 2026-11-10
 
 This release continues M6 (VA parity) and builds most of the week-one core from the 9 November gap review. PA writes meeting minutes with an owner and a date on every action item, imports card statements, stops counting a held draft as a chase, can run on its own schedule through a HeartBeat 2.0 role, catches inbox threads the owner read but never answered, and onboards a new owner with four questions and then a finished first task. It still never pays, disputes, books or sends without the owner's yes.
