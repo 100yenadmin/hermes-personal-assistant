@@ -337,7 +337,7 @@ def register_calendar(ctx, calendar):
 
 
 # Scoring fields in the scenario's thread fixtures; m34_checks reads them from scenario.json, the agent never sees them.
-ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at"}
+ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden"}
 
 
 def register_standins(ctx, obs):
