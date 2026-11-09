@@ -98,11 +98,11 @@ def test_resave_is_idempotent_updates_in_place_and_cancels_dropped_items(home):
     assert again["loop_ids"] == ids and len(loops(home)) == 2
     assert loops(home)[ids[0]]["fields"]["chase_log"]
     items = copy.deepcopy(MINUTES["action_items"])
-    items[0]["due_date"] = "2026-11-16"
+    items[0]["due_date"] = "2026-11-20"  # Still a Friday, as "by Friday" says.
     moved = save(home, action_items=items[:1])
     rows = loops(home)
     kept = next(i for i in moved["loop_ids"])
-    assert rows[kept]["fields"]["due_at"].startswith("2026-11-16") and rows[kept]["status"] == "open"
+    assert rows[kept]["fields"]["due_at"].startswith("2026-11-20") and rows[kept]["status"] == "open"
     dropped = (set(ids) - set(moved["loop_ids"])).pop()
     assert rows[dropped]["status"] == "cancelled" and rows[dropped]["fields"]["loop_cancelled"]["reason"] == "removed from the saved minutes"
     revived = save(home)
@@ -198,8 +198,8 @@ def test_hard_linked_output_refused(home, tmp_path):
 
 def test_owner_name_matching_and_speakers(home):
     items = copy.deepcopy(MINUTES["action_items"])
-    items[1]["owner"] = "Avery Chen"  # The owner's full name still marks the owner's own item.
-    result = save(home, owner_name="Avery", action_items=items)
+    # The profile's full name still marks the owner's own item said as "Avery".
+    result = save(home, owner_name="Avery Chen", action_items=items)
     assert "error" not in result, result
     owner_item = next(r for r in loops(home).values() if r["fields"]["title"].startswith("Review the Cedar"))
     assert owner_item["fields"]["loop_kind"] == "our_promise" and owner_item["fields"]["next_actor"] == "owner"
@@ -285,3 +285,41 @@ def test_attendee_never_named_in_transcript_cannot_own_an_item(home):
     items = copy.deepcopy(MINUTES["action_items"])
     items[0]["owner"] = "Riley"
     assert "not a speaker" in save(home, attendees=["Avery", "Jordan", "Sam", "Riley"], action_items=items)["error"]
+
+
+@pytest.mark.parametrize("change,ok", [
+    ({"due_date": "2026-11-12"}, False),  # "by Friday" on a Thursday.
+    ({"due_date": "2026-11-13"}, True),
+    ({"owner": "Jordan Fictional"}, False),  # An extension of a speaker's name is not that person.
+])
+def test_date_wording_and_owner_extension(home, change, ok):
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[0].update(change)
+    assert ("error" not in save(home, action_items=items)) is ok
+
+
+def test_day_number_tomorrow_short_items_and_plain_timestamps(home):
+    transcript = TRANSCRIPT + "00:04:10 Riley: Fix bug tomorrow, I promise.\nAvery: And the report by the 12th please, Riley.\n"
+    (home / "imports/meetings/sync.txt").write_text(transcript, encoding="utf-8")
+    items = copy.deepcopy(MINUTES["action_items"]) + [
+        {"text": "Fix bug", "owner": "Riley", "due_date": "2026-11-10", "quote": "Fix bug tomorrow, I promise.", "due_wording": "tomorrow"},
+        {"text": "Send the report", "owner": "Riley", "due_date": "2026-11-12", "quote": "And the report by the 12th please", "due_wording": "by the 12th"}]
+    assert "error" not in save(home, action_items=items)  # Riley is a speaker after a plain timestamp.
+    items[2]["due_date"] = "2026-11-11"
+    assert "does not match its wording" in save(home, action_items=items)["error"]
+    items[2]["due_date"], items[3]["due_date"] = "2026-11-10", "2026-11-13"
+    assert "does not match its wording" in save(home, action_items=items)["error"]
+
+
+def test_failed_staging_write_leaves_no_temporary(home, monkeypatch):
+    from personal_assistant import minutes
+    real = minutes.os.fdopen
+    def broken(fd, *args, **kwargs):
+        handle = real(fd, *args, **kwargs)
+        handle.write = lambda text: (_ for _ in ()).throw(OSError("disk full"))
+        return handle
+    monkeypatch.setattr(minutes.os, "fdopen", broken)
+    assert "disk full" in save(home)["error"]
+    monkeypatch.setattr(minutes.os, "fdopen", real)
+    assert not list((home / "exports/minutes").glob(".*.tmp"))
+    assert "error" not in save(home)  # A retry in the same process works.

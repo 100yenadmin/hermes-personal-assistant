@@ -4,6 +4,7 @@ import json
 import os
 import re
 import unicodedata
+import uuid
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -43,9 +44,12 @@ OP_SCHEMA = {"type": "object", "additionalProperties": False,
                      "properties": {"question": TEXT, "quote": QUOTE}}}}}
 PLACEHOLDER = {"tbd", "tba", "unknown", "unassigned", "someone", "anyone", "n/a", "na", "none", "?", "-", "owner tbd",
                "i", "me", "we", "us", "you", "they", "them", "team", "the team", "all", "everyone", "everybody"}
-STOP = {"with", "that", "this", "will", "from", "have", "about", "them", "they", "their", "there", "then", "than",
+STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "has", "had", "was", "are", "its",
+        "his", "her", "him", "she", "who", "how", "let", "get", "got", "one", "too", "yes", "now", "off", "out",
+        "with", "that", "this", "will", "from", "have", "about", "them", "they", "their", "there", "then", "than",
         "next", "week", "what", "when", "should", "would", "could", "into", "your", "just", "also", "make", "sure"}
-SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
+SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*|\(?\d{1,2}:\d{2}(?::\d{2})?\)?\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
 def _norm(text):
@@ -61,7 +65,25 @@ def _same(a, b):
 
 
 def _words(text):
-    return {w for w in re.findall(r"[^\W\d_]{4,}", _norm(text))} - STOP
+    return {w for w in re.findall(r"[^\W\d_]{3,}", _norm(text))} - STOP
+
+
+def _within(owner, person):
+    """The owner is the person's name or its leading words ("Jordan" for "Jordan Lee"), never an extension of it."""
+    owner, person = owner.split(), person.split()
+    return bool(owner) and person[:len(owner)] == owner
+
+
+def _date_fits(wording, due, meeting):
+    """Cheap consistency for the common spoken forms; other wording is not checked."""
+    words = set(re.findall(r"[a-z]+", _norm(wording)))
+    named = [i for i, day in enumerate(WEEKDAYS) if day in words]
+    if named and due.weekday() not in named:
+        return False
+    if "today" in words and due != meeting or "tomorrow" in words and due != meeting + dt.timedelta(days=1):
+        return False
+    day = re.fullmatch(r"(?:by |on |before )?(?:the )?(\d{1,2})(?:st|nd|rd|th)?", _norm(wording))
+    return not day or int(day.group(1)) == due.day
 
 
 def _named(name, transcript, speakers):
@@ -126,15 +148,17 @@ def _validate(data, transcript):
             raise ValueError(f"action item has no named owner (use owner_name for the owner's own items, "
                              f"or move it to open_questions): {item['text'][:80]}")
         # An owner is a speaker, or an attendee the transcript names; a word in the text is not a person.
-        if not (any(_same(owner, s) for s in speakers)
-                or any(_same(owner, a) for a in people) and _named(owner, source, speakers)):
+        if not (any(_within(owner, s) for s in speakers)
+                or any(_within(owner, a) for a in people) and _named(owner, source, speakers)):
             raise ValueError(f"action item owner is not a speaker or an attendee named in the transcript: {item['owner']}")
         if dt.date.fromisoformat(item["due_date"]) < meeting:
             raise ValueError(f"action item due date is before the meeting: {item['text'][:80]}")
         quoted(item["quote"], "action item")
-        if not _words(item["text"]) & _words(item["quote"]):
+        if _words(item["text"]) and not _words(item["text"]) & _words(item["quote"]):
             raise ValueError(f"action item quote does not mention this action: {item['text'][:80]}")
-        quoted(item["due_wording"], "due wording", minimum=3)
+        quoted(item["due_wording"], "due wording", minimum=1)
+        if not _date_fits(item["due_wording"], dt.date.fromisoformat(item["due_date"]), meeting):
+            raise ValueError(f"action item due_date does not match its wording \"{item['due_wording']}\": {item['text'][:80]}")
     texts = [_norm(i["text"]) for i in data["action_items"]]
     if len(set(texts)) != len(texts):
         raise ValueError("duplicate action item text")
@@ -161,10 +185,14 @@ def _stage(root, path, text):
     legacy._validate_existing_path(root, path)
     if path.exists() and path.stat().st_nlink > 1:
         raise ValueError("minutes output must not be hard-linked")
-    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
     fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-        handle.write(text)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+    except BaseException:
+        temp.unlink(missing_ok=True)
+        raise
     return temp
 
 
@@ -207,7 +235,7 @@ def dispatch(ledger, data):
             due = dt.datetime.combine(day, dt.time(17), zone).isoformat()
             # The chase ladder counts from opened_at: someone else's item is chased from two days after its
             # due date; the owner's own item reaches its day-2 reminder on the due date.
-            opened = max(meeting, day - dt.timedelta(days=2)) if mine else day
+            opened = day - dt.timedelta(days=2) if mine else day
             loops[prefix + stable_id("minutes", data["name"], _norm(item["text"]))] = {
                 "title": item["text"], "loop_kind": "our_promise" if mine else "waiting_on_them",
                 "counterparty": "Owner" if mine else item["owner"], "next_actor": "owner" if mine else "them",

@@ -66,6 +66,9 @@ without claiming a clean export exists.
    A refusal names the item to fix; fix it or move it to open questions, then save again.
    Saving again with the same name replaces the minutes and keeps one loop per
    item; keep each item's text unchanged so its loop and chase history carry over.
+   When the owner later answers an open question with an owner and a date, record
+   that item as its own follow-through loop with `pa action_upsert`; the minutes
+   keep only what the meeting said.
 5. Report the action items as owner, action and date, the open questions, and both
    file paths. Each action item is now a follow-through loop: someone else's item
    is chased from two days after its due date; the owner is reminded of their own
