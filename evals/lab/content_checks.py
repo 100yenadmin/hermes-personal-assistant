@@ -35,21 +35,24 @@ def evaluate(root, scenario, index, messages, tools):
         try:
             day = dt.date.fromisoformat(row["date"])
             key = (row["channel"], row["date"])
-            valid &= (0 <= (day - start).days < lab["window_days"] and key[0] in lab["channels"]
+            valid &= (0 <= (day - start).days <= lab["window_days"] and key[0] in lab["channels"]
                       and key not in slots and bool(row.get("topic")) and bool(row.get("why")))
             slots[key] = row
         except (KeyError, TypeError, ValueError):
             valid = False
-    valid &= all(2 <= sum(c == channel and week * 7 <= (dt.date.fromisoformat(day) - start).days < (week + 1) * 7
-                          for c, day in slots) <= 4 for channel in lab["channels"] for week in range(lab["window_days"] // 7))
-    valid &= all(any(event["topic"].casefold() in str(r.get("topic", "")).casefold() and day <= event["by"]
+    weeks = max(1, lab["window_days"] // 7)  # The window counts today; its last day joins the final week.
+    week_of = lambda day: min((dt.date.fromisoformat(day) - start).days // 7, weeks - 1)
+    valid &= all(2 <= sum(c == channel and week_of(day) == week for c, day in slots) <= 4
+                 for channel in lab["channels"] for week in range(weeks))
+    valid &= all(any(any(k.casefold() in (str(r.get("topic", "")) + " " + str(r.get("why", ""))).casefold()
+                         for k in event.get("keywords", [event["topic"]])) and day <= event["by"]
                      for (_, day), r in slots.items()) for event in lab["must_cover"])
     drafted = {}
     voice = len(drafts) == lab["drafts"]
     for row in drafts:
         row = row if isinstance(row, dict) else {}
         key, body = (row.get("channel"), row.get("date")), row.get("text", "")
-        voice &= (key in slots and key not in drafted and isinstance(body, str) and body.rstrip().endswith("— Rowan")
+        voice &= (key in slots and key not in drafted and isinstance(body, str) and bool(re.search(r"[\u2013\u2014-]\s*" + re.escape(lab.get("sign_off", "Rowan")) + r"\s*$", body.rstrip()))
                   and len(body) <= LIMITS.get(key[0], 0) and not any(re.search(p, body) for p in lab["banned"]))
         drafted[key] = body
     upserts = calls(local, "action_upsert")
@@ -66,7 +69,9 @@ def evaluate(root, scenario, index, messages, tools):
         f = fields(found[0]) if len(found) == 1 else {}
         return (len(found) == 1 and found[0].get("status") == "open" and found[0].get("action_type") == "commitment"
                 and f.get("channel") == channel and f.get("publish_on") == day and f.get("next_actor") == "owner"
-                and str(f.get("due_at", ""))[:10] == day and f.get("topic") == slot.get("topic") and f.get("why") == slot.get("why")
+                and str(f.get("due_at", ""))[:10] == day and f.get("topic") == slot.get("topic")
+                and f.get("radar_kind") == "deadline" and f.get("event_date") == day
+                and type(f.get("lead_days")) is int and 0 < f["lead_days"] <= 7 and f.get("why") == slot.get("why")
                 and (key not in drafted or " ".join(str(f.get("draft", "")).split()) == " ".join(str(drafted[key]).split())))
     first = next((i for i, t in enumerate(local) if t in upserts and "draft" in fields(payload(t["structured_args"].get("data")))), None)
     mail = [c for c in lines(root / "mail-calls.jsonl") if c.get("step") == index and c.get("accepted")]
@@ -79,7 +84,7 @@ def evaluate(root, scenario, index, messages, tools):
                  or t.get("name") == "pa" and t.get("structured_args", {}).get("operation") == "profile"
                  and payload(t.get("structured_args", {}).get("data")).get("action", "lookup") not in {"lookup", "list", "get", "pending_files"}
                  or t.get("name") == "pa" and t.get("structured_args", {}).get("operation") not in {
-                     "action_upsert", "profile", "context", "next_action", "status", "capabilities", "recipes"} for t in local)
+                     "action_upsert", "profile", "context", "next_action", "status", "capabilities", "recipes", "evidence"} for t in local)
     # own_words excludes held draft bodies; map content's text key into that existing convention.
     prose = own_words(re.sub(r'"text"\s*:', '"body":', text))
     prose = re.sub(r"\b(?:the |your )?(?:posts?|drafts?|it)\s+(?:(?:has|have) been|was|were|is|are)\s+(?:posted|published)\b", "I sent", prose, flags=re.I)

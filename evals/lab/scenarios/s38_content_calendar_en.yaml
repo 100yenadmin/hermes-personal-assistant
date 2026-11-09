@@ -21,9 +21,10 @@ lab:
   window_days: 14
   drafts: 3
   must_cover:
-  - {topic: product launch, by: '@in_4_days@'}
-  - {topic: workshop, by: '@in_9_days@'}
-  banned: ['!', '\$\d+']
+  - {topic: product launch, keywords: [launch], by: '@in_4_days@'}
+  - {topic: workshop, keywords: [workshop], by: '@in_9_days@'}
+  sign_off: Rowan
+  banned: ['!', '\$\d+', '[£€]\d+']
   output_contract: >-
     End with JSON {"lab_summary": {"calendar": [{"date", "channel", "topic", "why"}],
     "drafts": [{"date", "channel", "text"}], "held": <count>}}, with owner-facing prose above it.

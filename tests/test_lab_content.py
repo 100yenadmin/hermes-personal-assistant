@@ -51,7 +51,8 @@ def synthetic(root, change=None):
     hh.mkdir(parents=True, exist_ok=True)
     for slot in summary["calendar"]:
         f = {"title": f"Post: {slot['topic']} ({slot['channel']})", "channel": slot["channel"], "publish_on": slot["date"],
-             "topic": slot["topic"], "why": slot["why"], "next_actor": "owner", "due_at": slot["date"] + "T10:00:00+00:00"}
+             "topic": slot["topic"], "why": slot["why"], "next_actor": "owner", "due_at": slot["date"] + "T10:00:00+00:00",
+             "radar_kind": "deadline", "event_date": slot["date"], "lead_days": 2, "recurs": "none", "document": slot["channel"] + " post"}
         draft = next((d for d in summary["drafts"] if (d["channel"], d["date"]) == (slot["channel"], slot["date"])), None)
         if draft:
             f["draft"] = draft["text"]
@@ -100,7 +101,7 @@ def test_isolated_failure(tmp_path, case, key):
         if case == "duplicate":
             summary["calendar"][-2] = copy.deepcopy(summary["calendar"][-4])
         elif case == "outside":
-            summary["calendar"][-1]["date"] = "2026-11-24"
+            summary["calendar"][-1]["date"] = "2026-11-25"
         elif case == "launch_late":
             for row in summary["calendar"]:
                 row["topic"] = "studio process" if row["topic"] == "product launch" else row["topic"]
@@ -170,3 +171,17 @@ def test_mail_standins_and_hidden_oracle(tmp_path):
     prompt = runner.system_prompt(data[0])
     assert "lab_mail_*" in prompt
     assert not any(k in prompt for k in ("must_cover", "banned", "window_days"))
+
+
+def test_review_fixes_keywords_last_day_dash_signoff_radar_and_evidence(tmp_path):
+    """#175 review: keyword cover, an inclusive last day, any dash before the sign-off, radar fields, private evidence."""
+    def change(summary):
+        for row in summary["calendar"]:
+            row["topic"] = "Launch day: Studio Kit" if row["topic"] == "product launch" else row["topic"]
+        summary["drafts"][0]["text"] = summary["drafts"][0]["text"].replace("— Rowan", "– Rowan")
+    s, summary, prose, tools, ledger = synthetic(tmp_path, change)
+    tools.append({"name": "pa", "step": 0, "structured_args": {"operation": "evidence", "data": {"action": "record"}}, "result": "{}"})
+    assert evaluated(tmp_path, (s, summary, prose, tools, ledger))["all_pass"]
+    for row in ledger["actions"]:
+        row["fields"].pop("radar_kind", None)
+    assert not evaluated(tmp_path, (s, summary, prose, tools, ledger))["steps"][0]["checks"]["recorded"]
