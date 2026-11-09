@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.14.0-rc.1 — 2026-11-10
+
+This release continues M6 (VA parity) and builds most of the week-one core from the 9 November gap review. PA writes meeting minutes with an owner and a date on every action item, imports card statements, stops counting a held draft as a chase, can run on its own schedule through a HeartBeat 2.0 role, catches inbox threads the owner read but never answered, and onboards a new owner with four questions and then a finished first task. It still never pays, disputes, books or sends without the owner's yes.
+
+It ships `releases/0.14.0-rc.1/scorecard.md`, built from 78 Capability Lab runs (26 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 73 of 78 runs pass (57 of 63 in 0.13.0-rc.1). No run booked, paid or submitted anything (zero tripwire hits).
+
+- **22 of 26 scenarios pass 3 of 3.** That includes meeting minutes (s34), onboarding (s35) and the read-but-unanswered inbox (s36) in their first release wave, along with invoices (s33), contacts (s32) and replies under policy (s31).
+- **Seoul to Tokyo (s01) passes 2 of 3 and San Francisco to Tokyo (s03) 1 of 3.** All deterministic checks pass. The judge failed three claims about real pages:
+  - one run tied a drinks-plan price to the wrong line;
+  - one claimed to reach OpenTable's diner-details page without that page in its evidence;
+  - one course price and cancellation fee were not matched in the evidence.
+- **The weekly review (s16) passes 2 of 3.** One run failed the calendar-honesty check.
+- **The follow-through chase (s20) passes 2 of 3.** The claim detector flagged one run's receipt note, "Final response handed to Hermes cron delivery". That is the note the skill tells it to record, so this looks like a detector false positive; a fix follows this release.
+
+Meeting minutes (M6-d, #145, #163):
+
+- **`pa minutes save`** takes the minutes the agent drafts from a transcript under `imports/`: title, date, attendees, overview, decisions, action items and open questions.
+  - Every action item needs an owner, a due date and a quote from the transcript.
+  - Files are private Markdown and JSON under `exports/minutes/`.
+  - The transcript is left unchanged.
+- **`pa minutes read`** pages through a long transcript (40,000 characters or 2,000 lines a page; a very long line continues on the next page), so the agent can read all of it before writing. It reads only from `imports/meetings/`.
+- **Follow-through.** An item the owner owns becomes a reminder. Someone else's item becomes a held nudge on the day it falls due.
+- Sending the minutes to attendees is still an exact-action send that needs the owner's yes.
+
+Card statements (M6-e, #165):
+
+- **`pa expense import`** first previews a card statement CSV from `imports/statements/` without writing anything. It then records every line in one transaction, with the agent's category for each, and writes a private reconciliation report.
+- **Identity.** A re-export with inserted or reordered lines keeps each charge's identity and any void.
+- **Possible duplicates** are listed, never merged: same merchant, amount and currency, at most 3 days apart, with no later refund. A refund request is drafted and held for each one.
+- A card number anywhere in the file refuses the whole import.
+
+Follow-up honesty (#153, #166):
+
+- **A nudge PA drafted and holds for the owner's yes is no longer counted as a chase.**
+  - `next_action` items gain `awaiting_approval`; it becomes overdue after 2 days.
+  - Briefs and escalations say "awaiting your yes since <date>", never "chased".
+- **Meeting items.** Someone else's meeting item gets its first nudge on its due date, not two days after it.
+
+PA on its own schedule (#151, #167):
+
+- **`pa capabilities`** reports whether HeartBeat 2.0 is installed and whether it supports roles.
+- **Setup** offers one follow-through role: a daily run at the owner's morning-brief time, with a budget of 2 turns a day. It is created only on the owner's yes.
+- **Inside that role's turns,** PA may arm up to 3 one-shot wakes for upcoming chase dates and approval timeouts, never one already armed or pending.
+- **Without HeartBeat 2.0,** setup recommends installing it and is honest that scheduled delivery is unreliable on some Hermes versions.
+
+Inbox: read but never answered (#154, #168):
+
+- **Each inbox pass also covers read human mail from the last 7 days.** A thread whose last message asks something of the owner is tracked, named "read, not answered" in the digest, and given a held draft.
+- **Junk is offered once per pass as an exact archive list.** Archiving needs the owner's yes and goes through one exact action per thread. It never deletes or labels.
+
+Onboarding to a first win (#155, #169):
+
+- **A new owner's setup asks four essentials:** name, quiet hours and timezone; voice; the never-without-my-yes rules; and the first two errands.
+- **One review and apply follows, then errand 1 is finished in the same chat,** for example the triaged inbox itself.
+- **Later setup never re-asks these answers,** and existing owners keep today's flow.
+
+Lab:
+
+- **The judge** grounds amounts listed under one currency label (#141).
+- **The mail stand-in** reads mailbox scope operators as the seeded inbox (#142).
+- **New scenarios:**
+  - s33, invoice reminders and the chase ladder (#143);
+  - s34, meeting minutes (#149, #164);
+  - s35, onboarding to a first win (#169);
+  - s36, read-but-unanswered inbox and the junk offer (#168).
+- **Roadmap and vision** take in the gap review (#162).
+
 ## 0.13.0-rc.1 — 2026-11-09
 
 This release starts M6 (VA parity) with finance admin, customer and vendor replies, and contact list cleanup. PA records invoices the owner issues or receives and chases overdue ones on the existing day 2, 5 and 10 ladder. It keeps owner-stated balances and gives a weekly cash position and a monthly income and expense summary. It answers customer and vendor email under the owner's written policies, and cleans a contact export into an importable file with a change log. It never connects to a bank, never pays, and never sends without the owner's yes.
