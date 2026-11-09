@@ -81,16 +81,24 @@ lab:
   recurring:
     late delivery:
       count: 3
-      keywords:
-      - late.*deliver
-      - deliver.*(?:late|delay)
-      - shipping.*delay
+      keywords:  # Any honest label for late or slow delivery; a label matching both topics fails.
+      - deliver
+      - ship
+      - parcel
+      - \blate\b
+      - delay
+      - slow
+      - longer than
+      - arriv
     login:
       count: 2
       keywords:
       - log[ -]?in
       - sign[ -]?in
-      - account access
+      - password
+      - access
+      - account
+      - locked out
   held: 2
   escalations: 1
   output_contract: 'End with JSON {"lab_summary": {"volume": <n>, "median_hours": <hours>, "median_of": <answered
