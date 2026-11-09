@@ -116,7 +116,7 @@ Verify these with the relevant read tool, then record the readback with another
 `action_upsert`. `action_result` is only for a provider submission already
 claimed through the transaction state machine.
 
-Load `personal-assistant:finance-admin` when the owner forwards or mentions an invoice or bill.
+Load `personal-assistant:finance-admin` when the owner forwards or mentions an invoice or bill, states a balance, or asks for a cash position or monthly summary.
 
 ## Open loops
 

@@ -10,6 +10,7 @@ from .trip_watch import MOMENTS, SKIPS
 from .booking_follow_through import FOLLOW_THROUGH_SCHEMA
 from .expenses import OP_SCHEMA as EXPENSE_OP_SCHEMA
 from .invoices import OP_SCHEMA as INVOICE_OP_SCHEMA, guarded as invoice_guarded
+from .finance import OP_SCHEMA as FINANCE_OP_SCHEMA
 
 # Keys a governed action_prepare must carry; authority and risk_class are optional (PA binds the authority).
 GOVERNED_PREPARE_KEYS = ("summary", "action_revision", "workflow_id", "workflow_revision", "tool_name", "tool_args",
@@ -20,7 +21,7 @@ OPERATIONS = ["status", "capabilities", "context", "recipes", "trip_import", "ex
               "authorization_prepare", "authorization_confirm", "authorization_cancel", "authorization_status",
               "event_upsert", "projection_claim", "projection_result", "reconcile", "freshness",
               "disconnect", "automations", "next_action", "setup",
-              "trip_watch_plan", "trip_offer", "browser_session", "profile", "evidence", "expense", "invoice"]
+              "trip_watch_plan", "trip_offer", "browser_session", "profile", "evidence", "expense", "invoice", "finance"]
 SCHEMA = {
     "name": "pa",
     "description": "Personal Assistant Plugin: recover focused context, manage eight recipes, and preserve provider evidence and replay-safe state-loop receipts. Use capabilities for setup or a missing integration; use recipes to locate a needed qualified skill. Load personal-assistant:personal-assistant for setup and operation contracts. Reuse known context without repeating setup. Never infer authentication, spending or messaging approval from configuration or credential access. evidence: record/update/list a real owner task (area, due, agreed outcome, result, owner acceptance, fact sources), baseline and day30 time records; export for the scorecard.",
@@ -98,7 +99,7 @@ SCHEMA = {
             "offer_days": {"type": "integer", "minimum": 1, "maximum": 60, "description": "next_action radar: days before an offered trip offer counts as unanswered; default 3."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 20},
             "offset": {"type": "integer", "minimum": 0}
-        }, "description": "Operation arguments. invoice: action record/paid/void/list records invoices and payment evidence, never initiates payments. browser_session: action status/create/live_view/connect/release; live_view/connect/release take bb_session_id; create accepts region; live_view lists tabs when the session has more than one; connect returns a fresh connect_url for a running session. trip_watch_plan: plan (default), status, record_wake, record_cancel, record_skip, verify, disruption or record_facts with trip_id; plan arms check_in_window/arrival_logistics/watch; receipts take moment/wake_id, verify takes wakes, record_facts takes segments/source or flat carrier, number, origin, destination, origin_timezone, destination_timezone, scheduled_departure, scheduled_arrival, optional estimated_departure, estimated_arrival, terminal_departure, terminal_arrival, status. trip_import/record_facts may return next_step. trip_offer: action check or record with trip_id/offer_type and outcome for record; occurrence comes from an observer notice; record example: data={\"action\":\"record\",\"trip_id\":…,\"offer_type\":…,\"outcome\":\"accepted\",\"occurrence\":\"n_…\"} (occurrence at the top level of data, not in fields); check reserves by default (reserve false skips reservation); opted_out requires an explicit never request. setup actions: status (default), start, record, propose, applied, fresh_check, pause, decline; record accepts consent granted/declined for the look-around; after apply it preserves applied/checked status and flags pending_changes for the next /pa setup review, then propose and apply. propose with draft true saves deeper-answer summaries and keeps the interview in progress. applied takes readbacks with target plus skill/path as needed; PA reads back the files and computes hashes. capabilities takes no data and never proves authentication. context: kind plus trip_id/action_id/source_id/query and optional limit/offset; kind is optional with exactly one ID, except trip_id plus query; guide needs explicit kind. next_action: optional trip_id, loops_only, radar (with include_upcoming, offer_days), limit/offset and at (evaluation time); radar records are commitments with fields radar_kind renewal|important_date|deadline, document, expires_on or event_date, lead_days, recurs yearly|none, source_ref; a loop stays listed until fields.confirmation, and Kanban done alone gives loop_state done_unconfirmed. recipes: optional recipe_id R1-R8; trip_import: trip_id, ics_text, optional guide_text/timezone/title/source_url/complete; export: trip_id/output_dir and optional guarded overwrite for same-profile PA files; action_upsert: optional action_id/source_id/action_kind/occurrence, fields. Transaction prepare/confirm/claim require action_id and summary; confirm also requires confirmation. action_prepare with enforcement_profile exact_action automatically registers a server-bound pending scope; action_cancel cancels that governed action. Action result requires action_id, outcome and proof; follow_through.replaces names the old booking action moved or cancelled by this readback. authorization_prepare records a generic exact-action envelope and hashes complete tool_args without retaining them; authorization_confirm requires action_id and explicit confirmation; authorization_status reads one action. event_upsert requires source_type/source_id/source_revision/projections and optional payload/occurred_at; each projection may declare freshness_seconds. projection_claim requires event_id/projection_key/claimed_by and optional lease_seconds/at. projection_result requires event_id/projection_key/claim_token/outcome and optional proof/at. reconcile optionally accepts event_id. freshness requires explicit at and optionally accepts event_id."}},
+        }, "description": "Operation arguments. finance: action balance/cash_position/monthly records owner-stated balances and reads cash position and monthly summaries; never connects to a bank or pays. invoice: action record/paid/void/list records invoices and payment evidence, never initiates payments. browser_session: action status/create/live_view/connect/release; live_view/connect/release take bb_session_id; create accepts region; live_view lists tabs when the session has more than one; connect returns a fresh connect_url for a running session. trip_watch_plan: plan (default), status, record_wake, record_cancel, record_skip, verify, disruption or record_facts with trip_id; plan arms check_in_window/arrival_logistics/watch; receipts take moment/wake_id, verify takes wakes, record_facts takes segments/source or flat carrier, number, origin, destination, origin_timezone, destination_timezone, scheduled_departure, scheduled_arrival, optional estimated_departure, estimated_arrival, terminal_departure, terminal_arrival, status. trip_import/record_facts may return next_step. trip_offer: action check or record with trip_id/offer_type and outcome for record; occurrence comes from an observer notice; record example: data={\"action\":\"record\",\"trip_id\":…,\"offer_type\":…,\"outcome\":\"accepted\",\"occurrence\":\"n_…\"} (occurrence at the top level of data, not in fields); check reserves by default (reserve false skips reservation); opted_out requires an explicit never request. setup actions: status (default), start, record, propose, applied, fresh_check, pause, decline; record accepts consent granted/declined for the look-around; after apply it preserves applied/checked status and flags pending_changes for the next /pa setup review, then propose and apply. propose with draft true saves deeper-answer summaries and keeps the interview in progress. applied takes readbacks with target plus skill/path as needed; PA reads back the files and computes hashes. capabilities takes no data and never proves authentication. context: kind plus trip_id/action_id/source_id/query and optional limit/offset; kind is optional with exactly one ID, except trip_id plus query; guide needs explicit kind. next_action: optional trip_id, loops_only, radar (with include_upcoming, offer_days), limit/offset and at (evaluation time); radar records are commitments with fields radar_kind renewal|important_date|deadline, document, expires_on or event_date, lead_days, recurs yearly|none, source_ref; a loop stays listed until fields.confirmation, and Kanban done alone gives loop_state done_unconfirmed. recipes: optional recipe_id R1-R8; trip_import: trip_id, ics_text, optional guide_text/timezone/title/source_url/complete; export: trip_id/output_dir and optional guarded overwrite for same-profile PA files; action_upsert: optional action_id/source_id/action_kind/occurrence, fields. Transaction prepare/confirm/claim require action_id and summary; confirm also requires confirmation. action_prepare with enforcement_profile exact_action automatically registers a server-bound pending scope; action_cancel cancels that governed action. Action result requires action_id, outcome and proof; follow_through.replaces names the old booking action moved or cancelled by this readback. authorization_prepare records a generic exact-action envelope and hashes complete tool_args without retaining them; authorization_confirm requires action_id and explicit confirmation; authorization_status reads one action. event_upsert requires source_type/source_id/source_revision/projections and optional payload/occurred_at; each projection may declare freshness_seconds. projection_claim requires event_id/projection_key/claimed_by and optional lease_seconds/at. projection_result requires event_id/projection_key/claim_token/outcome and optional proof/at. reconcile optionally accepts event_id. freshness requires explicit at and optionally accepts event_id."}},
         "required": ["operation"],
         "allOf": [{
             "if": {"properties": {"operation": {"const": "projection_result"}}},
@@ -126,9 +127,11 @@ SCHEMA["parameters"]["allOf"].append({
     "then": {"properties": {"data": EXPENSE_OP_SCHEMA}},
     "else": {"if": {"properties": {"operation": {"const": "invoice"}}},
     "then": {"required": ["data"], "properties": {"data": INVOICE_OP_SCHEMA}},
+    "else": {"if": {"properties": {"operation": {"const": "finance"}}},
+    "then": {"required": ["data"], "properties": {"data": FINANCE_OP_SCHEMA}},
     "else": {"properties": {"data": {"properties": {
         "kind": {"enum": ["trip", "action", "source", "guide"]}, "source": {"enum": SOURCES}, "reason": {"enum": list(SKIPS)}
-    }}}}}},
+    }}}}}}},
 })
 
 
@@ -169,6 +172,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     if op == "invoice":
         from .invoices import dispatch as invoice_dispatch
         return invoice_dispatch(ledger, data)
+    if op == "finance":
+        from .finance import dispatch as finance_dispatch
+        return finance_dispatch(ledger, data)
     if op == "expense":
         from .expenses import dispatch as expense_dispatch
         return expense_dispatch(ledger, data)
@@ -285,6 +291,8 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         existing = ledger.get("action", identity)
         if invoice_guarded(identity, data.get("action_type"), existing, bookkeeping=True):
             raise ValueError("invoice records are written with operation invoice")
+        if data.get("action_type") == "balance" or str(identity).startswith("balance:") or (existing and existing["action_type"] == "balance"):
+            raise ValueError("balance records are written with operation finance")
         if data.get("action_type") == "expense" or str(identity).startswith("expense:") or str(identity).endswith(":expense") or (existing and existing["action_type"] == "expense"):
             raise ValueError("expense records are written with operation expense or follow_through.expense")
         if data.get("action_type") in EVIDENCE_TYPES or str(identity).startswith(EVIDENCE_PREFIXES) or (existing and existing["action_type"] in EVIDENCE_TYPES):
@@ -303,6 +311,8 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     existing = ledger.get("action", identity)
     if invoice_guarded(identity, data.get("action_type"), existing):
         raise ValueError("invoice records are written with operation invoice")
+    if data.get("action_type") == "balance" or str(identity).startswith("balance:") or (existing and existing["action_type"] == "balance"):
+        raise ValueError("balance records are written with operation finance")
     if data.get("action_type") == "expense" or str(identity).startswith("expense:") or str(identity).endswith(":expense") or (existing and existing["action_type"] == "expense"):
         raise ValueError("expense records are written with operation expense or follow_through.expense")
     if str(identity).startswith(EVIDENCE_PREFIXES) or (existing and existing["action_type"] in EVIDENCE_TYPES):
