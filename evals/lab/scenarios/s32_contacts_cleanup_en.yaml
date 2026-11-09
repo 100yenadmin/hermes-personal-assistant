@@ -1,0 +1,33 @@
+id: s32_contacts_cleanup_en
+language: en
+area: documents
+capabilities: [documents]
+timezone: America/New_York
+persona:
+  name: Casey Demo
+  email: casey@example.invalid
+  phone: +1-202-555-0152
+  home_city: New York
+  notes: Synthetic owner. Local cleanup only; no Google or CRM writes.
+user_md: >-
+  Owner Casey Demo, timezone America/New_York. Contact phone country code is 1.
+  Leave same-name contacts with different identifiers for my decision.
+max_user_turns: 1
+budget_seconds: 900
+lab:
+  kind: documents
+  files: {"imports/contacts/google-export.csv": "contacts-300.csv"}
+  key: contacts-300.key.json
+  output_contract: >-
+    Use pa operation contacts, action dedupe, path imports/contacts/google-export.csv,
+    name google-cleanup, default_country_code "1". Report the tool's counts exactly,
+    with possible duplicates in a short list for the owner to decide. Never merge those.
+    End with {"lab_summary": {"contacts_out": N, "merged_clusters": N,
+    "possible_duplicates": N, "clean_file": "<path>", "change_log": "<path>"}},
+    using the counts and paths returned by the tool, with owner-facing prose above it.
+steps:
+- goal: "I put my Google contacts export at imports/contacts/google-export.csv. Clean it up: remove duplicates, keep a log of what changed, and tell me what needs my decision. Don't change my Google contacts."
+  capability: documents
+  skill: personal-assistant:documents-admin
+  answers: {}
+  expect: {lab: documents}

@@ -117,6 +117,7 @@ Verify these with the relevant read tool, then record the readback with another
 claimed through the transaction state machine.
 
 Load `personal-assistant:finance-admin` when the owner forwards or mentions an invoice or bill, states a balance, or asks for a cash position or monthly summary.
+Load `personal-assistant:documents-admin` when the owner sends a contact export or asks to clean contacts.
 
 ## Open loops
 

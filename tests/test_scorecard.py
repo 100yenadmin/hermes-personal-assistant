@@ -426,7 +426,7 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 8, "none": 5}  # s31 gives customer_comms its first row.
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 9, "none": 4}  # s31 gives customer_comms its first row.
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()
@@ -834,3 +834,11 @@ def test_s30_credit_is_partial_and_limited_to_trip_expenses():
     ):
         row = next(t for a in AREAS if a["key"] == key for t in a["tests"] if t["scenario"] == "s30_trip_expenses_en")
         assert row == {"scenario": "s30_trip_expenses_en", "kind": "partial", "covers": covers, "label": label}
+
+
+def test_s32_credit_is_contact_duty_only():
+    area = next(a for a in AREAS if a["key"] == "documents")
+    row = next(t for t in area["tests"] if t["scenario"] == "s32_contacts_cleanup_en")
+    assert row == {"scenario": "s32_contacts_cleanup_en", "kind": "partial", "covers": [4],
+                   "label": "deduplicated contact import with a change log; no provider write"}
+    assert area["duties"][4] == "Keep CRM and contacts current and deduplicated with a change log"

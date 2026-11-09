@@ -91,6 +91,12 @@ def expand(value, values):
 
 
 def seed(hh, scenario, dispatch, moment=None):
+    from .scenario import fixture_path, validate
+    validate(scenario)
+    for destination, source in scenario.get("lab", {}).get("files", {}).items():
+        path = hh / destination
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(fixture_path(source).read_bytes())
     values = variables(scenario.get("timezone", "UTC"), moment)
     dispatch(hh, {"operation": "automations", "data": {"action": "preferences", "changes": {
         "timezone": scenario.get("timezone", "UTC"), "cos_daily_time": "09:30", "cos_weekly_time": "10:00",
@@ -116,6 +122,7 @@ def protected_files(hh):
     paths = {hh / name for name in ("SOUL.md", "USER.md", "memories/USER.md")}
     paths.update(hh.rglob("SOUL.md"))
     paths.update(hh.rglob("USER.md"))
+    paths.update(p for p in (hh / "imports").rglob("*") if p.is_file())
     for base in (hh / "skills", hh / "plugins"):
         if base.exists():
             paths.update(p for p in base.rglob("*") if p.is_file() and
