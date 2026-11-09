@@ -160,7 +160,7 @@ def test_monthly_categories_currency_net_duplicates_and_read_only(ledger):
     bill = invoice(ledger, "bill", status="paid", direction="payable", amount="30", counterparty="Ｓｙｎｔｈｅｔｉｃ Vendor")
     invoice(ledger, "fees", status="paid", direction="payable", amount="5", category="fees")
     duplicate = expense(ledger, "match-three", amount="30", date="2026-11-13", merchant=" synthetic   VENDOR ")
-    expense(ledger, "not-four", amount="30", date="2026-11-14")
+    second = expense(ledger, "not-four", amount="30", date="2026-11-14")
     expense(ledger, "food", amount="10", category="food")
     expense(ledger, "refund", amount="4", category="food", kind="refund")
     invoice(ledger, "yen-income", status="paid", amount="500", currency="JPY")
@@ -182,7 +182,11 @@ def test_monthly_categories_currency_net_duplicates_and_read_only(ledger):
         "JPY": {"income": {"by_category": {"services": "500"}, "total": "500"},
                 "bills_paid": {"by_category": {}, "total": "0"},
                 "expenses": {"by_category": {"food": "50"}, "total": "50"}, "net": "450"}}
-    assert result["possible_duplicates"] == [{"invoice_id": bill["action_id"], "expense_id": duplicate["action_id"]}]
+    # The invoice-vs-expense entry is unchanged; the two same-merchant charges a day apart are appended as a card pair.
+    assert result["possible_duplicates"] == [
+        {"invoice_id": bill["action_id"], "expense_id": duplicate["action_id"]},
+        {"expense_ids": [duplicate["action_id"], second["action_id"]], "merchant": "synthetic vendor", "amount": "30",
+         "currency": "USD", "dates": ["2026-11-13", "2026-11-14"]}]
     assert call(ledger, "monthly", month="2025-01") == {"month": "2025-01", "currencies": {}, "possible_duplicates": []}
 
 
