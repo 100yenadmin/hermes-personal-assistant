@@ -25,7 +25,7 @@ native automation suggestions. It does **not** create a scheduler or daemon.
   meetings with attendee count and aliased emails; `attendees_known: false`
   when the calendar packet had no attendee list, `attendees_omitted` above 0
   when a long list was cut), and the same unread-human
-  and bulk mail sections as the morning brief, with the same
+  and bulk mail sections, plus awaiting (read human mail from the last 7 days), as the morning brief, with the same
   complete/truncated flags.
 - Both mail packets feed the twice-daily inbox triage in
   `personal-assistant:r6-inbox-replies` (five buckets, a digest of 5 lines or

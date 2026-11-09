@@ -102,9 +102,10 @@ plugin code never sends mail or writes events; the agent does that with its own
 tools after the owner's yes, through the exact-action path.
 
 Morning and evening mail collection use the same read-only `gog` path and the
-same two queries (unread human mail, bulk categories), so the inbox is triaged
-twice a day without a third routine. Each account gets `humans_N` and
-`bulk_N` with their own `complete`/`truncated` flags, which also roll up into
+same three queries (unread human mail, bulk categories, and read inbox mail of
+the last 7 days that may still await a reply), so the inbox is triaged twice a
+day without a third routine. Each account gets `humans_N`, `bulk_N` and
+`awaiting_N` with their own `complete`/`truncated` flags, which also roll up into
 the packet's flags. If a mail read fails, the run reports one pipeline
 failure; it never claims mailbox coverage.
 

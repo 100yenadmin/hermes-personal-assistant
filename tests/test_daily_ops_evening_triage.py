@@ -95,10 +95,11 @@ def test_personal_account_gets_its_own_sections(monkeypatch):
     patch(monkeypatch, [], mail=lambda account, query, **k: queries.append((account, query)) or Collected([], True, False, 0))
     packet = evening_register.collect(cfg(accounts={"work": OWNER, "personal": "me@home.example"}),
                                       profile="/synthetic", moment=MOMENT)
-    assert {"humans_1", "bulk_1", "humans_2", "bulk_2"} <= set(packet["sections"])
-    assert queries == [(OWNER, common.Q_HUMANS), (OWNER, common.Q_BULK),
-                       ("me@home.example", common.Q_HUMANS), ("me@home.example", common.Q_BULK)]
+    assert {"humans_1", "bulk_1", "awaiting_1", "humans_2", "bulk_2", "awaiting_2"} <= set(packet["sections"])
+    assert queries == [(OWNER, common.Q_HUMANS), (OWNER, common.Q_BULK), (OWNER, common.Q_AWAITING),
+                       ("me@home.example", common.Q_HUMANS), ("me@home.example", common.Q_BULK), ("me@home.example", common.Q_AWAITING)]
     assert morning_brief.Q_HUMANS == common.Q_HUMANS and morning_brief.Q_BULK == common.Q_BULK
+    assert morning_brief.Q_AWAITING == common.Q_AWAITING
 
 
 def test_evening_register_uses_only_allowlisted_readonly_verbs(monkeypatch):
