@@ -463,3 +463,102 @@ def test_resave_with_a_moved_due_date_recomputes_opened_at(home):
     result = save(home, action_items=items)
     assert "error" not in result, result
     assert Ledger(home).get("action", loop["action_id"])["fields"]["opened_at"] == "2026-11-18"
+def read(home, **data):
+    return entry.dispatch(home, {"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", **data}})
+
+
+def test_read_returns_numbered_lines_and_writes_nothing(home):
+    ledger_file = Ledger(home).path
+    before = ledger_file.read_bytes()
+    result = read(home)
+    assert result["total_lines"] == 7 and result["offset"] == 0 and result["next_offset"] is None and result["sent"] is False
+    assert result["lines"][2] == {"n": 3, "text": "Jordan: Great, I'll send Birch the revised logo files by Friday."}
+    assert not (home / "exports").exists()
+    assert ledger_file.read_bytes() == before
+    # What read returns is exactly what save quotes against.
+    assert "error" not in save(home)
+
+
+def test_read_pages_a_long_transcript(home, monkeypatch):
+    from personal_assistant import minutes
+    monkeypatch.setattr(minutes, "PAGE", 120)
+    seen, offset = [], 0
+    while offset is not None:
+        page = read(home, offset=offset)
+        assert page["lines"] and page["lines"][0]["n"] == offset + 1
+        seen += [line["text"] for line in page["lines"]]
+        offset = page["next_offset"]
+    assert seen == TRANSCRIPT.splitlines()
+    assert read(home, offset=99)["lines"] == [] and read(home, offset=99)["next_offset"] is None
+
+
+@pytest.mark.parametrize("data", [
+    {"path": "/etc/hosts"}, {"path": "imports/../secret.txt"}, {"path": "notes/sync.txt"},
+    {"path": "imports/meetings/missing.txt"}, {"offset": -1}, {"offset": "2"}, {"name": "x"},
+    {"path": "imports/sync.txt"}])
+def test_read_refusals(home, data):
+    assert "error" in read(home, **data)
+
+
+def test_read_refuses_a_symlink_and_a_large_file(home, tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text("Avery: secret\n")
+    (home / "imports/meetings/link.txt").symlink_to(outside)
+    assert "symlink" in read(home, path="imports/meetings/link.txt")["error"]
+    (home / "imports/meetings/big.txt").write_bytes(b"a" * (2 * 1024 * 1024 + 1))
+    assert "2 MB" in read(home, path="imports/meetings/big.txt")["error"]
+
+
+def test_public_schema_accepts_read_and_save_shapes():
+    schema = entry.SCHEMA["parameters"]
+    ok = Draft7Validator(schema).is_valid
+    assert ok({"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt"}})
+    assert ok({"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", "offset": 40}})
+    assert ok({"operation": "minutes", "data": copy.deepcopy(MINUTES)})
+    assert not ok({"operation": "minutes", "data": {"action": "read"}})
+    assert not ok({"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", "name": "x"}})
+    assert not ok({"operation": "minutes", "data": {"action": "save", "path": "imports/meetings/sync.txt"}})
+
+
+def test_read_float_offset_fresh_profile_and_unknown_action(home, tmp_path):
+    assert read(home, offset=1.0)["lines"][0]["n"] == 2
+    fresh = tmp_path / "fresh"
+    (fresh / "imports/meetings").mkdir(parents=True)
+    (fresh / "imports/meetings/sync.txt").write_text(TRANSCRIPT, encoding="utf-8")
+    assert read(fresh)["total_lines"] == 7
+    assert sorted(p.relative_to(fresh).as_posix() for p in fresh.rglob("*")) == ["imports", "imports/meetings", "imports/meetings/sync.txt"]
+    reply = entry.dispatch(home, {"operation": "minutes", "data": {"action": "reed", "path": "imports/meetings/sync.txt"}})
+    assert "read or save" in reply["error"]
+
+
+def test_read_and_save_refuse_a_hard_linked_transcript(home, tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text(TRANSCRIPT)
+    import os
+    os.link(outside, home / "imports/meetings/hard.txt")
+    assert "hard link" in read(home, path="imports/meetings/hard.txt")["error"]
+    assert "hard link" in save(home, path="imports/meetings/hard.txt")["error"]
+
+
+def test_read_budget_counts_line_overhead_and_cuts_one_huge_line(home, monkeypatch):
+    from personal_assistant import minutes
+    (home / "imports/meetings/blank.txt").write_text("\n" * 5000)
+    page = read(home, path="imports/meetings/blank.txt")
+    assert len(page["lines"]) <= minutes.PAGE // 24 + 1 and page["next_offset"] == len(page["lines"])
+    monkeypatch.setattr(minutes, "PAGE", 100)
+    (home / "imports/meetings/long.txt").write_text("Avery: " + "x" * 500 + "\nJordan: ok\n")
+    first = read(home, path="imports/meetings/long.txt")
+    whole = "Avery: " + "x" * 500
+    assert first["lines"] == [{"n": 1, "text": whole[:100], "truncated": True}]
+    assert first["next_offset"] == 0 and first["next_from"] == 100
+    # Paging with offset and from rebuilds the long line and the line after it.
+    parts, page = [], first
+    while page["next_offset"] is not None:
+        parts += page["lines"]
+        page = read(home, path="imports/meetings/long.txt", offset=page["next_offset"], **({"from": page["next_from"]} if "next_from" in page else {}))
+    parts += page["lines"]
+    rebuilt = {}
+    for line in parts:
+        rebuilt[line["n"]] = rebuilt.get(line["n"], "") + line["text"]
+    assert rebuilt == {1: whole, 2: "Jordan: ok"}
+    assert parts[1]["from"] == 100 and "from" not in parts[-1]

@@ -60,13 +60,14 @@ Replies under policy passed 2 of 3 in the wave, before a policy-wording fix. The
 - Japan and Korea provider routing;
 - simulated phone calls in Korean and Japanese.
 
-**Missing against the VA bar:**
-- inbox management;
-- calendar work for others (invites, finding times);
-- chasing open loops;
-- office work: documents, data and finance admin;
-- messaging contacts for the owner;
-- completed transactions and real phone calls.
+**Missing against the VA bar** (gap review, 9 November 2026; see the next section):
+- attention that runs on its own: PA works only when asked (#151);
+- a yes that leads to finished work: no live send, invite or booking completed yet (#152);
+- an honest follow-up log: a held draft counts as a chase (#153);
+- inbox ownership beyond unread mail (#154);
+- onboarding that reaches a first useful result (#155);
+- office work in the owner's own systems, statement reconciliation, the tax pack, content admin and personal life admin (#146, #156, #157);
+- real phone calls (#4).
 
 **Missing against the Chief of Staff bar:** everything that involves the team.
 That is the roster, reading team systems, delegation across people, a decision
@@ -87,10 +88,36 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Calendar | partial: reads and conflict checks | M4 |
 | Errands and bookings | partial: stops correctly before booking, nothing completed | M5 |
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
-| Documents and data | partial: contact list cleanup with a change log (0.13.0-rc.1, unit tests; lab scenario s32 next); minutes, agendas and spreadsheets missing | M6 |
+| Documents and data | partial: contact list cleanup with a change log (0.13.0-rc.1, unit tests; lab scenario s32 next); meeting minutes with owners and dates (#145; lab s34 in review); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
 | Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); no reconciliation or tax pack yet | M6 |
 | Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1, lab s31 2 of 3; vendor-chase fix #137 after the wave) | M6 |
 | Social and content admin | missing | M6 |
+
+## Gap review (9 November 2026): what changes in the order
+
+A code inventory, an adversarial cross-model plan review and the live lab results agree: PA prepares work well. But an owner hiring a remote VA would let it go in week one for five reasons, all of which come before more breadth.
+
+**Week-one VA core, first in M6:**
+1. **Attention runs on its own (#151).** Setup recommends HeartBeat 2.0. After one standing yes, PA sets its own follow-up wakes for chase dates, deadlines and approval timeouts. Without HB2 it offers the Hermes cron route (#7) and is honest about the delivery limit (#21).
+2. **A yes leads to finished work (#152).** One reply, one invite and one low-cost booking proven live, each after an exact yes.
+3. **An honest follow-up log (#153).** "Awaiting your yes" is not "chased"; nudges are ready before the deadline.
+4. **Inbox ownership (#154).** Tracked and recently read threads that still need a reply, plus one cleanup approval for junk.
+5. **Onboarding to a first win (#155).** A short essential intake, then one finished task. The rest of the interview happens during real work.
+
+**Then breadth, in persona-demand order:**
+- card statements (#146), then a read-only accounting feed and the tax pack;
+- documents in the owner's Drive and CRM (#156);
+- the blind voice test, run during inbox onboarding instead of at the end of M6;
+- personal and family admin, social and content admin, and the weekly customer report (#157).
+
+**How it is measured.**
+- An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption.
+- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161).
+
+**Trimmed.**
+- More travel specialisation waits until the office loop is proven.
+- Lab-oracle refinement is capped at three review rounds; its known limits are tracked (#147, #148).
+- Tool scouting for the Chief of Staff waits until team commitments exist.
 
 ## Milestones
 
@@ -352,7 +379,11 @@ open.
 
 In the release wave, replies under policy (s31) passed 2 of 3; the miss came from an ambiguous SOP, fixed after the wave. Invoices, the cash position and contacts have unit tests only so far.
 
-Still missing: minutes, agendas and spreadsheets, reconciliation and the tax pack, content admin, the voice test and the parity evidence.
+Since then, meeting minutes with an owner and a date on every action item have been built (M6-d, #145; lab scenario s34 in review), and card statement import is in progress (M6-e, #146).
+
+Still missing: the week-one VA core (#151–#155), agendas and spreadsheets in the owner's systems (#156), the tax pack, content and personal admin (#157), the voice test and the parity evidence.
+
+**Order inside M6.** The week-one VA core comes first; see "Gap review" above.
 
 **Scope.**
 - **Documents and data.** Minutes, agendas, spreadsheets, and a de-duplicated
@@ -373,7 +404,8 @@ Still missing: minutes, agendas and spreadsheets, reconciliation and the tax pac
 
   The working norms are checked during these tasks. A passing sample fixture
   does not close duties it never exercised.
-- **Voice test.** In a blind review, five agent drafts are mixed with five
+- **Voice test.** It runs during inbox onboarding, with real approved examples, not
+  at the end of M6. In a blind review, five agent drafts are mixed with five
   owner-written samples. The owner judges at least four of the agent drafts
   sendable with at most two edits each. The ratings and edits are recorded.
 - **Parity.** The parity rule in VISION.md is met with at least 2 real owners.
@@ -395,6 +427,12 @@ In real sessions, two consenting owners must each show the core path:
 
 The pilot may overlap M5 and M6, but VA parity stays the first product outcome.
 M7 claims neither full VA parity nor Chief of Staff parity.
+
+**Starts early.** Once the two-owner VA core passes, the read-only team view starts under this overlap, without waiting for all of M6:
+- one team channel and one task board are read;
+- a "who owes what by when" view is kept.
+
+Meeting preparation (agendas and pre-reads ahead of meetings) and basic priority mapping (#158) move here from M8.
 
 **Scope.** M7 covers levels L0 and L1 only.
 - **Chief of Staff interview.** The team roster, roles, who reports to whom, time
@@ -419,6 +457,8 @@ M7 claims neither full VA parity nor Chief of Staff parity.
 
 **Exit.**
 - The delegation and decision-log fixtures pass.
+- Meeting preparation (agendas and pre-reads sent ahead of a meeting) and
+  priority mapping (#158) each pass a lab check 3 of 3.
 - Two consenting owners with teams each have six scheduled Chief of Staff runs
   within two weeks (#7). A justified silence counts as a run, but each owner
   must still receive reports, use at least one recommendation, and explicitly
@@ -427,8 +467,8 @@ M7 claims neither full VA parity nor Chief of Staff parity.
 ### M8: Chief of Staff operating system (target 1.2.0)
 
 **Scope.**
-- **Meetings.** Pre-reads 24 hours ahead. Actions and decisions captured from
-  transcripts.
+- **Meetings.** The full meeting cycle, building on M7's meeting preparation and
+  the M6 minutes: actions and decisions captured from transcripts and chased.
 - **Scorecard.** A weekly KPI scorecard with sources. A broken feed shows
   "unknown", never zero.
 - **Projects.** A register of cross-team projects that detects dependencies.
@@ -439,9 +479,11 @@ M7 claims neither full VA parity nor Chief of Staff parity.
   the owner decides to.
 - **Communications.** Run the Chief of Staff voice test on drafts for the team,
   customers, partners and the board, reusing M6's voice learning.
-- **L2 envelopes** for internal nudges and task writes. Calendar bookings,
-  reservations, holds and cancellations still need an explicit yes for each
-  exact action.
+- **L2 envelopes** for internal nudges and task writes, as VISION.md defines
+  them: a standing yes the owner gives once per template, recipients and limits,
+  repeated in every brief and paused with one command. The owner confirms this
+  design before M8 builds it (#159). Calendar bookings, reservations, holds and
+  cancellations always need an explicit yes for each exact action.
 
 **Exit.**
 - These Chief of Staff bar tests pass 3 of 3 in the lab:
@@ -454,9 +496,9 @@ M7 claims neither full VA parity nor Chief of Staff parity.
 
   Each of those areas also has one accepted real-work example. These are
   interim proofs, not the M9 parity sample.
-- Over two weeks, a pilot runs one approved internal-nudge envelope and one
-  approved task-write envelope, and pauses each one successfully. Nothing
-  happens outside the approved envelopes.
+- If the owner confirms envelopes (#159): over two weeks, a pilot runs one
+  approved internal-nudge envelope and one approved task-write envelope, and
+  pauses each one successfully. Nothing happens outside the approved envelopes.
 
 ### M9: Remote Chief of Staff (target 2.0.0)
 
@@ -484,9 +526,13 @@ M7 claims neither full VA parity nor Chief of Staff parity.
     is measured.
 - **The Chief of Staff gate is the VA core, not full parity.** Transactions and
   phone calls depend on outside accounts. Team work does not depend on them.
-- **L2 is the last expansion of autonomy.** It arrives in M8, after L0 and L1
-  are proven, and covers only internal nudges and task writes. L3 always needs
-  an exact-action yes.
+- **L2 is the last expansion of autonomy.** If the owner confirms it (#159), it
+  arrives in M8, after L0 and L1 are proven, and covers only internal nudges and
+  task writes. If not, M8 automates preparation and every team send keeps its
+  own yes. L3 always needs an exact-action yes.
+- **Week-one reliability comes before breadth.** An assistant that works only
+  when asked, or whose follow-up log overstates what happened, loses the job
+  before breadth matters (gap review, 9 November 2026).
 - **Lowest-value areas go last in their milestones.** Content admin and board
   packs matter least to an owner-operator.
 - **Not on a milestone yet:** live flight status with a user's AeroAPI key (#3).
@@ -497,6 +543,8 @@ M7 claims neither full VA parity nor Chief of Staff parity.
 - A phone number and accounts for real calls (#4).
 - For M7: two business owners with teams who will grant read access to their
   team systems.
+- For M8: confirm L2 envelopes as a standing yes per template and recipient
+  list, or drop them so every team send needs its own yes (#159).
 
 ## Keeping this file current
 

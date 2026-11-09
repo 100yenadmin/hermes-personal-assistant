@@ -47,7 +47,10 @@ without claiming a clean export exists.
 1. Get the meeting transcript as text: the meeting tool's transcript export, or
    a recording transcribed with the profile's own speech-to-text. Save it under
    `imports/meetings/`. Never invent lines the transcript does not contain.
-2. Read it and draft the minutes: title, meeting date, attendees, a short summary,
+2. Read it with `pa(operation="minutes", data={"action":"read", "path":"imports/meetings/<file>"})`.
+   It returns numbered lines; while `next_offset` is set, read again with that `offset`
+   (and `from` set to `next_from` when it is given: a long line continues there).
+   Then draft the minutes: title, meeting date, attendees, a short summary,
    decisions, action items and open questions. Every decision and action item
    carries a verbatim `quote`: contiguous words from one speaker's line, no
    ellipses, that mention the action.
