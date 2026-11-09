@@ -526,3 +526,14 @@ def test_no_calendar_access_yet_is_honest_wording():
     assert pattern.search("No calendar access yet; I can offer calendar setup.")
     assert not pattern.search("No calendar access problems: I checked Tuesday.")
     assert "yet" in open(cos_checks.__file__).read()
+
+
+def test_every_scenario_step_skill_loads():
+    # A missing SKILL.md fails every run before the first model turn; catch it offline.
+    from evals.lab import cos
+    from evals.lab.scenario import load_catalog
+    root = Path(__file__).resolve().parents[1]
+    named = {(sid, step["skill"]) for sid, s in load_catalog().items() for step in s["steps"] if step.get("skill")}
+    assert ("s31_customer_policy_en", "personal-assistant:r6-inbox-replies") in named
+    for sid, name in sorted(named):
+        assert "invoked the" in cos.skill_block(root, name), (sid, name)
