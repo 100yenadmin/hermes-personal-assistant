@@ -67,7 +67,7 @@ In the 0.14.0-rc.1 wave (78 runs on real Hermes, 73 passing), minutes (s34), inv
 - an approval day: every decision the owner owes arrives finished (options, one recommendation, a decide-by date and the draft), and a yes in a later chat carries out the prepared action once (#160);
 - social and content admin: a dated content calendar per channel and the first posts drafted in the owner's voice, every post held for the yes (#157).
 
-In the 0.15.0-rc.1 wave (84 runs on real Hermes, {{TOTAL}} passing), the approval day (s37) and the content calendar (s38) each passed 3 of 3.
+In the 0.15.0-rc.1 wave (84 runs on real Hermes, 81 passing), the approval day (s37) and the content calendar (s38) each passed 3 of 3.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);

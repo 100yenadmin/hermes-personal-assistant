@@ -4,9 +4,12 @@
 
 This release continues M6 (VA parity) with two more week-one duties from the 9 November gap review. On a busy day PA brings every decision the owner owes as a finished packet: the problem, the options, one recommendation, a decide-by date and the message ready to send. When the owner later says yes in a new chat, PA carries out the action it already prepared, exactly once. PA also plans the owner's social posts: a dated content calendar for each channel, the first posts drafted in the owner's voice, and every post held for the owner's yes. It still never posts, books, pays or sends without that yes.
 
-It ships `releases/0.15.0-rc.1/scorecard.md`, built from 84 Capability Lab runs (28 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. {{RESULTS}} (73 of 78 in 0.14.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits); the bookings in s27 and s37 go to a stand-in provider.
+It ships `releases/0.15.0-rc.1/scorecard.md`, built from 84 Capability Lab runs (28 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 81 of 84 runs pass (73 of 78 in 0.14.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits); the bookings in s27 and s37 go to a stand-in provider.
 
-{{BULLETS}}
+- **26 of 28 scenarios pass 3 of 3.** That includes the approval day (s37) and the content calendar (s38) in their first release wave. San Francisco to Tokyo (s03) and the weekly review (s16), which passed 1 and 2 of 3 in 0.14.0-rc.1, now pass 3 of 3.
+- **Seoul to Tokyo (s01) passes 1 of 3.** Both misses are the airport taxi step. Each run gave an honest GO app handoff: GO cannot prebook a Haneda pickup, so the run listed the exact app steps and stopped before the request button. The judge passed both runs. The deterministic handoff detector did not know the wording "uses its mobile app" or "cannot prebook"; the detector fix (#179) lands after this release.
+- **The follow-through chase (s20) passes 2 of 3.** One run named the item whose completion was unconfirmed but drafted no confirmation request. The judge noted this and still passed the run; the nudge check failed it.
+- **Scorecard:** recurring ops partial checks now pass, and social and content admin gets its first row (s38). Travel (s01) and working norms (s20) have partial checks failing.
 
 Approval day (#160, #174):
 
