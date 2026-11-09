@@ -49,7 +49,7 @@ STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "h
         "with", "that", "this", "will", "from", "have", "about", "them", "they", "their", "there", "then", "than",
         "next", "week", "what", "when", "should", "would", "could", "into", "your", "just", "also", "make", "sure"}
 SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*|\(?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP]\.?[mM]\.?(?!\w))?\)?\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
-COMMITMENT = re.compile(r"\bi(?:'ll| will| can|'m going to| am going to| shall)\b")
+COMMITMENT = re.compile(r"\bi(?:'ll| will| can|'m going to| am going to| shall)\b(?!'t| not\b)")
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -75,14 +75,17 @@ def _within(owner, person):
     return bool(owner) and person[:len(owner)] == owner
 
 
-def _turns(transcript):
-    """(speaker, text) for each transcript line; a line without a label continues the previous speaker."""
+def _turns(transcript, owner):
+    """(speaker, text) per spoken line; an unlabelled line continues the previous speaker. Blank lines, cue
+    numbers and timestamps are skipped, and a "Me:" or "You:" label is the profile owner."""
     turns, speaker = [], None
     for line in transcript.splitlines():
         label = SPEAKER.match(line)
         if label:
             speaker, line = _norm(label.group(1)), line[label.end():]
-        turns.append((speaker, _norm(line)))
+            speaker = owner if speaker in ("me", "you") else speaker
+        if label or re.search(r"[^\W\d_]", line):
+            turns.append((speaker, _norm(line)))
     return turns
 
 
@@ -140,8 +143,9 @@ def _validate(data, transcript):
     if _private(data) or clean(data) != data:
         raise ValueError("minutes must not contain card, account or phone numbers or credentials")
     source = _norm(transcript)
-    turns = _turns(transcript)
-    speakers = {_norm(m) for m in SPEAKER.findall(transcript)}
+    me = _norm(data["owner_name"])
+    speakers = {me if _norm(m) in ("me", "you") else _norm(m) for m in SPEAKER.findall(transcript)}
+    turns = _turns(transcript, me)
     people = {_norm(a) for a in data["attendees"]} | speakers
     meeting = dt.date.fromisoformat(data["meeting_date"])
     if not any(_same(_norm(data["owner_name"]), p) for p in people):
@@ -172,18 +176,24 @@ def _validate(data, transcript):
         if _words(item["text"]) and not _words(item["text"]) & _words(item["quote"]):
             raise ValueError(f"action item quote does not mention this action: {item['text'][:80]}")
         quoted(item["due_wording"], "due wording", minimum=1)
-        # Bind the item to the line its quote comes from: an "I'll ..." promise belongs to its speaker, and the
-        # due wording is on that line or a following line by the same speaker or the owner.
-        quote = _norm(item["quote"])
-        line = next((i for i, (_, text) in enumerate(turns) if quote in text), None)
-        if line is not None:
-            speaker = turns[line][0]
+        # Bind the item to a line its quote comes from: an "I'll ..." promise belongs to its speaker, and the due
+        # wording is on that line or one of the next three, unless that line is another speaker's own promise.
+        quote, wording, problems = _norm(item["quote"]), _norm(item["due_wording"]), []
+        for line, (speaker, text) in enumerate(turns):
+            if quote not in text:
+                continue
             if speaker and COMMITMENT.search(quote) and not _same(owner, speaker):
-                raise ValueError(f"action item owner {item['owner']} did not make this promise; {speaker} did: {item['text'][:80]}")
-            nearby = [turns[line][1]] + [text for who, text in turns[line + 1:line + 4] if who and (who == speaker or _same(owner, who))]
-            if not any(_norm(item["due_wording"]) in text for text in nearby):
-                raise ValueError(f"action item due wording is not on the quote's line or a following line by its speaker "
-                                 f"or owner (quote the line that holds both, or move it to open_questions): {item['text'][:80]}")
+                problems.append(f"action item owner {item['owner']} did not make this promise; {speaker} did: {item['text'][:80]}")
+                continue
+            nearby = [text] + [t for who, t in turns[line + 1:line + 4]
+                               if who == speaker or (who and _same(owner, who)) or not COMMITMENT.search(t)]
+            if any(wording in t for t in nearby):
+                problems = []
+                break
+            problems.append("action item due wording is not on the quote's line or the lines just after it "
+                            f"(quote the line that holds both, or move it to open_questions): {item['text'][:80]}")
+        if problems:
+            raise ValueError(problems[0])
         if not _date_fits(item["due_wording"], dt.date.fromisoformat(item["due_date"]), meeting):
             raise ValueError(f"action item due_date does not match its wording \"{item['due_wording']}\": {item['text'][:80]}")
     texts = [_norm(i["text"]) for i in data["action_items"]]

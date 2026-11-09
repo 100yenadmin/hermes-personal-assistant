@@ -393,3 +393,26 @@ def test_resave_leaves_provider_rows_and_transaction_owned_loops_alone(home):
         rows = {r[0]: (r[1], r[2]) for r in conn.execute("select action_id, action_type, status from actions where action_id like 'minutes:%'")}
     assert rows[child] == ("transaction", "prepared") and rows[ids[1]] == ("transaction", "prepared")
     assert rows[ids[0]] == ("commitment", "open")
+
+
+@pytest.mark.parametrize("transcript,item", [
+    # The requester names the date on the next line.
+    ("Jordan: I'll send the deck.\nSam: Can we have it by Friday?\nJordan: Yes.\n",
+     {"owner": "Jordan", "quote": "I'll send the deck.", "due_wording": "by Friday"}),
+    # Blank lines, cue numbers and timestamp lines do not use up the window.
+    ("Jordan: I'll send the deck.\n\n2\n00:00:05.000 --> 00:00:07.000\nSam: ok\n\nJordan: by Friday then.\n",
+     {"owner": "Jordan", "quote": "I'll send the deck.", "due_wording": "by Friday"}),
+    # "I can't" is not a promise.
+    ("Avery: I can't send the deck, so Jordan will send the deck by Friday.\n",
+     {"owner": "Jordan", "quote": "I can't send the deck, so Jordan will send the deck by Friday", "due_wording": "by Friday"}),
+    # The same words said by two people: the owner's own line counts.
+    ("Sam: I'll send the deck by Friday.\nJordan: I'll send the deck by Friday.\n",
+     {"owner": "Jordan", "quote": "I'll send the deck by Friday.", "due_wording": "by Friday"}),
+    # A "Me:" label is the profile owner.
+    ("Me: I'll send the deck by Friday.\nJordan: ok\n",
+     {"owner": "Avery", "quote": "I'll send the deck by Friday.", "due_wording": "by Friday"})])
+def test_messy_transcripts_keep_correct_items(home, transcript, item):
+    (home / "imports/meetings/sync.txt").write_text(transcript, encoding="utf-8")
+    item = {"text": "Send the deck", "due_date": "2026-11-13", **item}
+    result = save(home, decisions=[], open_questions=[], action_items=[item])
+    assert "error" not in result, result
