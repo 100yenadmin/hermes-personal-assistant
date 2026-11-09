@@ -37,12 +37,12 @@ because the lab contract leaves the local-time format open (#105). Travel prep
 passes 6 of 9. Next: the ten-working-day unattended canary (#50), the pilot's real
 loops, and M5.
 
-**Built, lab-proven against stand-ins (M5, in part).** 0.12.0-rc.1 handles the steps
+**Built (M5, in part); bookings, vendor chases and cancelled legs lab-proven against stand-ins.** 0.12.0-rc.1 handles the steps
 after the yes. A booking readback records the item on its trip, sets reminders and
 writes a calendar file. A vendor request becomes a chased loop. Each booking can carry
 its expense, and the owner's receipts become an exportable expense list. A cancelled
 or delayed flight produces a read-only list of what it breaks, then one options
-packet, and the chosen change replaces the old booking. In the release wave (57 runs on real Hermes and real web pages, 54 passing), the three after-the-yes scenarios passed 3 of 3 each, with zero tripwire hits. No real
+packet, and the chosen change replaces the old booking. In the release wave (57 runs on real Hermes, 54 passing), the three after-the-yes scenarios passed 3 of 3 each against stand-in providers, with zero tripwire hits. Expenses and delayed flights have unit tests only so far. No real
 booking has been completed yet; calls and the browser handoff are still open.
 
 **Strong:**
