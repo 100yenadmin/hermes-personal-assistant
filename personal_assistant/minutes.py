@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import os
 import re
+import stat
 import unicodedata
 import uuid
 from pathlib import Path
@@ -49,7 +50,8 @@ READ_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["ac
 OP_SCHEMA = {"type": "object", "required": ["action"],
              "if": {"properties": {"action": {"const": "read"}}, "required": ["action"]},
              "then": READ_SCHEMA, "else": SAVE_SCHEMA}
-PAGE = 40_000  # Characters of transcript text per read call; next_offset pages the rest.
+PAGE = 40_000  # Characters per read call, counting each line's JSON overhead; next_offset pages the rest.
+PAGE_LINES = 2_000
 PLACEHOLDER = {"tbd", "tba", "unknown", "unassigned", "someone", "anyone", "n/a", "na", "none", "?", "-", "owner tbd",
                "i", "me", "we", "us", "you", "they", "them", "team", "the team", "all", "everyone", "everybody"}
 STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "has", "had", "was", "are", "its",
@@ -132,8 +134,11 @@ def _read(root, relative_text):
     path = root / relative
     if not path.is_file():
         raise ValueError("minutes path is not a regular file")
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0))
     with os.fdopen(fd, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError("minutes path must be a regular file without other hard links")
         content = handle.read(LIMIT + 1)
     if len(content) > LIMIT:
         raise ValueError("transcript exceeds 2 MB")
@@ -269,14 +274,20 @@ def _page(root, data):
     error = best_match(Draft7Validator(READ_SCHEMA).iter_errors(data))
     if error:
         raise ValueError(f"invalid minutes read at {'/'.join(map(str, error.absolute_path)) or 'data'}: {error.message[:200]}")
+    if Path(data["path"]).parts[:2] != ("imports", "meetings"):
+        raise ValueError("minutes read path must be under imports/meetings/")
     lines = _read(root, data["path"]).splitlines()
-    start = data.get("offset", 0)
+    start = int(data.get("offset", 0))  # Draft 7 accepts 1.0 as an integer.
     out, size = [], 0
     for n, text in enumerate(lines[start:], start + 1):
-        if out and size + len(text) > PAGE:
+        cost = min(len(text), PAGE) + 24
+        if out and (size + cost > PAGE or len(out) >= PAGE_LINES):
             break
-        out.append({"n": n, "text": text})
-        size += len(text)
+        line = {"n": n, "text": text[:PAGE]}
+        if len(text) > PAGE:
+            line["truncated"] = True  # One line longer than a page comes back cut, never whole.
+        out.append(line)
+        size += cost
     end = start + len(out)
     return {"path": data["path"], "total_lines": len(lines), "offset": start, "lines": out,
             "next_offset": end if end < len(lines) else None, "sent": False}
@@ -286,6 +297,8 @@ def dispatch(ledger, data):
     try:
         if isinstance(data, dict) and data.get("action") == "read":
             return _page(ledger.root, data)
+        if not isinstance(data, dict) or data.get("action") not in (None, "save"):
+            raise ValueError("minutes action must be read or save")
         transcript = _read(ledger.root, data.get("path", "")) if isinstance(data.get("path"), str) else ""
         _validate(data, transcript)
         try:

@@ -471,7 +471,8 @@ def test_read_pages_a_long_transcript(home, monkeypatch):
 
 @pytest.mark.parametrize("data", [
     {"path": "/etc/hosts"}, {"path": "imports/../secret.txt"}, {"path": "notes/sync.txt"},
-    {"path": "imports/meetings/missing.txt"}, {"offset": -1}, {"offset": "2"}, {"name": "x"}])
+    {"path": "imports/meetings/missing.txt"}, {"offset": -1}, {"offset": "2"}, {"name": "x"},
+    {"path": "imports/sync.txt"}])
 def test_read_refusals(home, data):
     assert "error" in read(home, **data)
 
@@ -494,3 +495,34 @@ def test_public_schema_accepts_read_and_save_shapes():
     assert not ok({"operation": "minutes", "data": {"action": "read"}})
     assert not ok({"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", "name": "x"}})
     assert not ok({"operation": "minutes", "data": {"action": "save", "path": "imports/meetings/sync.txt"}})
+
+
+def test_read_float_offset_fresh_profile_and_unknown_action(home, tmp_path):
+    assert read(home, offset=1.0)["lines"][0]["n"] == 2
+    fresh = tmp_path / "fresh"
+    (fresh / "imports/meetings").mkdir(parents=True)
+    (fresh / "imports/meetings/sync.txt").write_text(TRANSCRIPT, encoding="utf-8")
+    assert read(fresh)["total_lines"] == 7
+    assert sorted(p.relative_to(fresh).as_posix() for p in fresh.rglob("*")) == ["imports", "imports/meetings", "imports/meetings/sync.txt"]
+    reply = entry.dispatch(home, {"operation": "minutes", "data": {"action": "reed", "path": "imports/meetings/sync.txt"}})
+    assert "read or save" in reply["error"]
+
+
+def test_read_and_save_refuse_a_hard_linked_transcript(home, tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text(TRANSCRIPT)
+    import os
+    os.link(outside, home / "imports/meetings/hard.txt")
+    assert "hard link" in read(home, path="imports/meetings/hard.txt")["error"]
+    assert "hard link" in save(home, path="imports/meetings/hard.txt")["error"]
+
+
+def test_read_budget_counts_line_overhead_and_cuts_one_huge_line(home, monkeypatch):
+    from personal_assistant import minutes
+    (home / "imports/meetings/blank.txt").write_text("\n" * 5000)
+    page = read(home, path="imports/meetings/blank.txt")
+    assert len(page["lines"]) <= minutes.PAGE // 24 + 1 and page["next_offset"] == len(page["lines"])
+    monkeypatch.setattr(minutes, "PAGE", 100)
+    (home / "imports/meetings/long.txt").write_text("Avery: " + "x" * 500 + "\nJordan: ok\n")
+    first = read(home, path="imports/meetings/long.txt")
+    assert first["lines"] == [{"n": 1, "text": ("Avery: " + "x" * 500)[:100], "truncated": True}] and first["next_offset"] == 1

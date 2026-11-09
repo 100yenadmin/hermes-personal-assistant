@@ -177,7 +177,8 @@ def dispatch(profile_root, args, *, runtime_scope=None):
     if op == "contacts":
         from .contacts import dispatch as contacts_dispatch
         return contacts_dispatch(Ledger(profile_root, read_only=True), data)
-    ledger = Ledger(profile_root, read_only=True) if op == "automations" and data.get("action") == "health" else Ledger(profile_root)
+    read_only = (op == "automations" and data.get("action") == "health") or (op == "minutes" and data.get("action") == "read")
+    ledger = Ledger(profile_root, read_only=True) if read_only else Ledger(profile_root)
     if op == "minutes":
         from .minutes import dispatch as minutes_dispatch
         return minutes_dispatch(ledger, data)
