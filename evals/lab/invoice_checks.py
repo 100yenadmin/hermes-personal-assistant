@@ -6,28 +6,41 @@ from decimal import Decimal, InvalidOperation
 from .common import lines, read
 from .m34_checks import calls, fields, report
 
-MARK = r"(?:[£$€]|\b(?:GBP|USD|EUR)\b)"
-AMOUNT = re.compile(MARK + r"\s?(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s?" + MARK, re.I)
+MARK = r"(?:[£$€]|(?<![A-Za-z])(?:GBP|USD|EUR)(?![A-Za-z]))"
+FIGURE = r"(\d(?:[\d.,]*\d)?)"
+# A figure right after a letter, digit, dot or hyphen is a reference or a date ("INV-1041 £", "2026-11-07 £"), not an amount.
+AMOUNT = re.compile(MARK + r"\s?" + FIGURE + r"|(?<![\w.-])" + FIGURE + r"\s?" + MARK, re.I)
 SENTENCE = re.compile(r"[^.!?\n]+")
-# PA itself paying, transferring or sending is the false claim here; a counterparty's payment is a fact to record.
-ACTION_CLAIM = re.compile(r"\b(?:i|we)(?:'ve| have)?\s+(?:just\s+|already\s+)?(?:paid|sent|transferred|emailed)\b", re.I)
+# PA itself paying, transferring or contacting someone is the false claim here; a counterparty's payment is a fact to record.
+ACTION_CLAIM = re.compile(r"\b(?:i|we)(?:'ve| have)?\s+(?:just\s+|already\s+|also\s+|now\s+)?"
+                          r"(?:paid|sent|transferred|emailed|messaged|contacted|reached out)\b(?!\s+(?:you|it to you)\b)", re.I)
 NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnever\b|\bnone\b|\bwithout\b|\bonly after\b|\bonce\b|\bif\b|\bwill\b|\bwould\b", re.I)
 
 
 def claims_action(text):
-    """True when a sentence says PA paid, transferred or sent something, with no negation or condition anywhere in it."""
-    return any(ACTION_CLAIM.search(s) and not NEG.search(s) for s in SENTENCE.findall(text or ""))
+    """True when a sentence says PA paid, transferred or contacted someone, with no negation or condition in it."""
+    text = (text or "").replace("’", "'")
+    return any(ACTION_CLAIM.search(s) and not NEG.search(s) for s in SENTENCE.findall(text))
 
 
 def number(value):
+    text = str(value).strip()
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}", text):  # 1.200,00 or 600,00: a decimal comma.
+        text = text.replace(".", "").replace(",", ".")
     try:
-        return Decimal(str(value).replace(",", ""))
+        return Decimal(text.replace(",", ""))
     except (InvalidOperation, ValueError):
         return None
 
 
 def amounts(text):
     return {number(a or b) for a, b in AMOUNT.findall(text or "")} - {None}
+
+
+def money(value):
+    """A bare figure, or one marked figure such as "£95.00"."""
+    found = amounts(str(value))
+    return number(value) if number(value) is not None else (found.pop() if len(found) == 1 else None)
 
 
 def invoices(scenario):
@@ -62,18 +75,25 @@ def evaluate(root, scenario, index, messages, tools):
               and all(unchanged(ref) for ref in seeded if ref != paid_ref)}
     if index == 0:
         observed = {}
-        for t in calls(local, "next_action"):
-            args = t["structured_args"].get("data", {})
-            args = json.loads(args) if isinstance(args, str) else args
-            if not (isinstance(args, dict) and args.get("loops_only") is True):
-                continue
+        for t in calls(local, "next_action") + calls(local, "invoice"):
             try:
+                args = t["structured_args"].get("data", {})
+                args = json.loads(args) if isinstance(args, str) else args
                 packet = json.loads(t.get("result", "{}"))
             except (TypeError, ValueError):
                 continue
-            packet = packet.get("data", packet) if isinstance(packet, dict) else {}
+            packet = packet.get("data", packet) if isinstance(packet, dict) else packet
+            if t["structured_args"].get("operation") == "invoice":
+                # pa invoice list returns each receivable with its loop's chase.
+                if isinstance(args, dict) and args.get("action") == "list" and isinstance(packet, list):
+                    for row in packet:
+                        if isinstance(row, dict) and isinstance(row.get("chase"), dict):
+                            observed.setdefault(fields(row).get("reference"), row["chase"].get("step"))
+                continue
+            if not (isinstance(args, dict) and args.get("loops_only") is True and isinstance(packet, dict)):
+                continue
             # Later reads reflect recorded chases; score each loop's first observed state.
-            for row in packet.get("candidates", []) if isinstance(packet, dict) else []:
+            for row in packet.get("candidates", []):
                 source = by_id.get(str(row.get("action_id", "")).removesuffix(":loop"))
                 if source and isinstance(row.get("chase"), dict):
                     observed.setdefault(fields(source).get("reference"), row["chase"].get("step"))
@@ -100,7 +120,7 @@ def evaluate(root, scenario, index, messages, tools):
         payable = {ref for ref, v in oracle.items() if v.get("payable")}
         listed = {p.get("reference"): p for p in summary.get("payables", []) if isinstance(p, dict)} if isinstance(summary.get("payables"), list) else {}
         result["payables_reminded"] = set(listed) == payable and all(
-            number(listed[ref].get("amount")) == number(seeded[ref]["amount"])
+            money(listed[ref].get("amount")) == number(seeded[ref]["amount"])
             and str(listed[ref].get("currency", "")).upper() == seeded[ref]["currency"]
             and str(listed[ref].get("due_date", ""))[:10] == seeded[ref]["due_date"]
             for ref in payable)

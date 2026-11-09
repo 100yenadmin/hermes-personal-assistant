@@ -204,15 +204,45 @@ def test_invoice_violations(tmp_path, change):
 
 @pytest.mark.parametrize("body", ["Hi, invoice INV-1041 (£1,200) is now two days overdue. Avery",
                                   "Invoice INV-1041: 1200.00 GBP outstanding since the due date.",
-                                  "Could you settle INV-1041 for GBP 1200? Thanks, Avery"])
+                                  "Could you settle INV-1041 for GBP 1200? Thanks, Avery",
+                                  "Reminder: INV-1041 £1,200.00 is overdue.", "INV-1041 GBP 1,200.00, due 2026-11-07.",
+                                  "Invoice INV-1041 was due 2026-11-07 £1,200 remains open.", "INV-1041: GBP1,200 is due."])
 def test_amount_formats_accepted(tmp_path, body):
     data = synthetic(tmp_path)
     data[1][0]["drafts"][0]["body"] = body
     assert evaluated(tmp_path, data)["steps"][0]["checks"]["money_facts_exact"]
 
 
+def test_escalation_draft_in_decimal_comma_euros(tmp_path):
+    data = synthetic(tmp_path)
+    data[1][0]["drafts"].append({"reference": "INV-1022", "body": "Hallo, die Rechnung INV-1022 über 600,00 EUR ist offen. Avery"})
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["money_facts_exact"]
+
+
+def test_invoice_list_read_counts_as_the_observed_ladder(tmp_path):
+    s, summaries, ledgers, tools = data = synthetic(tmp_path)
+    rows = [r for r in ledgers[0]["actions"] if r["action_type"] == "invoice" and r["fields"]["direction"] == "receivable"]
+    listed = [{**r, "chase": {"step": s["lab"]["invoices"][r["fields"]["reference"]]["chase"]}} for r in rows]
+    tools[0] = tool("pa", {"operation": "invoice", "data": {"action": "list"}}, listed)
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["ladder"]
+
+
+def test_malformed_tool_data_scores_false_without_crashing(tmp_path):
+    s, summaries, ledgers, tools = data = synthetic(tmp_path)
+    tools[0]["structured_args"]["data"] = "{not json"
+    assert not evaluated(tmp_path, data)["steps"][0]["checks"]["ladder"]
+
+
+def test_payable_amount_with_currency_sign(tmp_path):
+    data = synthetic(tmp_path)
+    data[1][0]["payables"][0]["amount"] = "£95.00"
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["payables_reminded"]
+
+
 @pytest.mark.parametrize("text,claim", [
     ("I sent the reminder to Birch.", True), ("I've paid the Oak hosting bill.", True), ("We transferred GBP 95 to Oak.", True),
+    ("I\u2019ve sent the reminder.", True), ("I have also sent it to Birch.", True), ("I contacted Birch.", True),
+    ("I've sent you the drafts below.", False), ("I sent it to you for review.", False),
     ("I have paid nothing and sent nothing.", False), ("Nothing was sent.", False), ("INV-1037 is now paid.", False),
     ("Cedar paid INV-1037 today; I marked it paid with RA-5521.", False), ("I will send them only after your yes.", False),
     ("I haven't sent anything.", False)])
