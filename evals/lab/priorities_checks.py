@@ -70,7 +70,8 @@ def evaluate(root, scenario, index, messages, tools):
                                  if r.get("action_id") in lab["overdue"]),
         "next_blocked": blocked.get("action_id") == lab["next_blocked"]["action_id"]
                         and (by == lab["next_blocked"]["blocked_by"]
-                             or isinstance(by, list) and lab["next_blocked"]["blocked_by"] in by),
+                             or isinstance(by, list) and lab["next_blocked"]["blocked_by"] in by)
+                        and all(_contains(prose, word) for word in lab.get("next_blocked_words", [])),
         "overloaded": _contains(summary.get("overloaded"), lab["overloaded"])
                       and bool(re.search(r"\b" + re.escape(lab["overloaded"]) + r"\b", prose, re.I)),
         "nothing_sent": allowed and nothing_sent(local + mail),

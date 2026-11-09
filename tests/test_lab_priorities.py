@@ -78,7 +78,7 @@ def test_passing_priorities_run(tmp_path, snapshot):
     assert result["all_pass"], result
     assert set(result["steps"][0]["checks"]) == CHECKS
     assert validate(data[0]) is data[0]
-    assert {"links", "overdue", "next_blocked", "overloaded"} <= ORACLE_KEYS
+    assert {"links", "overdue", "next_blocked", "next_blocked_words", "overloaded"} <= ORACLE_KEYS
     # Upserts kept each original title, due date, loop and dependency without duplication.
     by_id = {r["action_id"]: r["fields"] for r in data[4]["actions"]}
     for seed in data[0]["seed"]:
@@ -115,9 +115,9 @@ def test_isolated_failure(tmp_path, case, key):
     elif case == "send_claim":
         text += " I sent the update to Sam."
     elif case == "no_threat_prose":
-        text = "Sam Demo is overloaded with 5 open items."
+        text = "Sam Demo is overloaded with 5 open items. The landing page is blocked by the photos."
     elif case == "no_overload_prose":
-        text = "Overdue items threaten the seed round and Studio Kit."
+        text = "Overdue items threaten the seed round and Studio Kit. The landing page is blocked by the photos."
     else:
         summary["threats"][0]["priority"] = "Hire a second designer"
     result = evaluated(tmp_path, (s, summary, text, tools, ledger))
@@ -153,3 +153,11 @@ def test_next_blocked_accepts_a_blocker_list_and_overload_needs_the_name(tmp_pat
     assert evaluated(tmp_path, (s, summary, text, tools, ledger))["all_pass"]
     text = re.sub(r"(?i)\bsam(?: demo)?\b", "the same person", text)
     assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["overloaded"]
+
+
+@pytest.mark.parametrize("sentence", ["Nothing is blocked right now.", ""])
+def test_the_brief_must_name_the_blocked_step(tmp_path, sentence):
+    """Bot review: the scoring JSON alone does not show the owner the next blocked step."""
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    text = text.replace("Build the Studio Kit landing page next, blocked by the product photos. ", sentence)
+    assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["next_blocked"]
