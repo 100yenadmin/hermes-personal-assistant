@@ -244,7 +244,8 @@ def test_first_read_in_call_order_is_the_observed_ladder(tmp_path):
     rows = [r for r in ledgers[0]["actions"] if r["action_type"] == "invoice" and r["fields"]["direction"] == "receivable"]
     listed = [{**r, "chase": {"step": s["lab"]["invoices"][r["fields"]["reference"]]["chase"]}} for r in rows]
     later = json.loads(tools[0]["result"])
-    for loop in later.get("loops", []):
+    assert any(isinstance(loop.get("chase"), dict) for loop in later["candidates"])
+    for loop in later["candidates"]:
         if isinstance(loop.get("chase"), dict):
             loop["chase"]["step"] = "none"
     tools[0:1] = [tool("pa", {"operation": "invoice", "data": {"action": "list"}}, listed),
