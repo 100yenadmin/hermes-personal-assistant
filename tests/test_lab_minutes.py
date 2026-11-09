@@ -188,3 +188,11 @@ def test_seed_copies_the_transcript_unchanged(tmp_path):
     cos.seed(hh, scenario(), lambda *args: None, NOW)
     path = hh / "imports/meetings/studio-sync-2026-11-03.txt"
     assert path.read_bytes() == fixture_path("studio-sync-transcript.txt").read_bytes()
+
+
+def test_a_home_relative_minutes_path_is_the_same_file(tmp_path):
+    s, summary, text, tools, ledger = data = synthetic(tmp_path)
+    summary["minutes"] = ".hermes/exports/minutes/studio-sync-2026-11-03.md"
+    assert evaluated(tmp_path, data)["all_pass"]
+    summary["minutes"] = ".hermes/exports/minutes/other.md"
+    assert not evaluated(tmp_path, data)["steps"][0]["checks"]["reported"]
