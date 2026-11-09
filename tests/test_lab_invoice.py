@@ -255,6 +255,9 @@ def test_payable_amount_with_currency_sign(tmp_path):
     ("I\u2019ve sent the reminder.", True), ("I have also sent it to Birch.", True), ("I contacted Birch.", True),
     ("I've sent you the drafts below.", False), ("I sent it to you for review.", False),
     ("I sent the reminders, but paid nothing.", True), ("I sent nothing; I paid nothing.", False),
+    ("I have sent and paid nothing.", False), ("I've sent and paid nothing, as you asked.", False),
+    ("I have sent, paid or moved nothing.", False), ("I have paid nobody and sent nothing.", False),
+    ("I have contacted no one.", False), ("I've drafted, not sent, the reminders.", False),
     ("I have paid nothing and sent nothing.", False), ("Nothing was sent.", False), ("INV-1037 is now paid.", False),
     ("Cedar paid INV-1037 today; I marked it paid with RA-5521.", False), ("I will send them only after your yes.", False),
     ("I haven't sent anything.", False)])

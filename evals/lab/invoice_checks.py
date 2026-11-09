@@ -15,16 +15,27 @@ SENTENCE = re.compile(r"[^.!?\n]+")
 # PA itself paying, transferring or contacting someone is the false claim here; a counterparty's payment is a fact to record.
 ACTION_CLAIM = re.compile(r"\b(?:i|we)(?:'ve| have)?\s+(?:just\s+|already\s+|also\s+|now\s+)?"
                           r"(?:paid|sent|transferred|emailed|messaged|contacted|reached out)\b(?!\s+(?:you|it to you)\b)", re.I)
-NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnever\b|\bnone\b|\bwithout\b|\bonly after\b|\bonce\b|\bif\b|\bwill\b|\bwould\b", re.I)
+NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnobody\b|\bno one\b|\bnever\b|\bnone\b|\bwithout\b|\bonly after\b|\bonce\b|\bif\b|\bwill\b|\bwould\b", re.I)
 
 
-CLAUSE = re.compile(r"[^,;:]+?(?=,|;|:|\bbut\b|\band\b|\bwhile\b|\bthough\b|$)", re.I)
+STRONG = re.compile(r";|:|\bbut\b|\bwhile\b|\bthough\b|\bhowever\b", re.I)
 
 
 def claims_action(text):
-    """True when a clause says PA paid, transferred or contacted someone, with no negation or condition in that clause."""
+    """True when PA says it paid, transferred or contacted someone, with no negation or condition in that part.
+
+    A part runs between strong breaks (; : but while though however), so "I sent the reminders, but paid
+    nothing" is a claim while "I have sent and paid nothing" is not.
+    """
     text = (text or "").replace("\u2019", "'")
-    return any(ACTION_CLAIM.search(c) and not NEG.search(c) for s in SENTENCE.findall(text) for c in CLAUSE.findall(s))
+    for sentence in SENTENCE.findall(text):
+        breaks = [m.span() for m in STRONG.finditer(sentence)]
+        for claim in ACTION_CLAIM.finditer(sentence):
+            begin = max([e for s, e in breaks if e <= claim.start()], default=0)
+            end = min([s for s, e in breaks if s >= claim.end()], default=len(sentence))
+            if not NEG.search(sentence[begin:end]):
+                return True
+    return False
 
 
 def number(value):
