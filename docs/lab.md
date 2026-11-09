@@ -55,7 +55,7 @@ deviation. Homes are removed after runs unless `--keep-home`; never publish home
 
 Costs: assistant and simulated-user tokens appear separately in `run.json` and
 `cost.json`. Dollar cost is unknown rather than guessed; judge CLI usage is billed
-separately. The default wave makes 38 jobs (114 with three runs), including explicit skips; each live
+separately. The default wave makes 39 jobs (117 with three runs), including explicit skips; each live
 job has its scenario's dialogue budget (`budget_seconds`: 900, or 1,500–1,800 for
 multi-errand scenarios) plus 120 seconds of subprocess grace. Reports
 are local exploratory results until the operator creates the required result
@@ -67,3 +67,4 @@ booking, publication, runtime or customer success.
 two weeks of LinkedIn/Instagram slots and three held drafts with `content-admin`.
 Its synthetic oracle checks voice-read order, dates, cadence, event coverage,
 sign-off and channel limits, exact ledger drafts, and no sends or posting claims.
+- `s39_priorities_brief_en`: links open commitments to the owner's priorities and names overdue threats, the next blocked step and an overloaded teammate; sends nothing.
