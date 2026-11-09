@@ -58,5 +58,6 @@ Build the note from the evidence list, `next_action`, and `automations health`:
 **Done / In progress / Blocked with questions**. Keep all three sections; use
 “None evidenced” for an empty section. Every blocked item ends in a question.
 A routine-health finding goes under In progress, or under Blocked with questions
-when it needs the owner, identified by the finding's `occurrence_id`; never under Done.
+when it needs the owner, identified by the finding's `occurrence_id` (its `id` when it
+has none); never under Done.
 Nothing is invented: a cron hand-off is `unknown`, not verified delivery.
