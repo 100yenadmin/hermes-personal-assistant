@@ -87,7 +87,7 @@ def test_setup_skill_resume_and_memory_guidance():
     assert "rebuild the exact diff, `propose` again and get approval of that diff" in skill
     assert "When `pending` or `failed`" in skill and "then repeat `/new` and the check" in skill
     assert "proposal_draft" in skill and "`draft: true`" in skill and "keeps the interview going" in skill
-    assert len(skill.splitlines()) <= 151
+    assert len(skill.splitlines()) <= 151 + 14  # Bounded HB2 setup section (#151).
     assert "state the known part as a fact and ask only for the unknown part" in skill
     assert "Never ask for a name, zone or rule that discovery found" in skill
     assert "reading back two saved facts from loaded USER.md/manual files" in skill

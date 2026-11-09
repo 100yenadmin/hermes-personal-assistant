@@ -49,7 +49,9 @@ def test_shared_state_reference_uses_real_operations():
 
 def test_pa_setup_cos_guidance_uses_real_operations():
     text = (ROOT / "skills/pa-setup/SKILL.md").read_text()
-    check_operations_and_no_install(text)
+    # Setup may recommend HB2's install command; CoS still never installs tools.
+    check_operations_and_no_install(text.replace(
+        "hermes plugins install electricsheephq/heartbeat2 --enable", ""))
     assert '"section":"chief_of_staff"' in text
     assert "/pa mode chief-of-staff on" in text
     for name in ("question-bank.md", "where-answers-go.md"):
