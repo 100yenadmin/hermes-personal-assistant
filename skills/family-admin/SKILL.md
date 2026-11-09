@@ -31,8 +31,8 @@ never say it is reserved or booked. Never book or pay without that yes.
 ## Household vendors
 
 Read the recorded vendor and draft the request with the address, access facts
-and preferred windows needed for the work. Keep access codes only in that
-vendor's request, never in general prose, appointment notes or the year list.
+and preferred windows needed for the work. Show the owner the full draft; access
+codes go only to that vendor, never in appointment notes or the year list.
 Prepare a separate exact-action vendor send with its exact recipient and body;
 hold it for the owner's yes. Do not send it while preparing options.
 
@@ -49,7 +49,7 @@ three ideas using recorded sizes, likes and allergies. Never buy anything.
 ## Record
 
 Record each prepared appointment and vendor request as an open commitment with
-`pa action_upsert`, using the follow-through skill's existing loop fields and
-linking its prepared action. Load `personal-assistant:follow-through` to chase it.
-Our next step is to get the owner's yes; no provider owes a reply yet.
+`pa action_upsert` (`loop_kind: ask_owner`, `next_actor: owner`), linking its
+prepared action. Load `personal-assistant:follow-through` to chase it; the owner's
+yes is the next step, and no provider owes a reply yet.
 Record only what PA has done: prepared and held, never booked, sent or completed.
