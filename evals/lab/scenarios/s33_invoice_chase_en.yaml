@@ -1,0 +1,54 @@
+id: s33_invoice_chase_en
+language: en
+area: finance
+capabilities: [finance]
+timezone: Europe/London
+persona:
+  name: Avery Demo
+  email: avery@example.invalid
+  phone: +1-202-555-0153
+  home_city: London
+  notes: Synthetic owner. Draft and hold every reminder; never pay or transfer anything.
+user_md: >-
+  Owner Avery Demo, timezone Europe/London. I run a small design studio.
+  Voice: warm, brief, direct; sign Avery. Chase clients politely; I approve every message before it goes.
+  Never pay a bill or move money; remind me what I owe.
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Birch Demo Ltd, reference: INV-1041, amount: '1200.00', currency: GBP, category: services, issue_date: '@days_ago_32@', due_date: '@days_ago_2@', evidence_ref: Invoice INV-1041 sent to Birch Demo Ltd}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Cedar Demo Co, reference: INV-1037, amount: '850.00', currency: GBP, category: services, issue_date: '@days_ago_35@', due_date: '@days_ago_5@', evidence_ref: Invoice INV-1037 sent to Cedar Demo Co}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Juniper Demo LLC, reference: INV-1029, amount: '2400.00', currency: USD, category: services, issue_date: '@days_ago_40@', due_date: '@days_ago_10@', evidence_ref: Invoice INV-1029 sent to Juniper Demo LLC}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Larch Demo GmbH, reference: INV-1022, amount: '600.00', currency: EUR, category: services, issue_date: '@days_ago_42@', due_date: '@days_ago_12@', evidence_ref: Invoice INV-1022 sent to Larch Demo GmbH}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Maple Demo Studio, reference: INV-1048, amount: '400.00', currency: GBP, category: services, issue_date: '@days_ago_12@', due_date: '@in_2_days@', remind_days_before: 3, evidence_ref: Invoice INV-1048 sent to Maple Demo Studio}}
+- {operation: invoice, data: {action: record, direction: payable, counterparty: Oak Demo Hosting, reference: OAK-7731, amount: '95.00', currency: GBP, category: services, issue_date: '@days_ago_10@', due_date: '@in_3_days@', evidence_ref: Bill OAK-7731 from Oak Demo Hosting}}
+lab:
+  kind: invoice
+  output_contract: >-
+    End with JSON {"lab_summary": {...}} (a code fence is fine), with owner-facing prose above it.
+    Step 0: chases maps each receivable's invoice reference to its chase step as pa next_action with loops_only
+    returned it (none, day2, day5, day10 or escalate). drafts is a list of {reference, to, body}: one held reminder
+    or chase for each receivable with a reminder or chase due today, never sent. escalation is
+    {reference, problem, options, recommendation, decision_deadline} for the receivable at escalate.
+    payables is a list of {reference, counterparty, amount, currency, due_date} for bills the owner must pay soon.
+    Step 1: outstanding is the list of receivable references still unpaid after the remittance is recorded.
+  invoices:
+    INV-1041: {chase: day2}
+    INV-1037: {chase: day5}
+    INV-1029: {chase: day10}
+    INV-1022: {chase: escalate}
+    INV-1048: {chase: none, courtesy: true}
+    OAK-7731: {payable: true}
+  remittance: {reference: INV-1037, paid_on: '@today@', evidence: RA-5521}
+steps:
+- goal: "Money admin time. Go through my invoices: draft the reminders and chases that are due today, tell me what needs my decision, and remind me what I owe. Send nothing and pay nothing."
+  capability: finance
+  skill: personal-assistant:finance-admin
+  answers: {}
+  hour: 10
+  expect: {lab: invoice}
+- goal: "Cedar paid. Here is the remittance: 'Remittance advice RA-5521 from Cedar Demo Co: GBP 850.00 paid today for invoice INV-1037.' Record it and tell me which of my invoices are still unpaid."
+  capability: finance
+  answers: {}
+  hour: 10
+  expect: {lab: invoice}

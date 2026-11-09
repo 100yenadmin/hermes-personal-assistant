@@ -22,6 +22,8 @@ Receivables follow `personal-assistant:follow-through`: read `next_action`
 with `loops_only`, draft polite reminders, and send only after the owner's yes
 to the exact recipient and text through that skill's governed send path.
 Payables appear as pay-by deadlines in `next_action` with `radar: true`.
+Read radar too for receivables: an invoice not yet due surfaces there
+`remind_days_before` days ahead, with a courtesy reminder to draft and hold.
 
 Use action `list` to review invoices. Mark `paid` with invoice_id, paid_on and
 evidence only when the owner gives evidence or a remittance is seen in
