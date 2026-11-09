@@ -161,3 +161,10 @@ def test_the_brief_must_name_the_blocked_step(tmp_path, sentence):
     s, summary, text, tools, ledger = synthetic(tmp_path)
     text = text.replace("Build the Studio Kit landing page next, blocked by the product photos. ", sentence)
     assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["next_blocked"]
+
+
+@pytest.mark.parametrize("name", ["browser_click", "browser_type", "browser_press"])
+def test_browser_input_is_not_a_read(tmp_path, name):
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    tools.append({"name": name, "step": 0, "structured_args": {}})
+    assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["nothing_sent"]

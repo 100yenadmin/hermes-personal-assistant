@@ -8,7 +8,7 @@ from .minutes_checks import nothing_sent
 
 # Any tool whose name reads as a write fails; harmless Hermes reads (todo, skills_list, web_search) pass.
 WRITE_NAME = re.compile(r"post|publish|tweet|manage|(?:^|_)(?:write|save|draft|send|create|update|delete|archive|label|patch|"
-                        r"remember|forget|execute|terminal|submit)(?:_|$)", re.I)
+                        r"remember|forget|execute|terminal|submit|click|type|press|fill|select|upload)(?:_|$)", re.I)
 READ_OPS = {"status", "capabilities", "context", "recipes", "next_action", "evidence"}
 
 
