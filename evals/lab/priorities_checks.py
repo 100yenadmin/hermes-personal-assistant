@@ -49,15 +49,21 @@ def evaluate(root, scenario, index, messages, tools):
     db = read(root / f"ledger-step-{index}.json", read(root / "ledger.json", {}))
     rows = [r for r in db.get("actions", []) if r.get("action_type") == "commitment"]
     by_id = {r.get("action_id"): fields(r) for r in rows}
-    seeded = [s["data"] for s in scenario.get("seed", []) if s.get("operation") == "action_upsert"
-              and s["data"].get("action_type") == "commitment"]
+    seed_rows = read(root / "seed.json", {}).get("ledger", {}).get("actions", [])
+    seeded = ([{"action_id": r["action_id"], "fields": fields(r)} for r in seed_rows
+               if r.get("action_type") == "commitment"] if seed_rows else
+              [s["data"] for s in scenario.get("seed", []) if s.get("operation") == "action_upsert"
+               and s["data"].get("action_type") == "commitment"])
+    preserved = ("blocked_by", "next_actor") + (("due_at",) if seed_rows else ())
     status = {r.get("action_id"): r.get("status") for r in rows}
     linked = (len(rows) == len(seeded) and set(by_id) == set(lab["links"]) and all(
         _contains(by_id[k].get("priority"), keyword) if keyword else not by_id[k].get("priority")
         for k, keyword in lab["links"].items() if k in by_id)
-        # Linking keeps every seeded commitment open with its due date and dependency.
-        and all(status.get(d["action_id"]) == "open" and bool(by_id.get(d["action_id"], {}).get("due_at"))
-                and all(by_id.get(d["action_id"], {}).get(key) == d.get("fields", {}).get(key) for key in ("blocked_by", "next_actor"))
+        # Expanded seeds preserve exact dates and counterparties; old runs retain the presence check.
+        and all(status.get(d["action_id"]) == "open"
+                and (bool(seed_rows) or bool(by_id.get(d["action_id"], {}).get("due_at")))
+                and all(by_id.get(d["action_id"], {}).get(key) == d.get("fields", {}).get(key)
+                        for key in preserved + (("counterparty",) if seed_rows and "counterparty" in d["fields"] else ()))
                 for d in seeded))
     threats = summary.get("threats")
     threats = [r for r in threats if isinstance(r, dict)] if isinstance(threats, list) else []
