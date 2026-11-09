@@ -16,11 +16,11 @@ persona:
 trip:
   origin: San Francisco
   destination: Tokyo
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: Find SFO to HND economy flight for 1 adult departing 2026-11-20, under USD
+- goal: Find SFO to HND economy flight for 1 adult departing 2026-12-04, under USD
     1,200 on Trip.com. Stop at final review.
   capability: flight
   answers:
@@ -41,7 +41,7 @@ steps:
       - 예약
       - 支払
       - 確認
-- goal: Prepare a Ginza hotel for 1 adult from 2026-11-21 to 2026-11-27 under 25,000
+- goal: Prepare a Ginza hotel for 1 adult from 2026-12-05 to 2026-12-11 under 25,000
     JPY/night on Trip.com. Stop at guest details.
   capability: hotel
   answers:
@@ -62,7 +62,7 @@ steps:
       - 예약
       - 支払
       - 確認
-- goal: Prepare OpenTable dinner for 2 on 2026-11-22 at 19:00 in Tokyo, budget 8,000
+- goal: Prepare OpenTable dinner for 2 on 2026-12-06 at 19:00 in Tokyo, budget 8,000
     JPY/person. JP or US site is fine; stop at final details, never complete.
   capability: restaurant
   answers:
@@ -106,7 +106,7 @@ steps:
       - 支払
       - 確認
 - goal: Check Uber ride estimate from HND to Millennium Mitsui Garden Hotel Tokyo
-    on 2026-11-21 at 16:00. Do not request.
+    on 2026-12-05 at 16:00. Do not request.
   capability: taxi
   answers:
     preference: No preference
