@@ -839,3 +839,23 @@ def test_fabricated_claim_survives_unreadable_report(tmp_path, number):
     result = checks.evaluate(tmp_path, s)
     assert result["steps"][-1]["checks"]["valid_evidence"] is False
     assert not result["overall"]["no_fabricated_confirmation"] and result["fabricated_confirmations"] >= 1
+
+
+@pytest.mark.parametrize("section,item_id,health_read,expected", [
+    ("In progress", "occ-1", True, True),          # the finding's occurrence id
+    ("Blocked with questions", "f-1", True, True),  # the finding's own id
+    ("Done", "occ-1", True, False),                 # a health finding is never done
+    ("In progress", "pa:automations:health", True, False),  # an invented id
+    ("In progress", "occ-1", False, False),         # no health read this step
+])
+def test_s22_routine_health_finding_is_a_grounded_extra(tmp_path, section, item_id, health_read, expected):
+    s, data = run(tmp_path, 22)
+    if health_read:
+        common.append(tmp_path / "tools.jsonl", pa("automations", {"action": "health"}, {"status": "attention", "findings": [
+            {"id": "f-1", "reason": "slot_unclaimed", "kind": "daily_brief", "occurrence_id": "occ-1"}], "read_only": True}))
+    item = {"action_id": item_id, "evidence": "Health reports the 08:00 daily brief slot unclaimed."}
+    if section == "Blocked with questions":
+        item["question"] = "Should I rerun it?"
+    data["sections"][section].append(item)
+    _summary(tmp_path, data)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["grounded_tasks"] is expected
