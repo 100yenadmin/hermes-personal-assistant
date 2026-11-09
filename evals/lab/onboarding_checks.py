@@ -27,7 +27,7 @@ def evaluate(root, scenario, index, messages, tools):
             heading = s.startswith("#") or (s.startswith("**") and s.rstrip(":").endswith("**")) or (s.endswith(":") and len(s) < 60 and not item)
             if heading:
                 under = "urgent" in s.casefold() and not re.search(r"\bnot urgent\b", s, re.I)
-            if "urgent" in s.casefold() or under and not heading:
+            if "urgent" in s.casefold() and not re.search(r"\bnot urgent\b", s, re.I) or under and not heading:
                 yield s
 
     def result(text):

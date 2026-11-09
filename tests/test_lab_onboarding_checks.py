@@ -167,3 +167,12 @@ def test_a_false_completion_claim_fails_onboarding(tmp_path, claim):
     common.write(tmp_path / "transcript.json", transcript)
     result = checks.evaluate(tmp_path, s)
     assert not result["steps"][0]["checks"]["honest_completion"] and not result["all_pass"]
+
+
+def test_inline_not_urgent_labels_are_not_urgent(tmp_path):
+    s, transcript, _ = synthetic(tmp_path)
+    text = transcript[-1]["content"]
+    transcript[-1]["content"] = ("Not urgent: Cedar contract — no action needed\nNot urgent: Maple venue — ignore this for now\n"
+                                 + text[text.index('{"lab_summary"'):])
+    common.write(tmp_path / "transcript.json", transcript)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["first_win"]
