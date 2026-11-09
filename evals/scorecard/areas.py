@@ -101,6 +101,8 @@ PARITY = {"LAB_RUNS": LAB_RUNS, "REAL_MIN_TASKS": REAL_MIN_TASKS,
 for key, scenario, covers, label in (
     ("documents", "s32_contacts_cleanup_en", [4], "deduplicated contact import with a change log; no provider write"),
     ("documents", "s34_meeting_minutes_en", [0], "minutes from a raw transcript: an owner and a date on every action item, open questions kept, nothing sent"),
+    ("onboarding", "s35_onboarding_first_win_en", [1], "essentials intake, one review and apply, then the triaged inbox as the first win; no terminal steps"),
+    ("inbox", "s36_inbox_awaiting_en", [1, 2, 5], "read-but-unanswered threads surfaced, tracked and drafted; one exact junk archive offer; nothing moved"),
     ("customer_comms", "s31_customer_policy_en", [1, 2, 3, 5], "policy-bound drafts, owner escalations and vendor chase tracking"),
     ("travel", "s30_trip_expenses_en", [], "stand-in booking charge and forwarded receipt recorded; per-trip expense export"),
     ("finance", "s30_trip_expenses_en", [], "categorised trip expenses from a readback and a receipt; no card reconciliation"),

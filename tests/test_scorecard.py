@@ -113,8 +113,9 @@ def test_s24_credit_is_limited_to_verified_inbox_duties(tmp_path):
     for i in range(3):
         run(tmp_path, f"inbox-{i}", scenario="s24_inbox_triage_en")
     inbox = area(card(tmp_path), "inbox")
-    assert inbox["tests"][0]["covers"] == [1, 3]
-    assert inbox["tests"][0]["state"] == "pass"
+    s24 = next(test for test in inbox["tests"] if test["scenario"] == "s24_inbox_triage_en")
+    assert s24["covers"] == [1, 3]
+    assert s24["state"] == "pass"
     assert inbox["lab"] == "unproven"
 
 
@@ -426,7 +427,7 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 9, "none": 4}  # s31 gives customer_comms its first row.
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 10, "none": 3}  # s35 gives onboarding its first row.
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()
