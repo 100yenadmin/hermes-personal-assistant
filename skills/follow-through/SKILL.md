@@ -39,6 +39,10 @@ To link open items, update each existing commitment by `action_id`; never duplic
 
 - While `awaiting_approval` is set, show the held draft again: send, edit or drop;
   never draft another. List it first in the brief when `awaiting_approval.overdue` is true.
+- `done_unconfirmed`, whatever the loop kind or actor (only a held draft above
+  wins): Kanban done is not confirmation; only the counterparty's reply or receipt
+  confirms. Without one, draft them one short confirmation request, a question about
+  their side, and hold it like a nudge (no counterparty: ask the owner).
 - `ask_owner`, or `next_actor` `owner`: remind the owner of the open ask in one
   line, with what you need and why it matters now.
 - `waiting_on_them` or `delegated` with `next_actor` `them`: draft one short,
@@ -46,8 +50,6 @@ To link open items, update each existing commitment by `action_id`; never duplic
   exact text and recipient. A draft is not a send.
 - `our_promise`, or `next_actor` `us`: do our next step now if it is reversible
   and already approved; otherwise tell the owner it has slipped.
-- `done_unconfirmed`: Kanban done is not confirmation. Ask the counterparty or
-  owner to confirm, or read the confirming source, before closing.
 
 Any send to a third party goes only through the governed path: after the owner
 says yes to the exact text and recipient, call `action_prepare` with
