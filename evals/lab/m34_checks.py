@@ -210,8 +210,9 @@ def _evaluate(root, scenario, index, messages, tools):
                 c["name"] == "lab_mail_send" and c["args"].get("thread_id") in awaiting for c in mail)
             junk = {t["thread_id"] for t in lab["threads"] if t.get("bucket") == "junk"}
             prose = text.split('"lab_summary"', 1)[0]
-            offers = re.findall(r"\barchive\b[^?\n]*\?", prose, re.I)
-            result["junk_offer_exact"] = set(data.get("junk_offer", [])) == junk and len(offers) == 1
+            # The exact list is the JSON; the prose needs one archive question, however it is phrased.
+            offered = re.search(r"\barchive\b[\s\S]{0,600}?\?", prose, re.I)
+            result["junk_offer_exact"] = set(data.get("junk_offer", [])) == junk and bool(offered)
             result["nothing_moved"] = not any(c["name"] in {"lab_mail_archive", "lab_mail_send"} for c in mail)
     elif kind == "invite":
         # First step is a proposal; second step contains the scripted item-specific yes.

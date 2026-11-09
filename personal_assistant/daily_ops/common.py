@@ -14,7 +14,7 @@ MAX_ITEMS = 1000
 # Twice-daily triage reads: the morning brief and the evening register share these.
 HUMANS_SHOWN = 25
 Q_HUMANS = "is:unread -category:promotions -category:updates -category:social -category:forums newer_than:2d"
-Q_AWAITING = "-is:unread in:inbox -category:promotions -category:updates -category:social -category:forums newer_than:7d"
+Q_AWAITING = "in:inbox -is:unread -category:promotions -category:updates -category:social -category:forums newer_than:7d"
 Q_BULK = "is:unread (category:promotions OR category:updates OR category:social OR category:forums) newer_than:3d"
 
 

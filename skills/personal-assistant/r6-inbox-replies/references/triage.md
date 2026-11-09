@@ -89,10 +89,10 @@ the offer in the same pass: "Archive these N junk threads? <subject list>".
 Include the exact thread IDs and subjects. This approval covers archive only,
 never delete or label. Nothing moves without the owner's yes to that exact list;
 a changed list needs a new yes. No yes means leave every thread in place.
-After that yes, use `pa.action_prepare` with `enforcement_profile: "exact_action"`,
-the exact thread IDs and the provider's archive operation as the final action;
-then `pa.action_confirm`; then the archive call once per listed thread; then
-provider readback and `pa.action_result`. Bind each call's complete arguments
-and one-call budget to its exact-action approval under that single list yes.
+After that yes, archive each listed thread through its own exact action: one
+`pa.action_prepare` (`enforcement_profile: "exact_action"`, that thread ID and the
+provider's archive operation as the final action) and `pa.action_confirm` pair per
+thread, each citing the single list yes, then that one archive call, provider
+readback and `pa.action_result`. Each approval covers exactly one call.
 If the provider or grant cannot archive, report that limit and leave mail in place.
 Daily Ops never mutates mail on its own.

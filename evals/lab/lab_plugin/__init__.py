@@ -419,7 +419,9 @@ def register_standins(ctx, obs):
         log = "mail-calls.jsonl" if name.startswith("lab_mail_") else "calendar-writes.jsonl" if obs.write_action(name, args) else "calendar-reads.jsonl"
         append(obs.out / log, {"name": name, "step": obs.step, "args": args, "result": result, "accepted": not blocked and "error" not in result})
         return json.dumps(result)
-    names = ["lab_mail_" + n for n in ("search", "get", "draft", "send", "archive")] if threads else []
+    # Only scenarios that test the junk offer see an archive tool; older inbox scores stay comparable.
+    archive = ("archive",) if any("awaiting_reply" in t for t in obs.lab.get("threads", [])) else ()
+    names = ["lab_mail_" + n for n in ("search", "get", "draft", "send") + archive] if threads else []
     names += ["lab_calendar_" + n for n in ("events", "get", "freebusy", "create", "update", "respond")] if events else []
     for name in names:
         properties = {k: {"type": "string"} for k in ("item", "thread_id", "event_id", "draft_id", "query", "body", "subject", "start", "end", "timezone", "send_updates", "response")}

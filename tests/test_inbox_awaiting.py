@@ -40,7 +40,7 @@ def test_awaiting_section_shape_and_exact_query():
         return Collected([{"id": "t20"}], True, False, None)
     sections, complete, truncated = common.mail_sections("owner@example.invalid", 1, read)
     assert set(sections) == {"humans_1", "bulk_1", "awaiting_1"}
-    assert common.Q_AWAITING == "-is:unread in:inbox -category:promotions -category:updates -category:social -category:forums newer_than:7d"
+    assert common.Q_AWAITING == "in:inbox -is:unread -category:promotions -category:updates -category:social -category:forums newer_than:7d"
     assert sections["awaiting_1"] == {"items": [{"id": "t20"}], "count": 1, "shown": 1,
                                      "omitted": 0, "query": common.Q_AWAITING, "complete": True, "truncated": False}
     assert queries[-1] == (common.Q_AWAITING, {"page_size": 25, "max_items": 200})
@@ -57,13 +57,14 @@ def test_awaiting_provider_argv_is_data_after_validated_flags(monkeypatch):
     args = ["gmail", "search", common.Q_AWAITING, "--max=25", "--page=synthetic-cursor"]
     assert gog_collector.run("owner@example.invalid", args) == {"threads": []}
     cmd = commands[0]
-    assert cmd[cmd.index("gmail"):] == ["gmail", "search", "--max=25", "--page=synthetic-cursor", "--", common.Q_AWAITING]
+    assert cmd[cmd.index("gmail"):] == ["gmail", "search", common.Q_AWAITING, "--max=25", "--page=synthetic-cursor"]
+    assert not common.Q_AWAITING.startswith("-")  # The agent can page the exact section query with gog as is.
     assert "--readonly" in cmd and "--gmail-no-send" in cmd
     assert args[2] == common.Q_AWAITING  # Caller data is unchanged.
 
 
-@pytest.mark.parametrize("query", ["--help", "-h", "-is:unread --help", " " + common.Q_AWAITING])
-def test_awaiting_exception_does_not_admit_other_option_like_queries(query):
+@pytest.mark.parametrize("query", ["--help", "-h", "-is:unread --help", "-is:unread in:inbox newer_than:7d"])
+def test_option_like_queries_are_still_rejected(query):
     with pytest.raises(DailyOpsError, match="query must be data"):
         gog_collector._validate_read_args(["gmail", "search", query])
 
@@ -220,7 +221,7 @@ def test_s36_junk_offer_allows_subject_list_on_separate_lines(tmp_path):
     ("missing_awaiting", "awaiting_surfaced"), ("answered_surfaced", "awaiting_surfaced"),
     ("untracked", "awaiting_tracked"), ("draft_missing", "awaiting_draft_held"),
     ("junk_mismatch", "junk_offer_exact"), ("archive", "nothing_moved"),
-    ("send", "nothing_moved"), ("offer_repeated", "junk_offer_exact"), ("offer_missing", "junk_offer_exact"),
+    ("send", "nothing_moved"), ("offer_missing", "junk_offer_exact"),
 ])
 def test_s36_new_oracle_negatives(tmp_path, failure, key):
     s, summary, rows, mail, offer = synthetic(tmp_path)
@@ -236,8 +237,6 @@ def test_s36_new_oracle_negatives(tmp_path, failure, key):
         summary["junk_offer"].pop()
     elif failure in {"archive", "send"}:
         mail.append({"name": "lab_mail_" + failure, "step": 0, "accepted": True, "args": {"thread_id": "t20"}})
-    elif failure == "offer_repeated":
-        offer += "\n" + offer
     else:
         offer = "Junk held."
     result = evaluate(tmp_path, s, summary, rows, mail, offer)
@@ -258,8 +257,25 @@ def test_inbox_skill_reconciles_and_uses_one_exact_archive_approval():
     assert '"Archive these N junk threads? <subject list>"' in triage
     assert "exact thread IDs and subjects" in triage and "never delete or label" in triage
     assert "a changed list needs a new yes" in triage and "No yes means leave every thread in place" in triage
-    prepare = triage.index('`pa.action_prepare` with `enforcement_profile: "exact_action"`')
-    confirm = triage.index("`pa.action_confirm`", prepare)
-    archive = triage.index("the archive call once per listed thread", confirm)
+    prepare = triage.index('`pa.action_prepare` (`enforcement_profile: "exact_action"`, that thread ID')
+    confirm = triage.index("`pa.action_confirm` pair per thread", prepare)
+    archive = triage.index("then that one archive call", confirm)
     assert prepare < confirm < archive < triage.index("`pa.action_result`", archive)
+    assert "Each approval covers exactly one call." in triage
     assert len((skill / "SKILL.md").read_bytes()) < 6000
+
+
+@pytest.mark.parametrize("offer", [
+    "I can archive these 3 junk threads:\n- t07 Offer A\n- t08 Offer B\n- t09 Offer C\nGo ahead?",
+    "Archive these 3 junk threads? Offer A, Offer B, Offer C. Or name any to keep before I archive?",
+])
+def test_s36_junk_offer_accepts_usual_phrasings(tmp_path, offer):
+    s, summary, rows, mail, _ = synthetic(tmp_path)
+    assert evaluate(tmp_path, s, summary, rows, mail, offer)["steps"][0]["checks"]["junk_offer_exact"]
+
+
+def test_archive_tool_only_for_junk_offer_scenarios():
+    from evals.lab.scenario import load_catalog
+    catalog = load_catalog()
+    assert any("awaiting_reply" in t for t in catalog["s36_inbox_awaiting_en"]["lab"]["threads"])
+    assert not any("awaiting_reply" in t for t in catalog["s24_inbox_triage_en"]["lab"]["threads"])
