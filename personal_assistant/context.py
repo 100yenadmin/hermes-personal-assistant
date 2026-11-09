@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 import sqlite3
 from typing import Any, Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -185,10 +186,15 @@ def approval_wait(fields: dict[str, Any], moment: dt.datetime, zone: dt.tzinfo) 
     """The last held draft awaits approval until any later chase entry replaces it."""
 
     log = fields.get("chase_log")
-    if not isinstance(log, list) or not log:
+    if not isinstance(log, list):
         return None
-    entry = log[-1]
-    if not isinstance(entry, dict) or "held" not in str(entry.get("how") or "").casefold():
+    # An escalation packet does not decide a held draft, so look past trailing escalate entries.
+    decisive = [e for e in log if isinstance(e, dict) and e.get("step") != "escalate"]
+    if not decisive:
+        return None
+    entry = decisive[-1]
+    how = str(entry.get("how") or "").casefold()
+    if not re.search(r"\bdraft held\b", how) or re.search(r"\b(?:sent|declined)\b", how):
         return None
     since = local_time(entry.get("at"), zone)
     if since is None:
@@ -259,10 +265,15 @@ def _loop_step(fields: dict[str, Any], item: dict[str, Any], zone: dt.tzinfo) ->
     if item["loop_state"] == "done_unconfirmed":
         return (f"Kanban or status shows done, but {who} has not confirmed; ask for confirmation and "
                 "record fields.confirmation {by, at, evidence} before treating the loop as closed.")
-    if step == "escalate":
-        return ("Escalate to the owner with problem, options (2-3), recommendation and decision_deadline; "
-                "load personal-assistant:follow-through.")
     waiting = item.get("awaiting_approval")
+    if step == "escalate":
+        held = ""
+        if waiting:
+            since = local_time(waiting["since"], zone).date().isoformat()
+            held = (f" The {waiting['step']} nudge to {who} was never sent: name it as awaiting the owner's yes "
+                    f"since {since}, never as a chase.")
+        return ("Escalate to the owner with problem, options (2-3), recommendation and decision_deadline; "
+                "load personal-assistant:follow-through." + held)
     if waiting and step in {"none", "day5", "day10"}:
         since = local_time(waiting["since"], zone).date().isoformat()
         prefix = f"Approval overdue ({waiting['days']} days): " if waiting["overdue"] else ""
@@ -478,7 +489,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             item["loop_state"] = state
             item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
             waiting = approval_wait(fields, moment, zone)
-            if waiting is not None:
+            if waiting is not None and not nudging.get(action["action_id"]):  # A yes already given is in flight.
                 item["awaiting_approval"] = waiting
             # A loop row in a transaction lifecycle keeps its transaction instruction; chase
             # guidance never replaces an approval step or an unresolved provider attempt.

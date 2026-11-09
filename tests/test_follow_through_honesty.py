@@ -115,3 +115,25 @@ def test_skill_reports_held_drafts_as_awaiting_approval():
     text = (Path(__file__).resolve().parents[1] / "skills/follow-through/SKILL.md").read_text()
     assert "awaiting your yes" in text
     assert "never as chased" in text
+
+
+def test_escalation_names_the_unsent_draft_and_an_escalate_entry_keeps_the_wait(ledger):
+    item = read_loop(ledger, "2026-11-20T00:30:00+09:00")
+    assert item["next_step"].endswith("The day2 nudge to Jordan Demo was never sent: name it as awaiting the owner's yes "
+                                      "since 2026-11-11, never as a chase.")
+    escalated = {"step": "escalate", "at": "2026-11-20T09:00:00+09:00", "how": "escalation packet in the brief"}
+    moment = dt.datetime.fromisoformat("2026-11-21T00:30:00+09:00")
+    assert approval_wait({"chase_log": [HELD, escalated]}, moment, ZONE)["since"] == HELD_AT
+
+
+@pytest.mark.parametrize("how", ["nudge withheld by owner", "held back by owner", "upheld",
+                                 "nudge sent after being held", "draft held, then declined"])
+def test_only_a_held_draft_counts_as_waiting(how):
+    moment = dt.datetime.fromisoformat("2026-11-13T00:30:00+09:00")
+    assert approval_wait({"chase_log": [{**HELD, "how": how}]}, moment, ZONE) is None
+
+
+def test_a_nudge_in_flight_is_not_awaiting_the_owners_yes(ledger):
+    ledger.prepare("fixture-loop:nudge:day2", {"provider": "fixture-mail", "final_action": "send the held nudge"})
+    item = read_loop(ledger, "2026-11-13T00:30:00+09:00")
+    assert "awaiting_approval" not in item and "in progress" in item["next_step"]

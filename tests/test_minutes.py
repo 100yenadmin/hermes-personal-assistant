@@ -439,3 +439,12 @@ def test_restored_item_chases_afresh(home):
     save(home)
     restored = loops(home)[ids[0]]["fields"]
     assert "last_chased_at" not in restored and "snoozed_until" not in restored and restored["chase_log"] == []
+
+
+def test_resave_keeps_an_existing_loops_opened_at(home):
+    assert "error" not in save(home)
+    ledger = Ledger(home)
+    loop = next(r for r in ledger.list("action") if r["action_id"].startswith("minutes:") and r["fields"]["counterparty"] != "Owner")
+    ledger.put("action", loop["action_id"], {"opened_at": "2026-11-13"})
+    assert "error" not in save(home)
+    assert Ledger(home).get("action", loop["action_id"])["fields"]["opened_at"] == "2026-11-13"
