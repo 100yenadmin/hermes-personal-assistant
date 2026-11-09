@@ -1,0 +1,353 @@
+"""Synthetic offline invoice bookkeeping through the public PA interface."""
+import datetime as dt
+import json
+from pathlib import Path
+
+import pytest
+import yaml
+from jsonschema import Draft7Validator, FormatChecker
+
+from personal_assistant import invoices
+from personal_assistant.context import loop_state
+from personal_assistant.entry import SCHEMA, dispatch
+from personal_assistant.state import Ledger, stable_id
+
+
+INVOICE = {"direction": "receivable", "counterparty": "Synthetic Acme", "reference": "DEMO-A",
+           "amount": "00125.500", "currency": "USD", "category": "services",
+           "issue_date": "2026-11-01", "due_date": "2026-11-10", "evidence_ref": "synthetic-invoice.pdf"}
+
+
+@pytest.fixture
+def ledger(tmp_path, monkeypatch):
+    monkeypatch.delenv("TRAVEL_LEDGER_DB", raising=False)
+    result = Ledger(tmp_path)
+    result.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"})
+    result.put("trip", "synthetic-trip", {})
+    return result
+
+
+def call(ledger, action, **data):
+    return dispatch(ledger.root, {"operation": "invoice", "data": {"action": action, **data}})
+
+
+def record(ledger, **changes):
+    return call(ledger, "record", **{**INVOICE, **changes})
+
+
+def rows(ledger, identity):
+    return [ledger.get("action", identity + suffix) for suffix in ("", ":due", ":loop")]
+
+
+def test_record_identity_idempotency_and_projection_fields(ledger):
+    row = record(ledger, trip_id="synthetic-trip", description="Consulting")
+    identity = "invoice:receivable:" + stable_id("invoice", "receivable", "synthetic acme", "demo-a")
+    assert row["action_id"] == identity and row["action_type"] == "invoice" and row["status"] == "open"
+    assert row["fields"]["amount"] == "125.5"
+    same = record(ledger, counterparty="  SYNTHETIC   Acme ", amount="125.50")
+    assert same["action_id"] == identity and same["trip_id"] == "synthetic-trip"
+    assert len([r for r in ledger.list("action") if r["action_id"].startswith("invoice:")]) == 3
+    row, due, loop = rows(ledger, identity)
+    assert all(r["trip_id"] == "synthetic-trip" for r in (row, due, loop))
+    assert due["action_type"] == loop["action_type"] == "commitment"
+    assert due["status"] == "pending" and loop["status"] == "open"
+    assert due["fields"] == {
+        "radar_kind": "deadline", "event_date": "2026-11-10", "lead_days": 3,
+        "title": "Invoice DEMO-A to   SYNTHETIC   Acme  due 2026-11-10",
+        "next_action": "Draft a friendly payment reminder to   SYNTHETIC   Acme  for DEMO-A; send only after the owner's yes."}
+    assert loop["fields"] == {
+        "loop_kind": "waiting_on_them", "counterparty": "  SYNTHETIC   Acme ", "next_actor": "them",
+        "next_step": "Payment of DEMO-A, 125.5 USD, due 2026-11-10",
+        "opened_at": "2026-11-10", "source_action_id": identity, "chase_log": []}
+
+
+@pytest.mark.parametrize("status", ["open", "paid", "void"])
+@pytest.mark.parametrize("change", [{"amount": "126"}, {"currency": "JPY"},
+                                    {"issue_date": "2026-11-02"}, {"due_date": "2026-11-11"}])
+def test_money_refusals_are_byte_identical(ledger, status, change):
+    row = record(ledger)
+    if status == "paid":
+        call(ledger, "paid", invoice_id=row["action_id"], paid_on="2026-11-09", evidence="Owner saw remittance")
+    elif status == "void":
+        call(ledger, "void", invoice_id=row["action_id"], reason="Duplicate")
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="void.*first"):
+        record(ledger, **change)
+    assert ledger.path.read_bytes() == before
+
+
+def test_paid_closes_loop_with_local_noon_and_preserves_live_closure(ledger):
+    identity = record(ledger)["action_id"]
+    paid = call(ledger, "paid", invoice_id=identity, paid_on="2026-11-09", evidence="Remittance email from Acme")
+    assert paid["status"] == "paid"
+    assert paid["fields"]["paid_on"] == "2026-11-09"
+    assert paid["fields"]["paid_evidence"] == "Remittance email from Acme"
+    _, due, loop = rows(ledger, identity)
+    assert due["status"] == loop["status"] == "completed"
+    assert loop["fields"]["confirmation"] == {"by": "Synthetic Acme", "at": "2026-11-09T12:00:00+09:00",
+                                               "evidence": "Remittance email from Acme"}
+    assert loop_state(loop, {}) == "closed"
+    assert call(ledger, "paid", invoice_id=identity, paid_on="2026-11-09", evidence="Remittance email from Acme")["status"] == "paid"
+    assert record(ledger, description="Updated memo", remind_days_before=5)["status"] == "paid"
+    _, due, refreshed = rows(ledger, identity)
+    assert refreshed["fields"]["confirmation"] == loop["fields"]["confirmation"]
+    assert loop_state(refreshed, {}) == "closed" and refreshed["status"] == "completed"
+    assert due["status"] == "completed" and due["fields"]["lead_days"] == 5
+
+
+def test_void_and_matching_revive_reset_only_invoice_closure_and_chases(ledger):
+    identity = record(ledger)["action_id"]
+    dispatch(ledger.root, {"operation": "action_upsert", "data": {"action_id": identity + ":loop", "fields": {
+        "last_chased_at": "2026-11-12T10:00:00+09:00", "snoozed_until": "2026-11-13T10:00:00+09:00",
+        "chase_log": [{"at": "2026-11-12T10:00:00+09:00", "step": "day2", "how": "draft held"}]}}})
+    voided = call(ledger, "void", invoice_id=identity, reason="Wrong recipient")
+    assert voided["status"] == "void" and voided["fields"]["void_reason"] == "Wrong recipient"
+    _, due, loop = rows(ledger, identity)
+    assert due["status"] == loop["status"] == "cancelled" and loop_state(loop, {}) == "closed"
+    assert loop["fields"]["loop_cancelled"]["by"] == "owner"
+    assert dt.datetime.fromisoformat(loop["fields"]["loop_cancelled"]["at"]).tzinfo is not None
+    assert "confirmation" not in loop["fields"]
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="revive"):
+        call(ledger, "paid", invoice_id=identity, paid_on="2026-11-12", evidence="Owner evidence")
+    assert ledger.path.read_bytes() == before
+    revived = record(ledger, amount="125.5", description="Owner corrected memo")
+    assert revived["status"] == "open"
+    assert not {"void_reason", "paid_on", "paid_evidence"} & revived["fields"].keys()
+    _, due, loop = rows(ledger, identity)
+    assert due["status"] == "pending" and loop["status"] == "open" and loop_state(loop, {}) == "open"
+    assert loop["fields"]["chase_log"] == []
+    assert not {"confirmation", "loop_cancelled", "last_chased_at", "snoozed_until"} & loop["fields"].keys()
+
+
+def test_live_rerecord_never_reopens_an_owner_closed_loop(ledger):
+    identity = record(ledger)["action_id"]
+    closure = {"by": "Owner", "at": "2026-11-11T10:00:00+09:00", "evidence": "Confirmed separately"}
+    dispatch(ledger.root, {"operation": "action_upsert", "data": {
+        "action_id": identity + ":loop", "status": "completed", "fields": {"confirmation": closure}}})
+    record(ledger, description="Refreshed")
+    loop = ledger.get("action", identity + ":loop")
+    assert loop["status"] == "completed" and loop["fields"]["confirmation"] == closure
+
+
+@pytest.mark.parametrize("direction", ["receivable", "payable"])
+@pytest.mark.parametrize("lead", [0, 3, 60])
+def test_radar_surfaces_exactly_on_lead_date_and_hides_settled(ledger, direction, lead):
+    identity = record(ledger, direction=direction, remind_days_before=lead)["action_id"]
+    surface = dt.date(2026, 11, 10) - dt.timedelta(days=lead)
+    def radar(day):
+        return dispatch(ledger.root, {"operation": "next_action", "data": {
+            "radar": True, "at": day.isoformat() + "T00:00:00+09:00"}})
+    assert radar(surface - dt.timedelta(days=1))["candidates"] == []
+    item, = radar(surface)["candidates"]
+    assert item["action_id"] == identity + ":due" and item["surface_at"] == surface.isoformat()
+    assert item["date"] == "2026-11-10" and item["lead_days"] == lead
+    if direction == "payable":
+        assert ledger.get("action", identity + ":loop") is None
+        assert item["title"] == "Invoice DEMO-A from Synthetic Acme due 2026-11-10"
+        assert item["next_action"] == "Remind the owner to pay Synthetic Acme 125.5 USD by 2026-11-10. PA never pays."
+    call(ledger, "paid", invoice_id=identity, paid_on="2026-11-10", evidence="Owner reports payment")
+    assert radar(surface)["candidates"] == []
+    with pytest.raises(ValueError, match="paid invoice cannot be voided"):
+        call(ledger, "void", invoice_id=identity, reason="Duplicate")
+    assert radar(surface)["candidates"] == []
+
+
+def test_next_action_existing_day_ladder_and_bookkeeping(ledger):
+    identity = record(ledger)["action_id"]
+    before = ledger.path.read_bytes()
+    for day, step in ((1, "none"), (2, "day2"), (5, "day5"), (10, "day10"), (11, "escalate")):
+        result = dispatch(ledger.root, {"operation": "next_action", "data": {
+            "loops_only": True, "at": f"2026-11-{10 + day:02}T00:00:00+09:00"}})
+        item, = result["candidates"]
+        assert item["action_id"] == identity + ":loop" and item["chase"]["step"] == step
+        assert item["chase"]["age_days"] == day
+    assert ledger.path.read_bytes() == before
+    dispatch(ledger.root, {"operation": "action_upsert", "data": {"action_id": identity + ":loop", "fields": {
+        "last_chased_at": "2026-11-12T09:00:00+09:00",
+        "chase_log": [{"at": "2026-11-12T09:00:00+09:00", "step": "day2", "how": "draft held"}]}}})
+    result = dispatch(ledger.root, {"operation": "next_action", "data": {
+        "loops_only": True, "at": "2026-11-12T10:00:00+09:00"}})
+    assert result["candidates"][0]["chase"]["step"] == "none"
+    assert result["candidates"][0]["chase"]["next_chase_at"] == "2026-11-15T00:00:00+09:00"
+    # Separate nudge actions remain available to the established follow-through path.
+    nudge = dispatch(ledger.root, {"operation": "action_prepare", "data": {
+        "action_id": identity + ":loop:nudge:day5", "summary": {"provider": "synthetic", "final_action": "send"}}})
+    assert nudge["status"] == "prepared"
+    call(ledger, "paid", invoice_id=identity, paid_on="2026-11-12", evidence="Owner reports receipt")
+    assert loop_state(ledger.get("action", identity + ":loop"), {}) == "closed"
+    assert dispatch(ledger.root, {"operation": "next_action", "data": {"loops_only": True}})["candidates"] == []
+
+
+def test_list_order_filters_owner_local_overdue_and_chase(ledger, monkeypatch):
+    monkeypatch.setattr(invoices, "evaluation_moment", lambda data: dt.datetime.fromisoformat("2026-11-11T15:30:00+00:00"))
+    late = record(ledger, reference="LATER", due_date="2026-11-14")
+    early = record(ledger, reference="EARLIER", due_date="2026-11-09", trip_id="synthetic-trip")
+    payable = record(ledger, direction="payable", category="lodging")
+    paid = record(ledger, reference="PAID")
+    call(ledger, "paid", invoice_id=paid["action_id"], paid_on="2026-11-10", evidence="Owner confirms")
+    voided = record(ledger, reference="VOID")
+    call(ledger, "void", invoice_id=voided["action_id"], reason="Duplicate")
+    listed = call(ledger, "list")
+    assert len(listed) == 5 and listed[0]["action_id"] == early["action_id"] and listed[-1]["action_id"] == late["action_id"]
+    by_id = {r["action_id"]: r for r in listed}
+    assert by_id[early["action_id"]]["days_overdue"] == 3
+    assert by_id[early["action_id"]]["chase"]["step"] == "day2"
+    assert by_id[payable["action_id"]]["days_overdue"] == 2 and "chase" not in by_id[payable["action_id"]]
+    assert all(by_id[r["action_id"]]["days_overdue"] == 0 for r in (late, paid, voided))
+    assert len(call(ledger, "list", direction="receivable", status="open")) == 2
+    assert call(ledger, "list", trip_id="synthetic-trip")[0]["action_id"] == early["action_id"]
+    assert len(call(ledger, "list", status="paid")) == len(call(ledger, "list", status="void")) == 1
+
+
+@pytest.mark.parametrize("field", ["counterparty", "reference", "description", "evidence_ref", "trip_id"])
+@pytest.mark.parametrize("private", ["card number: 4111 1111 1111 1111", "token=synthetic123456"])
+def test_private_scan_every_record_text_leaves_bytes_unchanged(ledger, field, private):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="does not store"):
+        record(ledger, **{field: private})
+    assert ledger.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("field,value", [
+    ("counterparty", "Vendor 12345678"), ("description", "Account 12345678"),
+    ("evidence_ref", "mail-12345678"), ("reference", "12345678901234567"),
+    ("counterparty", "GB82 WEST 1234 5698 7654 32"), ("description", "DE89370400440532013000"),
+    ("evidence_ref", "FR14 2004 1010 0505 0001 3M02 606"), ("reference", "GB82WEST12345698765432"),
+])
+def test_account_patterns_leave_bytes_unchanged(ledger, field, value):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="payment or account numbers"):
+        record(ledger, **{field: value})
+    assert ledger.path.read_bytes() == before
+
+
+def test_invoice_reference_digit_exception_and_non_account_numbers(ledger):
+    # Synthetic, non-card digit sequences may be invoice numbers up to 16 digits.
+    assert record(ledger, reference="1111111111111111")["status"] == "open"
+    assert record(ledger, reference="12345678", description="Team of 1234567")["status"] == "open"
+
+
+@pytest.mark.parametrize("action,fields", [
+    ("paid", {"paid_on": "2026-11-10", "evidence": "card number: synthetic123"}),
+    ("void", {"reason": "token=synthetic123456"}),
+    ("paid", {"paid_on": "2026-10-31", "evidence": "Owner evidence"}),
+    ("paid", {"paid_on": "2026-02-30", "evidence": "Owner evidence"}),
+    ("paid", {"paid_on": "2026-11-10", "evidence": ""}),
+    ("void", {"reason": ""}),
+])
+def test_paid_void_refusals_are_byte_identical(ledger, action, fields):
+    identity = record(ledger)["action_id"]
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError):
+        call(ledger, action, invoice_id=identity, **fields)
+    assert ledger.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("change", [
+    {"amount": "0"}, {"amount": "1e3"}, {"amount": 12}, {"amount": "1.0001"}, {"amount": "-2"},
+    {"currency": "usd"}, {"currency": "USDD"}, {"direction": "transfer"}, {"category": "food"},
+    {"due_date": "2026-10-31"}, {"issue_date": "2026-02-30"}, {"due_date": "20261110"},
+    {"counterparty": "x" * 121}, {"reference": "x" * 81}, {"description": "x" * 201},
+    {"evidence_ref": "x" * 1001}, {"evidence_ref": ""}, {"counterparty": " "},
+    {"trip_id": "unknown"}, {"remind_days_before": True}, {"remind_days_before": -1},
+    {"remind_days_before": 61}, {"payment_method": "cash"},
+])
+def test_invalid_record_refusals(ledger, change):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError):
+        record(ledger, **change)
+    assert ledger.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("operation", ["action_upsert", "action_prepare", "action_confirm", "action_cancel", "action_claim", "action_result"])
+@pytest.mark.parametrize("target", ["main", "due", "reserved", "typed", "existing"])
+def test_both_entry_guards_protect_invoice_rows(ledger, operation, target):
+    identity = record(ledger)["action_id"]
+    ledger.put("action", "existing-invoice", {}, action_type="invoice")
+    target_id = {"main": identity, "due": identity + ":due", "reserved": "invoice:reserved",
+                 "typed": "arbitrary", "existing": "existing-invoice"}[target]
+    data = {"action_id": target_id, "fields": {"tampered": True}}
+    if target == "typed":
+        data["action_type"] = "invoice"
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="invoice records are written"):
+        dispatch(ledger.root, {"operation": operation, "data": data})
+    assert ledger.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("action", ["record", "paid", "void"])
+def test_transaction_rolls_back_all_rows_on_projection_failure(ledger, action):
+    identity = record(ledger)["action_id"]
+    with ledger.connect() as conn:
+        conn.execute("create trigger synthetic_fail before insert on actions when NEW.action_id like '%:due' "
+                     "begin select raise(ABORT, 'synthetic projection failure'); end")
+    before = ledger.path.read_bytes()
+    with pytest.raises(Exception, match="synthetic projection failure"):
+        if action == "record":
+            record(ledger, reference="NEW", description="Must roll back")
+        else:
+            call(ledger, action, invoice_id=identity, **({"paid_on": "2026-11-10", "evidence": "Owner evidence"}
+                                                       if action == "paid" else {"reason": "Duplicate"}))
+    assert ledger.path.read_bytes() == before
+
+
+def test_schema_valid_payloads_and_category_direction_rules():
+    validator = Draft7Validator(SCHEMA["parameters"], format_checker=FormatChecker())
+    for data in ({"action": "record", **INVOICE}, {"action": "record", **INVOICE, "direction": "payable", "category": "food"},
+                 {"action": "paid", "invoice_id": "invoice:demo", "paid_on": "2026-11-10", "evidence": "Owner saw remittance"},
+                 {"action": "void", "invoice_id": "invoice:demo", "reason": "Duplicate"},
+                 {"action": "list"}, {"action": "list", "direction": "payable", "status": "paid", "trip_id": "demo"}):
+        assert not list(validator.iter_errors({"operation": "invoice", "data": data}))
+    for data in ({}, {"action": "send"}, {"action": "record"}, {"action": "paid", "invoice_id": "demo"},
+                 {"action": "record", **INVOICE, "category": "food"},
+                 {"action": "record", **INVOICE, "direction": "payable", "category": "products"},
+                 {"action": "record", **INVOICE, "due_date": "2026-02-30"},
+                 {"action": "record", **INVOICE, "remind_days_before": 61},
+                 {"action": "list", "status": "pending"}, {"action": "list", "extra": 1}):
+        assert list(validator.iter_errors({"operation": "invoice", "data": data}))
+    assert list(validator.iter_errors({"operation": "invoice"}))
+
+
+def test_finance_skill_registered_and_routes_with_safe_instructions():
+    root = Path(__file__).resolve().parents[1]
+    for name, key, value in (("openclaw.plugin.json", "skills", "skills/finance-admin"),
+                             ("skills/travel-action-pack-manifest/openclaw.plugin.json", "skills", "../finance-admin"),
+                             ("support-control/component.json", "required_skills", "finance-admin")):
+        assert value in json.loads((root / name).read_text())[key]
+    skill = (root / "skills/finance-admin/SKILL.md").read_text()
+    front = yaml.safe_load(skill.split("---")[1])
+    assert front["name"] == front["metadata"]["openclaw"]["skillKey"] == "finance-admin"
+    assert "Never initiate a payment or transfer" in skill
+    assert "authorised mail" in skill and "evidence_ref" in skill and "owner's yes" in skill
+    assert "personal-assistant:finance-admin" in (root / "skills/personal-assistant/SKILL.md").read_text()
+
+
+@pytest.mark.parametrize("reference", ["DEMO-A", "demo-a", " DEMO-A  "])
+def test_reference_case_and_spacing_name_one_invoice(ledger, reference):
+    first = record(ledger)["action_id"]
+    assert record(ledger, reference=reference)["action_id"] == first
+
+
+@pytest.mark.parametrize("key,value", [("description", "FY26 marketing retainer"), ("counterparty", "AB12 Creative Studio"),
+    ("reference", "PO2026-000123-ABC"), ("description", "SS26 collection samples")])
+def test_ordinary_codes_are_not_ibans(ledger, key, value):
+    assert record(ledger, **{key: value})["status"] == "open"
+
+
+def test_reference_codes_and_generated_ids_are_not_payment_data(ledger, monkeypatch):
+    assert record(ledger, reference="SN18-OYAUYE1H65P4ELT")["status"] == "open"
+    identity = record(ledger)["action_id"]
+    import personal_assistant.invoices as inv
+    seen = []
+    real = inv._private
+    monkeypatch.setattr(inv, "_private", lambda value: seen.append(value) or real(value))
+    call(ledger, "paid", invoice_id=identity, paid_on="2026-11-12", evidence="Remittance email from Acme")
+    assert all("invoice_id" not in v for v in seen if isinstance(v, dict))
+
+
+def test_a_real_iban_in_the_reference_is_refused(ledger):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="payment or account"):
+        record(ledger, reference="FR14 2004 1010 0505 0001 3M02 606")
+    assert ledger.path.read_bytes() == before
