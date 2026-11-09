@@ -316,3 +316,32 @@ def test_refund_is_not_a_possible_duplicate(ledger):
     invoice(ledger, "bill", status="paid", direction="payable", amount="30", counterparty="Synthetic Vendor")
     expense(ledger, "refund", amount="30", date="2026-11-13", merchant="Synthetic Vendor", kind="refund")
     assert call(ledger, "monthly", month="2026-11")["possible_duplicates"] == []
+
+
+@pytest.mark.parametrize("key", ["account_label", "evidence_ref"])
+def test_grouped_iban_is_refused_byte_identical(ledger, key):
+    balance(ledger)
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="account numbers"):
+        balance(ledger, **{key: "MT84 MALT 0110 0001 2345 MTLC AST0 01S"})
+    assert ledger.path.read_bytes() == before
+
+
+def test_cross_month_duplicate_is_listed_in_the_bill_month(ledger):
+    bill = invoice(ledger, "oct-bill", status="paid", direction="payable", amount="30", paid_on="2026-10-31")
+    charge = expense(ledger, "nov-charge", amount="30", date="2026-11-01")
+    assert call(ledger, "monthly", month="2026-10")["possible_duplicates"] == [
+        {"invoice_id": bill["action_id"], "expense_id": charge["action_id"]}]
+    assert call(ledger, "monthly", month="2026-11")["possible_duplicates"] == []
+
+
+def test_past_as_of_counts_invoices_outstanding_then(ledger):
+    balance(ledger, as_of="2026-11-01", amount="1000")
+    invoice(ledger, "paid-later", status="paid", direction="payable", amount="100",
+            due_date="2026-11-02", paid_on="2026-11-05")
+    invoice(ledger, "issued-later", direction="payable", amount="7", issue_date="2026-11-03", due_date="2026-11-04")
+    past = call(ledger, "cash_position", as_of="2026-11-01")["currencies"]["USD"]
+    assert past["payables"]["due_7d"]["total"] == "100"
+    assert past["projected_7d"]["amount"] == "900"
+    later = call(ledger, "cash_position", as_of="2026-11-06")["currencies"]["USD"]
+    assert later["payables"]["overdue"]["total"] == "7" and later["payables"]["due_7d"]["total"] == "0"

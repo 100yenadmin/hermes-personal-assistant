@@ -14,6 +14,7 @@ from .context import evaluation_moment, owner_zone
 from .evidence import _date, _text
 from .expenses import FIELDS as EXPENSE_FIELDS, _number, _rows
 from .privacy import clean
+from .invoices import _iban
 from .profile import _private
 from .state import legacy, now, stable_id
 
@@ -44,7 +45,7 @@ def _validate(data):
     for key, limit in (("account_label", 60), ("evidence_ref", 1000)):
         if key in data:
             _text(data[key], "finance." + key, limit)
-            if _private(data[key]):
+            if _private(data[key]) or _iban(data[key]):
                 raise ValueError("PA does not store payment or account numbers or credentials")
             if re.search(r"\d{%d,}" % (6 if key == "account_label" else 8), data[key]):
                 raise ValueError("PA does not store account numbers")
@@ -98,7 +99,9 @@ def _cash_position(rows, expenses, as_of):
             # One account label can hold several currencies; each keeps its own latest balance.
             latest[(_normalize(row["fields"]["account_label"]), row["fields"]["currency"])] = row
     balances = list(latest.values())
-    invoices = [r for r in rows if r["action_type"] == "invoice" and r["status"] == "open"]
+    # Outstanding at as_of: issued by then and not paid by then. Void rows carry no date and stay out.
+    invoices = [r for r in rows if r["action_type"] == "invoice" and r["fields"]["issue_date"] <= as_of
+                and (r["status"] == "open" or r["status"] == "paid" and r["fields"]["paid_on"] > as_of)]
     recent = [r for r in expenses if start <= r["fields"]["date"] <= as_of]
     currencies = sorted({r["fields"]["currency"] for r in balances + invoices + recent})
     result = {"as_of": as_of, "currencies": {}, "gaps": []}
@@ -143,6 +146,7 @@ def _categories(rows, *, signed=False):
 def _monthly(rows, expenses, month):
     paid = [r for r in rows if r["action_type"] == "invoice" and r["status"] == "paid"
             and r["fields"]["paid_on"].startswith(month + "-")]
+    candidates = expenses  # A duplicate may straddle the month boundary; it is listed in the bill's month.
     expenses = [r for r in expenses if r["fields"]["date"].startswith(month + "-")]
     result = {"month": month, "currencies": {}, "possible_duplicates": []}
     for currency in sorted({r["fields"]["currency"] for r in paid + expenses}):
@@ -154,7 +158,7 @@ def _monthly(rows, expenses, month):
                                            "net": _number(_total(incoming) - _total(bills) - _total(spent, signed=True))}
         for bill in bills:
             f = bill["fields"]
-            for expense in spent:
+            for expense in [r for r in candidates if r["fields"]["currency"] == currency]:
                 e = expense["fields"]
                 if (e["kind"] == "charge" and Decimal(f["amount"]) == Decimal(e["amount"])
                         and _normalize(f["counterparty"]) == _normalize(e.get("merchant", ""))
