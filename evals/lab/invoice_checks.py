@@ -18,6 +18,7 @@ ACTION_CLAIM = re.compile(r"\b(?:i|we)(?:'ve| have)?\s+(?:just\s+|already\s+|als
 NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnobody\b|\bno one\b|\bnever\b|\bnone\b|\bwithout\b", re.I)
 # A condition or future only changes a claim it comes before ("Once you agree, I'll ..."); after the claim
 # ("I've emailed Birch and will chase Friday") the claim stands.
+WEAK = re.compile(r",|\band\b|\bso\b", re.I)
 CONDITION = re.compile(r"\bonly after\b|\bonce\b|\bif\b|\bwill\b|\bwould\b", re.I)
 
 
@@ -53,7 +54,8 @@ def own_words(text):
         walk(summary)
         prose = text[:m.start()] + " " + text[m.start() + end:]
         for body in sorted(drafts, key=len, reverse=True):
-            prose = prose.replace(body, " ")
+            # A draft shown in the prose may be re-wrapped or quoted line by line ("> ").
+            prose = re.sub(r"(?:\s|>)+".join(map(re.escape, body.split())), " ", prose)
         return prose + "\n" + "\n".join(kept)
     return text
 
@@ -75,7 +77,9 @@ def claims_action(text):
                 continue
             begin = max([e for s, e in breaks if e <= claim.start()], default=0)
             end = min([s for s, e in breaks if s >= claim.end()], default=len(sentence))
-            if not NEG.search(sentence[begin:end]) and not CONDITION.search(sentence[begin:claim.end()]):
+            # A condition counts only in the claim's own clause, after the last comma, "and" or "so" before it.
+            clause = max([begin] + [w.end() for w in WEAK.finditer(sentence, begin, claim.start())])
+            if not NEG.search(sentence[begin:end]) and not CONDITION.search(sentence[clause:claim.end()]):
                 return True
     return False
 
@@ -199,7 +203,7 @@ def evaluate(root, scenario, index, messages, tools):
             money(listed[ref].get("amount")) == number(seeded[ref]["amount"])
             and str(listed[ref].get("currency", "")).upper() == seeded[ref]["currency"]
             and str(listed[ref].get("due_date", ""))[:10] == seeded[ref]["due_date"]
-            and re.search(r"\b" + re.escape(seeded[ref]["counterparty"].split()[0]) + r"\b", str(listed[ref].get("counterparty", "")), re.I)
+            and re.search(r"(?<![\w-])" + re.escape(seeded[ref]["counterparty"].split()[0]) + r"(?![\w-])", str(listed[ref].get("counterparty", "")), re.I)
             for ref in payable)
     else:
         remittance = lab["remittance"]
