@@ -34,6 +34,8 @@ After a verified vendor request or sent message awaiting a reply, pass `follow_t
 
 ## Act on a due step
 
+- While `awaiting_approval` is set, show the held draft again: send, edit or drop;
+  never draft another. List it first in the brief when `awaiting_approval.overdue` is true.
 - `ask_owner`, or `next_actor` `owner`: remind the owner of the open ask in one
   line, with what you need and why it matters now.
 - `waiting_on_them` or `delegated` with `next_actor` `them`: draft one short,
@@ -59,15 +61,16 @@ scheduled run is not consent to send. There is no other send path.
 
 ## Record each chase
 
-After a reminder is given or a nudge is approved and sent, record it on the
-same action, keeping earlier entries:
+Record each reminder, held draft or sent nudge on the same action, keeping earlier entries:
 
 `pa(operation="action_upsert", data={"action_id":"<action id>","fields":{"last_chased_at":"<now with offset>","chase_log":[...earlier entries,{"at":"<now with offset>","step":"<day2|day5|day10>","how":"<reminder|nudge draft held|nudge sent>"}]}})`
 
-A held draft the owner has not approved is still a chase step done: record
-`how: "nudge draft held"`. When the other side confirms, write
-`confirmation` `{by, at, evidence}`; that, or the owner cancelling the loop,
-closes it.
+A held draft is still a chase step done: record `how: "nudge draft held"`.
+It is not contact: report "nudge drafted, awaiting your yes since <date>",
+never as chased, nudged or sent. After the owner's yes and the governed send,
+add `how: "nudge sent"`; on a no, add `how: "nudge declined"`.
+When the other side confirms, write `confirmation` `{by, at, evidence}`; that,
+or the owner cancelling the loop, closes it.
 
 ## Escalate
 

@@ -328,9 +328,9 @@ def dispatch(ledger, data):
             mine = _same(_norm(item["owner"]), me)
             day = dt.date.fromisoformat(item["due_date"])
             due = dt.datetime.combine(day, dt.time(17), zone).isoformat()
-            # The chase ladder counts from opened_at: someone else's item is chased from two days after its
-            # due date; the owner's own item reaches its day-2 reminder on the due date.
-            opened = day - dt.timedelta(days=2) if mine else day
+            # The chase ladder counts from opened_at: draft someone else's day-2 nudge for the owner's yes
+            # on its due date; the owner's own item reaches its day-2 reminder on the due date too.
+            opened = day - dt.timedelta(days=2)
             loops[prefix + stable_id("minutes", data["name"], _norm(item["text"]))] = {
                 "title": item["text"], "loop_kind": "our_promise" if mine else "waiting_on_them",
                 "counterparty": "Owner" if mine else item["owner"], "next_actor": "owner" if mine else "them",
@@ -366,6 +366,10 @@ def _commit(ledger, prefix, loops, staged, paths):
             reopen = not old or old["status"] == "cancelled"
             if reopen:
                 fields = {**fields, "chase_log": []}
+            elif ((old.get("fields") or {}).get("opened_at")
+                  and (old.get("fields") or {}).get("due_at") == fields["due_at"]):
+                # A re-save with the same due date keeps the loop's chase ladder; a moved date recomputes it.
+                fields = {**fields, "opened_at": old["fields"]["opened_at"]}
             # A restored item starts its chase afresh: no cancellation, chase timestamp or snooze carries over.
             _put(conn, identity, fields, "open" if reopen else old["status"],
                  remove=("loop_cancelled", "last_chased_at", "snoozed_until") if reopen else ())

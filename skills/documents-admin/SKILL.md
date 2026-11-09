@@ -75,8 +75,8 @@ without claiming a clean export exists.
    that item as its own follow-through loop with `pa action_upsert`; the minutes
    keep only what the meeting said.
 5. Report the action items as owner, action and date, the open questions, and both
-   file paths. Each action item is now a follow-through loop: someone else's item
-   is chased from two days after its due date; the owner is reminded of their own
+   file paths. Each action item is now a follow-through loop: a nudge for someone else's item
+   is drafted on its due date for your yes; the owner is reminded of their own
    item on its due date. Sending the minutes to
    attendees is an exact-action send that needs the owner's yes to the recipients and text.
 
