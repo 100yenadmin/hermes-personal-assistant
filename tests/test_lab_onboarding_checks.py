@@ -81,7 +81,9 @@ def test_six_failing_runs(tmp_path, failure):
     common.write(tmp_path / "transcript.json", transcript)
     result = checks.evaluate(tmp_path, s)
     assert not result["all_pass"]
-    assert [k for k, ok in result["steps"][0]["checks"].items() if not ok] == [failure], result
+    # With no first win there is no turn count to pass, so owner_turns fails with it.
+    expected = ["owner_turns", "first_win"] if failure == "first_win" else [failure]
+    assert [k for k, ok in result["steps"][0]["checks"].items() if not ok] == expected, result
 
 
 @pytest.mark.parametrize("change", ["json_only", "wrong_bucket", "missing_thread", "plan_with_summary", "early_result"])
@@ -124,3 +126,25 @@ def test_seeded_inbox_uses_s24_mechanism_and_no_setup_progress(tmp_path):
     threads = {t["thread_id"]: t for t in s["lab"]["threads"]}
     assert len(mail_search(threads, "in:inbox", {"work"})) == 3
     assert len([t for t in s["lab"]["threads"] if t.get("urgent")]) >= 2
+
+
+@pytest.mark.parametrize("prose", [
+    "**Urgent**\n- Cedar contract: approve by 16:00\n- Maple venue hold: decide by 15:00\n\n**FYI**\n- Studio update: no action",
+    "## Urgent\n1. Cedar contract, review due 16:00\n2. Maple venue hold expires 15:00",
+    "Urgent: Cedar contract — Alex would like approval by 16:00.\nUrgent: Maple venue — decide by 15:00; I'll hold a reply draft for your yes.",
+])
+def test_first_win_accepts_usual_triage_layouts(tmp_path, prose):
+    s, transcript, _ = synthetic(tmp_path)
+    text = transcript[-1]["content"]
+    transcript[-1]["content"] = prose + "\n" + text[text.index('{"lab_summary"'):]
+    common.write(tmp_path / "transcript.json", transcript)
+    result = checks.evaluate(tmp_path, s)["steps"][0]["checks"]
+    assert result["first_win"] and result["owner_turns"], result
+
+
+def test_items_under_an_fyi_heading_are_not_urgent(tmp_path):
+    s, transcript, _ = synthetic(tmp_path)
+    text = transcript[-1]["content"]
+    transcript[-1]["content"] = "**FYI**\n- Cedar contract\n- Maple venue\n" + text[text.index('{"lab_summary"'):]
+    common.write(tmp_path / "transcript.json", transcript)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["first_win"]

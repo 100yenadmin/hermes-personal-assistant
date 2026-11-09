@@ -285,11 +285,11 @@ def one(args):
         # Restrict to the resolved surface, including any tools added by plugins.
         TOOLSETS["pa_lab_surface"] = {"description": "Lab allowed surface", "tools": names, "includes": []}
         meta.update(toolsets=allowed, tool_list=names, hermes_head=hermes_head(hermes), plugin_refs=read(root / "plugin-refs.json", {}))
-        kwargs = dict(base_url="https://chatgpt.com/backend-api/codex", api_key=api_key, provider="openai-codex", model=MODEL, reasoning_config={"effort": "low"}, service_tier="", max_iterations=60, quiet_mode=True, skip_context_files=True, skip_memory=True, skip_background_review=True, save_trajectories=False)
+        kwargs = dict(base_url="https://chatgpt.com/backend-api/codex", api_key=api_key, provider="openai-codex", model=MODEL, reasoning_config={"effort": "low"}, service_tier="", max_iterations=60, quiet_mode=True, skip_context_files=True, skip_memory=not onboarding, skip_background_review=True, save_trajectories=False)
         task_id = "pl" + hashlib.sha256(str(root).encode()).hexdigest()[:8]
         # Hermes' native timestamp + hex shape, deterministic within this run root.
         session_id = (dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc).strftime("%Y%m%d_%H%M%S_")
-                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption", "expense"} else None
+                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption", "expense", "onboarding"} else None
 
         def turn(message, user=False, system="", hist=None, platform=None):
             remaining = s["budget_seconds"] - (time.time() - meta["start"])

@@ -42,6 +42,8 @@ def make_pa_command(root, get_config=None, set_config=None):
                 current = setup.state(Ledger(root))
                 progress = []
                 for section, counts in current["sections"].items():
+                    if section == "essentials" and current["requested_section"] != "essentials" and "first_errands" not in current["answers"]:
+                        continue
                     if section == current["requested_section"] or any(counts[k] for k in ("asked", "answers", "skipped", "covered")):
                         suffix = f" (next: {current['current_group'] or 'none'})" if section == "profile" else ""
                         skipped = f" ({counts['skipped']} skipped)" if counts["skipped"] else ""
@@ -64,8 +66,9 @@ def make_pa_command(root, get_config=None, set_config=None):
                 if all(q in current["answers"] or q in current["covered"] or q in current["skipped"] for q in setup.CORE_QUESTIONS):
                     return MENU
             if parts and parts[0] == "setup" and len(parts) <= 2:
-                section = parts[1] if len(parts) == 2 else ("essentials" if current["status"] in {"not_started", "offered"}
-                    and not any(current[k] for k in ("asked", "answers", "skipped", "requested_section")) else "core")
+                section = parts[1] if len(parts) == 2 else ("essentials" if current["requested_section"] == "essentials" or (
+                    current["status"] in {"not_started", "offered"}
+                    and not any(current[k] for k in ("asked", "answers", "skipped", "requested_section"))) else "core")
                 section = "chief_of_staff" if section == "chief-of-staff" else section
                 section = "profile" if section == "grill" else section
                 if section not in {*setup.SECTIONS, "review"}:

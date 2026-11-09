@@ -113,7 +113,7 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
             current = setup.state(ledger)
             status = current["status"]
             if (status in {"not_started", "offered"} and not any(current[k] for k in ("asked", "answers", "skipped", "requested_section"))
-                    and re.search(r"\bset me up\b", message, re.I)):
+                    and re.search(r"\bset me up\b(?!\s+(?:with|for|on|a|an|the)\b)", message, re.I)):
                 current = setup.request(Ledger(root, timeout=0.1), "essentials", active_chat=_chat_key(kwargs))
                 status = current["status"]
             # Setup records its own answers; elsewhere a stated preference goes to owner memory, not the memory tool.

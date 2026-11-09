@@ -83,3 +83,29 @@ def test_essentials_skill_contract_and_caps():
     for phrase in ("Finish errand 1 right after apply", "No terminal steps", "offer `/new`", "after the first win",
                    "one review and apply", "never a plan or question", "do errand 2 instead"):
         assert phrase in subsection
+
+
+@pytest.mark.parametrize("status", ["paused", "declined"])
+def test_paused_essentials_resumes_essentials(tmp_path, status):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, "essentials")
+    setup.record(ledger, {"call_and_quiet": {"text": "Synthetic", "source": "user"}}, asked=["call_and_quiet"])
+    ledger.put("action", "pa:setup", {"status": status})
+    assert make_pa_command(tmp_path)("setup") == ESSENTIAL_READY
+    assert setup.state(ledger)["requested_section"] == "essentials"
+    assert setup.state(ledger)["next_question"] == "voice_tone"
+
+
+@pytest.mark.parametrize("text", ["Can you set me up with a car for Friday?", "Set me up for the 9am call",
+                                  "please set me up a table for two"])
+def test_set_me_up_for_an_errand_is_not_setup(tmp_path, text):
+    make_pre_llm_call(tmp_path, lambda k, d: d)(user_message=text, platform="cli", session_id="A", is_first_turn=True)
+    assert setup.state(Ledger(tmp_path))["requested_section"] != "essentials"
+
+
+def test_status_hides_essentials_for_a_core_owner(tmp_path):
+    ledger = Ledger(tmp_path)
+    setup.request(ledger, "core")
+    setup.record(ledger, {q: {"text": "Synthetic", "source": "user"} for q in setup.CORE_QUESTIONS})
+    status = make_pa_command(tmp_path)("setup status")
+    assert "Core 8 of 8" in status and "Essentials" not in status

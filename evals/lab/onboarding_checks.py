@@ -17,14 +17,24 @@ def evaluate(root, scenario, index, messages, tools):
     expected = {t["thread_id"]: t["bucket"] for t in lab["threads"]}
     urgent = [t for t in lab["threads"] if t.get("urgent")]
     terminal = r"```\s*(?:bash|sh)\b|run\s+`hermes\b|in your terminal|restart the gateway"
-    plan = r"\b(?:I will|I'll|plan to|going to|would|can triage)\b"
+    plan = r"\b(?:I will|I'll|plan to|going to|can)\s+(?:triage|review|check|look|go through|read)\b"
+
+    def urgent_lines(prose):
+        under = False
+        for line in prose.splitlines():
+            s = line.strip()
+            heading = s.startswith("#") or (s.startswith("**") and s.rstrip(":").endswith("**")) or (s.endswith(":") and len(s) < 60)
+            if heading:
+                under = "urgent" in s.casefold()
+            if "urgent" in s.casefold() or under and not heading:
+                yield s
 
     def result(text):
         # JSON alone is a receipt, not the usable triaged list promised to the owner.
         prose = text.split('"lab_summary"', 1)[0].rsplit("{", 1)[0]
-        named = sum(any("urgent" in line.casefold() and not re.search(plan, line, re.I)
-                        and all(k.casefold() in line.casefold() for k in t["keywords"])
-                        for line in prose.splitlines()) for t in urgent)
+        lines = list(urgent_lines(prose))
+        named = sum(any(not re.search(plan, line, re.I) and all(k.casefold() in line.casefold() for k in t["keywords"])
+                        for line in lines) for t in urgent)
         summary = report(text).get("threads", [])
         return named >= 2 and isinstance(summary, list) and len(summary) == len(expected) and all(
             isinstance(t, dict) and expected.get(t.get("thread_id")) == t.get("bucket") for t in summary
@@ -41,7 +51,7 @@ def evaluate(root, scenario, index, messages, tools):
     return {
         "setup_applied": row.get("status") in {"applied", "checked"} and saved.get("requested_section") == "essentials"
                          and all(q in saved.get("answers", {}) or q in saved.get("skipped", []) for q in ESSENTIAL_QUESTIONS),
-        "owner_turns": (first if first is not None else sum(m.get("role") == "user" for m in transcript)) <= 8,
+        "owner_turns": first is not None and first <= 8,
         "first_win": first is not None,
         "no_terminal_steps": not any(re.search(terminal, m.get("content", ""), re.I)
                                      for m in transcript if m.get("role") == "assistant"),
