@@ -109,6 +109,8 @@ LANDMARK = re.compile(r"^\s*- (?:heading|textbox|combobox|button|checkbox|radio|
 TIME = re.compile(r"(?<!\d)(?:\d{1,2}(?::\d{2})?\s*(?i:[AP]M)\b|\d{1,2}:\d{2}(?!\d))")
 FIGURE = re.compile(r"[¥$€£₩]\s*\d+(?:[,.]\d+)*|\d+(?:[,.]\d+)*\s*(?i:円|원|KRW|JPY|USD|EUR|yen|won)(?![a-zA-Z])|"
                     + TIME.pattern + r"|(?<![a-zA-Z0-9])(?:[A-Z]{2}|[A-Z]\d|\d[A-Z])\s*\d{2,4}(?![a-zA-Z0-9])")
+# Cart and delivery-address controls prove a staged cart; FAQ headings must not crowd them out (live s03).
+CART = re.compile(r'^\s*- (?:button|link) "(?:\d+ items?\b|Deliver to |[^"]*(?:[Cc]art|[Cc]heckout|[Ss]ubtotal|カート|장바구니))')
 NAME_LINE = re.compile(r'^\s*- (?:link|heading|StaticText|cell)\b.*?"([^"\n]*[^\W\d_][^"\n]*)"')
 STATE = re.compile(r'\[checked=true|\[selected|selected\]|aria-selected', re.I)
 ROW_STATE = re.compile(r'\[checked=|\[selected|selected\]|\[disabled|aria-(?:selected|disabled)', re.I)
@@ -277,8 +279,9 @@ def final_page(root, item, budget=2000):
     page = text.splitlines()
     selected = {i: snapshot_row(page, i) for i, line in enumerate(page) if STATE.search(line)}
     priority = [line for row in selected.values() for line in row]
+    priority += [line.strip() for line in page if CART.match(line) and line.strip() not in priority]
     found = [line.strip() for line in page if (LANDMARK.match(line) or FIGURE.search(line)) and line.strip() not in priority]
-    # Selected rows first, then headings and form fields: site chrome would crowd them out.
+    # Selected rows and cart/address controls first, then headings and form fields: site chrome would crowd them out.
     # Then fields, then price and time lines (cart rows, fares), then buttons; page order within each rank.
     rank = lambda line: (0 if line.startswith(("- heading", "- alert", "- dialog")) else 3 if line.startswith("- button")
                          else 1 if LANDMARK.match(line) else 2)

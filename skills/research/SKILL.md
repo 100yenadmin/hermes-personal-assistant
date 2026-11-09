@@ -83,7 +83,7 @@ recommendation:
 - **Comparison**: one row per option, the option's name in the first column,
   one column per criterion.
 - **Every amount from a source**, anywhere in the answer and in the appendix
-  detail, carries the `[n]` of the page that shows it, right after the amount:
+  detail, carries the `[n]` of the page that shows it, right after the amount and inside its clause (never after a following `;`):
   `$29 per employee/month [2]`. When a cell or sentence holds two amounts, each
   gets its own: `$29 per employee/month [2]; <add-on, in the page's words> $10
   per employee/month [2]`, never one `[n]` at the end for both. Give each source
