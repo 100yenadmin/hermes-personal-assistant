@@ -42,7 +42,7 @@ after the yes. A booking readback records the item on its trip, sets reminders a
 writes a calendar file. A vendor request becomes a chased loop. Each booking can carry
 its expense, and the owner's receipts become an exportable expense list. A cancelled
 or delayed flight produces a read-only list of what it breaks, then one options
-packet, and the chosen change replaces the old booking. ROADMAP_WAVE_SENTENCE No real
+packet, and the chosen change replaces the old booking. In the release wave (57 runs on real Hermes and real web pages, 54 passing), the three after-the-yes scenarios passed 3 of 3 each, with zero tripwire hits. No real
 booking has been completed yet; calls and the browser handoff are still open.
 
 **Strong:**
@@ -298,8 +298,8 @@ and appointment, delivery and errand items. Expenses from bookings and
 receipts (M5-c) and changed or cancelled legs (M5-d: what a leg breaks, one
 options packet, and the replacement) are built too. A yes given in another
 session is also claimed exactly once. Lab s27 (a booking after the yes) passed
-S27_RESULT, s28 (a garage appointment plus a landlord request) passed
-S28_RESULT, and s29 (a cancelled leg that breaks a dinner) passed S29_RESULT. No
+3 of 3, s28 (a garage appointment plus a landlord request) passed
+3 of 3, and s29 (a cancelled leg that breaks a dinner) passed 3 of 3. No
 real booking has been completed yet, and calls and the browser handoff are still
 open.
 
