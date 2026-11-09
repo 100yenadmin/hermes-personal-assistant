@@ -35,7 +35,9 @@ with `loop_kind: waiting_on_them`; apply the follow-through chase ladder.
 If no firm date is evidenced, mark it unknown and ask for one; invent none.
 A missing date is what the chase asks for, not a reason to escalate. While the
 chase draft waits for the owner's send approval, the row stays
-`waiting_on_them` and the thread is reported as drafted.
+`waiting_on_them` with `waiting_for: "owner send approval"`, which holds the
+chase ladder, and the thread is reported as drafted. Clear `waiting_for` once
+the chase is sent.
 
 ## Every send needs the owner's yes
 

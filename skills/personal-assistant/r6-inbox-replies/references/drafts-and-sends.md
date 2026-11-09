@@ -40,5 +40,6 @@ content: send a provider draft by ID (`gog -a <account> gmail drafts send
 <draftId>`) only after reading the draft back in the same turn and finding its
 text, recipients and attachments identical to what the owner approved. Read the sent message back
 (`gog gmail get <messageId>`), call `pa.action_result`, and move the thread
-row to `waiting_on_them` or close it with `confirmation`. Changed text,
+row to `waiting_on_them` (a vendor chase row already is: clear its
+`waiting_for`) or close it with `confirmation`. Changed text,
 recipients or attachments need a new yes.
