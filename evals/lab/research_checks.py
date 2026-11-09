@@ -462,10 +462,10 @@ def evaluate(answer, tools):
                     for marker in dict.fromkeys(MARKER.findall(line)):
                         texts = fetched.get(url_key(sources.get(marker) or f"[{marker}]"), [])
                         other = source_excerpt(match, texts, header, line, with_tier=True) if texts and marker not in markers else None
-                        if other and other[1] < found[1]:
-                            found = other
-                            # Say where the window came from, so a real mis-citation stays visible to the judge.
-                            row["source_note"] = f"window from [{marker}]; the amount is cited to [{', '.join(markers)}]"
+                        if other and other[1] < found[1] and "other_source_text" not in row:
+                            # Keep the cited window; show the other cited source beside it, never instead of it.
+                            row["other_source_text"] = other[0]
+                            row["source_note"] = f"the amount is cited to [{', '.join(markers)}]; [{marker}], also cited on this line, shows it with its currency"
                 excerpts.append({**row, "source_text": found and found[0]})
             elif matched:
                 excerpts_cut += 1

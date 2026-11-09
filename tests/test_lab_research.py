@@ -1279,5 +1279,12 @@ def test_cross_source_fallback_names_where_the_window_came_from():
                             "[1] https://cedar.invalid/pricing — accessed 2026-10-21\n[2] " + other + " — accessed 2026-10-21")
     rows = tools("Cedar goes live in as little as 12.50 days. S$ pricing on request.") + tools("Cedar Payroll S$12.50 per employee per month.", other)
     noted = [r for r in evaluate(answer, rows)["source_excerpts"] if r.get("source_note")]
-    assert noted and noted[0]["source_note"] == "window from [2]; the amount is cited to [1]"
-    assert "per employee per month" in noted[0]["source_text"]
+    assert noted and noted[0]["source_note"] == "the amount is cited to [1]; [2], also cited on this line, shows it with its currency"
+    assert "12.50 days" in noted[0]["source_text"] and "per employee per month" in noted[0]["other_source_text"]
+
+
+def test_table_header_currency_keeps_the_cited_window():
+    match = next(research_checks.AMOUNT.finditer("Cedar costs S$12.50 per employee per month"))
+    cited = [("Price (SGD) | Cedar | 12.50 | per employee per month", False)]
+    excerpt, tier = research_checks.source_excerpt(match, cited, with_tier=True)
+    assert "12.50 | per employee per month" in excerpt
