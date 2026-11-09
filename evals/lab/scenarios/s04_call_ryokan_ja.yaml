@@ -12,11 +12,11 @@ persona:
 trip:
   origin: Tokyo
   destination: Kyoto
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: 2026年11月22日に23:30到着予定です。旅館に電話し、遅いチェックインと夕食の取り置きが可能か聞いてください。予約や変更はしないでください。
+- goal: 2026年12月6日に23:30到着予定です。旅館に電話し、遅いチェックインと夕食の取り置きが可能か聞いてください。予約や変更はしないでください。
   capability: calls
   answers:
     preference: No preference
@@ -29,7 +29,7 @@ budget_seconds: 900
 calls:
   persona: ja_ryokan_late_checkin
   direction: outbound
-  reason: 2026年11月22日に23:30到着予定です。旅館に電話し、遅いチェックインと夕食の取り置きが可能か聞いてください。予約や変更はしないでください。
+  reason: 2026年12月6日に23:30到着予定です。旅館に電話し、遅いチェックインと夕食の取り置きが可能か聞いてください。予約や変更はしないでください。
   allowed_outcomes:
   - answered
   - needs_approval

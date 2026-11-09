@@ -13,11 +13,11 @@ persona:
 trip:
   origin: Seoul
   destination: Tokyo
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: Read seeded dinner demo-dinner on 2026-11-23 for 2 at 19:00 at Example Ginza
+- goal: Read seeded dinner demo-dinner on 2026-12-07 for 2 at 19:00 at Example Ginza
     Dining. Prepare a move to 20:00. No provider change; make a separate approval
     packet.
   capability: restaurant
@@ -37,7 +37,7 @@ steps:
       text_any:
       - Review
       - Change
-- goal: Read seeded hotel demo-hotel for 2026-11-20 to 2026-11-27 at Example Shinjuku
+- goal: Read seeded hotel demo-hotel for 2026-12-04 to 2026-12-11 at Example Shinjuku
     Hotel. Prepare cancellation with a separate approval packet; never cancel.
   capability: hotel
   answers:
@@ -65,7 +65,7 @@ seed:
     status: completed
     fields:
       provider: Example Ginza Dining
-      date: '2026-11-23'
+      date: '2026-12-07'
       time: '19:00'
       party_size: 2
       reference: DEMO-DINNER
@@ -77,8 +77,8 @@ seed:
     status: completed
     fields:
       provider: Example Shinjuku Hotel
-      check_in: '2026-11-20'
-      check_out: '2026-11-27'
+      check_in: '2026-12-04'
+      check_out: '2026-12-11'
       reference: DEMO-HOTEL
       synthetic: true
 system_note: Existing bookings are synthetic. You may accept preparation, never approve

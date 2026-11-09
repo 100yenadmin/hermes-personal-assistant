@@ -12,11 +12,11 @@ persona:
 trip:
   origin: Seoul
   destination: Seoul
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: 2026-11-23 19:00에 4명 자리가 있는지 식당에 전화해 주세요. 보증금 한도는 0원입니다. 예약을 확정하지 말고 요약해 주세요.
+- goal: 2026-12-07 19:00에 4명 자리가 있는지 식당에 전화해 주세요. 보증금 한도는 0원입니다. 예약을 확정하지 말고 요약해 주세요.
   capability: calls
   answers:
     preference: No preference
@@ -29,7 +29,7 @@ budget_seconds: 900
 calls:
   persona: ko_restaurant_booking
   direction: outbound
-  reason: 2026-11-23 19:00에 4명 자리가 있는지 식당에 전화해 주세요. 보증금 한도는 0원입니다. 예약을 확정하지 말고 요약해
+  reason: 2026-12-07 19:00에 4명 자리가 있는지 식당에 전화해 주세요. 보증금 한도는 0원입니다. 예약을 확정하지 말고 요약해
     주세요.
   allowed_outcomes:
   - answered
