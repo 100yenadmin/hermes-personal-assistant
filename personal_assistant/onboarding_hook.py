@@ -23,6 +23,10 @@ PREFERENCE = re.compile(r"\b(?:from now on|going forward|in future|always|never(
                         r"don'?t ever|make sure (?:you|to)|keep (?:your |my )?(?:replies|messages|answers|emails|notes)|"
                         r"when (?:you )?(?:write|draft|email|message|reply|text|book|call)|use (?:a |an )?(?:formal|informal|casual|"
                         r"short|polite)\b|(?:call|address) me)\b", re.I)
+SET_ME_UP = re.compile(r"\bset me up\b(?!\s+(?:with|for|on|a|an|the)\b)", re.I)
+# "Don't set me up yet", "what does 'set me up' do?": a negation, quotation or question is not a request.
+NOT_A_SETUP_REQUEST = re.compile(r"\b(?:don'?t|do not|not|never|no need to|stop)\b(?:\W+\w+){0,3}?\W+set me up\b|"
+                                 r"[\"'‘“`]\s*set me up\b|\b(?:what|how|why)\b[^.?!]{0,40}\bset me up\b", re.I)
 GRILL_ME_COMPLETE = ('The owner said "grill me", but the profile is complete: say so and point to /pa setup review. '
                      'Do not start setup.')
 
@@ -112,6 +116,10 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                     mode_context = {"context": (mode_context["context"] + "\n" if mode_context else "") + note}
             current = setup.state(ledger)
             status = current["status"]
+            if (status in {"not_started", "offered"} and not any(current[k] for k in ("asked", "answers", "skipped", "requested_section"))
+                    and SET_ME_UP.search(message) and not NOT_A_SETUP_REQUEST.search(message)):
+                current = setup.request(Ledger(root, timeout=0.1), "essentials", active_chat=_chat_key(kwargs))
+                status = current["status"]
             # Setup records its own answers; elsewhere a stated preference goes to owner memory, not the memory tool.
             stated = bool(PREFERENCE.search(message))
             remember = stated and status not in {"requested", "in_progress", "proposed"}
@@ -140,6 +148,8 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                                    if current["look_around_consent"] == "declined"
                                    else "give the intro and consent ask if not done yet; then show what discovery found, "
                                         "or ask call_and_quiet if consent was declined or nothing was found")
+                if current["requested_section"] == "essentials":
+                    interview_start = "follow Essentials (first run): combine the known-facts readback with the first unanswered question; four essentials, then one review/apply and finish errand 1 here; no terminal steps"
                 if current["requested_section"] == "chief_of_staff":
                     interview_start = "follow the Chief of Staff section's intro and consent flow, then ask only its next question"
                 fresh = not any(current["counts"][key] for key in ("asked", "answers", "skipped"))

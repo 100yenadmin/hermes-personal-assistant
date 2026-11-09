@@ -339,7 +339,8 @@ def register_calendar(ctx, calendar):
 
 
 # Scoring fields in the scenario's thread fixtures; m34_checks reads them from scenario.json, the agent never sees them.
-ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden", "awaiting_reply"}
+ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden",
+               "awaiting_reply", "keywords"}
 
 
 MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label:inbox|-(?:in|is|category|label):\S+|(?:newer|older)_than:\S+)$")

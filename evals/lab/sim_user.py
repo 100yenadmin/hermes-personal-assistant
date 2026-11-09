@@ -58,6 +58,7 @@ def prompt(scenario, step, last=False):
                "Emit [[NEXT]] only when the reply ends with a CALENDAR SUMMARY block, or gives an honest handoff. Never approve scheduling or invites. "
                if scenario.get("area") == "calendar" else
                "Emit [[NEXT]] only when this goal has a final page and summary or an honest handoff. ")
+            + ("For onboarding, the setup review is not a final action: answer it with apply all. That approves only the setup review, never provider actions. Continue answering until you receive the triaged inbox result itself; no end marker for setup saved or a plan. " if scenario.get("lab", {}).get("kind") == "onboarding" else "")
             + ("Use [[END]] instead on this last step. " if last else "")
             + "When asked to phrase a new goal, just phrase it; emit no markers. Facts: "
             + json.dumps({"persona": scenario["persona"], "goal": step["goal"], "answers": step["answers"],

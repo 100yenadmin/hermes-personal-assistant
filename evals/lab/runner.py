@@ -257,16 +257,24 @@ def one(args):
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
         from lab_installed_pa.entry import dispatch
-        scripted = cos.enabled(s) or "lab" in s or any(st.get("type") == "scheduled" for st in s["steps"])
-        if not scripted:
+        onboarding = s.get("lab", {}).get("kind") == "onboarding"
+        scripted = cos.enabled(s) or ("lab" in s and not onboarding) or any(st.get("type") == "scheduled" for st in s["steps"])
+        if onboarding:
+            cos.seed(hh, s, dispatch)
+            assert not any(r.get("action_id") == "pa:setup" for r in ledger(hh).get("actions", [])), "onboarding home must have no setup progress"
+        if not scripted and not onboarding:
             for seed in s.get("seed", []):
                 dispatch(hh, cos.expand(seed, frozen))
         plugin_sets = {registry.get_entry(n, scope=str(hh)).toolset for p in manager._plugins.values() if p.enabled for n in p.tools_registered}
         allowed = sorted(plugin_sets | {n for n in ("browser", "skills", "todo", "vision", "web") if n in TOOLSETS})
         if "calendar" not in s and not s.get("lab", {}).get("events"):
             allowed = [n for n in allowed if n != "lab_calendar"]
+        if onboarding:
+            allowed += [n for n in ("memory", "file") if n in TOOLSETS]
         names = sorted({t for n in allowed for t in resolve_toolset(n)})
         forbidden = {"terminal", "file", "code_execution", "delegation", "cronjob", "send_message"}
+        if onboarding:
+            forbidden.remove("file")
         if cos.enabled(s):
             # v0.22.2 discovers bundled A2A even in a fresh home; remote agents are outside this lab.
             allowed = [n for n in allowed if n != "a2a"]
@@ -277,11 +285,11 @@ def one(args):
         # Restrict to the resolved surface, including any tools added by plugins.
         TOOLSETS["pa_lab_surface"] = {"description": "Lab allowed surface", "tools": names, "includes": []}
         meta.update(toolsets=allowed, tool_list=names, hermes_head=hermes_head(hermes), plugin_refs=read(root / "plugin-refs.json", {}))
-        kwargs = dict(base_url="https://chatgpt.com/backend-api/codex", api_key=api_key, provider="openai-codex", model=MODEL, reasoning_config={"effort": "low"}, service_tier="", max_iterations=60, quiet_mode=True, skip_context_files=True, skip_memory=True, skip_background_review=True, save_trajectories=False)
+        kwargs = dict(base_url="https://chatgpt.com/backend-api/codex", api_key=api_key, provider="openai-codex", model=MODEL, reasoning_config={"effort": "low"}, service_tier="", max_iterations=60, quiet_mode=True, skip_context_files=True, skip_memory=not onboarding, skip_background_review=True, save_trajectories=False)
         task_id = "pl" + hashlib.sha256(str(root).encode()).hexdigest()[:8]
         # Hermes' native timestamp + hex shape, deterministic within this run root.
         session_id = (dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc).strftime("%Y%m%d_%H%M%S_")
-                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption", "expense"} else None
+                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption", "expense", "onboarding"} else None
 
         def turn(message, user=False, system="", hist=None, platform=None):
             remaining = s["budget_seconds"] - (time.time() - meta["start"])

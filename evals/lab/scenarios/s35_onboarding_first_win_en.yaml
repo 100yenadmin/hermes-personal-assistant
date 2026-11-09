@@ -1,0 +1,38 @@
+id: s35_onboarding_first_win_en
+language: en
+area: inbox
+capabilities: [inbox]
+timezone: Europe/London
+persona:
+  name: Riley
+  email: riley@example.invalid
+  phone: +1-202-555-0155
+  home_city: London
+  notes: Synthetic new owner. No previous setup; prepare and hold all outward actions.
+user_md: No owner preferences have been saved yet.
+max_user_turns: 8
+budget_seconds: 900
+seed: []
+lab:
+  kind: onboarding
+  output_contract: >-
+    Start with personal-assistant:pa-setup essentials. Ask only its four questions, then show one review and wait for apply.
+    After apply, finish inbox triage in this chat using lab_mail_search/get, with the urgent items and next actions in the reply itself.
+    Never send or change the inbox. Only after the triaged result, end with JSON
+    {"lab_summary": {"threads": [{"thread_id": "<id>", "bucket": "<urgent|needs you|FYI>"}]}} covering every inbox thread.
+    Never ask the owner for terminal commands or a restart. Leave unavailable manual pinning pending.
+  threads:
+  - {thread_id: cedar, subject: Cedar contract deadline, from: alex@example.invalid, to: riley@example.invalid, bucket: urgent, urgent: true, keywords: [Cedar, contract], body: Please review the Cedar contract today by 16:00. The signed copy is still waiting for your approval.}
+  - {thread_id: maple, subject: Maple venue hold, from: sam@example.invalid, to: riley@example.invalid, bucket: urgent, urgent: true, keywords: [Maple, venue], body: Your Maple venue hold expires today at 15:00. Please decide whether to keep it; nothing is booked.}
+  - {thread_id: brief, subject: Studio update, from: pat@example.invalid, to: riley@example.invalid, bucket: FYI, urgent: false, body: The weekly studio update is ready. No action needed.}
+steps:
+- goal: Hi! I just installed you. Set me up so you can start helping.
+  capability: inbox
+  answers:
+    call_and_quiet: Riley, quiet hours 22:00–07:00 Europe/London
+    voice_tone: warm, brief, sign Riley
+    authority: prepare anything, but never send, pay, book or cancel without my yes
+    first_errands: triage my inbox, then a morning brief
+    review: apply all
+  hour: 12
+  expect: {lab: onboarding}

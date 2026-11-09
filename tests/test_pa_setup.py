@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from personal_assistant import setup
-from personal_assistant.commands import READY, USAGE, make_pa_command
+from personal_assistant.commands import ESSENTIAL_READY, MENU, READY, USAGE, make_pa_command
 from personal_assistant.entry import SCHEMA, dispatch
 from personal_assistant.onboarding_hook import GRILL_ME, GRILL_ME_COMPLETE, make_pre_llm_call
 from personal_assistant.privacy import PRIVATE_KEYS
@@ -99,7 +99,7 @@ def test_bare_setup_complete_core_shows_menu_without_request(tmp_path):
     setup.record(ledger, {"authority": {"text": "Ask", "source": "user"}}, skipped=list(setup.CORE_QUESTIONS[:2] + setup.CORE_QUESTIONS[3:]))
     setup.pause(ledger)
     prior = setup.state(ledger)
-    assert make_pa_command(tmp_path)("setup") == "/pa setup grill (get to know you, about 32 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
+    assert make_pa_command(tmp_path)("setup") == MENU
     assert setup.state(ledger) == prior
 
 
@@ -261,7 +261,7 @@ def test_rc1_retired_answers_hidden_but_preserved_after_record(tmp_path):
     view = dispatch(tmp_path, {"operation": "setup"})
     assert view["answers"] == {"authority": current}
     assert view["asked"] == ["authority"] and view["skipped"] == ["protect"]
-    assert view["counts"] == {"answers": 1, "asked": 1, "skipped": 1, "covered": 0, "total": 46}
+    assert view["counts"] == {"answers": 1, "asked": 1, "skipped": 1, "covered": 0, "total": 47}
     assert view["next_question"] is None
     raw = ledger.get("action", "pa:setup")["fields"]
     assert raw["answers"]["cos_schedules"] == retired
@@ -389,7 +389,8 @@ def test_dispatch_and_commands(tmp_path, setup_files):
         assert command(text) == USAGE
     assert "Unknown setup section" in command("setup unknown")
     assert setup.state(Ledger(tmp_path))["status"] == "not_started"
-    for text in ("setup", "setup core", "setup review"):
+    assert command("setup") == ESSENTIAL_READY
+    for text in ("setup core", "setup review"):
         assert command(text) == READY
     assert "requested" in command("status")
     assert setup.state(Ledger(tmp_path))["requested_mode"] == "review"
@@ -424,7 +425,7 @@ def test_hook_human_offer_setup_review_and_fresh_check(tmp_path, setup_files):
     assert hook(**{**human, "is_first_turn": False}) is None
     assert "/pa setup" in hook(**human)["context"]
     assert hook(**human) is None
-    make_pa_command(tmp_path)("setup")
+    make_pa_command(tmp_path)("setup core")
     assert "consent ask if not done yet" in hook(**human)["context"]  # A fresh interview starts with consent.
     assert setup.state(ledger)["status"] == "in_progress"
     setup.record(ledger, skipped=["call_and_quiet"])
@@ -993,7 +994,7 @@ def test_pa_setup_reserves_the_chat_it_is_said_in(tmp_path, monkeypatch):
     # A first /pa setup reserves its chat too; CLI and Desktop (no chat id) keep next-turn binding.
     fresh = tmp_path / "fresh"
     fresh.mkdir()
-    assert _command_in(monkeypatch, fresh, "7") == READY
+    assert _command_in(monkeypatch, fresh, "7") == ESSENTIAL_READY
     assert setup.state(Ledger(fresh))["active_chat"] == "telegram:7:"
     other = make_pre_llm_call(fresh, COS_ON)
     assert _chat_turn(monkeypatch, other, "-200", is_first_turn=True) == {"context": ELSEWHERE}

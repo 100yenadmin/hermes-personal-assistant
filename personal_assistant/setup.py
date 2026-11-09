@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .state import legacy, now
 
+ESSENTIAL_QUESTIONS = ("call_and_quiet", "voice_tone", "authority", "first_errands")
 CORE_QUESTIONS = ("call_and_quiet", "worth_a_message", "authority", "first_trip",
                   "arrival_help", "protect", "route", "check_in_time")
 CHIEF_OF_STAFF_QUESTIONS = ("cos_priorities", "cos_radar_topics", "cos_daily_time",
@@ -19,7 +20,7 @@ PROFILE_GROUPS = (
     ("access", ("access_systems", "access_off_limits")),
 )
 PROFILE_QUESTIONS = tuple(q for _, ids in PROFILE_GROUPS for q in ids)
-SECTIONS = {"core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS, "profile": PROFILE_QUESTIONS}
+SECTIONS = {"essentials": ESSENTIAL_QUESTIONS, "core": CORE_QUESTIONS, "chief_of_staff": CHIEF_OF_STAFF_QUESTIONS, "profile": PROFILE_QUESTIONS}
 EQUIVALENT_IDS = ({"biz_priorities", "cos_priorities"},)  # Exact equivalents only; a covered ID is never asked.
 # A related source answers only part of its ID: the ID is still asked, for the missing part only.
 RELATED_IDS = {"rights_ask": "authority", "comm_channel": "route", "comm_rhythm": "worth_a_message"}
@@ -44,7 +45,7 @@ def _view(fields):
     result["related"] = {q: source for q, source in RELATED_IDS.items()
                          if q not in result["answers"] and source in result["answers"]}
     review = result["requested_mode"] == "review"  # A review covers every section's saved answers.
-    questions = (tuple(q for section in SECTIONS.values() for q in section) if review
+    questions = (tuple(dict.fromkeys(q for section in SECTIONS.values() for q in section)) if review
                  else SECTIONS.get(result["requested_section"], CORE_QUESTIONS))
     result["groups"] = [{"group": group, "total": len(ids), "answered": sum(q in covered for q in ids),
                          "skipped": sum(q in result["skipped"] and q not in covered for q in ids),

@@ -3,10 +3,11 @@ from . import setup
 from .state import Ledger
 from .modes import config_getter, cos_enabled
 
-USAGE = "Use /pa setup, /pa setup grill (or profile), /pa setup chief-of-staff, /pa setup review, /pa setup status, /pa status, /pa mode, /pa mode chief-of-staff on|off, or /pa help."
+USAGE = "Use /pa setup, /pa setup essentials, /pa setup core, /pa setup grill (or profile), /pa setup chief-of-staff, /pa setup review, /pa setup status, /pa status, /pa mode, /pa mode chief-of-staff on|off, or /pa help."
 READY = "Setup is ready. Send me any message and I'll start — one question at a time, about 8 in all. Say pause any time."
 PROFILE_READY = "Send me any message and I'll start with {group} — about {total} questions. Say pause any time."
-MENU = "/pa setup grill (get to know you, about 32 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
+ESSENTIAL_READY = "Setup is ready. Send me any message and I'll start — one question at a time, 4 essentials in all. Then one review, apply, and your first errand. Say pause any time."
+MENU = "/pa setup essentials, /pa setup core — travel setup (core), /pa setup grill (get to know you, about 32 short questions in 8 sittings), /pa setup chief-of-staff, /pa setup review"
 
 
 def make_pa_command(root, get_config=None, set_config=None):
@@ -41,6 +42,8 @@ def make_pa_command(root, get_config=None, set_config=None):
                 current = setup.state(Ledger(root))
                 progress = []
                 for section, counts in current["sections"].items():
+                    if section == "essentials" and current["requested_section"] != "essentials" and "first_errands" not in current["answers"]:
+                        continue
                     if section == current["requested_section"] or any(counts[k] for k in ("asked", "answers", "skipped", "covered")):
                         suffix = f" (next: {current['current_group'] or 'none'})" if section == "profile" else ""
                         skipped = f" ({counts['skipped']} skipped)" if counts["skipped"] else ""
@@ -55,13 +58,17 @@ def make_pa_command(root, get_config=None, set_config=None):
                 if current["status"] in {"requested", "in_progress", "proposed"}:
                     setup.continue_here(Ledger(root), active_chat=here)
                     return "Setup continues here. Send me any message and I'll pick up where we left off."
+                if current["requested_section"] == "essentials" and current["status"] in {"applied", "checked"}:
+                    return MENU
                 if current["status"] == "applied" and current["fresh_check"].get("status") in {"pending", "failed"}:
                     setup.continue_here(Ledger(root), active_chat=here)
                     return "Setup is saved. Send /new and then any message, and I'll run the quick check."
                 if all(q in current["answers"] or q in current["covered"] or q in current["skipped"] for q in setup.CORE_QUESTIONS):
                     return MENU
             if parts and parts[0] == "setup" and len(parts) <= 2:
-                section = parts[1] if len(parts) == 2 else "core"
+                section = parts[1] if len(parts) == 2 else ("essentials" if current["requested_section"] == "essentials" or (
+                    current["status"] in {"not_started", "offered"}
+                    and not any(current[k] for k in ("asked", "answers", "skipped", "requested_section"))) else "core")
                 section = "chief_of_staff" if section == "chief-of-staff" else section
                 section = "profile" if section == "grill" else section
                 if section not in {*setup.SECTIONS, "review"}:
@@ -76,7 +83,7 @@ def make_pa_command(root, get_config=None, set_config=None):
                     return PROFILE_READY.format(group=group["group"].replace("_", " "), total=group["total"] - group["answered"] - group["skipped"])
                 if section == "chief_of_staff":
                     return f"Chief of Staff setup is ready. Send me any message and I'll start — one question at a time, {len(setup.CHIEF_OF_STAFF_QUESTIONS)} in all. Say pause any time."
-                return READY
+                return ESSENTIAL_READY if section == "essentials" else READY
             return USAGE
         except ValueError as exc:
             return str(exc) if parts and parts[0] == "mode" else "Sorry, setup is unavailable right now. Please try again."
