@@ -113,7 +113,7 @@ cannot stand for the whole area.
   reads, cross-person delegation ledger, decision log, transcript capture, scorecard with provenance, L2 envelopes, project register.
 - **Gate** — the M7 foundation pilot is not a parity claim. It starts at the VA-core gate in ROADMAP.md; full VA parity stays
   the first product outcome. Each CoS area then meets its acceptance test, and M9 requires all four parity conditions in
-  VISION.md. L2 arrives in M8; L3 always needs a yes per action.
+  VISION.md. L2 arrives in M8 if the owner confirms it (#159); L3 always needs a yes per action.
 
 Sources (read 2026-10-21): Antoine Buteau, "The Chief of Staff operating model, 6: operating cadence" (forum purposes, living owner, sunset
 clause, pre-reads, decision log); startup/CoS job descriptions and interview guides (Lumos, GitLab CoS-to-CRO, underdog.io, startup.jobs:
