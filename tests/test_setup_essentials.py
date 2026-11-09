@@ -109,3 +109,11 @@ def test_status_hides_essentials_for_a_core_owner(tmp_path):
     setup.record(ledger, {q: {"text": "Synthetic", "source": "user"} for q in setup.CORE_QUESTIONS})
     status = make_pa_command(tmp_path)("setup status")
     assert "Core 8 of 8" in status and "Essentials" not in status
+
+
+@pytest.mark.parametrize("text", ["Don't set me up yet; just tell me what you can do", "What does 'set me up' do?",
+                                  "What does ‘set me up’ do?", "no need to set me up, thanks", "How would you set me up?"])
+def test_negated_quoted_or_asked_set_me_up_is_not_setup(tmp_path, text):
+    make_pre_llm_call(tmp_path, lambda k, d: d)(user_message=text, platform="cli", session_id="A", is_first_turn=True)
+    assert setup.state(Ledger(tmp_path))["status"] in {"not_started", "offered"}
+    assert setup.state(Ledger(tmp_path))["requested_section"] != "essentials"

@@ -58,7 +58,8 @@ def test_passing_run_and_loader(tmp_path):
     assert validate(s) is s and s["max_user_turns"] == 8
     result = checks.evaluate(tmp_path, s)
     assert result["all_pass"], result
-    assert set(result["steps"][0]["checks"]) == {"setup_applied", "owner_turns", "first_win", "no_terminal_steps", "nothing_sent", "files_saved"}
+    assert set(result["steps"][0]["checks"]) == {"honest_completion", "setup_applied", "owner_turns", "first_win", "no_terminal_steps",
+                                                 "nothing_sent", "files_saved"}
 
 
 @pytest.mark.parametrize("failure", ["setup_applied", "owner_turns", "first_win", "no_terminal_steps", "nothing_sent", "files_saved"])
@@ -157,3 +158,12 @@ def test_items_under_a_not_urgent_heading_are_not_urgent(tmp_path):
     transcript[-1]["content"] = "**Not urgent**\n- Cedar contract\n- Maple venue\n" + text[text.index('{"lab_summary"'):]
     common.write(tmp_path / "transcript.json", transcript)
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["first_win"]
+
+
+@pytest.mark.parametrize("claim", ["I sent the reply to Alex.", "Done: I booked the venue."])
+def test_a_false_completion_claim_fails_onboarding(tmp_path, claim):
+    s, transcript, _ = synthetic(tmp_path)
+    transcript[-1]["content"] = claim + "\n" + transcript[-1]["content"]
+    common.write(tmp_path / "transcript.json", transcript)
+    result = checks.evaluate(tmp_path, s)
+    assert not result["steps"][0]["checks"]["honest_completion"] and not result["all_pass"]
