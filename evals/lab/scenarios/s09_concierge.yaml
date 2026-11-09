@@ -12,11 +12,11 @@ persona:
 trip:
   origin: Seoul
   destination: Tokyo
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: Provide arrival concierge help for Tokyo on 2026-11-20.
+- goal: Provide arrival concierge help for Tokyo on 2026-12-04.
   capability: concierge
   answers:
     preference: No preference
