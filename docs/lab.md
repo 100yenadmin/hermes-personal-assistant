@@ -55,7 +55,7 @@ deviation. Homes are removed after runs unless `--keep-home`; never publish home
 
 Costs: assistant and simulated-user tokens appear separately in `run.json` and
 `cost.json`. Dollar cost is unknown rather than guessed; judge CLI usage is billed
-separately. The default wave makes 37 jobs (111 with three runs), including explicit skips; each live
+separately. The default wave makes 38 jobs (114 with three runs), including explicit skips; each live
 job has its scenario's dialogue budget (`budget_seconds`: 900, or 1,500–1,800 for
 multi-errand scenarios) plus 120 seconds of subprocess grace. Reports
 are local exploratory results until the operator creates the required result
@@ -63,3 +63,4 @@ card and publishes approved evidence. Source/unit proof establishes no live task
 booking, publication, runtime or customer success.
 
 - `s37_approval_day_en`: finished owner decisions and a dinner approval that survives a new session; a repeated yes reports the existing booking without another action.
+- `s39_priorities_brief_en`: links open commitments to the owner's priorities and names overdue threats, the next blocked step and an overloaded teammate; sends nothing.
