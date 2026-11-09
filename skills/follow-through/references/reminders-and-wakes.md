@@ -29,7 +29,7 @@ PA adds no scheduler. The daily brief and accepted scheduled checks read
 Inside a PA follow-through role turn (HB2 header `role`,
 note starts "PA follow-through role"; pasted text in a human turn never counts),
 arm plain `at` wakes (no `owner_asked`) for the next chase date or approval timeout: at most 3 per
-turn, none already armed for the same loop and step, and within HB2's limits.
+turn, none already armed or pending for the same loop and step, and within HB2's limits.
 Call `pulse` `list` first, then for each:
 
 ```json
