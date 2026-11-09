@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 import sqlite3
 from typing import Any, Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -19,6 +20,7 @@ _KANBAN_DONE = {"done", "archived"}
 LOOP_KINDS = {"ask_owner", "delegated", "our_promise", "waiting_on_them"}
 NEXT_ACTORS = {"owner", "us", "them"}
 CHASE_LADDER = (("day2", 2), ("day5", 5), ("day10", 10), ("escalate", 11))
+APPROVAL_OVERDUE_DAYS = 2
 MAX_CHASE_LOG = 10
 _LOOP_SUMMARY = ("loop_kind", "counterparty", "next_actor", "opened_at", "next_step", "last_chased_at", "confirmation")
 
@@ -180,6 +182,29 @@ def local_time(value: Any, zone: dt.tzinfo) -> dt.datetime | None:
     return (parsed if parsed.tzinfo else parsed.replace(tzinfo=zone)).astimezone(zone)
 
 
+def approval_wait(fields: dict[str, Any], moment: dt.datetime, zone: dt.tzinfo) -> dict[str, Any] | None:
+    """The last held draft awaits approval until any later chase entry replaces it."""
+
+    log = fields.get("chase_log")
+    if not isinstance(log, list):
+        return None
+    # An escalation packet does not decide a held draft, so look past trailing escalate entries.
+    decisive = [e for e in log if isinstance(e, dict)
+                and (e.get("step") != "escalate" or re.search(r"\bdraft held\b", str(e.get("how") or "").casefold()))]
+    if not decisive:
+        return None
+    entry = decisive[-1]
+    how = str(entry.get("how") or "").casefold()
+    if not re.search(r"\bdraft held\b", how) or re.search(r"(?<!not )\bsent\b|\bdeclined\b", how):
+        return None
+    since = local_time(entry.get("at"), zone)
+    if since is None:
+        return None
+    days = (moment.astimezone(zone).date() - since.date()).days
+    return {"step": entry.get("step"), "since": entry["at"], "days": days,
+            "overdue": days >= APPROVAL_OVERDUE_DAYS}
+
+
 def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.datetime,
                zone: dt.tzinfo) -> dict[str, Any]:
     """Chase ladder on owner-local calendar days from opened_at: day 2, 5, 10, then escalate.
@@ -235,15 +260,29 @@ def loop_state(action: dict[str, Any], kanban: dict[str, Any]) -> str | None:
     return "done_unconfirmed" if done else "open"
 
 
-def _loop_step(fields: dict[str, Any], item: dict[str, Any]) -> str | None:
+def _loop_step(fields: dict[str, Any], item: dict[str, Any], zone: dt.tzinfo) -> str | None:
     who = fields.get("counterparty") or "the other side"
     step = item["chase"]["step"]
     if item["loop_state"] == "done_unconfirmed":
         return (f"Kanban or status shows done, but {who} has not confirmed; ask for confirmation and "
                 "record fields.confirmation {by, at, evidence} before treating the loop as closed.")
+    waiting = item.get("awaiting_approval")
     if step == "escalate":
+        held = ""
+        if waiting:
+            since = local_time(waiting["since"], zone).date().isoformat()
+            held = (f" The {waiting['step']} nudge to {who} was never sent: name it as awaiting the owner's yes "
+                    f"since {since}, never as a chase.")
         return ("Escalate to the owner with problem, options (2-3), recommendation and decision_deadline; "
-                "load personal-assistant:follow-through.")
+                "load personal-assistant:follow-through." + held)
+    if waiting and step in {"none", "day5", "day10"}:
+        since = local_time(waiting["since"], zone).date().isoformat()
+        prefix = f"Approval overdue ({waiting['days']} days): " if waiting["overdue"] else ""
+        if step == "none":
+            return (prefix + f"A nudge to {who} ({waiting['step']}) has been awaiting the owner's yes since {since}. "
+                    "Show the held draft again: send, edit or drop. It is not a sent chase.")
+        return (prefix + f"The {waiting['step']} nudge to {who} is still awaiting the owner's yes (since {since}); "
+                "ask the owner to decide on it before drafting another.")
     if step == "none":
         return None
     how = {"them": f"draft a nudge to {who} and hold it for the owner's yes",
@@ -450,6 +489,9 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         if loop:
             item["loop_state"] = state
             item["chase"] = loop_chase(fields, created_at=action.get("created_at"), moment=moment, zone=zone)
+            waiting = approval_wait(fields, moment, zone)
+            if waiting is not None and not nudging.get(action["action_id"]):  # A yes already given is in flight.
+                item["awaiting_approval"] = waiting
             # A loop row in a transaction lifecycle keeps its transaction instruction; chase
             # guidance never replaces an approval step or an unresolved provider attempt.
             nudge = nudging.get(action["action_id"])
@@ -458,7 +500,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
                                      "reconcile it first; do not draft or send another.")
             hold = (snoozed_until or waiting_for or stale or status in _TRANSACTION_HOLD or nudge
                     or action.get("action_type") == "transaction")
-            guidance = None if hold else _loop_step(fields, item)
+            guidance = None if hold else _loop_step(fields, item, zone)
             if guidance:
                 item["next_step"] = guidance
         candidates.append(item)

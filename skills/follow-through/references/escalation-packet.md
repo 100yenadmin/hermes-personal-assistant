@@ -1,7 +1,9 @@
 # Escalation packet
 
 An escalation hands the owner a decision, not a problem. Use it when a loop's
-`chase.step` is `escalate`: the day 2, 5 and 10 chases did not get an answer.
+`chase.step` is `escalate`: the day 2, 5 and 10 steps passed without an answer.
+Count only `nudge sent` entries as chases. A draft that was held and never sent
+is named as "awaiting your yes since <date>", never as a chase.
 
 ## Fixed fields
 
@@ -18,7 +20,8 @@ ledger and sources only; label estimates.
 ## Example
 
 - **problem:** The landlord has not confirmed the boiler repair date. You asked
-  on 2 Nov; we chased on 4, 7 and 12 Nov with no reply. The plumber holds the
+  on 2 Nov; we sent nudges on 4 and 7 Nov with no reply, and the 12 Nov nudge
+  has been awaiting your yes since 12 Nov. The plumber holds the
   slot only until Friday.
 - **options:** (1) I draft a firmer note to the landlord for your yes. (2) You
   call the landlord yourself. (3) Book the plumber directly and claim the cost.
