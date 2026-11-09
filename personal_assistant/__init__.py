@@ -1,3 +1,3 @@
 """Personal Assistant domain helpers; provider/runtime integrations remain Hermes-owned."""
 
-__version__ = "0.12.0-rc.1"
+__version__ = "0.13.0-rc.1"
