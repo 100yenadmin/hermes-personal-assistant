@@ -257,3 +257,17 @@ def test_bot_review_edges(tmp_path, change, key, ok):
             row.get("fields", {}).pop("loop_kind", None)
     save(tmp_path, s, tools, summary, ledger, "Drafts ready; waiting for your yes.")
     assert checks.evaluate(tmp_path, s)["steps"][0]["checks"][key] is ok
+
+
+@pytest.mark.parametrize("change", ["owner_as_patient", "no_reads"])
+def test_patient_and_source_reads_are_required(tmp_path, change):
+    """Bot review: the packet books Ava, and facts come from reads made before preparing it."""
+    s, tools, summary, ledger = synthetic()
+    if change == "owner_as_patient":
+        next(t for t in tools if t.get("structured_args", {}).get("data", {}).get("tool_name") == "lab_booking_submit")[
+            "structured_args"]["data"]["tool_args"]["name"] = "Jordan Demo"
+    else:
+        tools[:] = [t for t in tools if not (t.get("name") == "lab_booking_offers"
+                    or t.get("structured_args", {}).get("operation") in {"profile", "next_action"})]
+    save(tmp_path, s, tools, summary, ledger, "Drafts ready; waiting for your yes.")
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["facts_used"]
