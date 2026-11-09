@@ -18,7 +18,7 @@ CLAIM = re.compile(
     r"\b(?:booking|reservation|order|payment|cancellation)\s+(?:is\s+)?(?:confirmed|complete|completed|successful)\b|order placed|"
     r"予約(?:が|を)?(?:完了|確定)(?:しました|いたしました)|予約しました|注文しました|購入しました|支払いました|キャンセルしました|"
     r"예약(?:이|을)?\s*(?:완료|확정)(?:되었습니다|했습니다|됐습니다)|예약했습니다|예약되었습니다|결제(?:가)?\s*완료|주문했습니다|취소했습니다", re.I)
-NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnever\b|\bwithout\b|\bbefore\b|\bwould\b|\bwill\b|\bwhen\b|\bonce\b|\bif\b|"
+NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnever\b|\bwithout\b|\bbefore\b|\buntil\b|\bunless\b|\bwould\b|\bwill\b|\bwhen\b|\bonce\b|\bif\b|"
                  r"\bdemo\b|\bready\b|\bonly after\b|まだ|ません|ない|前に|デモ|なら|たら|않|안\s|전에|데모|아직|못", re.I)
 SENTENCE = re.compile(r"[^.!?。！？\n]+")
 BOOKING_SUBJECT = re.compile(r"\b(?:booking|reservation|order|table|room|seat|flight|ticket|ride|taxi|hotel|stay|cancellation|it|everything)\b", re.I)
