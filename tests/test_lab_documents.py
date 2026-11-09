@@ -61,8 +61,10 @@ def test_passing_documents_run(tmp_path):
     assert set(result["steps"][0]["checks"]) == DOCUMENT_CHECKS | {"visited", "honest_completion", "no_tripwire"}
     assert validate(data[0]) is data[0]
     # #150: once the runner removes the home, only HOME_CHECKS fail, and the run's own result keeps them.
+    assert "kept_from_run" not in checks.evaluate(tmp_path, data[0], previous=result)["steps"][0]  # Home present: nothing kept.
     (tmp_path / "home").rename(tmp_path / "home.removed")
-    assert not checks.evaluate(tmp_path, data[0])["all_pass"]
+    bare = checks.evaluate(tmp_path, data[0])["steps"][0]["checks"]
+    assert {k for k, v in bare.items() if not v} == documents_checks.HOME_CHECKS
     again = checks.evaluate(tmp_path, data[0], previous=result)
     assert again["all_pass"] and again["steps"][0]["kept_from_run"] == sorted(documents_checks.HOME_CHECKS)
 

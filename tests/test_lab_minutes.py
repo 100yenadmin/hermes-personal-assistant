@@ -121,6 +121,11 @@ def test_rejudge_after_home_removed_keeps_the_runs_own_file_checks(tmp_path, cap
     assert not common.read(run / "checks.json")["all_pass"]
     common.write(run / "transcript.json", [])
     assert checks.evaluate(run, data[0], previous=original)["steps"][0]["pass"] is False
+    # An unreadable saved result falls back to a plain recompute instead of stopping the rejudge.
+    (run / "checks.prev.json").write_text("{not json")
+    assert main(["rejudge", "--out", str(tmp_path / "wave"), "--judge", "none"]) == 0
+    assert json.loads(capsys.readouterr().out)["kept_from_run"] == {}
+    assert checks.evaluate(run, data[0], previous=[1])["steps"][0].get("kept_from_run") is None
 
 
 @pytest.mark.parametrize("key", sorted(MINUTES_CHECKS))

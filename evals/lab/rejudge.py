@@ -37,7 +37,10 @@ def rejudge(args):
 
     def job(root):
         # The run's own result: checks.prev.json once a rejudge has replaced checks.json.
-        original = read(root / "checks.prev.json", None) or read(root / "checks.json", None)
+        try:
+            original = read(root / "checks.prev.json", None) or read(root / "checks.json", None)
+        except ValueError:  # A run killed while writing its checks: recompute them plainly.
+            original = None
         result = checks.evaluate(root, read(root / "scenario.json"), previous=original)
         names = sorted({n for s in result["steps"] for n in s.get("kept_from_run", [])})
         if names:

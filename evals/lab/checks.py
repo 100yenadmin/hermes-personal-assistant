@@ -215,12 +215,13 @@ def evaluate(root, scenario, previous=None):
 def _keep_home_checks(root, kind, result, previous, index):
     """The runner removes the run home unless --keep-home, so a later rejudge cannot read its files.
     Checks that read them keep the run's own result; returns the names kept."""
-    if previous is None or (root / "home").exists():
+    if not isinstance(previous, dict) or (root / "home").exists():
         return []
     from . import documents_checks, minutes_checks, onboarding_checks
     names = {"documents": documents_checks.HOME_CHECKS, "minutes": minutes_checks.HOME_CHECKS,
              "onboarding": onboarding_checks.HOME_CHECKS}.get(kind, frozenset())
-    old = (previous.get("steps") or [])[index:index + 1]
+    steps = previous.get("steps")
+    old = steps[index:index + 1] if isinstance(steps, list) else []
     old = old[0].get("checks", {}) if old and isinstance(old[0], dict) else {}
     kept = sorted(n for n in names if n in result and isinstance(old.get(n), bool))
     result.update({n: old[n] for n in kept})
