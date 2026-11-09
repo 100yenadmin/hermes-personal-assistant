@@ -340,6 +340,24 @@ def register_calendar(ctx, calendar):
 ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden"}
 
 
+MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label:inbox)$")
+
+
+def mail_search(threads, query, account):
+    """The seeded threads are one account's inbox: scope operators narrow nothing, other terms must all appear."""
+    terms = [t.strip('"') for t in query.lower().split()]
+    if any(t.startswith("account:") and t != "account:" + account for t in terms):
+        return []
+    terms = [t.split(":", 1)[1] if t.startswith(("from:", "to:", "subject:")) else t for t in terms
+             if t and t not in ("or", "and", "all") and not t.startswith("account:") and not MAILBOX_SCOPE.match(t)]
+    terms = [t for t in terms if t]
+    inbox = [t for k, t in threads.items() if k != "voice-samples"]
+    if not terms:
+        return inbox
+    test = any if "or" in query.lower().split() else all
+    return [t for t in threads.values() if test(term in json.dumps(t).lower() for term in terms)]
+
+
 def register_standins(ctx, obs):
     """State is local to this disposable run; direct handler calls also enforce approval."""
     if isinstance(obs.lab.get("offers"), list):
@@ -354,8 +372,7 @@ def register_standins(ctx, obs):
         result = {"error": blocked["message"]} if blocked else None
         if result is None:
             if name == "lab_mail_search":
-                query = str(args.get("query", "")).lower()
-                result = [t for k, t in threads.items() if k != "voice-samples"] if query in ("", "all", "in:anywhere") else [t for t in threads.values() if query in json.dumps(t).lower()]
+                result = mail_search(threads, str(args.get("query", "")), obs.lab.get("account", "work"))
             elif name == "lab_mail_get":
                 result = threads.get(args.get("thread_id"), drafts.get(args.get("draft_id"), {"error": "not found"}))
             elif name == "lab_mail_draft":

@@ -767,6 +767,27 @@ def test_mail_standins_hide_scoring_fields(tmp_path):
     assert one["body"].startswith("Synthetic handled thread 17")
 
 
+def test_mail_search_reads_scope_operators_as_the_seeded_inbox(tmp_path):
+    from types import SimpleNamespace
+    from evals.lab import lab_plugin
+    registered = {}
+    ctx = SimpleNamespace(register_tool=lambda name, handler, **kw: registered.__setitem__(name, handler))
+    obs = SimpleNamespace(lab=scenario(31)["lab"], out=tmp_path, step=0, pre=lambda name, args: None,
+                          write_action=lambda name, args: False)
+    lab_plugin.register_standins(ctx, obs)
+    search = lambda query: [t["thread_id"] for t in json.loads(registered["lab_mail_search"]({"query": query}))]
+    inbox = search("")
+    assert len(inbox) == 7 and "voice-samples" not in inbox
+    for query in ("in:inbox", "in:inbox account:work", "account:work is:unread"):
+        assert search(query) == inbox, query
+    assert search("in:inbox account:work customer OR vendor") == search("customer OR vendor") == ["t4", "t5"]
+    assert search("account:personal in:inbox") == []
+    assert search("in:inbox mug damaged") == ["t1"]
+    assert search("from:cedar@example.invalid") == ["t1"]
+    assert search("damaged OR artwork") == [t for t in inbox if t in search("damaged") + search("artwork")] == ["t1", "t5"]
+    assert search("Morgan nobody-here") == []
+
+
 def test_kanban_fixture_reaches_every_loaded_pa_copy(tmp_path, monkeypatch):
     import sys
     import types
