@@ -15,13 +15,13 @@ Your Hermes agent runs errands on the real sites, fills every field, and stops a
 hermes plugins install 100yenadmin/hermes-personal-assistant --ref 57f701e83ebb807be4d1429d7e35f02bdf5dd5d8 --enable --yes-deps
 ```
 
-This installs the stable release v0.11.0 and turns the plugin on. `--yes-deps` lets Hermes install the plugin's Python dependencies (listed in `plugin.yaml`) into your Hermes environment without asking again; leave it off to review them first. No API key is needed to start. A cloud browser (Browserbase) and the optional phone and Daily Ops features need their own keys, described below. Restart your gateway (`hermes gateway restart`) and start a new chat.
+This installs the stable release v0.11.0, and `--enable` turns the plugin on; leave `--enable` off to install it disabled and inspect it first (see [Installation details](#installation-details)). `--yes-deps` (Hermes 0.22 or newer) lets Hermes install the plugin's Python dependencies (listed in `plugin.yaml`) into your Hermes environment without asking again; leave it off to review them first. On Hermes 0.21, leave `--yes-deps` off: Hermes lists the dependencies and how to install them. No API key is needed to start. A cloud browser (Browserbase) and the optional phone and Daily Ops features need their own keys, described below. Restart your gateway (`hermes gateway restart`) and start a new chat.
 
 ## Try it
 
 1. **Install** with the line above, then type `/pa setup` in a new chat. PA asks a few short questions about you, your preferences and what it may do on its own.
 2. **Ask for an errand**, for example: "Book a table for two at a sushi place near Shinjuku on Friday at 19:00."
-3. **See the prepared result.** PA searches the real site, fills every field, and stops at the final button. It shows you an approval packet (place, time, price, cancellation terms and the evidence it read). Nothing is booked until you say yes to that exact action.
+3. **See the prepared result.** PA searches the real site, fills every field, and stops at the final button. It shows you an approval packet (place, time, price, cancellation terms and the evidence it read). PA's skills stop there until you say yes to that exact action. [What it touches](#what-it-touches) explains what the approval gate enforces and what stays under Hermes's own approval policy.
 
 ## How it works
 
@@ -93,7 +93,7 @@ purchase, book, update a provider, or mutate another system.
 
 Installing the plugin does not:
 
-- enable the plugin;
+- enable the plugin, unless you pass `--enable` as the one-line install does;
 - create reminders or recurring jobs;
 - grant provider or conversation-injection permissions;
 - send email, change calendars, make purchases, or perform other provider actions;
@@ -267,24 +267,29 @@ and newsletter drafts in the owner's voice, held for approval; nothing posts aut
 
 ## Installation details
 
-The one-line install at the top pins the stable release v0.11.0. Releases newer than that (the `-rc` pre-releases on the [Releases page](https://github.com/100yenadmin/hermes-personal-assistant/releases)) are release candidates; install one by its tag or full commit with `--ref`.
+The one-line install at the top pins the stable release v0.11.0. Releases newer than that (the `-rc` pre-releases on the [Releases page](https://github.com/100yenadmin/hermes-personal-assistant/releases)) are release candidates. Hermes needs the full 40-character commit for `--ref`, not a tag: `git ls-remote https://github.com/100yenadmin/hermes-personal-assistant refs/tags/<tag>` prints it.
 
-To inspect before turning it on, install it disabled, read the manifest and [`after-install.md`](after-install.md), then enable it with Hermes's plugin controls:
+To inspect before turning it on, install it disabled:
 
 ```bash
 hermes plugins install 100yenadmin/hermes-personal-assistant \
   --ref 57f701e83ebb807be4d1429d7e35f02bdf5dd5d8 --no-enable
+```
+
+Read the manifest and [`after-install.md`](after-install.md). When you are ready, enable it:
+
+```bash
 hermes plugins enable personal-assistant
 ```
 
-Without `--yes-deps`, Hermes asks before installing the declared Python dependencies. Restart or reload at a quiet moment, then check that the `pa` tool and the `personal-assistant:personal-assistant` skill are listed.
+Without `--yes-deps`, Hermes 0.22 and newer ask before installing the declared Python dependencies; Hermes 0.21 lists them and how to install them. Restart or reload at a quiet moment, then check that the `pa` tool and the `personal-assistant:personal-assistant` skill are listed.
 
-Pinned installs do not update on their own. To move to another release, run `hermes plugins install … --force --ref <tag or commit>`. Some Hermes versions replace the plugin folder, so copy PA's local configuration files out first and put them back afterwards (see `docs/release-process.md`). For an isolated loader check without touching a profile or provider, use `scripts/check_pa_native.py`.
+Pinned installs do not update on their own. To move to another release, run `hermes plugins install … --force --ref <full commit>`. Some Hermes versions replace the plugin folder, so copy PA's local configuration files out first and put them back afterwards (see `docs/release-process.md`). For an isolated loader check without touching a profile or provider, use `scripts/check_pa_native.py`.
 
 ## Troubleshooting
 
 - **`pa` is not listed after install.** Run `hermes plugins list`. If PA shows as disabled, run `hermes plugins enable personal-assistant`, then restart the gateway and start a new chat.
-- **The install stops at a dependency question.** Add `--yes-deps`, or answer yes, so Hermes can install the Python dependencies in `plugin.yaml`.
+- **The install stops at a dependency question.** Add `--yes-deps` (Hermes 0.22 or newer), or answer yes, so Hermes can install the Python dependencies in `plugin.yaml`.
 - **A site blocks the local browser or needs a sign-in.** PA stops and hands over honestly. For a cloud browser, set `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` in the profile's secrets and put `agent-browser` on PATH (#39).
 - **`hermes plugins validate` warns about `pa_delivery_ack`.** That tool registers only when conversation delivery is turned on, so the warning is expected.
 
