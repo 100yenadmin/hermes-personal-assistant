@@ -344,18 +344,29 @@ MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label
 
 
 def mail_search(threads, query, accounts):
-    """The seeded threads are one recent account inbox: scope operators narrow nothing, other terms must all appear."""
-    terms = [t.strip('"()') for t in query.lower().split()]
-    if any(t.startswith("account:") and t[len("account:"):] not in accounts for t in terms):
+    """The seeded threads are one recent account inbox; voice samples are sent mail outside it.
+
+    Scope operators narrow nothing inside the inbox but keep the sent samples out; from:, to: and
+    subject: match their own field; other terms match the whole thread. All must hold (any, with OR).
+    """
+    tokens = [t.strip('"()') for t in query.lower().split()]
+    if any(t.startswith("account:") and t[len("account:"):] not in accounts for t in tokens):
         return []
-    terms = [t.split(":", 1)[1] if t.startswith(("from:", "to:", "subject:")) else t for t in terms
-             if t and t not in ("or", "and", "all") and not t.startswith("account:") and not MAILBOX_SCOPE.match(t)]
-    terms = [t for t in terms if t]
+    scoped = any(MAILBOX_SCOPE.match(t) and t != "in:anywhere" for t in tokens)
+    terms = []
+    for t in tokens:
+        if not t or t in ("or", "and", "all") or t.startswith("account:") or MAILBOX_SCOPE.match(t):
+            continue
+        field, _, value = t.partition(":") if t.startswith(("from:", "to:", "subject:")) else (None, "", t)
+        if value:
+            terms.append((field, value))
     inbox = [t for k, t in threads.items() if k != "voice-samples"]
     if not terms:
         return inbox
-    test = any if "or" in query.lower().split() else all
-    return [t for t in threads.values() if test(term in json.dumps(t).lower() for term in terms)]
+    test = any if "or" in tokens else all
+    def match(thread, field, value):
+        return value in (str(thread.get(field, "")) if field else json.dumps(thread)).lower()
+    return [t for t in (inbox if scoped else threads.values()) if test(match(t, f, v) for f, v in terms)]
 
 
 def register_standins(ctx, obs):

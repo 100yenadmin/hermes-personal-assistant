@@ -788,10 +788,28 @@ def test_mail_search_reads_scope_operators_as_the_seeded_inbox(tmp_path):
     assert search("is:unread -category:promotions -category:updates -category:social -category:forums newer_than:2d") == inbox
     assert search("is:unread (category:promotions OR category:updates OR category:social OR category:forums) newer_than:3d") == inbox
     assert search("in:sent") == []
+    # Qualified terms match their own field; the owner's address is in every "to", never in "from".
+    assert search("from:rowan@example.invalid") == []
+    assert search("subject:damaged") == ["t1"]
+    assert search("subject:photo") == []  # "photo" is only in t1's body.
     assert search("in:inbox mug damaged") == ["t1"]
     assert search("from:cedar@example.invalid") == ["t1"]
     assert search("damaged OR artwork") == [t for t in inbox if t in search("damaged") + search("artwork")] == ["t1", "t5"]
     assert search("Morgan nobody-here") == []
+
+
+def test_mail_search_keeps_inbox_scoped_queries_inside_the_inbox(tmp_path):
+    from types import SimpleNamespace
+    from evals.lab import lab_plugin
+    registered = {}
+    ctx = SimpleNamespace(register_tool=lambda name, handler, **kw: registered.__setitem__(name, handler))
+    obs = SimpleNamespace(lab=scenario(24)["lab"], out=tmp_path, step=0, pre=lambda name, args: None,
+                          write_action=lambda name, args: False)
+    lab_plugin.register_standins(ctx, obs)
+    search = lambda query: [t["thread_id"] for t in json.loads(registered["lab_mail_search"]({"query": query}))]
+    assert len(search("in:inbox")) == len(search("in:inbox Morgan")) == 40
+    assert "voice-samples" not in search("in:inbox Morgan") + search("is:unread Morgan")
+    assert "voice-samples" in search("Morgan") and search("voice") == ["voice-samples"]
 
 
 def test_kanban_fixture_reaches_every_loaded_pa_copy(tmp_path, monkeypatch):
