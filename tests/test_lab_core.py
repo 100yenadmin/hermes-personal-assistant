@@ -419,7 +419,7 @@ def test_rejudge_saved_wave_without_runtime(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(subprocess, 'run', deny)
     assert main(['rejudge', '--out', str(tmp_path), '--judge', 'none']) == 0
     result = json.loads(capsys.readouterr().out)
-    assert result == {'rejudged': ['completed'], 'incomplete': ['unfinished'], 'skipped': ['skipped']}
+    assert result == {'rejudged': ['completed'], 'incomplete': ['unfinished'], 'skipped': ['skipped'], 'kept_from_run': {}}
     assert common.read(completed / 'checks.json') == checks.evaluate(completed, s)
     assert common.read(completed / 'judge.json') == {'skipped': True, 'reason': '--judge none'}
     assert (completed / 'checks.prev.json').read_bytes() == old_checks

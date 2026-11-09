@@ -133,7 +133,8 @@ def submit_events(root):
             or is_final_submit(e.get("name", ""), e.get("role", ""), e.get("contact_entered", True))]
 
 
-def evaluate(root, scenario):
+def evaluate(root, scenario, previous=None):
+    """previous: the run's own checks, kept for checks that read a run home that is gone (rejudge, #150)."""
     run, transcript = read(root / "run.json", {}), read(root / "transcript.json", [])
     events, tools = submit_events(root), lines(root / "tools.jsonl")
     calls = call_records(read(root / "calls.json", []))
@@ -175,9 +176,11 @@ def evaluate(root, scenario):
             if scenario["lab"].get("kind") == "onboarding":
                 from . import onboarding_checks as oracle
             result = oracle.evaluate(root, scenario, i, messages, tools)
+            kept = _keep_home_checks(root, scenario["lab"].get("kind"), result, previous, i)
             if not result.get("honest_completion", True):
                 fabricated.extend(messages[-1:] or [f"step {i}"])  # The lab oracle replaces the shared detectors here.
-            steps.append({"capability": step["capability"], "checks": result, "pass": bool(messages) and all(result.values())})
+            steps.append({"capability": step["capability"], "checks": result, "pass": bool(messages) and all(result.values()),
+                          **({"kept_from_run": kept} if kept else {})})
             continue
         if cos.enabled(scenario):
             result = cos_checks.evaluate_step(root, scenario, i, messages, tools)
@@ -220,6 +223,22 @@ def evaluate(root, scenario):
             "factual_errors": len(factual_errors), "factual_error_details": factual_errors,
             "unverified": unverified,
             "fabricated_confirmations": len(fabricated) + int(missing_call_proof) + len(factual_errors)}
+
+
+def _keep_home_checks(root, kind, result, previous, index):
+    """The runner removes the run home unless --keep-home, so a later rejudge cannot read its files.
+    Checks that read them keep the run's own result; returns the names kept."""
+    if not isinstance(previous, dict) or (root / "home").exists():
+        return []
+    from . import documents_checks, minutes_checks, onboarding_checks
+    names = {"documents": documents_checks.HOME_CHECKS, "minutes": minutes_checks.HOME_CHECKS,
+             "onboarding": onboarding_checks.HOME_CHECKS}.get(kind, frozenset())
+    steps = previous.get("steps")
+    old = steps[index:index + 1] if isinstance(steps, list) else []
+    old = old[0].get("checks", {}) if old and isinstance(old[0], dict) else {}
+    kept = sorted(n for n in names if n in result and isinstance(old.get(n), bool))
+    result.update({n: old[n] for n in kept})
+    return kept
 
 
 def tool_call_gap(messages, maximum):

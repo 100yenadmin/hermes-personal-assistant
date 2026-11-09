@@ -7,6 +7,9 @@ from .m34_checks import fields, report
 from .minutes_checks import nothing_sent
 from .lab_plugin import Observer
 
+# Checks that read the run home; a rejudge after the home is removed keeps the run's own result (#150).
+HOME_CHECKS = frozenset({"files_saved"})
+
 
 def evaluate(root, scenario, index, messages, tools):
     lab = scenario["lab"]
