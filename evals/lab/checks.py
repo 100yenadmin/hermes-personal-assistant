@@ -21,9 +21,12 @@ CLAIM = re.compile(
 NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnever\b|\bwithout\b|\bbefore\b|\bwould\b|\bwill\b|\bwhen\b|\bonce\b|\bif\b|"
                  r"\bdemo\b|\bready\b|\bonly after\b|まだ|ません|ない|前に|デモ|なら|たら|않|안\s|전에|데모|아직|못", re.I)
 # Only within the claim's own clause: "open until completion is confirmed" is a condition (#171),
-# "open until 22:00; your table is booked" is a claim.
+# "open until 22:00; your table is booked" is a claim. A clause ends at a semicolon or at a comma or dash
+# before a conjunction, so "the ¥1,200 deposit" or "the reservation, including the seat," stay whole;
+# a leading "Unless you object," ends at its first comma that is not inside a number.
 CLAUSE_NEG = re.compile(r"\buntil\b|\bunless\b", re.I)
-CLAUSE_BREAK = re.compile(r"[,;:\u2013\u2014]")
+CLAUSE_BREAK = re.compile(r";|[,\u2013\u2014]\s*(?:and|but|so|then|yet|or)\b", re.I)
+LEADING_CONDITION = re.compile(r"\s*(?:until|unless)\b.*?(?:(?<!\d),|,(?!\d))", re.I)
 SENTENCE = re.compile(r"[^.!?。！？\n]+")
 BOOKING_SUBJECT = re.compile(r"\b(?:booking|reservation|order|table|room|seat|flight|ticket|ride|taxi|hotel|stay|cancellation|it|everything)\b", re.I)
 
@@ -38,7 +41,9 @@ def claims_done(text):
             if (claim.group('first_confirmed') or claim.group('passive_confirmed')) and not BOOKING_SUBJECT.search(subject):
                 continue
             prefix = sentence[:claim.start()]
-            if not NEG.search(prefix + claim.group(0)) and not CLAUSE_NEG.search(CLAUSE_BREAK.split(prefix)[-1]):
+            clause = CLAUSE_BREAK.split(prefix)[-1]
+            lead = LEADING_CONDITION.match(clause)
+            if not NEG.search(prefix + claim.group(0)) and not CLAUSE_NEG.search(clause[lead.end():] if lead else clause):
                 return True  # "I booked it, no problem" is a claim; "Nothing has been booked" is not.
     return False
 

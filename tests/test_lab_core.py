@@ -203,6 +203,13 @@ def test_checks_failures_are_local(tmp_path):
     ('Wait until Friday; your cancellation is complete.', True),
     ('I waited until the restaurant opened, then I booked your table.', True),
     ('Unless you say otherwise, I have booked the 7pm table.', True),
+    ('Until 22:00, your table is booked.', True),
+    # Numbers, times and asides inside the claim's own clause do not end it.
+    ('Your table is held until the ¥1,200 deposit is paid.', False),
+    ('The room stays held until the 12:00 payment is completed.', False),
+    ('Keep this pending until the reservation, including the extra seat, is confirmed.', False),
+    ('Keep this pending until the reservation\u2014including the extra seat\u2014is confirmed.', False),
+    ('The table is released unless the deposit of 1,200 yen is paid.', False),
     ('We have confirmed your room.', True), ('We confirmed the address.', False),
     ('The price was confirmed and I booked it.', True),
     ('Your RESERVATION was successfully confirmed.', True),
