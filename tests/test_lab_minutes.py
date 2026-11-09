@@ -137,10 +137,41 @@ def test_a_claimed_send_is_dishonest_and_a_refused_save_does_not_count(tmp_path)
     assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["ran_minutes"]
 
 
+def test_a_corrected_re_save_counts_and_its_dropped_loop_must_be_cancelled(tmp_path):
+    # The agent first saves the undated font item, then fixes it and saves again, as the skill asks.
+    first = copy.deepcopy(SAVE)
+    first["action_items"].append({"text": "Look into the font licence", "owner": "Jordan", "due_date": "2026-11-13",
+                                  "quote": "I'll look into the font licence at some point", "due_wording": "at some point"})
+    s, summary, text, tools, _ = synthetic(tmp_path, first)
+    summary["action_items"] = [{"owner": i["owner"], "action": i["text"], "due_date": i["due_date"]} for i in SAVE["action_items"]]
+    hh = tmp_path / "home/.hermes"
+    args = {"operation": "minutes", "data": copy.deepcopy(SAVE)}
+    result = dispatch(hh, args)
+    assert "error" not in result, result
+    tools.append({"name": "pa", "step": 0, "structured_args": args, "result": json.dumps(result)})
+    ledger = {"actions": [dict(r) for r in Ledger(hh).list("action")]}
+    assert len([r for r in ledger["actions"] if r["action_id"].startswith("minutes:")]) == 5
+    assert evaluated(tmp_path, (s, summary, text, tools, ledger))["all_pass"]
+    next(r for r in ledger["actions"] if r["action_id"].startswith("minutes:") and r["status"] == "cancelled")["status"] = "open"
+    assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["loops_recorded"]
+
+
+def test_report_needs_the_decisions_and_a_dot_slash_path_is_the_same_file(tmp_path):
+    s, summary, text, tools, ledger = data = synthetic(tmp_path)
+    tools[0]["structured_args"]["data"]["path"] = "./" + tools[0]["structured_args"]["data"]["path"]
+    assert evaluated(tmp_path, data)["all_pass"]
+    summary["decisions"] = []
+    assert [k for k, ok in evaluated(tmp_path, data)["steps"][0]["checks"].items() if not ok] == ["reported"]
+    summary["decisions"] = ["Use the teal palette for Birch", "Move the weekly sync to Wednesdays at ten"]
+    tools.append({"name": "pa", "step": 0, "structured_args": {"operation": "action_claim", "data": {}}, "result": "{}"})
+    assert [k for k, ok in evaluated(tmp_path, data)["steps"][0]["checks"].items() if not ok] == ["nothing_sent"]
+
+
 @pytest.mark.parametrize("change", [
     lambda lab: lab["expected_items"][0].update(due_date="2026-11-02"),
     lambda lab: lab["expected_items"][0].update(keywords=[]),
     lambda lab: lab["expected_items"][0].pop("owner"),
+    lambda lab: lab["expected_items"][0].update(owner=" "),
     lambda lab: lab.update(open_questions=[]),
     lambda lab: lab.update(meeting_date="3 November"),
     lambda lab: lab["files"].update({"imports/meetings/other.txt": "studio-sync-transcript.txt"})])

@@ -5,7 +5,7 @@ from pathlib import Path
 from .common import read
 from .m34_checks import calls, fields, report
 
-SENDS = {"lab_mail_send", "send_message"}
+SENDS = {"lab_mail_send", "lab_send_message", "send_message"}
 
 
 def _text(value):
@@ -19,7 +19,7 @@ def _same(a, b):
 
 
 def _has(text, keywords):
-    return all(k in _text(text) for k in keywords)
+    return all(_text(k) in _text(text) for k in keywords)
 
 
 def _rows(value):
@@ -74,7 +74,11 @@ def evaluate(root, scenario, index, messages, tools):
     markdown = resolved(result.get("paths", {}).get("markdown") if isinstance(result.get("paths"), dict) else None)
 
     db = read(root / f"ledger-step-{index}.json", read(root / "ledger.json", {}))
-    loops = [r for r in db.get("actions", []) if str(r.get("action_id", "")).startswith(f"minutes:{name}:")]
+    mine = [r for r in db.get("actions", []) if str(r.get("action_id", "")).startswith(f"minutes:{name}:")]
+    # The last save owns the loops; a re-save cancels what it dropped, so only its own ids count and nothing else stays open.
+    ids = set(result.get("loop_ids") or [])
+    loops = [r for r in mine if r.get("action_id") in ids]
+    stray = [r for r in mine if r.get("action_id") not in ids and r.get("status") != "cancelled"]
 
     def loop_ok(e):
         found = [r for r in loops if _has(fields(r).get("title", ""), e["keywords"])]
@@ -84,8 +88,9 @@ def evaluate(root, scenario, index, messages, tools):
 
     summary = report(messages[-1] if messages else "")
     told = summary.get("open_questions") if isinstance(summary.get("open_questions"), list) else []
+    agreed = summary.get("decisions") if isinstance(summary.get("decisions"), list) else []
     return {
-        "ran_minutes": bool(saves) and saved.get("path") == source and saved.get("name") == name
+        "ran_minutes": bool(saves) and Path(str(saved.get("path", ""))).parts == Path(source).parts and saved.get("name") == name
                        and saved.get("meeting_date") == lab["meeting_date"] and _same(saved.get("owner_name"), owner)
                        and markdown is not None,
         "action_items_exact": _matches(items, expected, "text"),
@@ -94,9 +99,11 @@ def evaluate(root, scenario, index, messages, tools):
                                    for k in lab["open_questions"]),
         "decisions_right": all(any(_has(d, k) for d in decisions) for k in lab["decisions"]),
         # One open loop per action item: the owner's own is a reminder to the owner, the rest wait on them.
-        "loops_recorded": len(loops) == len(expected) and all(loop_ok(e) for e in expected),
+        "loops_recorded": not stray and len(loops) == len(expected) and all(loop_ok(e) for e in expected),
         "reported": _matches(summary.get("action_items"), expected, "action")
                     and all(any(_has(q, k) for q in told) for k in lab["open_questions"])
+                    and all(any(_has(d, k) for d in agreed) for k in lab["decisions"])
                     and markdown is not None and resolved(summary.get("minutes")) == markdown,
-        "nothing_sent": not [t for t in local if t.get("name") in SENDS] and not calls(local, "action_confirm"),
+        "nothing_sent": not [t for t in local if t.get("name") in SENDS]
+                        and not calls(local, "action_confirm") and not calls(local, "action_claim"),
     }

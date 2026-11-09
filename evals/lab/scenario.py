@@ -219,7 +219,7 @@ def validate(s):
             require(iso(lab.get("meeting_date")) and isinstance(lab.get("owner_name"), str) and lab["owner_name"].strip(), "lab.meeting_date")
             items = lab.get("expected_items")
             require(isinstance(items, list) and bool(items) and all(
-                isinstance(i, dict) and set(i) == {"owner", "due_date", "keywords"} and isinstance(i["owner"], str)
+                isinstance(i, dict) and set(i) == {"owner", "due_date", "keywords"} and isinstance(i["owner"], str) and i["owner"].strip()
                 and iso(i["due_date"]) and i["due_date"] >= lab["meeting_date"] and keyword_lists([i["keywords"]]) for i in items),
                 "lab.expected_items")
             require(keyword_lists(lab.get("open_questions")) and keyword_lists(lab.get("decisions")), "lab.open_questions")
