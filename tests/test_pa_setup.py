@@ -817,7 +817,7 @@ def test_setup_skill_records_consent_without_expanding():
     from pathlib import Path
     skill = (Path(__file__).resolve().parents[1] / "skills/pa-setup/SKILL.md").read_text()
     assert 'Save `consent: "granted"` or `"declined"` with the first `record` call' in skill
-    assert len(skill.splitlines()) <= 151
+    assert len(skill.splitlines()) <= 151 + 14  # Bounded HB2 setup section (#151).
 
 
 ELSEWHERE = "PA setup is in progress in another chat; say /pa setup to continue here."

@@ -24,6 +24,12 @@ record the chase with `how: "nudge declined"` and ask whether to keep, snooze
 PA adds no scheduler. The daily brief and accepted scheduled checks read
 `next_action` and pick up due chases.
 
+Inside a PA follow-through role turn (an HB2 role wake whose note starts
+"PA follow-through role"), arm plain `at` wakes (no `owner_asked`) for the next
+chase date or approval timeout: at most 3 per turn, none already armed for the
+same loop and step, and within HB2's limits. Report a refusal; never work around it.
+
+Outside a role turn:
 Only when the owner approves a specific follow-up date in a human turn in this
 chat, call the existing `pulse` tool once:
 
@@ -33,5 +39,7 @@ chat, call the existing `pulse` tool once:
 
 Keep the wake in the same chat and relay `armed: false` as pending, not
 scheduled. Never set `owner_asked` for your own chase dates, and never create
-another wake from a follow-up turn. On the HB2 wake turn, HB2 delivers the final
+another wake from a follow-up turn.
+
+On any HB2 wake turn, HB2 delivers the final
 reply; never also use a message tool.
