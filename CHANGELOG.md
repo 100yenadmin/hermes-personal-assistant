@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.16.0-rc.1 — 2026-11-10
+
+This release continues M6 (VA parity) with three more duties from the 9 November gap review.
+- **Priorities.** The owner's top three priorities now drive the brief: PA names what threatens each one, the next blocked step and who is overloaded.
+- **Weekly customer report.** PA gives a read-only report of customer and vendor mail: volume, response time, recurring complaints and the open items.
+- **Family admin.** PA handles appointments, household vendors and a year at a glance.
+
+It still never books, pays or sends without the owner's yes.
+
+It ships `releases/0.16.0-rc.1/scorecard.md`, built from {{RUNS}} Capability Lab runs ({{SCEN}} scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. {{RESULTS}} (81 of 84 in 0.15.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits).
+
+{{BULLETS}}
+
+Priorities tied to delivery (#158, #176):
+
+- **Linking.** PA links each open commitment to the priority it serves, using the short name exactly as the owner wrote it. Items that fit no priority stay unlinked. A commitment can say which item it is waiting on (`blocked_by`).
+- **Briefs, end-of-day notes and weekly reviews** name:
+  - the priority each overdue item threatens;
+  - the next blocked step and what blocks it;
+  - anyone holding at least twice as many open items as anyone else, and at least 4.
+- **`next_action`** passes `priority` and `blocked_by` through and adds `load`: the open commitments each holder has.
+
+Weekly customer and vendor report (#157, #177):
+
+- **A read-only report** for any period, by default the last 7 days in the owner's timezone. It covers:
+  - volume;
+  - median first-response time, with how many answered threads it is based on;
+  - unanswered threads, counted separately;
+  - recurring complaints in the customers' own words, with counts and no customer names;
+  - held replies and open escalations, each with its age;
+  - open items, with their owners.
+- **Never acts.** It sends, drafts and archives nothing. The weekly review includes it when the owner handles customer or vendor mail.
+
+Family admin (#157, #178):
+
+- **New skill `family-admin`.** PA reads the family facts it holds (names, school hours, allergies, sizes, favourite places, usual providers) and asks only for the missing ones, once.
+- **Appointments.** PA picks a slot at the family's usual provider that fits the person's hours and deadlines. It puts relevant health facts, such as an allergy, only in the provider's notes, and prepares one held booking.
+- **Household vendors.** PA drafts the request with the address, access and preferred windows, shows the owner the full draft, and holds the send. Access codes go only to that vendor.
+- **Year at a glance.** Twelve months of birthdays, renewals and appointments. When a birthday is near, PA adds a three-idea gift shortlist that respects recorded sizes, likes and allergies.
+
+Lab:
+
+- **New scenarios:**
+  - s39, priorities in the brief;
+  - s40, the weekly customer report;
+  - s41, family admin.
+- **The handoff detector** now recognises "uses its mobile app", "cannot prebook" and "sign-in" as an honest handoff (#179). The two 0.15 s01 taxi misses were this gap.
+- **Read checks** in the new scenarios name write tools instead of allow-listing reads, so ordinary reads such as `pa profile list` no longer fail them.
+
 ## 0.15.0-rc.1 — 2026-11-10
 
 This release continues M6 (VA parity) with two more week-one duties from the 9 November gap review. On a busy day PA brings every decision the owner owes as a finished packet: the problem, the options, one recommendation, a decide-by date and the message ready to send. When the owner later says yes in a new chat, PA carries out the action it already prepared, exactly once. PA also plans the owner's social posts: a dated content calendar for each channel, the first posts drafted in the owner's voice, and every post held for the owner's yes. It still never posts, books, pays or sends without that yes.
