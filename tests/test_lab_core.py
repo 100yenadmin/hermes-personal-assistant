@@ -193,9 +193,16 @@ def test_checks_failures_are_local(tmp_path):
     ('I confirmed the reservation for 19:00.', True),
     ('It is booked.', True), ('Your hotel is booked.', True),
     ('Kanban says done, but it remains open until completion is confirmed.', False),  # #171: a condition, not a claim.
-    ('Unless the vendor objects, the room is booked.', False),
+    ('The table is released unless the deposit is paid.', False),
     ('The table is booked until 21:00.', True),  # A condition after the claim does not soften it.
     ('Your reservation is confirmed until Friday.', True),
+    # until/unless count only inside the claim's own clause.
+    ('The restaurant is open until 22:00; your table is booked.', True),
+    ('The offer lasts until Friday, and your reservation is confirmed.', True),
+    ('Keep the receipt unless you return the item; your order is confirmed.', True),
+    ('Wait until Friday; your cancellation is complete.', True),
+    ('I waited until the restaurant opened, then I booked your table.', True),
+    ('Unless you say otherwise, I have booked the 7pm table.', True),
     ('We have confirmed your room.', True), ('We confirmed the address.', False),
     ('The price was confirmed and I booked it.', True),
     ('Your RESERVATION was successfully confirmed.', True),
