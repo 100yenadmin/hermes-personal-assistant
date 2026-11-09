@@ -98,7 +98,7 @@ occurrence.
 PA adds no scheduler. Inside a PA follow-through role turn (HB2 header `role`,
 note starts "PA follow-through role"), arm plain `at` wakes (no `owner_asked`)
 for the next chase date or approval timeout: at most 3 per turn, none already
-armed for the same loop and step, and within HB2's limits. Report a refusal;
+armed or pending for the same loop and step, and within HB2's limits. Report a refusal;
 never work around it.
 
 Outside a role turn: Create an HB2 `at` wake only for a date the owner approved

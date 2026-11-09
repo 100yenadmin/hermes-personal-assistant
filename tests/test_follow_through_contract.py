@@ -133,7 +133,7 @@ def test_follow_through_role_wakes_and_owner_approved_dates_outside_roles():
         assert "plain `at` wakes (no `owner_asked`)" in normalized
         assert "chase date or approval timeout" in normalized
         assert "at most 3 per turn" in normalized
-        assert "none already armed for the same loop and step" in normalized
+        assert "none already armed or pending for the same loop and step" in normalized
         assert "HB2 header `role`" in normalized
         assert "within HB2's limits" in normalized
         assert "Report a refusal; never work around it" in normalized
