@@ -54,8 +54,10 @@ month as YYYY-MM and optionally export: true for CSV and Markdown.
 Use `pa` operation `expense`, action `import`, with path under `imports/statements/`.
 Preview first with `preview: true`; give every parsed line one category:
 `lodging`, `transport`, `food`, `activity`, `shopping`, `services`, `fees`, or `other`.
+Check signs and `kind` in the preview, since issuers mark refunds differently.
 Import once with all `categories` entries (`line`, `category`); supply currency if the CSV has none.
 Report counts by category, skipped lines, and possible duplicates from the reconciliation report.
+Overlapping statement files may show possible duplicates; check dates before drafting a refund request.
 For each duplicate, draft a refund request naming the merchant, amount and both dates.
 Hold it for the owner's yes to the exact recipient and text.
 Never dispute, pay or contact anyone on PA's own; never store card numbers.

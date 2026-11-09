@@ -2,8 +2,10 @@
 import csv
 import datetime as dt
 import io
+import json
 import os
 import re
+import unicodedata
 from decimal import Decimal, localcontext
 from pathlib import Path
 
@@ -11,7 +13,8 @@ from jsonschema import Draft7Validator
 
 from .evidence import _date, _enum, _text
 from .profile import _private
-from .state import legacy, stable_id
+from .privacy import clean
+from .state import legacy, now, stable_id
 
 CATEGORIES = ["lodging", "transport", "food", "activity", "shopping", "services", "fees", "other"]
 FIELDS = {
@@ -94,13 +97,17 @@ def from_readback(value, item, identity, verified_at, trip_id):
     return fields
 
 
-def save(ledger, identity, fields, source, source_action_id=None, trip_id=None):
+def save(ledger, identity, fields, source, source_action_id=None, trip_id=None, *, conn=None):
     fields = {**fields, "source": source}
     if source_action_id is not None:
         fields["source_action_id"] = source_action_id
     if trip_id is not None:
         fields["trip_ref"] = trip_id
-    old = ledger.get("action", identity)
+    if conn is None:
+        old = ledger.get("action", identity)
+    else:
+        old = conn.execute("select * from actions where action_id=?", (identity,)).fetchone()
+        old = legacy.row_to_dict(old) if old else None
     # A voided readback stays void unless the money changed (its default date moves with verified_at).
     # A voided receipt recorded again with a changed amount, currency, kind, date or merchant is a correction.
     money = ("amount", "currency", "kind") + (("date",) if source == "owner_receipt" else ())
@@ -109,9 +116,22 @@ def save(ledger, identity, fields, source, source_action_id=None, trip_id=None):
     if source == "owner_receipt" and old and old["fields"].get("merchant") and fields.get("merchant"):
         money += ("merchant",)
     keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields.get(k) for k in money)
-    return ledger.put("action", identity, fields, action_type="expense", status="void" if keep else "recorded",
-                      remove=[k for k in (*FIELDS, "trip_ref", "source_action_id", "void_reason")
-                              if k not in fields and not (keep and k == "void_reason")])
+    remove = [k for k in (*FIELDS, "trip_ref", "source_action_id", "void_reason")
+              if k not in fields and not (keep and k == "void_reason")]
+    status = "void" if keep else "recorded"
+    if conn is None:
+        return ledger.put("action", identity, fields, action_type="expense", status=status, remove=remove)
+    # Statement batches own this transaction; do not commit individual rows.
+    fields = {**(old or {}).get("fields", {}), **clean(fields)}
+    for key in remove:
+        fields.pop(key, None)
+    stamp = now()
+    conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set "
+                 "action_type=excluded.action_type,status=excluded.status,"
+                 "fields_json=excluded.fields_json,updated_at=excluded.updated_at",
+                 (identity, None, "expense", "", status, json.dumps(fields, ensure_ascii=False),
+                  (old or {}).get("created_at", stamp), stamp))
+    return legacy.row_to_dict(conn.execute("select * from actions where action_id=?", (identity,)).fetchone())
 
 
 def _rows(ledger, trip_id=None, include_void=False):
@@ -125,7 +145,7 @@ def _csv_text(columns, table):
     text = io.StringIO(newline="")
     writer = csv.writer(text)
     writer.writerow(columns)
-    writer.writerows([["'" + cell if cell.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else cell
+    writer.writerows([["'" + cell if isinstance(cell, str) and cell.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else cell
                        for cell in row] for row in table])
     return text.getvalue()
 
@@ -135,8 +155,8 @@ def _md(text):
 
 
 def _merchant(text):
-    text = " ".join(text.casefold().split())
-    return re.sub(r"(?:\s*(?:#[0-9]+|\*[a-z0-9]+))+$", "", text).strip()
+    text = " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+    return re.sub(r"(?:\s*(?:#[0-9]+|\*(?=[a-z0-9]*[0-9])[a-z0-9]+))+$", "", text).strip()
 
 
 def card_duplicates(rows):
@@ -166,19 +186,20 @@ def card_duplicates(rows):
     return result
 
 
-def _statement_lines(root, data):
+def _statement_lines(root, data, rel):
     from .minutes import _read, LIMIT
-    relative = Path(data["path"])
-    if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 3 or relative.parts[:2] != ("imports", "statements"):
-        raise ValueError("statement path must be relative under imports/statements/ without ..")
-    text = _read(root, data["path"])
-    _safe(text)  # Scan the whole file, including headers, unknown columns and rows that will be skipped.
+    text = _read(root, rel, label="statement")
     previous = csv.field_size_limit(LIMIT)
+    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
     try:
-        table = list(csv.reader(io.StringIO(text, newline=""), strict=True))
+        table = list(reader)
+    except csv.Error as exc:
+        raise ValueError(f"malformed statement CSV at line {reader.line_num}: {exc}") from exc
     finally:
         csv.field_size_limit(previous)
+    _safe(table)  # Scan every cell, including headers, ignored columns and skipped rows; never join cells.
     headers = [h.strip().casefold() for h in table[0]] if table else []
+    headers = ["date" if h == "txn date" else h for h in headers]
     if not headers or len(set(headers)) != len(headers):
         raise ValueError("missing or duplicate statement CSV headers")
     if not {"date", "amount"} <= set(headers) or not {"merchant", "description"} & set(headers):
@@ -197,7 +218,7 @@ def _statement_lines(root, data):
             date = row["date"].strip()
             if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date):
                 raise ValueError("date must be YYYY-MM-DD")
-            merchant = row.get("merchant", row.get("description", "")).strip()
+            merchant = row.get("merchant", "").strip() or row.get("description", "").strip()
             if not merchant:
                 raise ValueError("merchant or description is required")
             fields = validate({"date": date, "merchant": merchant, "amount": amount[1:] if amount.startswith("-") else amount,
@@ -212,7 +233,11 @@ def _statement_lines(root, data):
 def _import_statement(ledger, data):
     if not Draft7Validator(IMPORT_SCHEMA).is_valid(data):
         raise ValueError("invalid statement import path, preview or categories")
-    lines, skipped = _statement_lines(ledger.root, data)
+    relative = Path(data["path"])
+    if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 3 or relative.parts[:2] != ("imports", "statements"):
+        raise ValueError("statement path must be relative under imports/statements/ without ..")
+    rel = relative.as_posix()
+    lines, skipped = _statement_lines(ledger.root, data, rel)
     if data.get("preview", False):
         return {"lines": lines, "skipped": skipped, "count": len(lines)}
     categories, repeated = {}, set()
@@ -224,26 +249,32 @@ def _import_statement(ledger, data):
     missing, unknown = sorted(numbers - categories.keys()), sorted(categories.keys() - numbers)
     if missing or unknown or repeated:
         raise ValueError(f"statement category lines: missing {missing}; unknown {unknown}; repeated {sorted(repeated)}")
-    name = data.get("name", Path(data["path"]).stem)
+    name = data.get("name", re.sub(r"[^a-z0-9]+", "-", relative.stem.lower()).strip("-")[:41].rstrip("-") or "statement")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", name):
         raise ValueError("statement report name must be a slug")
     output = ledger.root / "exports" / "statements"
     paths = {k: output / (name + suffix) for k, suffix in (("csv", ".csv"), ("markdown", ".md"))}
     for path in paths.values():
         legacy._validate_existing_path(ledger.root, path)
-    rows, totals = [], {}
+    rows, totals, prepared, occurrences = [], {}, [], {}
+    for line in lines:
+        number = line["line"]
+        fields = validate({**{k: v for k, v in line.items() if k != "line"}, "category": categories[number],
+                           "evidence_ref": f"statement {rel} line {number}"})
+        facts = (fields["date"], _merchant(fields["merchant"]), fields["amount"], fields["currency"], fields["kind"])
+        occurrences[facts] = occurrences.get(facts, 0) + 1
+        identity = "expense:" + stable_id("statement", rel, *facts, str(occurrences[facts]))
+        prepared.append((number, identity, fields))
     with localcontext() as ctx:
         ctx.prec = max(28, sum(len(row["amount"]) for row in lines) + 3)
-        for line in lines:
-            number = line["line"]
-            fields = {**{k: v for k, v in line.items() if k != "line"}, "category": categories[number],
-                      "evidence_ref": f"statement {data['path']} line {number}"}
-            identity = "expense:" + stable_id("statement", data["path"], str(number))
-            saved = save(ledger, identity, fields, "statement")
-            rows.append({"line": number, **saved["fields"], "expense_id": identity})
-            bucket = totals.setdefault(fields["currency"], {})
-            category = fields["category"]
-            bucket[category] = bucket.get(category, Decimal(0)) + Decimal(fields["amount"]) * (-1 if fields["kind"] == "refund" else 1)
+        with ledger.connect() as conn:
+            conn.execute("begin immediate")
+            for number, identity, fields in prepared:
+                saved = save(ledger, identity, fields, "statement", conn=conn)
+                rows.append({"line": number, **saved["fields"], "expense_id": identity})
+                bucket = totals.setdefault(fields["currency"], {})
+                category = fields["category"]
+                bucket[category] = bucket.get(category, Decimal(0)) + Decimal(fields["amount"]) * (-1 if fields["kind"] == "refund" else 1)
     totals = {c: {k: _number(v) for k, v in sorted(bucket.items())} for c, bucket in sorted(totals.items())}
     duplicates = card_duplicates(_rows(ledger))
     columns = "line date kind category amount currency merchant evidence_ref expense_id".split()
@@ -255,7 +286,7 @@ def _import_statement(ledger, data):
     for currency, bucket in totals.items():
         for category, total in bucket.items():
             markdown.append(f"- {currency} {category}: {total}")
-            table.append(["", "", "category_total", category, total, currency, "", "", ""])
+            table.append(["", "", "category_total", category, Decimal(total), currency, "", "", ""])
     markdown += ["", "## Possible duplicates"]
     for pair in duplicates:
         markdown.append("- " + _md(f"{pair['merchant']}: {pair['amount']} {pair['currency']}; "
