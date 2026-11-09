@@ -35,3 +35,14 @@ with trip_id for the expense report.
 
 Never store card or account details in any field, not even a card's last four
 digits or a masked number; keep only a safe reference to the source.
+
+## Cash position and monthly summary
+
+Use `pa` operation `finance`, action `balance`, with account_label, as_of,
+amount, currency and evidence_ref only when the owner states or shows a balance,
+with evidence. Never claim a bank balance PA did not get from the owner.
+Include action `cash_position` on Fridays inside the owner's existing brief,
+or on request. Ask for a fresh balance when one is stale or missing.
+A projection is a projection; label it that way. For an account that holds several currencies, put the currency in the label ("Wise USD") so two balances on one date never replace each other.
+Send action `monthly` for the previous month on the first working day; pass
+month as YYYY-MM and optionally export: true for CSV and Markdown.

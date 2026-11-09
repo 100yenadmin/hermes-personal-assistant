@@ -39,6 +39,12 @@ def rows(ledger, identity):
     return [ledger.get("action", identity + suffix) for suffix in ("", ":due", ":loop")]
 
 
+def test_re_record_keeps_existing_lead_days(ledger):
+    identity = record(ledger, remind_days_before=10)["action_id"]
+    assert record(ledger)["action_id"] == identity
+    assert ledger.get("action", identity + ":due")["fields"]["lead_days"] == 10
+
+
 def test_record_identity_idempotency_and_projection_fields(ledger):
     row = record(ledger, trip_id="synthetic-trip", description="Consulting")
     identity = "invoice:receivable:" + stable_id("invoice", "receivable", "synthetic acme", "demo-a")
