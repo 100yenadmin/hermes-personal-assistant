@@ -160,6 +160,8 @@ def _validate(data, transcript):
             raise ValueError(f"{what} quote is not in the transcript: {value[:80]}")
     for item in data["decisions"]:
         quoted(item["quote"], "decision")
+        if _words(item["text"]) and not _words(item["text"]) & _words(item["quote"]):
+            raise ValueError(f"decision quote does not mention this decision: {item['text'][:80]}")
     for question in data.get("open_questions", []):
         if "quote" in question:
             quoted(question["quote"], "open question")
@@ -311,7 +313,9 @@ def _commit(ledger, prefix, loops, staged, paths):
             reopen = not old or old["status"] == "cancelled"
             if reopen:
                 fields = {**fields, "chase_log": []}
-            _put(conn, identity, fields, "open" if reopen else old["status"], remove=("loop_cancelled",) if reopen else ())
+            # A restored item starts its chase afresh: no cancellation, chase timestamp or snooze carries over.
+            _put(conn, identity, fields, "open" if reopen else old["status"],
+                 remove=("loop_cancelled", "last_chased_at", "snoozed_until") if reopen else ())
         for identity in set(existing) - set(loops):  # An item dropped on re-save stops being chased.
             old = _get(conn, identity)
             if (old and old.get("action_type") == "commitment" and old["status"] != "cancelled"

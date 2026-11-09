@@ -418,3 +418,23 @@ def test_messy_transcripts_keep_correct_items(home, transcript, item):
     item = {"text": "Send the deck", "due_date": "2026-11-13", **item}
     result = save(home, decisions=[], open_questions=[], action_items=[item])
     assert "error" not in result, result
+
+
+def test_decision_quote_must_mention_the_decision(home):
+    decisions = copy.deepcopy(MINUTES["decisions"])
+    decisions[0]["text"] = "Cancel the Maple shoot"
+    assert "decision quote does not mention this decision" in save(home, decisions=decisions)["error"]
+
+
+def test_restored_item_chases_afresh(home):
+    ids = save(home)["loop_ids"]
+    with Ledger(home).connect() as conn:
+        row = conn.execute("select fields_json from actions where action_id=?", (ids[0],)).fetchone()[0]
+        fields = {**json.loads(row), "last_chased_at": "2026-11-15T09:00:00+00:00", "snoozed_until": "2026-11-20"}
+        conn.execute("update actions set fields_json=? where action_id=?", (json.dumps(fields), ids[0]))
+    kept = [i for i in MINUTES["action_items"] if loops(home)[ids[0]]["fields"]["title"] != i["text"]]
+    save(home, action_items=kept)
+    assert loops(home)[ids[0]]["status"] == "cancelled"
+    save(home)
+    restored = loops(home)[ids[0]]["fields"]
+    assert "last_chased_at" not in restored and "snoozed_until" not in restored and restored["chase_log"] == []
