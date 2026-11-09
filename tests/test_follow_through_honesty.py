@@ -137,3 +137,10 @@ def test_a_nudge_in_flight_is_not_awaiting_the_owners_yes(ledger):
     ledger.prepare("fixture-loop:nudge:day2", {"provider": "fixture-mail", "final_action": "send the held nudge"})
     item = read_loop(ledger, "2026-11-13T00:30:00+09:00")
     assert "awaiting_approval" not in item and "in progress" in item["next_step"]
+
+
+@pytest.mark.parametrize("entry", [{**HELD, "how": "nudge draft held, not sent"},
+                                   {**HELD, "step": "escalate", "how": "nudge draft held"}])
+def test_held_wording_and_a_held_escalation_nudge_still_wait(entry):
+    moment = dt.datetime.fromisoformat("2026-11-13T00:30:00+09:00")
+    assert approval_wait({"chase_log": [entry]}, moment, ZONE)["since"] == HELD_AT

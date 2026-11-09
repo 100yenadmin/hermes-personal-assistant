@@ -313,7 +313,9 @@ def _commit(ledger, prefix, loops, staged, paths):
             reopen = not old or old["status"] == "cancelled"
             if reopen:
                 fields = {**fields, "chase_log": []}
-            elif (old.get("fields") or {}).get("opened_at"):  # A re-save keeps an existing loop's chase ladder.
+            elif ((old.get("fields") or {}).get("opened_at")
+                  and (old.get("fields") or {}).get("due_at") == fields["due_at"]):
+                # A re-save with the same due date keeps the loop's chase ladder; a moved date recomputes it.
                 fields = {**fields, "opened_at": old["fields"]["opened_at"]}
             # A restored item starts its chase afresh: no cancellation, chase timestamp or snooze carries over.
             _put(conn, identity, fields, "open" if reopen else old["status"],

@@ -448,3 +448,18 @@ def test_resave_keeps_an_existing_loops_opened_at(home):
     ledger.put("action", loop["action_id"], {"opened_at": "2026-11-13"})
     assert "error" not in save(home)
     assert Ledger(home).get("action", loop["action_id"])["fields"]["opened_at"] == "2026-11-13"
+
+
+def test_resave_with_a_moved_due_date_recomputes_opened_at(home):
+    assert "error" not in save(home)
+    ledger = Ledger(home)
+    loop = next(r for r in ledger.list("action") if r["action_id"].startswith("minutes:") and r["fields"]["counterparty"] == "Jordan")
+    ledger.put("action", loop["action_id"], {"opened_at": "2026-11-01"})
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[0]["due_date"] = "2026-11-20"
+    (home / "imports/meetings/sync.txt").write_text(TRANSCRIPT.replace("by Friday.", "by Friday. Actually, by November 20."), encoding="utf-8")
+    items[0]["due_wording"] = "by November 20"
+    items[0]["quote"] = "I'll send Birch the revised logo files by Friday."
+    result = save(home, action_items=items)
+    assert "error" not in result, result
+    assert Ledger(home).get("action", loop["action_id"])["fields"]["opened_at"] == "2026-11-18"

@@ -189,12 +189,13 @@ def approval_wait(fields: dict[str, Any], moment: dt.datetime, zone: dt.tzinfo) 
     if not isinstance(log, list):
         return None
     # An escalation packet does not decide a held draft, so look past trailing escalate entries.
-    decisive = [e for e in log if isinstance(e, dict) and e.get("step") != "escalate"]
+    decisive = [e for e in log if isinstance(e, dict)
+                and (e.get("step") != "escalate" or re.search(r"\bdraft held\b", str(e.get("how") or "").casefold()))]
     if not decisive:
         return None
     entry = decisive[-1]
     how = str(entry.get("how") or "").casefold()
-    if not re.search(r"\bdraft held\b", how) or re.search(r"\b(?:sent|declined)\b", how):
+    if not re.search(r"\bdraft held\b", how) or re.search(r"(?<!not )\bsent\b|\bdeclined\b", how):
         return None
     since = local_time(entry.get("at"), zone)
     if since is None:
