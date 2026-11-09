@@ -49,6 +49,7 @@ STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "h
         "with", "that", "this", "will", "from", "have", "about", "them", "they", "their", "there", "then", "than",
         "next", "week", "what", "when", "should", "would", "could", "into", "your", "just", "also", "make", "sure"}
 SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*|\(?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP]\.?[mM]\.?(?!\w))?\)?\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
+COMMITMENT = re.compile(r"\bi(?:'ll| will| can|'m going to| am going to| shall)\b")
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -72,6 +73,17 @@ def _within(owner, person):
     """The owner is the person's name or its leading words ("Jordan" for "Jordan Lee"), never an extension of it."""
     owner, person = owner.split(), person.split()
     return bool(owner) and person[:len(owner)] == owner
+
+
+def _turns(transcript):
+    """(speaker, text) for each transcript line; a line without a label continues the previous speaker."""
+    turns, speaker = [], None
+    for line in transcript.splitlines():
+        label = SPEAKER.match(line)
+        if label:
+            speaker, line = _norm(label.group(1)), line[label.end():]
+        turns.append((speaker, _norm(line)))
+    return turns
 
 
 def _date_fits(wording, due, meeting):
@@ -128,6 +140,7 @@ def _validate(data, transcript):
     if _private(data) or clean(data) != data:
         raise ValueError("minutes must not contain card, account or phone numbers or credentials")
     source = _norm(transcript)
+    turns = _turns(transcript)
     speakers = {_norm(m) for m in SPEAKER.findall(transcript)}
     people = {_norm(a) for a in data["attendees"]} | speakers
     meeting = dt.date.fromisoformat(data["meeting_date"])
@@ -159,6 +172,18 @@ def _validate(data, transcript):
         if _words(item["text"]) and not _words(item["text"]) & _words(item["quote"]):
             raise ValueError(f"action item quote does not mention this action: {item['text'][:80]}")
         quoted(item["due_wording"], "due wording", minimum=1)
+        # Bind the item to the line its quote comes from: an "I'll ..." promise belongs to its speaker, and the
+        # due wording is on that line or a following line by the same speaker or the owner.
+        quote = _norm(item["quote"])
+        line = next((i for i, (_, text) in enumerate(turns) if quote in text), None)
+        if line is not None:
+            speaker = turns[line][0]
+            if speaker and COMMITMENT.search(quote) and not _same(owner, speaker):
+                raise ValueError(f"action item owner {item['owner']} did not make this promise; {speaker} did: {item['text'][:80]}")
+            nearby = [turns[line][1]] + [text for who, text in turns[line + 1:line + 4] if who and (who == speaker or _same(owner, who))]
+            if not any(_norm(item["due_wording"]) in text for text in nearby):
+                raise ValueError(f"action item due wording is not on the quote's line or a following line by its speaker "
+                                 f"or owner (quote the line that holds both, or move it to open_questions): {item['text'][:80]}")
         if not _date_fits(item["due_wording"], dt.date.fromisoformat(item["due_date"]), meeting):
             raise ValueError(f"action item due_date does not match its wording \"{item['due_wording']}\": {item['text'][:80]}")
     texts = [_norm(i["text"]) for i in data["action_items"]]
@@ -209,10 +234,11 @@ def _put(conn, identity, fields, status, remove=()):
     for key in remove:
         merged.pop(key, None)
     stamp = now()
+    # A row a provider step has taken over keeps its transaction type (Ledger.put_loop_bookkeeping does the same).
     conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set "
                  "action_type=excluded.action_type,status=excluded.status,"
                  "fields_json=excluded.fields_json,updated_at=excluded.updated_at",
-                 (identity, None, "commitment", "", status, json.dumps(merged, ensure_ascii=False),
+                 (identity, None, (old or {}).get("action_type") or "commitment", "", status, json.dumps(merged, ensure_ascii=False),
                   (old or {}).get("created_at", stamp), stamp))
 
 
@@ -265,7 +291,9 @@ def dispatch(ledger, data):
 def _commit(ledger, prefix, loops, staged, paths):
     with ledger.connect() as conn:
         conn.execute("begin immediate")
-        existing = [r[0] for r in conn.execute("select action_id from actions where action_id like ?", (prefix + "%",))]
+        # Item loops only: nudges and other provider actions under a loop ("<loop>:nudge:day2") are not items.
+        existing = [r[0] for r in conn.execute("select action_id from actions where action_id like ?", (prefix + "%",))
+                    if ":" not in r[0][len(prefix):]]
         for identity, fields in loops.items():
             old = _get(conn, identity)
             reopen = not old or old["status"] == "cancelled"
@@ -274,8 +302,10 @@ def _commit(ledger, prefix, loops, staged, paths):
             _put(conn, identity, fields, "open" if reopen else old["status"], remove=("loop_cancelled",) if reopen else ())
         for identity in set(existing) - set(loops):  # An item dropped on re-save stops being chased.
             old = _get(conn, identity)
-            if old and old["status"] != "cancelled" and not (old.get("fields") or {}).get("confirmation"):
+            if (old and old.get("action_type") == "commitment" and old["status"] != "cancelled"
+                    and not (old.get("fields") or {}).get("confirmation")):
                 _put(conn, identity, {"loop_cancelled": {"by": "owner", "at": now(), "reason": "removed from the saved minutes"}}, "cancelled")
-        for kind in ("markdown", "json"):  # A failed replace raises inside the transaction, so no loop change commits.
+        for kind in ("markdown", "json"):  # Refuse a linked output before either file changes.
             legacy._validate_existing_path(ledger.root, paths[kind])
+        for kind in ("markdown", "json"):  # A failed replace raises inside the transaction, so no loop change commits.
             os.replace(staged[kind], paths[kind])

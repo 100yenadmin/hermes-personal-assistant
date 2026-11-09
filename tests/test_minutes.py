@@ -346,3 +346,50 @@ def test_date_wording_checks_only_plain_forms(wording, due, meeting, ok):
 def test_speaker_labels_with_twelve_hour_times():
     from personal_assistant.minutes import SPEAKER
     assert SPEAKER.findall("12:03 PM Riley: hi\n(9:15 a.m.) Jordan: yes\n12:04 Amy: ok\n12:05 Pam: sure\n") == ["Riley", "Jordan", "Amy", "Pam"]
+
+
+def test_hard_linked_json_leaves_the_markdown_unchanged(home, tmp_path):
+    first = save(home)
+    markdown = Path(first["paths"]["markdown"])
+    before = markdown.read_text()
+    outside = tmp_path / "outside.json"
+    outside.write_text("keep")
+    Path(first["paths"]["json"]).unlink()
+    Path(first["paths"]["json"]).hardlink_to(outside)
+    assert "hard-linked" in save(home, overview="Changed overview.")["error"]
+    assert markdown.read_text() == before and outside.read_text() == "keep"
+
+
+def test_owner_and_due_wording_bind_to_the_quote_line(home):
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[0].update(owner="Sam")  # Jordan said "I'll send Birch ..."; Sam did not promise it.
+    assert "did not make this promise; jordan did" in save(home, action_items=items)["error"]
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[0].update(due_date="2026-11-12", due_wording="by November 12")  # Avery's deadline, on Avery's line.
+    assert "due wording is not on the quote's line" in save(home, action_items=items)["error"]
+
+
+def test_date_agreed_on_a_later_line_by_the_owner(home):
+    transcript = "Avery: Jordan, can you get the revised logo files to Birch?\nSam: Busy week.\nJordan: Sure, by Friday.\n"
+    (home / "imports/meetings/sync.txt").write_text(transcript, encoding="utf-8")
+    item = {"text": "Get the revised logo files to Birch", "owner": "Jordan", "due_date": "2026-11-13",
+            "quote": "can you get the revised logo files to Birch", "due_wording": "by Friday"}
+    result = save(home, decisions=[], open_questions=[], action_items=[item])
+    assert "error" not in result, result
+    transcript = "Avery: Jordan, can you get the revised logo files to Birch?\nSam: I can do it by Friday.\n"
+    (home / "imports/meetings/sync.txt").write_text(transcript, encoding="utf-8")
+    assert "due wording is not on the quote's line" in save(home, decisions=[], open_questions=[], action_items=[item])["error"]
+
+
+def test_resave_leaves_provider_rows_and_transaction_owned_loops_alone(home):
+    ids = save(home)["loop_ids"]
+    child = ids[0] + ":nudge:day2"
+    with Ledger(home).connect() as conn:
+        conn.execute("insert into actions values(?,?,?,?,?,?,?,?)",
+                     (child, None, "transaction", "", "prepared", json.dumps({"exact_action": "send"}), "2026-11-11", "2026-11-11"))
+        conn.execute("update actions set action_type='transaction', status='prepared' where action_id=?", (ids[1],))
+    assert save(home)["loop_ids"] == ids
+    with Ledger(home).connect() as conn:
+        rows = {r[0]: (r[1], r[2]) for r in conn.execute("select action_id, action_type, status from actions where action_id like 'minutes:%'")}
+    assert rows[child] == ("transaction", "prepared") and rows[ids[1]] == ("transaction", "prepared")
+    assert rows[ids[0]] == ("commitment", "open")

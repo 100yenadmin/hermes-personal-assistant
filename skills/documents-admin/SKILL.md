@@ -53,8 +53,10 @@ without claiming a clean export exists.
    ellipses, that mention the action.
 3. Every action item needs a named owner (a speaker, or an attendee the
    transcript names), a `due_date` (YYYY-MM-DD) and the spoken `due_wording`
-   ("by Friday", "tomorrow", "by the 12th"). Resolve the wording against the
-   meeting date in the owner's time zone. Write the owner's own items with the
+   ("by Friday", "tomorrow", "by the 12th"), said on the quote's line or a reply
+   right after it by the same speaker or the owner. An "I'll ..." promise belongs
+   to whoever said it. Resolve the wording against the meeting date in the owner's
+   time zone. Write the owner's own items with the
    owner's name as `owner_name`. When the transcript gives no clear owner or no
    date, do not guess: put the item under `open_questions` as a question for the owner.
 4. Save through the structured tool:
