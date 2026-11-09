@@ -392,7 +392,7 @@ open.
 
 In the release wave, replies under policy (s31) passed 2 of 3; the miss came from an ambiguous SOP, fixed after the wave. Invoices, the cash position and contacts have unit tests only so far.
 
-Since then, meeting minutes with an owner and a date on every action item have been built (M6-d, #145; lab scenario s34 in review), and card statement import is in progress (M6-e, #146).
+Since then, meeting minutes with an owner and a date on every action item (M6-d, #145; lab s34 3 of 3) and card statement import (M6-e, #146; unit tests) have been built.
 
 Still missing: the week-one VA core (#151–#155), agendas and spreadsheets in the owner's systems (#156), the tax pack, personal admin and the weekly customer report (#157), the voice test and the parity evidence.
 

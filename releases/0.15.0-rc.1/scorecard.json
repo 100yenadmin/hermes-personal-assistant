@@ -995,7 +995,7 @@
             4
           ],
           "kind": "partial",
-          "label": "decisions finished with options, a recommendation and a decide-by date, drafts held and questions batched; a yes in a new chat confirms the prepared booking once",
+          "label": "decisions finished with options, a recommendation and a decide-by date, drafts held; a yes in a new chat confirms the prepared booking once",
           "passed": 3,
           "run_ids": [
             "s37_approval_day_en/s37_approval_day_en__r001",
