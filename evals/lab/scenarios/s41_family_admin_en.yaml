@@ -37,6 +37,7 @@ lab:
   vendor_to: hearth@example.invalid
   allergy_keyword: latex
   gate_keyword: DEMO-GATE-41
+  vendor_words: [boiler, 5 Example Row, '16:00']  # A usable request: the service, the address and the window.
   months: 12
   radar_ids: ['lab:partner-birthday', 'lab:car-renewal', 'lab:passport-renewal']
   vendor: {item: msg-hearth-boiler, to: hearth@example.invalid, counterparty: Hearth Services}

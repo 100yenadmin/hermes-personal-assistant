@@ -238,3 +238,22 @@ def test_browser_input_and_swapped_titles_fail(tmp_path, change):
         key = "year_complete"
     save(tmp_path, s, tools, summary, ledger, "Drafts ready; waiting for your yes.")
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"][key]
+
+
+@pytest.mark.parametrize("change,key,ok", [("latex-free-gift", "gift_ok", True), ("bare-vendor-body", "vendor_held", False),
+                                           ("no-loop-kind", "packet_held", False)])
+def test_bot_review_edges(tmp_path, change, key, ok):
+    """Bot review: allergen-free gifts pass; a usable vendor request and a real loop kind are required."""
+    s, tools, summary, ledger = synthetic()
+    if change == "latex-free-gift":
+        summary["gift_shortlist"][0] = "Latex-free gardening gloves, size M"
+    elif change == "bare-vendor-body":
+        body = "Side gate code DEMO-GATE-41."
+        summary["vendor_request"]["body"] = body
+        next(t for t in tools if t.get("structured_args", {}).get("data", {}).get("tool_name") == "lab_vendor_send")[
+            "structured_args"]["data"]["tool_args"]["body"] = body
+    else:
+        for row in ledger["actions"]:
+            row.get("fields", {}).pop("loop_kind", None)
+    save(tmp_path, s, tools, summary, ledger, "Drafts ready; waiting for your yes.")
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"][key] is ok

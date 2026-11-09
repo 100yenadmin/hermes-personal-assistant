@@ -39,7 +39,9 @@ hold it for the owner's yes. Do not send it while preparing options.
 ## Year at a glance
 
 Read `pa(operation="next_action", data={"radar":true,"include_upcoming":true})`.
-Follow `next_offset` with `offset` until every page is read. List twelve
+Follow `next_offset` with `offset` until every page is read. Add appointments
+already recorded (open commitments with a date via `pa context`, and calendar
+events when a calendar read is authorized); the radar lists only dated reminders. List twelve
 consecutive months starting with the current month in the owner's timezone.
 Include birthdays, important dates, renewals and appointments in their months;
 label prepared appointments as held proposals. Say plainly when a month is empty.
