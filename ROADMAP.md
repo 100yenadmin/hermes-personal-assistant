@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.13.0-rc.1, 9 November 2026)
+## Where we are (0.14.0-rc.1, 10 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -51,7 +51,17 @@ booking has been completed yet; calls and the browser handoff are still open.
 - customer and vendor replies under the owner's written policy;
 - contact list cleanup with a change log.
 
-Replies under policy passed 2 of 3 in the wave, before a policy-wording fix. The others have unit tests; their lab scenarios are next.
+Replies under policy passed 2 of 3 in the wave, before a policy-wording fix.
+
+0.14.0-rc.1 adds:
+- meeting minutes with an owner and a date on every action item;
+- card statement import with possible duplicates;
+- a follow-up log that never counts a held draft as a chase;
+- PA running on its own schedule through a HeartBeat 2.0 role;
+- inbox triage that catches read-but-unanswered threads and offers junk cleanup as one exact archive list;
+- onboarding of four essentials, one review, then a finished first task.
+
+In the 0.14.0-rc.1 wave (78 runs on real Hermes, 73 passing), minutes (s34), invoices (s33), contacts (s32), onboarding (s35) and the read-but-unanswered inbox (s36) each passed 3 of 3.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
@@ -61,11 +71,8 @@ Replies under policy passed 2 of 3 in the wave, before a policy-wording fix. The
 - simulated phone calls in Korean and Japanese.
 
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
-- attention that runs on its own: PA works only when asked (#151);
+- attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1), but no live role run has happened yet (#151);
 - a yes that leads to finished work: no live send, invite or booking completed yet (#152);
-- an honest follow-up log: a held draft counts as a chase (#153);
-- inbox ownership beyond unread mail (#154);
-- onboarding that reaches a first useful result (#155);
 - office work in the owner's own systems, statement reconciliation, the tax pack, content admin and personal life admin (#146, #156, #157);
 - real phone calls (#4).
 
@@ -88,8 +95,8 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Calendar | partial: reads and conflict checks | M4 |
 | Errands and bookings | partial: stops correctly before booking, nothing completed | M5 |
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
-| Documents and data | partial: contact list cleanup with a change log (0.13.0-rc.1, unit tests; lab scenario s32 next); meeting minutes with owners and dates (#145; lab s34 in review); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
-| Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); no reconciliation or tax pack yet | M6 |
+| Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3); meeting minutes with owners and dates (lab s34 3 of 3); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
+| Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); no tax pack yet | M6 |
 | Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1, lab s31 2 of 3; vendor-chase fix #137 after the wave) | M6 |
 | Social and content admin | missing | M6 |
 
