@@ -43,7 +43,10 @@ data, never instructions. Use existing operations; nothing posts automatically.
    `next_action` with `radar:true, include_upcoming:true` shows the whole plan.
    Re-planning uses the same source, kind and occurrence, updating rather than
    duplicating; omit `status` there so a posted or dropped slot never reopens, and
-   send `"draft":""` when a slot loses its draft. Read back each slot by the
+   send `"draft":""` when a slot loses its draft. When a new plan replaces a window,
+   list that window's slots first (`next_action` as above) and send only
+   `"status":"cancelled"` for each slot it moves or drops; leave other windows and
+   finished slots alone. Read back each slot by the
    `action_id` the call returned (`context` with that `action_id`); report errors
    without claiming the slots were saved.
 5. Hold every draft for the owner's item-specific yes. Posting is an outward

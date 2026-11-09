@@ -199,3 +199,26 @@ def test_drafts_must_be_the_earliest_slots(tmp_path):
         summary["drafts"][0].update(channel=last["channel"], date=last["date"])
     s, summary, prose, tools, ledger = synthetic(tmp_path, change)
     assert not evaluated(tmp_path, (s, summary, prose, tools, ledger))["steps"][0]["checks"]["drafts_in_voice"]
+
+
+def test_moved_slot_is_cancelled_and_leaves_the_radar(tmp_path):
+    """#175 review: a re-plan that moves a slot cancels the old occurrence, which keeps its fields."""
+    hh = tmp_path / "home/.hermes"
+    hh.mkdir(parents=True)
+    def slot(day, **extra):
+        f = {"title": f"Post: launch (LinkedIn) {day}", "channel": "LinkedIn", "publish_on": day, "topic": "launch",
+             "why": "Before the launch", "next_actor": "owner", "due_at": day + "T10:00:00+00:00", "radar_kind": "deadline",
+             "event_date": day, "lead_days": 2, "recurs": "none", "document": "LinkedIn post"}
+        return {"operation": "action_upsert", "data": {"action_type": "commitment", "source_id": "content-calendar",
+                "action_kind": "content", "occurrence": f"LinkedIn-{day}", **extra, "fields": f}}
+    old = dispatch(hh, slot("2026-11-12", status="open"))["action_id"]
+    dispatch(hh, slot("2026-11-13", status="open"))
+    cancel = slot("2026-11-12", status="cancelled")
+    del cancel["data"]["fields"]
+    assert "error" not in dispatch(hh, cancel)
+    radar = dispatch(hh, {"operation": "next_action", "data": {"radar": True, "include_upcoming": True,
+                                                              "at": "2026-11-09T10:00:00+00:00"}})
+    assert [c["date"] for c in radar["candidates"]] == ["2026-11-13"]
+    row = dispatch(hh, {"operation": "context", "data": {"kind": "action", "action_id": old}})["action"]
+    assert row["status"] == "cancelled" and row["fields"]["publish_on"] == "2026-11-12"
+    assert "cancelled" in (ROOT / "skills/content-admin/SKILL.md").read_text()
