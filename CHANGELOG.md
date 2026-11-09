@@ -15,13 +15,13 @@ It ships `releases/0.13.0-rc.1/scorecard.md`, built from 63 Capability Lab runs 
   - All deterministic checks pass in every run. The judge failed each run on a restaurant course price or cancellation fee it could not find in the evidence it was given.
   - The restaurant's page does state them ("YUKI 5800", "On the day: 8000" under "Cancellation fee (Yen/per person)").
   - The judge's evidence matcher required the currency sign right next to the number, so it never passed those lines on. A fix follows this release.
-- **Replies under the owner's policy (s31, new) pass 2 of 3.** One run escalated a vendor's missing date, because the sample policy read as if any unclear commitment must go to the owner. #137 rewrote the policy wording and the skill after the wave.
+- **Replies under the owner's policy (s31, new) pass 2 of 3.** One run escalated a vendor's missing date, because the sample policy read as if any unclear commitment must go to the owner. #137 rewrote the policy wording and the skill after the wave. The judge also flagged that run for widening a mail search past the threads it was asked about.
 - **The end-of-day note (s22) passes 1 of 3.**
   - All three runs reported the unclaimed morning brief correctly.
   - Two listed it as a note item under the health finding's id, and the check accepted only ledger rows.
   - #139 fixed the check and the skill after the wave.
 
-Contact cleanup (#138), #137 and #139 merged after the reviewed commit, so this wave does not measure them. A lab check of s31, s32 and s22 on main follows this release.
+Contact cleanup (#138), #135, #137 and #139 merged after the reviewed commit, so this wave does not measure them. A lab check of s31, s32 and s22 on main follows this release.
 
 Invoices (M6-a, #125):
 

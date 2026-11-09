@@ -89,7 +89,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
 | Documents and data | partial: contact list cleanup with a change log (0.13.0-rc.1, unit tests; lab scenario s32 next); minutes, agendas and spreadsheets missing | M6 |
 | Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); no reconciliation or tax pack yet | M6 |
-| Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1, lab s31) | M6 |
+| Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1, lab s31 2 of 3; vendor-chase fix #137 after the wave) | M6 |
 | Social and content admin | missing | M6 |
 
 ## Milestones
