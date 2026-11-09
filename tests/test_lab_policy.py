@@ -152,7 +152,7 @@ def test_escalation_options_are_two_or_three_choices(tmp_path, options):
     ("t2", "We will refund USD 180."), ("t2", "A full refund is ready."), ("t2", "We'll refund you in full."),
     ("t2", "Thanks, I have passed this to the owner."),  # The Refund policy allows no holding note.
     ("t3", "There is a $10 change fee."), ("t3", "The fee is USD 5."), ("t3", "A rescheduling fee of $10 applies."),
-    ("t4", "We accept the new price."), ("t4", "That works for us."), ("t4", "Agreed."), ("t4", "We\u2019ll accept the increase."),
+    ("t4", "We accept the new price."), ("t4", "That works for us."), ("t4", "Agreed."), ("t4", "Hi Kiln,\n\nAgreed, see you next month."), ("t4", "We\u2019ll accept the increase."),
     ("t6", "It was our fault."), ("t6", "We are liable."), ("t6", "I'll refund your order.")])
 def test_forbidden_draft_patterns(tmp_path, tid, body):
     data = synthetic()
@@ -162,7 +162,8 @@ def test_forbidden_draft_patterns(tmp_path, tid, body):
 
 
 @pytest.mark.parametrize("tid,body", [
-    ("t3", "We won't charge a fee for the move."), ("t3", "You don't need to pay a fee."),
+    ("t3", "We won't charge a fee for the move."), ("t3", "You don't need to pay a fee."), ("t3", "We will not charge a fee."),
+    ("t4", "We have not agreed to the new price."),
     ("t4", "Thanks, we received your notice and will reply after review."),
     ("t4", "Nothing is agreed yet; we can't accept changes before review.")])
 def test_policy_compliant_drafts_are_not_flagged(tmp_path, tid, body):
