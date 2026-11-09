@@ -1224,6 +1224,11 @@ COURSE_LINE = 'YUKI 5800/TSUKI 7800/HANA9800/HUKU12000(Yen/by only food, excludi
     ('Parking ₩8000', '₩8000', ['회원 수: 8000'], None, False),                                 # 원 inside 회원 (member)
     ('Parking ₩8000', '₩8000', ['병원 주차 8000'], None, False),
     ('Parking ₩8,000', '₩8,000', ['주차 요금(원): 8000'], '주차 요금(원): 8000', True),            # 원 as a label
+    ('Tea ¥118', '¥118', ['Tea 118 / Coffee 191  円'], None, False),                           # spaced suffix sign belongs to 191
+    ('Tea ¥118', '¥118', ['Tea 118 / Coffee 191\t円'], None, False),
+    ('Dinner ¥100', '¥100', ['Prices (JPY / USD): 15000 / $100'], None, False),               # $100 is dollars
+    ('Rated $8,000', '$8,000', ['Rated 4.6 (8,000+) reviews'], None, False),                  # no label at all
+    ('Tea €118', '€118', ['Tea 118 / Coffee 191'], None, False),
 ])
 def test_claim_evidence_currency_label_for_a_list(claim, figure, lines, seen, label):
     rows = judge.claim_evidence([{'role': 'assistant', 'step': 0, 'content': claim}],
