@@ -104,7 +104,7 @@ def seed(hh, scenario, dispatch, moment=None):
         "quiet_hours": {"start": "22:00", "end": "07:00"}, **scenario.get("preferences", {})}}})
     for item in scenario.get("seed", []):
         item = expand(item, values)
-        if scenario.get("lab", {}).get("kind") in {"booking", "disruption", "expense"} and item["operation"] == "trip_import":
+        if scenario.get("lab", {}).get("kind") in {"booking", "approvals", "disruption", "expense"} and item["operation"] == "trip_import":
             # Relative day tokens are ISO dates; ICS requires compact basic dates.
             item["data"]["ics_text"] = re.sub(r"(?m)^(DT(?:START|END)[^:\n]*:)(\d{4})-(\d{2})-(\d{2})T",
                                              r"\1\2\3\4T", item["data"]["ics_text"])
@@ -187,6 +187,12 @@ def pa_context_copies(api):
     return list({id(m): m for m in copies if hasattr(m, "read_kanban_task")}.values())
 
 
+def session_id(root, start, step=None):
+    suffix = str(root) + (":step" + str(step) if step is not None else "")
+    return (dt.datetime.fromtimestamp(start, dt.timezone.utc).strftime("%Y%m%d_%H%M%S_")
+            + hashlib.sha256(suffix.encode()).hexdigest()[:6])
+
+
 def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
     """A scheduled child has fresh history. Scripted human replies retain its evidence."""
     moment = dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc) if "start" in meta else None
@@ -200,9 +206,18 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
     before = protected_files(hh)
     history, transcript = [], []
     meta["scheduled_turns"] = []
+    from .scenario import SESSION_KINDS
+    session = session_id(root, meta.get("start", 0)) if scenario.get("lab", {}).get("kind") in SESSION_KINDS else None
+    if session:
+        meta["sessions"] = {}
     try:
         for index, step in enumerate(scenario["steps"]):
             observer.step, observer.turn = index, index
+            if step.get("new_session"):
+                history = []
+                session = session_id(root, meta.get("start", 0), index)
+            if session:
+                meta["sessions"][str(index)] = session
             values = variables(scenario["timezone"], moment, step.get("hour", 12))
             scheduled = step.get("type") == "scheduled"
             if scheduled:
@@ -234,7 +249,8 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
                 system = system_prompt(scenario) + "\nSynthetic clock: " + values["now"]
                 write(root / "transcript.json", transcript)  # Tripwire sees only earlier simulated-user turns.
             with cron_scope(scheduled):  # Hermes builds cron agents with platform="cron".
-                result = turn(message, system=system, hist=history, platform="cron" if scheduled else None)
+                result = turn(message, system=system, hist=history, platform="cron" if scheduled else None,
+                              **({"session_id": session} if session else {}))
             history = result.get("messages") or []
             write(root / f"history-step-{index}.json", history)
             reply = result.get("final_response", "")

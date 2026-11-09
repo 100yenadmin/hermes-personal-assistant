@@ -9,6 +9,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
 LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands", "customer_comms", "documents", "finance"}
+SESSION_KINDS = {"booking", "approvals", "vendor_request", "disruption", "expense", "onboarding"}
 
 
 def fixture_path(name):
@@ -89,6 +90,9 @@ def validate(s):
     for i, step in enumerate(s["steps"]):
         prefix = f"steps[{i}]"
         require(isinstance(step, dict), prefix)
+        if "new_session" in step:
+            require(type(step["new_session"]) is bool and i > 0 and lab
+                    and s["lab"].get("kind") in SESSION_KINDS, prefix + ".new_session")
         require(step.get("type", "chat") in ("chat", "scheduled"), prefix + ".type")
         if step.get("type") == "scheduled":
             require(step.get("job") in (("cos_daily", "cos_kickoff", "cos_weekly") if cos else ("daily_brief", "due_source_check")), prefix + ".job")
@@ -132,7 +136,7 @@ def validate(s):
     require(isinstance(s.get("seed", []), list), "seed")
     for i, item in enumerate(s.get("seed", [])):
         if isinstance(item, dict) and item.get("operation") == "trip_import":
-            require(lab and s["lab"].get("kind") in {"booking", "disruption", "expense"}, f"seed[{i}].operation")
+            require(lab and s["lab"].get("kind") in {"booking", "approvals", "disruption", "expense"}, f"seed[{i}].operation")
     if cos or lab:
         require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
@@ -146,7 +150,7 @@ def validate(s):
                 require(isinstance(data, dict) and data.get("action") == "record" and isinstance(data.get("reference"), str)
                         and data.get("direction") in ("receivable", "payable"), f"seed[{i}].data")
                 continue
-            if lab and s["lab"].get("kind") in {"booking", "disruption", "expense"} and isinstance(item, dict) and item.get("operation") == "trip_import":
+            if lab and s["lab"].get("kind") in {"booking", "approvals", "disruption", "expense"} and isinstance(item, dict) and item.get("operation") == "trip_import":
                 data = item.get("data", {})
                 require(isinstance(data, dict) and bool(data.get("trip_id"))
                         and isinstance(data.get("ics_text"), str) and bool(data["ics_text"].strip()), f"seed[{i}].data")
@@ -165,7 +169,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "onboarding"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "onboarding"}, "lab.kind")
         if s["lab"]["kind"] == "onboarding":
             threads = s["lab"].get("threads", [])
             require(isinstance(threads, list) and len(threads) >= 2 and all(isinstance(t, dict) and t.get("thread_id") and t.get("bucket") for t in threads), "lab.threads")

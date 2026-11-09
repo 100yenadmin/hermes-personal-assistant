@@ -26,9 +26,9 @@ def offline(monkeypatch):
 
 def test_catalog_and_plan():
     catalog = load_catalog()
-    assert len(catalog) == 36
+    assert len(catalog) == 37
     jobs = runner.plan(catalog, runs=3)
-    assert len(jobs) == 108 and len({j["run_id"] for j in jobs}) == 108
+    assert len(jobs) == 111 and len({j["run_id"] for j in jobs}) == 111
     args = SimpleNamespace(scenarios=__import__('evals.lab.scenario', fromlist=['CATALOG']).CATALOG, scenario='all', runs=3, workers=2, dry_run=True)
     assert runner.wave(args) == {'workers': 2, 'jobs': jobs}
     assert jobs[0]['run_id'] == 's01_seoul_tokyo_en__r001'
@@ -665,7 +665,7 @@ def test_approval_packets_and_judge_skip_cannot_pass(tmp_path):
     assert render(tmp_path)['scenarios'][s['id']]['pass_rate'] == 0
 
 
-@pytest.mark.parametrize('booking', [False, True, 'other_lab'])
+@pytest.mark.parametrize('booking', [False, True, 'other_lab', 'approvals', 'onboarding'])
 def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypatch,booking):
     import hashlib
     import os
@@ -676,9 +676,12 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
     s['steps'] = s['steps'][:1]
     s['steps'][0]['expect']['ledger'] = False
     if booking:
-        s = copy.deepcopy(load_catalog()['s27_booking_after_yes_en'])
+        s = copy.deepcopy(load_catalog()['s37_approval_day_en' if booking == 'approvals' else 's27_booking_after_yes_en'])
         if booking == 'other_lab':
             s['lab']['kind'] = 'chief_of_staff'
+        if booking == 'onboarding':
+            s = copy.deepcopy(load_catalog()['s35_onboarding_first_win_en'])
+            s['steps'].append({**s['steps'][0], 'new_session': True})
     common.write(root/'scenario.json',s)
     common.write(root/'run.json',{'scenario':s['id'],'index':1,'start':time.time()})
     hh = root/'home/.hermes'
@@ -711,7 +714,7 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
             self.user = not kw['enabled_toolsets']
             self.valid_tool_names = set() if self.user else {'pa'}
             assert kw['api_key'] == 'fixture-token-value' and kw['model'] == 'gpt-6.1-sol'
-            assert kw['reasoning_config'] == {'effort':'low'} and kw['skip_memory']
+            assert kw['reasoning_config'] == {'effort':'low'} and kw['skip_memory'] is (booking != 'onboarding')
         def run_conversation(self,message,conversation_history=None,**kw):
             assert all('step' not in m for m in conversation_history or [])
             if not self.user:
@@ -727,16 +730,18 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
         'run_agent':SimpleNamespace(AIAgent=Agent)}.items():
         monkeypatch.setitem(sys.modules,name,module)
     monkeypatch.setattr(runner.subprocess,'check_output',lambda *a,**kw:'a'*40)
-    if booking:
+    if booking and booking != 'onboarding':
         def dialogue(hh,root,package,s,api,turn,observer,meta,ledger):
             first = turn('Prepare', hist=[])
             turn('Reply', user=True, hist=[])
-            turn('Confirm', hist=first['messages'])
+            turn('Confirm', hist=first['messages'], **({'session_id': 'fixture-new-session'} if booking == 'approvals' else {}))
+            if booking == 'approvals':
+                turn('Default session again', hist=[])
             return []
         monkeypatch.setattr(runner.cos,'dialogue',dialogue)
     try:
         result = runner.one(SimpleNamespace(out=str(root),hermes=str(tmp_path),judge='none'))
-        assert result['status'] == 'ok' and len(result['usage']) == (3 if booking else 2)
+        assert result['status'] == 'ok' and len(result['usage']) == (5 if booking == 'onboarding' else 4 if booking == 'approvals' else 3 if booking else 2)
         assistants = [kw for kw in constructions if kw['enabled_toolsets']]
         assert all('session_id' not in kw for kw in constructions if not kw['enabled_toolsets'])
         if booking is True:
@@ -746,6 +751,13 @@ def test_run_one_with_fake_runtime_keeps_token_only_in_memory(tmp_path,monkeypat
             assert re.fullmatch(r'\d{8}_\d{6}_[0-9a-f]{6}', ids[0])
             assert ids[0].endswith(hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:6])
             assert histories == [None, [{'role':'user','content':'Prepare'}, {'role':'assistant','content':'fixture reply'}]]
+        elif booking == 'approvals':
+            ids = [kw['session_id'] for kw in assistants]
+            assert ids[0] == ids[2] and ids[1] == 'fixture-new-session' and ids[0] != ids[1]
+        elif booking == 'onboarding':
+            ids = [kw['session_id'] for kw in assistants]
+            assert len(ids) == 2 and ids[0] != ids[1] and histories == [None, None]
+            assert result['sessions'] == {'0': ids[0], '1': ids[1]}
         else:
             assert all('session_id' not in kw for kw in assistants)
             if not booking:
