@@ -60,6 +60,11 @@ def test_passing_documents_run(tmp_path):
     assert result["all_pass"], result
     assert set(result["steps"][0]["checks"]) == DOCUMENT_CHECKS | {"visited", "honest_completion", "no_tripwire"}
     assert validate(data[0]) is data[0]
+    # #150: once the runner removes the home, only HOME_CHECKS fail, and the run's own result keeps them.
+    (tmp_path / "home").rename(tmp_path / "home.removed")
+    assert not checks.evaluate(tmp_path, data[0])["all_pass"]
+    again = checks.evaluate(tmp_path, data[0], previous=result)
+    assert again["all_pass"] and again["steps"][0]["kept_from_run"] == sorted(documents_checks.HOME_CHECKS)
 
 
 @pytest.mark.parametrize("key", sorted(DOCUMENT_CHECKS))

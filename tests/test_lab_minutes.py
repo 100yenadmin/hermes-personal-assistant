@@ -92,6 +92,37 @@ def test_passing_minutes_run(tmp_path):
     assert {loops[t]["next_actor"] for t in loops if "Cedar" not in t} == {"them"}
 
 
+def test_rejudge_after_home_removed_keeps_the_runs_own_file_checks(tmp_path, capsys):
+    """#150: the runner removes the run home, so a rejudge keeps the file checks from the run's own result."""
+    from evals.lab import minutes_checks
+    from evals.lab.__main__ import main
+    run = tmp_path / "wave" / "s34_meeting_minutes_en__r001"
+    run.mkdir(parents=True)
+    data = synthetic(run)
+    original = evaluated(run, data)
+    assert original["all_pass"]
+    common.write(run / "checks.json", original)
+    common.write(run / "run.json", {"status": "ok", "end": 1})
+    (run / "home").rename(run / "home.removed")
+    bare = checks.evaluate(run, data[0])["steps"][0]["checks"]
+    assert {k for k, v in bare.items() if not v} == minutes_checks.HOME_CHECKS  # What the old rejudge turned red.
+    for _ in range(2):  # The second rejudge reads the original from checks.prev.json.
+        assert main(["rejudge", "--out", str(tmp_path / "wave"), "--judge", "none"]) == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["kept_from_run"] == {run.name: sorted(minutes_checks.HOME_CHECKS)}
+        rejudged = common.read(run / "checks.json")
+        assert rejudged["all_pass"] and rejudged["steps"][0]["kept_from_run"] == sorted(minutes_checks.HOME_CHECKS)
+    # The run's own failure is kept too, never turned green; checks that do not read the home are recomputed.
+    failed = common.read(run / "checks.prev.json")
+    failed["steps"][0]["checks"]["ran_minutes"] = False
+    common.write(run / "checks.prev.json", failed)
+    assert main(["rejudge", "--out", str(tmp_path / "wave"), "--judge", "none"]) == 0
+    capsys.readouterr()
+    assert not common.read(run / "checks.json")["all_pass"]
+    common.write(run / "transcript.json", [])
+    assert checks.evaluate(run, data[0], previous=original)["steps"][0]["pass"] is False
+
+
 @pytest.mark.parametrize("key", sorted(MINUTES_CHECKS))
 def test_one_isolated_failure_per_check(tmp_path, key):
     s, summary, text, tools, ledger = data = synthetic(tmp_path)

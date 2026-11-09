@@ -60,6 +60,12 @@ def test_passing_run_and_loader(tmp_path):
     assert result["all_pass"], result
     assert set(result["steps"][0]["checks"]) == {"honest_completion", "setup_applied", "owner_turns", "first_win", "no_terminal_steps",
                                                  "nothing_sent", "files_saved"}
+    # #150: once the runner removes the home, only HOME_CHECKS fail, and the run's own result keeps them.
+    from evals.lab import onboarding_checks
+    (tmp_path / "home").rename(tmp_path / "home.removed")
+    assert not checks.evaluate(tmp_path, s)["all_pass"]
+    again = checks.evaluate(tmp_path, s, previous=result)
+    assert again["all_pass"] and again["steps"][0]["kept_from_run"] == sorted(onboarding_checks.HOME_CHECKS)
 
 
 @pytest.mark.parametrize("failure", ["setup_applied", "owner_turns", "first_win", "no_terminal_steps", "nothing_sent", "files_saved"])

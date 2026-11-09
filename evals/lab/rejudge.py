@@ -33,8 +33,16 @@ def rejudge(args):
             shutil.copyfile(path, previous)
         write(path, value)
 
+    kept = {}
+
     def job(root):
-        replace(root, "checks", checks.evaluate(root, read(root / "scenario.json")))
+        # The run's own result: checks.prev.json once a rejudge has replaced checks.json.
+        original = read(root / "checks.prev.json", None) or read(root / "checks.json", None)
+        result = checks.evaluate(root, read(root / "scenario.json"), previous=original)
+        names = sorted({n for s in result["steps"] for n in s.get("kept_from_run", [])})
+        if names:
+            kept[root.name] = names
+        replace(root, "checks", result)
         try:
             verdict = judge.run(root) if args.judge != "none" else {"skipped": True, "reason": "--judge none"}
         except Exception as exc:
@@ -45,4 +53,5 @@ def rejudge(args):
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         rejudged = list(pool.map(job, completed))
     report.render(out)
-    return {"rejudged": rejudged, "incomplete": incomplete, "skipped": skipped}
+    # Checks kept from the run's own result because its home was removed (#150).
+    return {"rejudged": rejudged, "incomplete": incomplete, "skipped": skipped, "kept_from_run": dict(sorted(kept.items()))}

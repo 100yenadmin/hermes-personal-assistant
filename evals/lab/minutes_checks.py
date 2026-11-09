@@ -56,6 +56,9 @@ def _saves(local):
             out.append((data, value))
     return out
 
+# Checks that read the run home; a rejudge after the home is removed keeps the run's own result (#150).
+HOME_CHECKS = frozenset({"ran_minutes", "reported"})
+
 
 def evaluate(root, scenario, index, messages, tools):
     lab = scenario["lab"]
