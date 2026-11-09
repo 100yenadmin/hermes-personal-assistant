@@ -78,8 +78,8 @@ def _date_fits(wording, due, meeting):
     """Cheap consistency for the common spoken forms; other wording is not checked."""
     words = set(re.findall(r"[a-z]+", _norm(wording)))
     named = [i for i, day in enumerate(WEEKDAYS) if day in words]
-    if named and due.weekday() not in named:
-        return False
+    if named and (due.weekday() not in named or not 0 <= (due - meeting).days <= (14 if words & {"next", "week"} else 7)):
+        return False  # "by Friday" is the coming Friday; "next Friday" or "Friday week" at most two weeks out.
     if "today" in words and due != meeting or "tomorrow" in words and due != meeting + dt.timedelta(days=1):
         return False
     day = re.fullmatch(r"(?:by |on |before )?(?:the )?(\d{1,2})(?:st|nd|rd|th)?", _norm(wording))

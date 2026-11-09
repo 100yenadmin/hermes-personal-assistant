@@ -98,12 +98,13 @@ def test_resave_is_idempotent_updates_in_place_and_cancels_dropped_items(home):
     assert again["loop_ids"] == ids and len(loops(home)) == 2
     assert loops(home)[ids[0]]["fields"]["chase_log"]
     items = copy.deepcopy(MINUTES["action_items"])
-    items[0]["due_date"] = "2026-11-20"  # Still a Friday, as "by Friday" says.
-    moved = save(home, action_items=items[:1])
+    items[1]["due_date"] = "2026-11-11"  # Still "by November 12".
+    moved = save(home, action_items=items[1:])
     rows = loops(home)
     kept = next(i for i in moved["loop_ids"])
-    assert rows[kept]["fields"]["due_at"].startswith("2026-11-20") and rows[kept]["status"] == "open"
+    assert kept == ids[1] and rows[kept]["fields"]["due_at"].startswith("2026-11-11") and rows[kept]["status"] == "open"
     dropped = (set(ids) - set(moved["loop_ids"])).pop()
+    assert dropped == ids[0]  # The item with a chase history.
     assert rows[dropped]["status"] == "cancelled" and rows[dropped]["fields"]["loop_cancelled"]["reason"] == "removed from the saved minutes"
     revived = save(home)
     back = loops(home)[dropped]
@@ -290,6 +291,7 @@ def test_attendee_never_named_in_transcript_cannot_own_an_item(home):
 @pytest.mark.parametrize("change,ok", [
     ({"due_date": "2026-11-12"}, False),  # "by Friday" on a Thursday.
     ({"due_date": "2026-11-13"}, True),
+    ({"due_date": "2026-12-25"}, False),  # A Friday, but not the coming one.
     ({"owner": "Jordan Fictional"}, False),  # An extension of a speaker's name is not that person.
 ])
 def test_date_wording_and_owner_extension(home, change, ok):
