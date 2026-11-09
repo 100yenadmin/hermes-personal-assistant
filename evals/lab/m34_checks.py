@@ -125,6 +125,9 @@ def _evaluate(root, scenario, index, messages, tools):
     elif kind == "invoice":
         from . import invoice_checks
         result.update(invoice_checks.evaluate(root, scenario, index, messages, tools))
+    elif kind == "content":
+        from . import content_checks
+        result.update(content_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "minutes":
         from . import minutes_checks
         result.update(minutes_checks.evaluate(root, scenario, index, messages, tools))

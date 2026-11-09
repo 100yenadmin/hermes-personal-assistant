@@ -55,9 +55,14 @@ deviation. Homes are removed after runs unless `--keep-home`; never publish home
 
 Costs: assistant and simulated-user tokens appear separately in `run.json` and
 `cost.json`. Dollar cost is unknown rather than guessed; judge CLI usage is billed
-separately. The default wave makes 36 jobs, including explicit skips; each live
+separately. The default wave makes 37 jobs, including explicit skips; each live
 job has its scenario's dialogue budget (`budget_seconds`: 900, or 1,500–1,800 for
 multi-errand scenarios) plus 120 seconds of subprocess grace. Reports
 are local exploratory results until the operator creates the required result
 card and publishes approved evidence. Source/unit proof establishes no live task,
 booking, publication, runtime or customer success.
+
+`s38_content_calendar_en` uses mail voice samples and collaborator dates to plan
+two weeks of LinkedIn/Instagram slots and three held drafts with `content-admin`.
+Its synthetic oracle checks voice-read order, dates, cadence, event coverage,
+sign-off and channel limits, exact ledger drafts, and no sends or posting claims.

@@ -1,0 +1,51 @@
+id: s38_content_calendar_en
+language: en
+area: personal_admin
+capabilities: [content]
+timezone: Europe/London
+persona:
+  name: Rowan Demo
+  email: rowan@example.invalid
+  phone: +1-202-555-0158
+  home_city: London
+  notes: Synthetic small-studio owner. Nothing posts without my item-specific yes.
+user_md: >-
+  I run a small design studio. Timezone Europe/London; quiet hours 22:00–07:00.
+  My usual posting hour is 10:00. Voice: warm, plain, no exclamation marks; sign off — Rowan.
+  My past posts are in the voice-samples mail thread; my collaborator sent our launch and workshop dates.
+max_user_turns: 1
+budget_seconds: 900
+lab:
+  kind: content
+  channels: [LinkedIn, Instagram]
+  window_days: 14
+  drafts: 3
+  must_cover:
+  - {topic: product launch, by: '@in_4_days@'}
+  - {topic: workshop, by: '@in_9_days@'}
+  banned: ['!', '\$\d+']
+  output_contract: >-
+    End with JSON {"lab_summary": {"calendar": [{"date", "channel", "topic", "why"}],
+    "drafts": [{"date", "channel", "text"}], "held": <count>}}, with owner-facing prose above it.
+    Use YYYY-MM-DD dates. held counts every planned slot awaiting my yes.
+  threads:
+  - thread_id: voice-samples
+    subject: Past studio posts
+    from: rowan@example.invalid
+    to: rowan@example.invalid
+    sent_samples:
+    - 'A small look at our process today. We start with a sketch and make room to listen. — Rowan'
+    - 'Good work takes a little care. Here is a detail from the studio table. — Rowan'
+    - 'Thanks for spending time with our work. There is more to share soon. — Rowan'
+  - thread_id: studio-dates
+    subject: Product launch and workshop dates
+    from: collaborator@example.invalid
+    to: rowan@example.invalid
+    body: 'Our product launch is @in_4_days@. Our workshop is @in_9_days@. Please include both in the content plan. No prices or customer names are approved.'
+steps:
+- goal: "Plan my LinkedIn and Instagram posts for the next two weeks and draft the first three in my voice. Don't post anything."
+  capability: content
+  skill: personal-assistant:content-admin
+  answers: {}
+  hour: 10
+  expect: {lab: content}
