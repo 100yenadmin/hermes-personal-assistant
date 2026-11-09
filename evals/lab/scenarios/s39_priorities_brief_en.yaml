@@ -1,0 +1,85 @@
+id: s39_priorities_brief_en
+language: en
+area: reporting
+capabilities: [follow_through]
+timezone: Europe/London
+persona:
+  name: Avery Demo
+  email: avery@example.invalid
+  phone: +1-202-555-0158
+  home_city: London
+  notes: Synthetic studio owner. Do not send anything.
+user_md: >-
+  Top three priorities this quarter: 1. Close the seed round. 2. Launch the Studio Kit.
+  3. Hire a second designer. Sam Demo is my operations lead.
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- operation: action_upsert
+  data:
+    action_id: lab:deck
+    action_type: commitment
+    status: open
+    fields: {title: Send the updated pitch deck to Fern Capital, next_actor: owner, due_at: '@yesterday@', loop_kind: our_promise, counterparty: Fern Capital, opened_at: '@today@', next_step: Send the updated pitch deck, chase_log: []}
+- operation: action_upsert
+  data:
+    action_id: lab:dataroom
+    action_type: commitment
+    status: open
+    fields: {title: Finish the data room checklist, next_actor: them, due_at: '@in_3_days@', loop_kind: delegated, counterparty: Sam Demo, opened_at: '@today@', next_step: Finish the data room checklist, chase_log: []}
+- operation: action_upsert
+  data:
+    action_id: lab:kit-photos
+    action_type: commitment
+    status: open
+    fields: {title: Shoot product photos for the Studio Kit, next_actor: them, due_at: '@days_ago_2@', loop_kind: delegated, counterparty: Sam Demo, opened_at: '@today@', next_step: Shoot product photos, chase_log: []}
+- operation: action_upsert
+  data:
+    action_id: lab:kit-page
+    action_type: commitment
+    status: open
+    fields: {title: Build the Studio Kit landing page, next_actor: them, due_at: '@in_4_days@', blocked_by: 'lab:kit-photos', loop_kind: delegated, counterparty: Sam Demo, opened_at: '@today@', next_step: Build the landing page after the photos, chase_log: []}
+- operation: action_upsert
+  data:
+    action_id: lab:job-post
+    action_type: commitment
+    status: open
+    fields: {title: Post the designer job ad, next_actor: them, due_at: '@in_5_days@', loop_kind: delegated, counterparty: Sam Demo, opened_at: '@today@', next_step: Post the job ad, chase_log: []}
+- operation: action_upsert
+  data:
+    action_id: lab:interviews
+    action_type: commitment
+    status: open
+    fields: {title: Schedule designer interviews, next_actor: owner, due_at: '@in_7_days@', blocked_by: 'lab:job-post', loop_kind: our_promise, counterparty: Owner, opened_at: '@today@', next_step: Schedule interviews after the job ad, chase_log: []}
+- operation: action_upsert
+  data:
+    action_id: lab:plants
+    action_type: commitment
+    status: open
+    fields: {title: Renew the office plant service, next_actor: them, due_at: '@in_6_days@', loop_kind: delegated, counterparty: Sam Demo, opened_at: '@today@', next_step: Renew the plant service, chase_log: []}
+lab:
+  kind: priorities
+  links:
+    lab:deck: seed
+    lab:dataroom: seed
+    lab:kit-photos: Studio Kit
+    lab:kit-page: Studio Kit
+    lab:job-post: designer
+    lab:interviews: designer
+    lab:plants: null
+  overdue: [lab:deck, lab:kit-photos]
+  next_blocked: {action_id: 'lab:kit-page', blocked_by: 'lab:kit-photos'}
+  overdue_words: {'lab:deck': deck, 'lab:kit-photos': photo}  # The brief names each overdue item.
+  next_blocked_words: [landing page, photo]  # The brief must name the blocked step and its blocker.
+  overloaded: Sam
+  output_contract: >-
+    End with JSON {"lab_summary": {"links": [{"action_id": "<id>", "priority": "<priority>"}],
+    "threats": [{"action_id": "<overdue item id>", "priority": "<priority>"}],
+    "next_blocked": {"action_id": "<id>", "blocked_by": "<id>"}, "overloaded": "<name>|null"}}.
+    Use JSON null for an unlinked item or no overloaded person. Keep owner-facing prose above the JSON.
+steps:
+- goal: "Link my open items to my priorities, then give me today's brief: what threatens my priorities, what's blocked next, and who's overloaded. Don't send anything."
+  capability: follow_through
+  skill: personal-assistant:follow-through
+  answers: {}
+  expect: {lab: priorities}
