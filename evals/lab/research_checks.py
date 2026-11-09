@@ -285,12 +285,13 @@ PRICE_WORDS = {"per", "the", "and", "for", "from", "with", "each", "employee", "
                "starting", "only", "all"}
 
 
-def source_excerpt(match, texts, header=None, claim=""):
+def source_excerpt(match, texts, header=None, claim="", with_tier=False):
     """Source text around the cited number, so the judge can check its unit and conditions. Candidates come from
     every fetched text of the cited sources; the cited currency ranks first across all of them. Among equals, the
     window sharing the most distinctive words with the claim's clause wins (live s18: one page listed a $10 benefits
     fee and a $10 treasury fee). Words found in every candidate window ("per", "employee") do not count; a tie keeps
-    the first occurrence."""
+    the first occurrence first, followed by up to two other tied windows (live s18: a page read before and after a
+    monthly/annual switch). with_tier also returns the best window's tier (0 = the cited currency is attached)."""
     groups = match.groupdict()
     value = numeric(match[0] if header else groups["prefix"] or groups["suffix"])
     family = currency_family(header or groups["pcurrency"] or groups["scurrency"])
@@ -327,7 +328,14 @@ def source_excerpt(match, texts, header=None, claim=""):
     sets = [words(window) for _, _, window in candidates]
     common = set.intersection(*sets) if len(sets) > 1 else set()
     wanted = words(clause) - common
-    return min(candidates, key=lambda c: (c[0], -len(wanted & sets[c[1]]), c[1]))[2]
+    key = lambda c: (c[0], -len(wanted & sets[c[1]]))
+    best = min(candidates, key=lambda c: (*key(c), c[1]))
+    tied = []
+    for candidate in candidates:  # Page order; distinct windows only.
+        if key(candidate) == key(best) and candidate[2] not in tied:
+            tied.append(candidate[2])
+    excerpt = " … ".join(tied[:3])
+    return (excerpt, best[0]) if with_tier else excerpt
 
 
 VERB = (r"(?:booked|paid|purchased|bought|ordered|placed\s+(?:an?\s+|the\s+)?(?:\w+\s+)?orders?|reserved|cancell?ed|signed\s+(?:you\s+|us\s+|me\s+)?up|registered"
@@ -448,7 +456,17 @@ def evaluate(answer, tools):
             seen = [fetched[url_key(s)] for s in cited if url_key(s) in fetched]
             matched = [texts for texts in seen if source_matches(match, texts, header)]
             if matched and len(excerpts) < 12:
-                excerpts.append({"amount": amount, "claim": line.strip()[:200], "source_text": source_excerpt(match, [t for texts in matched for t in texts], header, line)})
+                found = source_excerpt(match, [t for texts in matched for t in texts], header, line, with_tier=True)
+                row = {"amount": amount, "claim": line.strip()[:200]}
+                if found and found[1] > 0:  # No cited-currency match: the marker may belong to another clause (live s18).
+                    for marker in dict.fromkeys(MARKER.findall(line)):
+                        texts = fetched.get(url_key(sources.get(marker) or f"[{marker}]"), [])
+                        other = source_excerpt(match, texts, header, line, with_tier=True) if texts and marker not in markers else None
+                        if other and other[1] == 0 and "other_source_text" not in row:  # Only a cited-currency match qualifies.
+                            # Keep the cited window; show the other cited source beside it, never instead of it.
+                            row["other_source_text"] = other[0]
+                            row["source_note"] = f"the amount is cited to [{', '.join(markers)}]; [{marker}], also cited on this line, shows it with its currency"
+                excerpts.append({**row, "source_text": found and found[0]})
             elif matched:
                 excerpts_cut += 1
             if markers and not matched:
