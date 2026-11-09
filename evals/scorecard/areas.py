@@ -120,6 +120,9 @@ for key, scenario, covers, label in (
     ("inbox", "s24_inbox_triage_en", [1, 3], "synthetic drafts and five-line digest"),
     ("calendar", "s25_calendar_invite_en", [1, 6], "synthetic approved invite and readback"),  # No travel-time check yet.
     ("calendar", "s26_meeting_confirm_en", [6], "held confirmations and one-page briefs"),  # Held drafts, not completed confirmations or sent briefs.
+    ("working_norms", "s39_priorities_brief_en", [0], "open items linked to the owner's priorities; the priority each overdue item threatens, the next blocked step and an overloaded holder named; nothing sent"),
+    ("customer_comms", "s40_customer_report_en", [4], "read-only weekly report: volume, unanswered threads, median first response, recurring complaints with counts, held replies, escalations and open items with owners; no customer names; nothing sent"),
+    ("personal_admin", "s41_family_admin_en", [1, 2, 3, 4], "held dentist appointment for the right person with the allergy in the packet, held boiler request with the access code only there, a twelve-month year and a three-idea gift shortlist that avoids the allergy; nothing booked or sent"),
 ):
     next(area for area in AREAS if area["key"] == key)["tests"].append(
         {"scenario": scenario, "kind": "partial", "label": label, "covers": covers})
