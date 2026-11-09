@@ -57,4 +57,6 @@ R5 owns the existing daily_brief job's `end_of_day` occurrence at `eod_time`
 Build the note from the evidence list, `next_action`, and `automations health`:
 **Done / In progress / Blocked with questions**. Keep all three sections; use
 “None evidenced” for an empty section. Every blocked item ends in a question.
+A routine-health finding goes under In progress, or under Blocked with questions
+when it needs the owner, identified by the finding's `occurrence_id`; never under Done.
 Nothing is invented: a cron hand-off is `unknown`, not verified delivery.
