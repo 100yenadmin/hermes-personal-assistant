@@ -1288,3 +1288,14 @@ def test_table_header_currency_keeps_the_cited_window():
     cited = [("Price (SGD) | Cedar | 12.50 | per employee per month", False)]
     excerpt, tier = research_checks.source_excerpt(match, cited, with_tier=True)
     assert "12.50 | per employee per month" in excerpt
+
+
+def test_fallback_skips_a_wrong_currency_source_for_a_matching_one():
+    eur, sgd = "https://eur.invalid/pricing", "https://sgd.invalid/pricing"
+    answer = ANSWER.replace("S$12.50 per employee per month [1].", "S$12.50 per employee per month [1]; see [2][3].")
+    answer = answer.replace("[1] https://cedar.invalid/pricing — accessed 2026-10-21",
+                            "[1] https://cedar.invalid/pricing — accessed 2026-10-21\n[2] " + eur + " — accessed 2026-10-21\n[3] " + sgd + " — accessed 2026-10-21")
+    rows = (tools("Cedar goes live in as little as 12.50 days. S$ pricing on request.")
+            + tools("Cedar EUR12.50 per year.", eur) + tools("Cedar Payroll S$12.50 per employee per month.", sgd))
+    noted = [r for r in evaluate(answer, rows)["source_excerpts"] if r.get("source_note")]
+    assert noted and "[3]" in noted[0]["source_note"] and "per employee per month" in noted[0]["other_source_text"]

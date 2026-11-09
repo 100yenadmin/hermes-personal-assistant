@@ -1200,3 +1200,8 @@ def test_add_buttons_do_not_crowd_out_an_empty_cart(tmp_path):
     excerpt = judge.final_page(tmp_path, {'step': 2, 'snapshot': 'final_2_0.txt'})['excerpt']
     assert excerpt.startswith('- link "Cart"') and 'Your cart is empty' in excerpt
     assert not judge.CART.match('- link "McCarthy Steakhouse"') and not judge.CART.match('- button "Add to cart: Dish 1"')
+
+
+def test_delivery_address_labels_count_as_cart_lines():
+    for label in ('Delivery address', '配達先', '배달 주소'):
+        assert judge.CART.match(f'- link "{label}: 5 Chome" [ref=e1]')

@@ -462,7 +462,7 @@ def evaluate(answer, tools):
                     for marker in dict.fromkeys(MARKER.findall(line)):
                         texts = fetched.get(url_key(sources.get(marker) or f"[{marker}]"), [])
                         other = source_excerpt(match, texts, header, line, with_tier=True) if texts and marker not in markers else None
-                        if other and other[1] < found[1] and "other_source_text" not in row:
+                        if other and other[1] == 0 and "other_source_text" not in row:  # Only a cited-currency match qualifies.
                             # Keep the cited window; show the other cited source beside it, never instead of it.
                             row["other_source_text"] = other[0]
                             row["source_note"] = f"the amount is cited to [{', '.join(markers)}]; [{marker}], also cited on this line, shows it with its currency"
