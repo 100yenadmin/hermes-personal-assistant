@@ -118,6 +118,18 @@ def test_s24_credit_is_limited_to_verified_inbox_duties(tmp_path):
     assert inbox["lab"] == "unproven"
 
 
+def test_s31_credit_is_limited_to_policy_duties(tmp_path):
+    for i in range(3):
+        run(tmp_path, f"policy-{i}", scenario="s31_customer_policy_en")
+    comms = area(card(tmp_path), "customer_comms")
+    test = comms["tests"][0]
+    assert {k: test[k] for k in ("scenario", "kind", "label", "covers")} == {
+        "scenario": "s31_customer_policy_en", "kind": "partial",
+        "label": "policy-bound drafts, owner escalations and vendor chase tracking", "covers": [1, 2, 3, 5]}
+    assert test["state"] == "pass"
+    assert comms["lab"] == "unproven" and comms["parity"] == "unproven"
+
+
 @pytest.mark.parametrize("n,failed,expected", [(3, False, "pass"), (3, True, "fail"),
                                                (4, True, "fail"), (2, False, "insufficient_runs"),
                                                (0, False, "not_run")])
@@ -414,7 +426,7 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 7, "none": 6}  # s30 gives finance its first row.
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 8, "none": 5}  # s31 gives customer_comms its first row.
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()

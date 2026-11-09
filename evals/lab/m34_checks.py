@@ -152,6 +152,9 @@ def _evaluate(root, scenario, index, messages, tools):
         seed_rows = read(root / "seed.json", {}).get("ledger", {}).get("actions", [])
         protected = {r["action_id"]: (r.get("status"), r.get("action_type"), fields(r)) for r in seed_rows if r["action_id"] in lab["preserve_ids"]}
         result["no_silent_fix"] = len(protected) == len(lab["preserve_ids"]) and all(k in rows and (rows[k].get("status"), rows[k].get("action_type"), fields(rows[k])) == v for k, v in protected.items()) and not calls(local, "action_confirm")
+    elif kind == "inbox" and any("expected_action" in t for t in lab["threads"]):
+        from . import policy_checks
+        result.update(policy_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "inbox":
         digest = data.get("digest", [])
         joined = " ".join(digest) if isinstance(digest, list) and all(isinstance(i, str) for i in digest) else ""

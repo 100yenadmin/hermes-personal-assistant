@@ -8,7 +8,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
-LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands"}
+LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands", "customer_comms"}
 
 
 def validate(s):
@@ -126,6 +126,11 @@ def validate(s):
     if cos or lab:
         require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
+            if lab and isinstance(item, dict) and item.get("operation") == "profile":
+                data = item.get("data")
+                require(isinstance(data, dict) and data.get("action") == "remember"
+                        and data.get("kind") in {"sop", "person", "preference"}, f"seed[{i}].data")
+                continue
             if lab and s["lab"].get("kind") in {"booking", "disruption", "expense"} and isinstance(item, dict) and item.get("operation") == "trip_import":
                 data = item.get("data", {})
                 require(isinstance(data, dict) and bool(data.get("trip_id"))
