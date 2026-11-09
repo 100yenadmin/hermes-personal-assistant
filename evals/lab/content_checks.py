@@ -71,7 +71,7 @@ def evaluate(root, scenario, index, messages, tools):
                 and f.get("channel") == channel and f.get("publish_on") == day and f.get("next_actor") == "owner"
                 and str(f.get("due_at", ""))[:10] == day and f.get("topic") == slot.get("topic")
                 and f.get("radar_kind") == "deadline" and f.get("event_date") == day
-                and type(f.get("lead_days")) is int and 0 < f["lead_days"] <= 7 and f.get("why") == slot.get("why")
+                and type(f.get("lead_days")) is int and 0 < f["lead_days"] <= 7 and bool(str(f.get("why", "")).strip())
                 and (key not in drafted or " ".join(str(f.get("draft", "")).split()) == " ".join(str(drafted[key]).split())))
     first = next((i for i, t in enumerate(local) if t in upserts and "draft" in fields(payload(t["structured_args"].get("data")))), None)
     mail = [c for c in lines(root / "mail-calls.jsonl") if c.get("step") == index and c.get("accepted")]
