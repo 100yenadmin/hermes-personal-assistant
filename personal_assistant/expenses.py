@@ -111,8 +111,8 @@ def save(ledger, identity, fields, source, source_action_id=None, trip_id=None, 
     # A voided readback stays void unless the money changed (its default date moves with verified_at).
     # A voided receipt recorded again with a changed amount, currency, kind, date or merchant is a correction.
     money = ("amount", "currency", "kind") + (("date",) if source == "owner_receipt" else ())
-    if source == "statement":
-        money += ("date", "merchant")
+    # A statement row's identity already carries its date, normalised merchant, amount, currency and kind,
+    # so a cosmetic merchant change ("Cafe" to "CAFE") in a re-export never revives a voided row.
     if source == "owner_receipt" and old and old["fields"].get("merchant") and fields.get("merchant"):
         money += ("merchant",)
     keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields.get(k) for k in money)

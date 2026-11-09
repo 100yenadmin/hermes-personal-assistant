@@ -460,3 +460,13 @@ def test_reader_error_label_preserves_exact_minutes_defaults(home, case, minutes
     with pytest.raises(ValueError) as statement:
         call(home, path=path, preview=True)
     assert str(statement.value) == statement_message
+
+
+def test_a_cosmetic_merchant_change_keeps_a_void(home):
+    write(home, [["2026-11-01", "Cafe", "10", "USD", ""], ["2026-11-02", "Books", "20", "USD", ""]])
+    categorized(home)
+    identity = records(home)[0]["action_id"]
+    entry.dispatch(home, {"operation": "expense", "data": {"action": "void", "expense_id": identity, "reason": "void"}})
+    write(home, [["2026-11-01", "CAFE", "10.00", "USD", ""], ["2026-11-02", "Books", "20", "USD", ""]])
+    categorized(home)
+    assert Ledger(home).get("action", identity)["status"] == "void"
