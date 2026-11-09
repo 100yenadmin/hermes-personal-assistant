@@ -88,7 +88,8 @@ class PersonalAssistantRecipeTests(unittest.TestCase):
             text = path.read_text()
             if "references/" not in text: continue
             self.assertIn("relative to this skill directory", text, path); self.assertNotIn("skills/references/", text)
-            for ref in set(re.findall(r"references/[A-Za-z0-9._-]+\.md", text)): self.assertTrue((path.parent / ref).is_file(), (path, ref))
+            for ref in set(re.findall(r"(?:\.\./[A-Za-z0-9._-]+/)?references/[A-Za-z0-9._-]+\.md", text)):
+                self.assertTrue((path.parent / ref).is_file(), (path, ref))
 
 
 if __name__ == "__main__": unittest.main()

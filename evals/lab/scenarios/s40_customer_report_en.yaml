@@ -1,0 +1,212 @@
+id: s40_customer_report_en
+language: en
+area: customer_comms
+capabilities:
+- inbox
+timezone: Asia/Tokyo
+persona:
+  name: Rowan Demo
+  email: support@example.invalid
+  phone: +1-202-555-0151
+  home_city: Tokyo
+  notes: Synthetic small mug shop owner. Nothing sent, drafted or archived for a report.
+user_md: 'I run a small mug shop. Work inbox alias: work. My support and owner reply address is support@example.invalid.
+  Timezone: Asia/Tokyo. Give brief factual reports without customer names or emails. Send, draft and archive nothing.'
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- operation: action_upsert
+  data:
+    action_id: pa:inbox:work:t1
+    action_type: commitment
+    status: open
+    fields:
+      title: Tier-1 delivery reply held for your yes
+      thread_id: t1
+      loop_kind: ask_owner
+      counterparty: Owner
+      next_actor: owner
+      opened_at: '@days_ago_3@T10:00:00+09:00'
+      next_step: Approve or decline the held delivery reply
+      decision_needed: Approve or decline the held delivery reply
+      chase_log:
+      - at: '@days_ago_3@T10:00:00+09:00'
+        step: day2
+        how: nudge draft held
+      policy_ref: Delivery changes v1
+- operation: action_upsert
+  data:
+    action_id: pa:inbox:work:t4
+    action_type: commitment
+    status: open
+    fields:
+      title: Tier-1 login reply held for your yes
+      thread_id: t4
+      loop_kind: ask_owner
+      counterparty: Owner
+      next_actor: owner
+      opened_at: '@days_ago_2@T10:00:00+09:00'
+      next_step: Approve or decline the held login reply
+      decision_needed: Approve or decline the held login reply
+      chase_log:
+      - at: '@days_ago_2@T10:00:00+09:00'
+        step: day2
+        how: nudge draft held
+      policy_ref: Login help v1
+- operation: action_upsert
+  data:
+    action_id: pa:inbox:work:t8
+    action_type: commitment
+    status: open
+    fields:
+      title: 'Open owner escalation: wholesale terms'
+      thread_id: t8
+      loop_kind: ask_owner
+      counterparty: Owner
+      next_actor: owner
+      opened_at: '@days_ago_1@T10:00:00+09:00'
+      next_step: Decide the wholesale terms before any reply
+      decision_needed: Decide the wholesale terms before any reply
+      chase_log:
+      - at: '@yesterday@T10:00:00+09:00'
+        step: escalate
+        how: Owner decision packet given in original chat
+lab:
+  kind: customer_report
+  window_start: '@days_ago_7@T00:00:00+09:00'
+  window_end: '@today@T00:00:00+09:00'
+  volume: 8
+  median_hours: 4.0
+  unanswered: 1
+  recurring:
+    late delivery:
+      count: 3
+      keywords:
+      - late.*deliver
+      - deliver.*(?:late|delay)
+      - shipping.*delay
+    login:
+      count: 2
+      keywords:
+      - log[ -]?in
+      - sign[ -]?in
+      - account access
+  held: 2
+  escalations: 1
+  output_contract: 'End with JSON {"lab_summary": {"volume": <n>, "median_hours": <hours>, "median_of": <answered
+    count>, "unanswered": <n>, "recurring": [{"topic": "<topic>", "count": <n>}], "held": <n>, "escalations": <n>,
+    "open_items": [{"item": "<item>", "next_step": "<step>", "owner": "<owner>"}]}}. Keep the short owner-facing
+    report, including ages of held replies and escalations, above the JSON. Read only: send, draft and archive nothing.'
+  threads:
+  - thread_id: t1
+    name: Aster Vale
+    from: aster@example.invalid
+    subject: Parcel late
+    body: My parcel arrived two days after the promised delivery date.
+    messages:
+    - from: aster@example.invalid
+      at: '@days_ago_6@T08:00:00+09:00'
+      body: My parcel arrived two days after the promised delivery date.
+    - from: support@example.invalid
+      at: '@days_ago_6@T09:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+  - thread_id: t2
+    name: Birch Reed
+    from: birch@example.invalid
+    subject: Still waiting
+    body: The delivery was due Monday but only turned up Thursday.
+    messages:
+    - from: birch@example.invalid
+      at: '@days_ago_6@T08:00:00+09:00'
+      body: The delivery was due Monday but only turned up Thursday.
+    - from: support@example.invalid
+      at: '@days_ago_6@T10:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+  - thread_id: t3
+    name: Cedar Moss
+    from: cedar@example.invalid
+    subject: Shipping delay
+    body: Shipping took much longer than promised. The mug was late.
+    messages:
+    - from: cedar@example.invalid
+      at: '@days_ago_5@T08:00:00+09:00'
+      body: Shipping took much longer than promised. The mug was late.
+    - from: support@example.invalid
+      at: '@days_ago_5@T11:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+  - thread_id: t4
+    name: Dahlia Brook
+    from: dahlia@example.invalid
+    subject: Cannot log in
+    body: My password works nowhere; I cannot log in to my account.
+    messages:
+    - from: dahlia@example.invalid
+      at: '@days_ago_5@T08:00:00+09:00'
+      body: My password works nowhere; I cannot log in to my account.
+    - from: support@example.invalid
+      at: '@days_ago_5@T12:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+  - thread_id: t5
+    name: Elm Stone
+    from: elm@example.invalid
+    subject: Sign in error
+    body: Signing in keeps failing and I cannot access my orders.
+    messages:
+    - from: elm@example.invalid
+      at: '@days_ago_4@T08:00:00+09:00'
+      body: Signing in keeps failing and I cannot access my orders.
+    - from: support@example.invalid
+      at: '@days_ago_4@T13:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+  - thread_id: t6
+    name: Fern Lake
+    from: fern@example.invalid
+    subject: Mug dimensions
+    body: How tall is the blue mug?
+    messages:
+    - from: fern@example.invalid
+      at: '@days_ago_3@T08:00:00+09:00'
+      body: How tall is the blue mug?
+    - from: support@example.invalid
+      at: '@days_ago_3@T14:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+  - thread_id: t7
+    name: Gorse Hill
+    from: gorse@example.invalid
+    subject: Gift wrapping
+    body: Do you offer gift wrapping?
+    messages:
+    - from: gorse@example.invalid
+      at: '@days_ago_3@T08:00:00+09:00'
+      body: Do you offer gift wrapping?
+    - from: support@example.invalid
+      at: '@days_ago_2@T10:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+  - thread_id: t8
+    name: Hazel Dawn
+    from: hazel@example.invalid
+    subject: Wholesale question
+    body: Could you explain your wholesale payment terms?
+    messages:
+    - from: hazel@example.invalid
+      at: '@days_ago_1@T08:00:00+09:00'
+      body: Could you explain your wholesale payment terms?
+  - thread_id: t9
+    name: Iris Field
+    from: iris@example.invalid
+    subject: Old colour question
+    body: Does the mug come in green?
+    messages:
+    - from: iris@example.invalid
+      at: '@days_ago_10@T08:00:00+09:00'
+      body: Does the mug come in green?
+    - from: support@example.invalid
+      at: '@days_ago_10@T10:00:00+09:00'
+      body: Thanks for asking. Here is the requested information. Rowan
+steps:
+- goal: Give me the customer report for the past 7 days. Don't send anything.
+  capability: inbox
+  skill: personal-assistant:personal-assistant
+  answers: {}
+  expect:
+    lab: customer_report

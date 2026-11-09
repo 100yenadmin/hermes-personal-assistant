@@ -138,6 +138,7 @@ Record renewals, important dates and deadlines as `radar_kind` commitments and
 read them with `next_action` `radar: true`; see `references/radar.md`.
 For reporting, one corrected retry after a tool_call error, progress notes on
 long tasks, escalation and the pre-send check, read `references/reporting.md`.
+Read `references/customer-report.md` when the owner asks for a customer or vendor report.
 
 ## Governed exact-action transaction
 
