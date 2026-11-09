@@ -25,7 +25,7 @@ Contact cleanup (#138), #135, #137 and #139 merged after the reviewed commit, so
 
 Invoices (M6-a, #125):
 
-- **`pa invoice`** records an invoice the owner issued (receivable) or received (payable), and can mark it paid, void it, or list invoices. Re-recording the same money facts is idempotent. A live invoice with different money facts is refused until it is voided.
+- **`pa invoice`** records an invoice the owner issued (receivable) or received (payable), and can mark it paid, void it, or list invoices. Re-recording the same money facts is idempotent. A different amount, currency or date for the same invoice reference is refused, even after a void; a corrected invoice goes in under its own reference, and the old one can be voided.
 - **Receivables:**
   - a courtesy reminder on the radar before the due date;
   - from the due date, a `waiting_on_them` loop that the chase ladder takes on days 2, 5 and 10, then escalates;
@@ -59,7 +59,7 @@ Vendor chases waiting for the owner's send approval (#137): while a chase draft 
 Contact list cleanup (M6-c, #138): `pa contacts dedupe` cleans a CSV export the owner saves under the profile's `imports/` folder. A read-only Google export through the profile's own Google access works too.
 
 - Rows that share an email or a phone number are merged into one contact, and the change log says which row each kept value came from.
-- Rows that share a phone or email under different names (a switchboard, an info@ address) are kept apart and listed for the owner.
+- Rows that share a phone or email under names that don't fit together (Alice Smith and Bob Jones on one switchboard or info@ address) are kept apart and listed for the owner. A shorter form of the same name (Alice and Alice Smith) still merges, so the owner reviews the change log before importing.
 - Same-name contacts with nothing else in common are listed as possible duplicates, never merged.
 - A display name such as "Mom" is kept, and so are the given and family names, each in its own column.
 - Emails are lower-cased and checked; invalid ones are kept and listed. Phone numbers are normalised, with the owner's country code only when the owner gives it, and an extension stays an extension.
