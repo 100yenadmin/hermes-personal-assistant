@@ -69,8 +69,11 @@ def evaluate(root, scenario, index, messages, tools):
     def resolved(value):
         if not isinstance(value, str) or not value:
             return None
-        path = Path(value) if Path(value).is_absolute() else hh / value
-        return path.resolve() if path.is_file() else None
+        # A relative path may be given from the profile (exports/...) or from the home folder (.hermes/exports/...).
+        for path in ([Path(value)] if Path(value).is_absolute() else [hh / value, hh.parent / value]):
+            if path.is_file():
+                return path.resolve()
+        return None
     markdown = resolved(result.get("paths", {}).get("markdown") if isinstance(result.get("paths"), dict) else None)
 
     db = read(root / f"ledger-step-{index}.json", read(root / "ledger.json", {}))
