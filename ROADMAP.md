@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.12.0-rc.1, 9 November 2026)
+## Where we are (0.13.0-rc.1, 9 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -42,8 +42,16 @@ after the yes. A booking readback records the item on its trip, sets reminders a
 writes a calendar file. A vendor request becomes a chased loop. Each booking can carry
 its expense, and the owner's receipts become an exportable expense list. A cancelled
 or delayed flight produces a read-only list of what it breaks, then one options
-packet, and the chosen change replaces the old booking. In the release wave (57 runs on real Hermes, 54 passing), the three after-the-yes scenarios passed 3 of 3 each against stand-in providers, with zero tripwire hits. Expenses and delayed flights have unit tests only so far. No real
+packet, and the chosen change replaces the old booking. In the 0.13.0-rc.1 release wave (63 runs on real Hermes, 57 passing), the three after-the-yes scenarios and the trip-expense list passed 3 of 3 each against stand-in providers, with zero tripwire hits. Delayed flights have unit tests only so far. No real
 booking has been completed yet; calls and the browser handoff are still open.
+
+**Started (M6).** 0.13.0-rc.1 adds:
+- invoices with the overdue chase ladder;
+- owner-stated balances with a weekly cash position and a monthly summary;
+- customer and vendor replies under the owner's written policy;
+- contact list cleanup with a change log.
+
+Replies under policy passed 2 of 3 in the wave, before a policy-wording fix. The others have unit tests; their lab scenarios are next.
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
@@ -79,9 +87,9 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Calendar | partial: reads and conflict checks | M4 |
 | Errands and bookings | partial: stops correctly before booking, nothing completed | M5 |
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
-| Documents and data | missing | M6 |
-| Finance admin | missing | M6 |
-| Customer and vendor messages | missing | M6 |
+| Documents and data | partial: contact list cleanup with a change log (0.13.0-rc.1, unit tests; lab scenario s32 next); minutes, agendas and spreadsheets missing | M6 |
+| Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); no reconciliation or tax pack yet | M6 |
+| Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1, lab s31) | M6 |
 | Social and content admin | missing | M6 |
 
 ## Milestones
@@ -291,7 +299,7 @@ needs both.
 
 **Why.** A VA finishes errands. PA still stops at the handoff.
 
-**Status (0.12.0-rc.1).** The steps after the yes are built. In the lab, against
+**Status (0.13.0-rc.1).** The steps after the yes are built. In the lab, against
 stand-in providers, these pass: recording a booked restaurant or appointment from
 the readback, reminders, the ICS file, and vendor requests that become chased
 loops. Delivery and errand items are built but not yet in a lab scenario. Expenses from bookings and
@@ -299,8 +307,9 @@ receipts (M5-c) and changed or cancelled legs (M5-d: what a leg breaks, one
 options packet, and the replacement) are built too. A yes given in another
 session is also claimed exactly once. Lab s27 (a booking after the yes) passed
 3 of 3, s28 (a garage appointment plus a landlord request) passed
-3 of 3, and s29 (a cancelled leg that breaks a dinner) passed 3 of 3. No
-real booking has been completed yet, and calls and the browser handoff are still
+3 of 3, and s29 (a cancelled leg that breaks a dinner) passed 3 of 3, in both
+the 0.12.0-rc.1 and 0.13.0-rc.1 waves. The trip-expense list (s30) passed 3 of 3
+in 0.13.0-rc.1. No real booking has been completed yet, and calls and the browser handoff are still
 open.
 
 **Scope.**
@@ -334,6 +343,16 @@ open.
   This proves calling works. It is not VA parity.
 
 ### M6: Remote VA parity (target 1.0.0)
+
+**Status (0.13.0-rc.1).** M6 has started. Built so far:
+- invoices and the overdue chase ladder (M6-a);
+- owner-stated balances, a weekly cash position and a monthly income and expense summary;
+- customer and vendor replies under the owner's written policy (M6-b);
+- contact list cleanup with a change log (M6-c).
+
+In the release wave, replies under policy (s31) passed 2 of 3; the miss came from an ambiguous SOP, fixed after the wave. Invoices, the cash position and contacts have unit tests only so far.
+
+Still missing: minutes, agendas and spreadsheets, reconciliation and the tax pack, content admin, the voice test and the parity evidence.
 
 **Scope.**
 - **Documents and data.** Minutes, agendas, spreadsheets, and a de-duplicated

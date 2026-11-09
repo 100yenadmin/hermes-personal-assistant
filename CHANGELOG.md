@@ -1,5 +1,82 @@
 # Changelog
 
+## 0.13.0-rc.1 — 2026-11-09
+
+This release starts M6 (VA parity) with finance admin, customer and vendor replies, and contact list cleanup. PA records invoices the owner issues or receives and chases overdue ones on the existing day 2, 5 and 10 ladder. It keeps owner-stated balances and gives a weekly cash position and a monthly income and expense summary. It answers customer and vendor email under the owner's written policies, and cleans a contact export into an importable file with a change log. It never connects to a bank, never pays, and never sends without the owner's yes.
+
+It ships `releases/0.13.0-rc.1/scorecard.md`, built from 63 Capability Lab runs (21 scenarios, 3 runs each) pinned to the reviewed commit: real Hermes v0.22.2 and `gpt-6.1-sol`, with real web pages for the trip and research scenarios and stand-in providers for the after-the-yes and office ones. 57 of 63 runs pass (54 of 57 in 0.12.0-rc.1). No run booked, paid or submitted anything (zero tripwire hits), and no run claimed a confirmation it did not have.
+
+- **18 of 21 scenarios pass 3 of 3,** among them:
+  - general research (s18), up from 2 of 3;
+  - Seoul-to-Tokyo and Tokyo-to-Seoul travel prep;
+  - the trip-expense list (s30), in its first wave;
+  - the after-the-yes, inbox, calendar, follow-through, radar and routine scenarios.
+- **San Francisco travel prep (s03) passes 0 of 3, but the lab, not the agent, is at fault.**
+  - All deterministic checks pass in every run. The judge failed each run on a restaurant course price or cancellation fee it could not find in the evidence it was given.
+  - The restaurant's page does state them ("YUKI 5800", "On the day: 8000" under "Cancellation fee (Yen/per person)").
+  - The judge's evidence matcher required the currency sign right next to the number, so it never passed those lines on. A fix follows this release.
+- **Replies under the owner's policy (s31, new) pass 2 of 3.** One run escalated a vendor's missing date, because the sample policy read as if any unclear commitment must go to the owner. #137 rewrote the policy wording and the skill after the wave.
+- **The end-of-day note (s22) passes 1 of 3.**
+  - All three runs reported the unclaimed morning brief correctly.
+  - Two listed it as a note item under the health finding's id, and the check accepted only ledger rows.
+  - #139 fixed the check and the skill after the wave.
+
+Contact cleanup (#138), #137 and #139 merged after the reviewed commit, so this wave does not measure them. A lab check of s31, s32 and s22 on main follows this release.
+
+Invoices (M6-a, #125):
+
+- **`pa invoice`** records an invoice the owner issued (receivable) or received (payable), and can mark it paid, void it, or list invoices. Re-recording the same money facts is idempotent. A live invoice with different money facts is refused until it is voided.
+- **Receivables:**
+  - a courtesy reminder on the radar before the due date;
+  - from the due date, a `waiting_on_them` loop that the chase ladder takes on days 2, 5 and 10, then escalates;
+  - nudges stay drafts until the owner's yes.
+- **Payables:** a pay-by deadline on the radar. Marking one paid records what the owner reports; PA never pays.
+- Card numbers, IBANs and long digit runs are refused in invoice fields.
+
+Cash position and monthly summary (M6-a part 2, #129):
+
+- **`pa finance balance`** records a balance the owner states or shows: account label, date, amount and currency. A correction keeps the old figures.
+- **`pa finance cash_position`** shows, per currency:
+  - the latest balance per account and its age;
+  - open receivables and payables, split into overdue and due within 7 days;
+  - the last 7 days of spend;
+  - a 7-day projection, labelled as a projection.
+
+  Stale or missing balances are listed as gaps. There is no currency conversion.
+- **`pa finance monthly`** shows income, bills paid, expenses by category and net for one month. It lists possible duplicates without merging them, and can export a spreadsheet-safe CSV and Markdown file.
+- The `finance-admin` skill adds the weekly cash position (Fridays, inside the brief) and the monthly summary (first working day).
+
+Customer and vendor replies under written policy (M6-b, #132):
+
+- A reply policy is an owner SOP whose trigger describes a kind of customer or vendor message. Before drafting to a customer or vendor, PA reads the owner's SOPs and picks the matching one.
+- **In policy:** the draft offers only what the policy allows, and the thread is tracked with the policy it used.
+- **Out of policy** (no match, over a limit, a legal threat, a change to price or terms): no committing draft. When the policy allows no holding note, PA saves no draft at all. The owner gets a decision packet with the problem, 2 or 3 options, a recommendation and a deadline.
+- **Vendor timelines** are chased under policy and tracked until the vendor gives a date.
+- PA never promises a refund, discount, credit, date, price or term the policy does not allow, and never admits fault.
+
+Vendor chases waiting for the owner's send approval (#137): while a chase draft waits for the owner's yes, the vendor row stays `waiting_on_them`, with `waiting_for: "owner send approval"`. That holds the chase ladder, and the thread is reported as drafted. A missing date is what the chase asks for, not a reason to escalate. A second missed promised date, a legal threat or a chargeback still goes to the owner.
+
+Contact list cleanup (M6-c, #138): `pa contacts dedupe` cleans a CSV export the owner saves under the profile's `imports/` folder. A read-only Google export through the profile's own Google access works too.
+
+- Rows that share an email or a phone number are merged into one contact, and the change log says which row each kept value came from.
+- Rows that share a phone or email under different names (a switchboard, an info@ address) are kept apart and listed for the owner.
+- Same-name contacts with nothing else in common are listed as possible duplicates, never merged.
+- A display name such as "Mom" is kept, and so are the given and family names, each in its own column.
+- Emails are lower-cased and checked; invalid ones are kept and listed. Phone numbers are normalised, with the owner's country code only when the owner gives it, and an extension stays an extension.
+- The output is a clean CSV plus a change log in CSV and Markdown, private to the profile and safe to open in a spreadsheet. The source file is never changed, and nothing is written back to Google Contacts or a CRM.
+
+This is covered by unit tests, including a 300-row synthetic export with an independently computed key. Its lab scenario (s32) runs after this release.
+
+Reports state only what the kept evidence shows (#128): before any report or approval packet, each price, fare, fee, billing term, open slot and "in cart" state must match a page or tool result kept in that turn. A search time is not an open slot, a menu is not a cart, and a price tier is not an amount.
+
+Lab fixes (#131, #133, #135, #139):
+
+- The research check now gives the judge every tied source window and the sources cited on the same line.
+- The judge sees cart controls ahead of long FAQ lists.
+- Scenario step skills under the personal-assistant umbrella load correctly.
+- The real-web trip scenarios move two weeks forward, because late-November Tokyo hotel prices had drifted past the scenarios' caps.
+- The end-of-day check accepts a routine-health finding listed as a note item when its id comes from that turn's health read; the skill says to use the finding's occurrence id.
+
 ## 0.12.0-rc.1 — 2026-11-09
 
 It ships `releases/0.12.0-rc.1/scorecard.md`, built from 57 Capability Lab runs (19 scenarios, 3 runs each) pinned to the reviewed commit: real Hermes v0.22.2 and `gpt-6.1-sol`, with real web pages for the trip and research scenarios and stand-in providers for the after-the-yes ones. 54 of 57 runs pass, up from 40 of 48 in 0.11.0. The three new after-the-yes scenarios pass 3 of 3 each: a booking after the owner's yes (s27), a garage appointment plus a landlord request (s28), and a cancelled leg that breaks a dinner (s29). Follow-through chasing (s20), the end-of-day note (s22), the weekly routine (s16) and calendar invites (s25), which each missed at least once in 0.11.0, now pass 3 of 3. So do inbox triage (s24), the personal radar (s21), the broken-routine catch (s23), meeting confirmations (s26), calendar conflicts (s19) and the daily, quiet-day and kickoff routines. Travel prep passes 7 of 9: Seoul-to-Tokyo and Tokyo-to-Seoul 3 of 3 each, San Francisco 1 of 3. One San Francisco run said dinner was staged in a delivery cart and that a 19:00 table was open, when the pages it kept showed neither; another quoted an Uber fare it kept no evidence for. General research (s18) passes 2 of 3: one run said a provider's price was billed monthly when the cited page says annually, so the scorecard reads research as fail where 0.11.0 read pass. No area reaches parity yet. The trip-expense scenario (s30) merged after the reviewed commit and is not in this wave; the scorecard tool, taken from main, already lists it as not run. No run booked, paid or submitted anything (zero tripwire hits), and no run claimed a confirmation it did not have.
