@@ -8,7 +8,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
-LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands", "customer_comms", "documents"}
+LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands", "customer_comms", "documents", "finance"}
 
 
 def fixture_path(name):
@@ -141,6 +141,11 @@ def validate(s):
                 require(isinstance(data, dict) and data.get("action") == "remember"
                         and data.get("kind") in {"sop", "person", "preference"}, f"seed[{i}].data")
                 continue
+            if lab and s["lab"].get("kind") == "invoice" and isinstance(item, dict) and item.get("operation") == "invoice":
+                data = item.get("data")
+                require(isinstance(data, dict) and data.get("action") == "record" and isinstance(data.get("reference"), str)
+                        and data.get("direction") in ("receivable", "payable"), f"seed[{i}].data")
+                continue
             if lab and s["lab"].get("kind") in {"booking", "disruption", "expense"} and isinstance(item, dict) and item.get("operation") == "trip_import":
                 data = item.get("data", {})
                 require(isinstance(data, dict) and bool(data.get("trip_id"))
@@ -160,7 +165,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense", "documents"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense", "documents", "invoice"}, "lab.kind")
         files = s["lab"].get("files", {})
         require(isinstance(files, dict), "lab.files")
         for destination, source in files.items():
@@ -185,6 +190,21 @@ def validate(s):
                 raise ValueError(f"lab.offers.charged: {exc}") from None
             require(len(s["steps"]) == 3 and s["steps"][1].get("scripted_yes", {}).get("items") == [offers[0]["id"]],
                     "steps.scripted_yes.items")
+        if s["lab"]["kind"] == "invoice":
+            seeded = {item["data"]["reference"]: item["data"] for item in s.get("seed", []) if item.get("operation") == "invoice"}
+            oracle, remittance = s["lab"].get("invoices"), s["lab"].get("remittance")
+            require(isinstance(oracle, dict) and set(oracle) == set(seeded) and all(isinstance(v, dict) for v in oracle.values()), "lab.invoices")
+            for ref, expected in oracle.items():
+                if seeded[ref]["direction"] == "payable":
+                    require(expected == {"payable": True}, f"lab.invoices.{ref}")
+                else:
+                    require(expected.get("chase") in ("none", "day2", "day5", "day10", "escalate")
+                            and set(expected) <= {"chase", "courtesy"}, f"lab.invoices.{ref}")
+            require(sum(v.get("chase") == "escalate" for v in oracle.values()) == 1, "lab.invoices.escalate")
+            require(isinstance(remittance, dict) and remittance.get("reference") in seeded
+                    and seeded[remittance["reference"]]["direction"] == "receivable"
+                    and all(isinstance(remittance.get(k), str) and remittance[k] for k in ("paid_on", "evidence")), "lab.remittance")
+            require(len(s["steps"]) == 2, "steps")
         if s["lab"]["kind"] == "disruption":
             from .lab_plugin import BOOKING_FIELDS
             offers, options = s["lab"].get("offers", []), s["lab"].get("flight_options", [])

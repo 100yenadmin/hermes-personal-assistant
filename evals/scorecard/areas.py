@@ -103,6 +103,7 @@ for key, scenario, covers, label in (
     ("customer_comms", "s31_customer_policy_en", [1, 2, 3, 5], "policy-bound drafts, owner escalations and vendor chase tracking"),
     ("travel", "s30_trip_expenses_en", [], "stand-in booking charge and forwarded receipt recorded; per-trip expense export"),
     ("finance", "s30_trip_expenses_en", [], "categorised trip expenses from a readback and a receipt; no card reconciliation"),
+    ("finance", "s33_invoice_chase_en", [0, 1, 6], "receivable reminders and the chase ladder held for the yes; payable deadlines; remittance marks paid"),
     ("travel", "s29_changed_leg_en", [2, 3], "synthetic cancelled leg: held options, then rebook, moved dinner and retired reminders"),
     ("travel", "s27_booking_after_yes_en", [3], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
     ("errands", "s27_booking_after_yes_en", [3, 4, 5], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),

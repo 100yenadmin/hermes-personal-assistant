@@ -842,3 +842,13 @@ def test_s32_credit_is_contact_duty_only():
     assert row == {"scenario": "s32_contacts_cleanup_en", "kind": "partial", "covers": [4],
                    "label": "deduplicated contact import with a change log; no provider write"}
     assert area["duties"][4] == "Keep CRM and contacts current and deduplicated with a change log"
+
+
+def test_s33_credit_is_invoice_duties_only():
+    area = next(a for a in AREAS if a["key"] == "finance")
+    row = next(t for t in area["tests"] if t["scenario"] == "s33_invoice_chase_en")
+    assert row == {"scenario": "s33_invoice_chase_en", "kind": "partial", "covers": [0, 1, 6],
+                   "label": "receivable reminders and the chase ladder held for the yes; payable deadlines; remittance marks paid"}
+    assert [area["duties"][i] for i in row["covers"]] == [
+        "Send invoices and reminders on schedule", "Chase overdue invoices on a polite escalation ladder",
+        "Never initiate a payment or transfer"]
