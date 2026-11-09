@@ -68,3 +68,4 @@ two weeks of LinkedIn/Instagram slots and three held drafts with `content-admin`
 Its synthetic oracle checks voice-read order, dates, cadence, event coverage,
 sign-off and channel limits, exact ledger drafts, and no sends or posting claims.
 - `s39_priorities_brief_en`: links open commitments to the owner's priorities and names overdue threats, the next blocked step and an overloaded teammate; sends nothing.
+- `s40_customer_report_en`: weekly customer volume, first-response median, recurring complaints, held replies, escalations and open items; nothing sent, drafted or archived.

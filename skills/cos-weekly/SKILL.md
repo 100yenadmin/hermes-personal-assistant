@@ -12,13 +12,15 @@ metadata:
 
 # Chief of Staff weekly closeout
 
-Run from the accepted `cos_weekly` job, the weekly closeout. Use the user's language. Require Chief
+Run from the accepted `cos_weekly` job. Use the user's language. Require Chief
 of Staff mode; if off, explain `/pa mode chief-of-staff on` in a human turn.
 Read `references/recommendation-state.md` for the shared event, retrieval,
 delivery and owner-approved follow-up protocol.
-Every `references/...` path is relative to this skill directory.
+Reference paths are relative to this skill directory.
 
 ## Compare intent with evidence
+
+Include the customer report (`../personal-assistant/references/customer-report.md`) when the owner handles customer or vendor mail.
 
 1. Read the user's stated priorities from USER.md and the existing operating
    manual. Name the script's `week` and `timezone`. Missing priorities stay unknown;
