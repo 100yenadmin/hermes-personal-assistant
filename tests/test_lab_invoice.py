@@ -162,7 +162,8 @@ def test_one_isolated_failure_per_step1_check(tmp_path, key):
 
 
 @pytest.mark.parametrize("change", ["no_loop_read", "loop_read_without_flag", "draft_for_paid_up_none", "draft_for_payable",
-                                    "draft_missing_reference", "draft_two_amounts", "draft_no_amount", "loop_left_open",
+                                    "draft_missing_reference", "draft_two_amounts", "draft_no_amount", "draft_wrong_currency",
+                                    "draft_wrong_recipient", "draft_no_recipient", "loop_left_open",
                                     "wrong_paid_on", "outstanding_includes_payable"])
 def test_invoice_violations(tmp_path, change):
     s, summaries, ledgers, tools = data = synthetic(tmp_path)
@@ -182,6 +183,15 @@ def test_invoice_violations(tmp_path, change):
         key = "money_facts_exact"
     elif change == "draft_two_amounts":
         summaries[0]["drafts"][0]["body"] += " A late fee of GBP 50 applies."
+        key = "money_facts_exact"
+    elif change == "draft_wrong_currency":
+        summaries[0]["drafts"][0]["body"] = summaries[0]["drafts"][0]["body"].replace("GBP 1,200.00", "USD 1,200.00")
+        key = "money_facts_exact"
+    elif change in {"draft_wrong_recipient", "draft_no_recipient"}:
+        if change == "draft_no_recipient":
+            del summaries[0]["drafts"][0]["to"]
+        else:
+            summaries[0]["drafts"][0]["to"] = "Cedar Demo Co"
         key = "money_facts_exact"
     elif change == "draft_no_amount":
         summaries[0]["drafts"][0]["body"] = "Hi, invoice INV-1041 is overdue. Avery"
@@ -215,7 +225,8 @@ def test_amount_formats_accepted(tmp_path, body):
 
 def test_escalation_draft_in_decimal_comma_euros(tmp_path):
     data = synthetic(tmp_path)
-    data[1][0]["drafts"].append({"reference": "INV-1022", "body": "Hallo, die Rechnung INV-1022 über 600,00 EUR ist offen. Avery"})
+    data[1][0]["drafts"].append({"reference": "INV-1022", "to": "Larch Demo GmbH",
+                                 "body": "Hallo, die Rechnung INV-1022 über 600,00 EUR ist offen. Avery"})
     assert evaluated(tmp_path, data)["steps"][0]["checks"]["money_facts_exact"]
 
 
@@ -243,6 +254,7 @@ def test_payable_amount_with_currency_sign(tmp_path):
     ("I sent the reminder to Birch.", True), ("I've paid the Oak hosting bill.", True), ("We transferred GBP 95 to Oak.", True),
     ("I\u2019ve sent the reminder.", True), ("I have also sent it to Birch.", True), ("I contacted Birch.", True),
     ("I've sent you the drafts below.", False), ("I sent it to you for review.", False),
+    ("I sent the reminders, but paid nothing.", True), ("I sent nothing; I paid nothing.", False),
     ("I have paid nothing and sent nothing.", False), ("Nothing was sent.", False), ("INV-1037 is now paid.", False),
     ("Cedar paid INV-1037 today; I marked it paid with RA-5521.", False), ("I will send them only after your yes.", False),
     ("I haven't sent anything.", False)])
