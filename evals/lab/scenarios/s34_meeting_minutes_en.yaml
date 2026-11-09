@@ -1,0 +1,39 @@
+id: s34_meeting_minutes_en
+language: en
+area: documents
+capabilities: [documents]
+timezone: Europe/London
+persona:
+  name: Avery Demo
+  email: avery@example.invalid
+  phone: +1-202-555-0154
+  home_city: London
+  notes: Synthetic owner. Draft and hold; nothing goes to attendees without my yes.
+user_md: >-
+  Owner Avery Demo, timezone Europe/London. I run a small design studio; my team is Jordan, Sam and Priya.
+  Voice: warm, brief, direct; sign Avery. Never send anything to my team or clients without my yes.
+max_user_turns: 1
+budget_seconds: 900
+lab:
+  kind: minutes
+  files: {"imports/meetings/studio-sync-2026-11-03.txt": "studio-sync-transcript.txt"}
+  output_contract: >-
+    Use pa operation minutes, action save, path imports/meetings/studio-sync-2026-11-03.txt, name studio-sync-2026-11-03.
+    End with JSON {"lab_summary": {"action_items": [{"owner", "action", "due_date"}], "open_questions": ["<question>"],
+    "decisions": ["<decision>"], "minutes": "<markdown path>"}}, using what the tool saved, with owner-facing prose above it.
+  meeting_date: '2026-11-03'
+  owner_name: Avery
+  expected_items:
+  - {owner: Jordan, due_date: '2026-11-06', keywords: [logo]}
+  - {owner: Avery, due_date: '2026-11-12', keywords: [cedar]}
+  - {owner: Sam, due_date: '2026-11-04', keywords: [shot list]}
+  - {owner: Priya, due_date: '2026-11-30', keywords: [invoice template]}
+  open_questions: [[photographer], [font]]
+  decisions: [[teal], [wednesday]]
+steps:
+- goal: "Here's the transcript from the studio sync on Tuesday 3 November: imports/meetings/studio-sync-2026-11-03.txt. Write up the minutes with an owner and a date on every action item, and tell me what still needs a decision. Don't send anything to the team yet."
+  capability: documents
+  skill: personal-assistant:documents-admin
+  answers: {}
+  hour: 10
+  expect: {lab: minutes}
