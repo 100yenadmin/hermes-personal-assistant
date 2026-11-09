@@ -11,6 +11,8 @@ metadata:
 
 # Food Delivery To Hotel
 
+Read `reporting.md` in `../personal-assistant/references/` (relative to this skill directory) for reporting, bridge recovery, progress and pre-send checks.
+
 Every `references/...` path in this skill is relative to this skill directory.
 
 Help the user eat after arrival. Prepare the order, then ask before final order submit.
