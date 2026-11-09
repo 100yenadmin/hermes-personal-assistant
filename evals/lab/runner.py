@@ -138,7 +138,7 @@ def guard_reply(scenario, reply, simulated):
 def system_prompt(scenario):
     if "lab" in scenario:
         standins = "lab_booking_*" if scenario["lab"].get("kind") in {"booking", "approvals", "expense"} else "lab_mail_* and lab_calendar_*"
-        if scenario["lab"].get("kind") == "vendor_request":
+        if scenario["lab"].get("kind") in {"vendor_request", "family"}:
             standins = "lab_booking_* and lab_vendor_*"
         if scenario["lab"].get("kind") == "disruption":
             standins = "lab_booking_* and lab_flight_*"
