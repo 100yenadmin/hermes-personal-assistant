@@ -408,6 +408,8 @@ def test_resave_leaves_provider_rows_and_transaction_owned_loops_alone(home):
     # The same words said by two people: the owner's own line counts.
     ("Sam: I'll send the deck by Friday.\nJordan: I'll send the deck by Friday.\n",
      {"owner": "Jordan", "quote": "I'll send the deck by Friday.", "due_wording": "by Friday"}),
+    # A date alone on the next line still counts.
+    ("Jordan: I'll send the deck.\n2026-11-13\n", {"owner": "Jordan", "quote": "I'll send the deck.", "due_wording": "2026-11-13"}),
     # A "Me:" label is the profile owner.
     ("Me: I'll send the deck by Friday.\nJordan: ok\n",
      {"owner": "Avery", "quote": "I'll send the deck by Friday.", "due_wording": "by Friday"})])

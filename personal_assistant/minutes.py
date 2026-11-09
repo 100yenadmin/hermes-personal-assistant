@@ -50,6 +50,8 @@ STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "h
         "next", "week", "what", "when", "should", "would", "could", "into", "your", "just", "also", "make", "sure"}
 SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*|\(?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP]\.?[mM]\.?(?!\w))?\)?\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
 COMMITMENT = re.compile(r"\bi(?:'ll| will| can|'m going to| am going to| shall)\b(?!'t| not\b)")
+# Blank lines, subtitle cue numbers and timestamp lines ("00:00:05.000 --> 00:00:07.000", "[00:04]") are not speech.
+CUE = re.compile(r"\s*(?:\d+|[\d:.,\s]*-->[\d:.,\s]*|[\[(]?\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?[\])]?)?\s*")
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -84,7 +86,7 @@ def _turns(transcript, owner):
         if label:
             speaker, line = _norm(label.group(1)), line[label.end():]
             speaker = owner if speaker in ("me", "you") else speaker
-        if label or re.search(r"[^\W\d_]", line):
+        if label or not CUE.fullmatch(line):
             turns.append((speaker, _norm(line)))
     return turns
 
