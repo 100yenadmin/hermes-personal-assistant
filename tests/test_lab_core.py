@@ -151,6 +151,11 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     'GO requires its app, and it does not allow advance reservations from Haneda Airport.',
     'GO requires its smartphone app to request this ride.',
     'This provider requires an app to book.',
+    'GO uses its mobile app, and advance reservations cannot start at Haneda Airport.',  # 0.15 wave, s01.
+    'You cannot reserve this airport-origin trip for 15:00.',
+    "GO's app route is available, but it cannot prebook this journey.",
+    'Complete your own sign-in in the GO app.',
+    "GO can't prebook from Haneda; the trip has to be requested in the app on arrival.", 'The slot cannot be reserved online.',
     'OpenTable blocked the search with "Access Denied" on both sites. I could not reach the final details page.',
     'サイトでアクセスが拒否されました。', '사이트에서 차단되었습니다.',
 ])
@@ -162,7 +167,10 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
     for silent in ['Demo stopped at final review; not booked.',
                    'Nothing blocked the search. I stopped without checking the details.',
                    'I could not reach my friend, but the site works. I stopped without checking the details.',
-                   'The form requires its application number.']:
+                   'The form requires its application number.',
+                   'I can reserve this table at 19:00. I stopped without checking the details.',
+                   'I am logging the plan and signing off. I stopped without checking the details.',
+                   'I read their blog in the morning. I stopped without checking the details.']:
         common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': silent}])
         assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'], silent
 
