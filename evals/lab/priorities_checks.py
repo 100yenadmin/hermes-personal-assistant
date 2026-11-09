@@ -51,9 +51,14 @@ def evaluate(root, scenario, index, messages, tools):
     by_id = {r.get("action_id"): fields(r) for r in rows}
     seeded = [s["data"] for s in scenario.get("seed", []) if s.get("operation") == "action_upsert"
               and s["data"].get("action_type") == "commitment"]
+    status = {r.get("action_id"): r.get("status") for r in rows}
     linked = (len(rows) == len(seeded) and set(by_id) == set(lab["links"]) and all(
         _contains(by_id[k].get("priority"), keyword) if keyword else not by_id[k].get("priority")
-        for k, keyword in lab["links"].items() if k in by_id))
+        for k, keyword in lab["links"].items() if k in by_id)
+        # Linking keeps every seeded commitment open with its due date and dependency.
+        and all(status.get(d["action_id"]) == "open" and bool(by_id.get(d["action_id"], {}).get("due_at"))
+                and all(by_id.get(d["action_id"], {}).get(key) == d.get("fields", {}).get(key) for key in ("blocked_by", "next_actor"))
+                for d in seeded))
     threats = summary.get("threats")
     threats = [r for r in threats if isinstance(r, dict)] if isinstance(threats, list) else []
     local = [t for t in tools if t.get("step") == index]
@@ -74,6 +79,8 @@ def evaluate(root, scenario, index, messages, tools):
                              or isinstance(by, list) and lab["next_blocked"]["blocked_by"] in by)
                         and all(_contains(prose, word) for word in lab.get("next_blocked_words", [])),
         "overloaded": _contains(summary.get("overloaded"), lab["overloaded"])
-                      and bool(re.search(r"\b" + re.escape(lab["overloaded"]) + r"\b", prose, re.I)),
+                      and any(re.search(r"\b" + re.escape(lab["overloaded"]) + r"\b", sentence, re.I)
+                              and re.search(r"overload|too many|stretched|at capacity|\b5\b|\bfive\b", sentence, re.I)
+                              for sentence in re.split(r"(?<=[.!?;])\s+", prose)),
         "nothing_sent": allowed and nothing_sent(local + mail),
     }

@@ -176,3 +176,22 @@ def test_the_brief_must_name_each_overdue_item(tmp_path):
     text = text.replace("The overdue pitch deck threatens the seed round; overdue photos threaten the Studio Kit launch. ",
                         "The seed round and Studio Kit launch are on track. ")
     assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["threats_named"]
+
+
+@pytest.mark.parametrize("change", ["owns_only", "cancelled", "dropped_due"])
+def test_overload_must_be_reported_and_linking_keeps_commitments(tmp_path, change):
+    """Bot review: naming Sam is not an overload warning; linking must not cancel or reshape a commitment."""
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    key = "overloaded" if change == "owns_only" else "linked"
+    if change == "owns_only":
+        text = text.replace("Sam Demo is overloaded with 5 open steps, versus your 2.", "Sam Demo owns the photos.")
+    else:
+        row = next(r for r in ledger["actions"] if r["action_id"] == "lab:kit-page")
+        if change == "cancelled":
+            row["status"] = "cancelled"
+        else:
+            data = json.loads(row["fields_json"]) if "fields_json" in row else row["fields"]
+            data.pop("due_at")
+            if "fields_json" in row:
+                row["fields_json"] = json.dumps(data)
+    assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"][key]
