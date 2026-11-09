@@ -457,12 +457,16 @@ def evaluate(answer, tools):
             matched = [texts for texts in seen if source_matches(match, texts, header)]
             if matched and len(excerpts) < 12:
                 found = source_excerpt(match, [t for texts in matched for t in texts], header, line, with_tier=True)
+                row = {"amount": amount, "claim": line.strip()[:200]}
                 if found and found[1] > 0:  # No cited-currency match: the marker may belong to another clause (live s18).
-                    wider = [t for marker in dict.fromkeys(MARKER.findall(line))
-                             for t in fetched.get(url_key(sources.get(marker) or f"[{marker}]"), [])]
-                    other = source_excerpt(match, wider, header, line, with_tier=True) if wider else None
-                    found = other if other and other[1] < found[1] else found
-                excerpts.append({"amount": amount, "claim": line.strip()[:200], "source_text": found and found[0]})
+                    for marker in dict.fromkeys(MARKER.findall(line)):
+                        texts = fetched.get(url_key(sources.get(marker) or f"[{marker}]"), [])
+                        other = source_excerpt(match, texts, header, line, with_tier=True) if texts and marker not in markers else None
+                        if other and other[1] < found[1]:
+                            found = other
+                            # Say where the window came from, so a real mis-citation stays visible to the judge.
+                            row["source_note"] = f"window from [{marker}]; the amount is cited to [{', '.join(markers)}]"
+                excerpts.append({**row, "source_text": found and found[0]})
             elif matched:
                 excerpts_cut += 1
             if markers and not matched:

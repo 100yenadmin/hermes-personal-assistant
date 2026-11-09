@@ -41,7 +41,7 @@ If you stop earlier, at a login, the user's app, no availability or a blocked si
 
 ## Snacks and groceries
 
-Prefer konbini or grocery delivery where available. Stage a cart within the user's budget including delivery fees, with quantities, allergens and allowed substitutions noted; label unknown allergens and ask before substituting.
+Prefer konbini or grocery delivery where available. Stage a cart within the user's budget including delivery fees (report it only from a read of the cart page), with quantities, allergens and allowed substitutions noted; label unknown allergens and ask before substituting.
 Check whether the hotel accepts deliveries at the front desk or permits room delivery, and arrange a feasible collection time. Share a room number only after the user approves the order and only if hotel policy requires it.
 Stop at a required user login or at checkout with the `travel-approval-packet`, cart, total, ETA and hotel handoff instructions. For an app-only route, prepare the item list and exact app steps, stopping before final order submit. Keep the existing human-verification handoff below: the user completes a CAPTCHA or code with the cart staged.
 

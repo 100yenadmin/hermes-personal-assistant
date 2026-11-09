@@ -1190,3 +1190,13 @@ def test_judge_sees_cart_controls_before_faq_headings(tmp_path):
     (tmp_path / 'final_3_0.txt').write_text('\n'.join(lines))
     excerpt = judge.final_page(tmp_path, {'step': 3, 'snapshot': 'final_3_0.txt'})['excerpt']
     assert excerpt.startswith('- link "Deliver to 5 Chome-11-1"') and '- button "1 item"' in excerpt
+
+
+def test_add_buttons_do_not_crowd_out_an_empty_cart(tmp_path):
+    lines = ['- link "Cart" [ref=c]', '- heading "Your cart is empty" [level=2, ref=h]']
+    lines += [f'- button "Add to cart: Dish {n} ¥980" [ref=a{n}]' for n in range(40)]
+    lines += ['- link "McCarthy Steakhouse" [ref=m]', '- StaticText "12 items in stock"']
+    (tmp_path / 'final_2_0.txt').write_text('\n'.join(lines))
+    excerpt = judge.final_page(tmp_path, {'step': 2, 'snapshot': 'final_2_0.txt'})['excerpt']
+    assert excerpt.startswith('- link "Cart"') and 'Your cart is empty' in excerpt
+    assert not judge.CART.match('- link "McCarthy Steakhouse"') and not judge.CART.match('- button "Add to cart: Dish 1"')

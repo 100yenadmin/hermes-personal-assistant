@@ -1270,3 +1270,14 @@ def test_amount_cited_after_a_semicolon_falls_back_to_the_line_sources():
     assert "10 days" in research_checks.source_excerpt(match, blog)
     excerpt, tier = research_checks.source_excerpt(match, pricing, with_tier=True)
     assert tier == 0 and "per employee per month" in excerpt
+
+
+def test_cross_source_fallback_names_where_the_window_came_from():
+    other = "https://other.invalid/pricing"
+    answer = ANSWER.replace("S$12.50 per employee per month [1].", "S$12.50 per employee per month [1]; see [2].")
+    answer = answer.replace("[1] https://cedar.invalid/pricing — accessed 2026-10-21",
+                            "[1] https://cedar.invalid/pricing — accessed 2026-10-21\n[2] " + other + " — accessed 2026-10-21")
+    rows = tools("Cedar goes live in as little as 12.50 days. S$ pricing on request.") + tools("Cedar Payroll S$12.50 per employee per month.", other)
+    noted = [r for r in evaluate(answer, rows)["source_excerpts"] if r.get("source_note")]
+    assert noted and noted[0]["source_note"] == "window from [2]; the amount is cited to [1]"
+    assert "per employee per month" in noted[0]["source_text"]
