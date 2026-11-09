@@ -91,6 +91,7 @@ def _action_summary(row: dict[str, Any]) -> dict[str, Any]:
         "due_at": fields.get("due_at"), "next_action": fields.get("next_action"),
         "kanban_task_id": fields.get("kanban_task_id"), "updated_at": row.get("updated_at"),
         **({key: fields.get(key) for key in _LOOP_SUMMARY} if fields.get("loop_kind") else {}),
+        **{key: fields[key] for key in ("priority", "blocked_by") if key in fields},
     }
 
 
@@ -415,6 +416,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
     today = moment.astimezone(zone).date()
     excluded_radar_upcoming = 0
     candidates = []
+    load = {}
     excluded_completed = 0
     excluded_terminal_unlinked = 0
     excluded_closed_loops = 0
@@ -504,6 +506,12 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             if guidance:
                 item["next_step"] = guidance
         candidates.append(item)
+        actor = fields.get("next_actor")
+        if action.get("action_type") == "commitment" and isinstance(actor, str) and actor:
+            counterparty = fields.get("counterparty")
+            if actor == "them" and isinstance(counterparty, str) and counterparty.strip():
+                actor = counterparty.strip()  # Only text names a holder; structured values never break the brief.
+            load[actor] = load.get(actor, 0) + 1
     candidates.sort(key=lambda row: (row.get("due_at") is None, row.get("due_at") or "", row["action_id"]))
     page = _page(candidates, limit, offset)
     return {"candidates": page.pop("items"), "excluded_completed": excluded_completed,
@@ -511,4 +519,5 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             "excluded_closed_loops": excluded_closed_loops,
             "excluded_radar_upcoming": excluded_radar_upcoming, **page,
             "owner_timezone": str(zone),
+            **({"load": load} if load else {}),
             "commitment_authority": "native Hermes Kanban; unknown when readback is unavailable"}

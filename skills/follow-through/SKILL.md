@@ -11,12 +11,15 @@ metadata:
 
 # Follow-through
 
-Load when the owner asks what is still open, when a brief or scheduled check
-names a due chase, or when you record a new open loop. Use the user's language.
+Load for open items, due chases or recording a loop. Use the user's language.
 Every `references/...` path is relative to this skill directory. The open-loop
 fields are defined in the Open loops section of `personal-assistant:personal-assistant`.
 
-After a verified vendor request or sent message awaiting a reply, pass `follow_through.loop` with the counterparty and our next step in `action_result`, without a separate `action_upsert` loop, and report that the reply is now chased. It opens an ordinary `waiting_on_them` loop at `<action id>:loop`; its nudges use `<loop action id>:nudge:<step>`. A nudge or any other step on an existing loop never gets its own `follow_through.loop`: record it as a chase on that loop.
+After a verified vendor request or sent message awaiting a reply, pass `follow_through.loop` (counterparty, our next step) in `action_result`; no separate `action_upsert`. Report the reply as chased. This opens `waiting_on_them` at `<action id>:loop`, with nudges at `<loop action id>:nudge:<step>`. Existing-loop steps record a chase, never another `follow_through.loop`.
+
+When a commitment clearly serves a top-three priority in USER.md, set `fields.priority` to its short name exactly as written; otherwise leave it unset. Never invent priorities.
+When an item cannot start until another finishes, set `fields.blocked_by` to that item's `action_id`.
+To link open items, update each existing commitment by `action_id`; never duplicate it. `action_upsert` merges fields.
 
 ## Read the loops
 
@@ -54,8 +57,7 @@ Prepare the nudge as its own action, `action_id` `<loop action id>:nudge:<step>`
 (a retry after a failed send adds `:retry<n>`), never on the loop's own action:
 the loop stays a commitment so it can record the chase and, later, its
 confirmation. While a nudge is in flight, `next_action` holds the loop. Every
-other provider step for a loop (a booking, payment or order for an
-`our_promise`) is its own action too, `<loop action id>:<purpose>`.
+other provider step is its own action too, `<loop action id>:<purpose>`.
 Never send without that confirmation; a reminder, an approval of the plan or a
 scheduled run is not consent to send. There is no other send path.
 

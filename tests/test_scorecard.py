@@ -427,7 +427,7 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 10, "none": 3}  # s35 gives onboarding its first row.
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 11, "none": 2}  # s38 gives social its first row.
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()

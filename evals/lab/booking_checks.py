@@ -226,6 +226,9 @@ def _evaluate(root, scenario, index, messages, tools):
 
 
 def evaluate(root, scenario, index, messages, tools):
+    if scenario["lab"].get("kind") == "family":
+        from .family_checks import evaluate as family_evaluate
+        return family_evaluate(root, scenario, index, messages, tools)
     if scenario["lab"].get("kind") == "approvals":
         from .approvals_checks import evaluate as approvals_evaluate
         return approvals_evaluate(root, scenario, index, messages, tools)
