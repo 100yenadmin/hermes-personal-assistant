@@ -56,7 +56,7 @@ def test_normalisation_and_google_columns(tmp_path):
     result = call(tmp_path)
     row = table(result["paths"]["clean"])[0]
     assert row == {"contact_id": "c-" + hashlib.sha256(b"1").hexdigest()[:10], "name": "Casey Demo",
-                   "emails": "a@example.invalid; b@example.invalid; c@example.invalid", "phones": "'+442055501010",
+                   "emails": "a@example.invalid; b@example.invalid; c@example.invalid", "phones": "+442055501010",
                    "company": "Demo Co", "title": "Lead Dev", "notes": "a note", "invalid_emails": "bad-address",
                    "source_rows": "1", "Extra": "extra value"}
     assert result["counts"]["normalised_fields"] == 7
@@ -109,8 +109,8 @@ def test_phone_rules(tmp_path, number, code, expected):
 
 
 def test_transitive_matching_not_name_alone_and_short_phone_kept(tmp_path):
-    source(tmp_path, 'name,email,phone\nA,a@example.invalid,\nB,A@EXAMPLE.INVALID,2025550101\n'
-           'C,c@example.invalid,(202)555-0101\nJosé-Li,d@example.invalid,12345\nJoseLi,e@example.invalid,12345\n')
+    source(tmp_path, 'name,email,phone\nCasey,a@example.invalid,\nCasey Demo,A@EXAMPLE.INVALID,2025550101\n'
+           'casey demo,c@example.invalid,(202)555-0101\nJosé-Li,d@example.invalid,12345\nJoseLi,e@example.invalid,12345\n')
     result = call(tmp_path)
     assert [r["source_rows"] for r in table(result["paths"]["clean"])] == ["1; 2; 3", "4", "5"]
     assert result["possible_duplicates"] == [{"rows": [4, 5], "name": "José-Li"}]
@@ -120,16 +120,16 @@ def test_transitive_matching_not_name_alone_and_short_phone_kept(tmp_path):
 
 def test_merge_choices_alternates_and_kept_origins(tmp_path):
     source(tmp_path, 'name,email,company,title,notes,Custom\n'
-           'A,a@example.invalid,First,Lead,one,\n'
+           'Long,a@example.invalid,First,Lead,one,\n'
            'Long Name,a@example.invalid,Second,Other,two,Extra\n'
-           'Same Size,a@example.invalid,First,Lead,one,Alternate\n')
+           'name long,a@example.invalid,First,Lead,one,Alternate\n')
     result = call(tmp_path)
     row = table(result["paths"]["clean"])[0]
     assert row["name"] == "Long Name" and row["company"] == "First" and row["title"] == "Lead"
     assert row["notes"] == "one | two" and row["Custom"] == "Extra"
     log = changes(result)
     assert {(c["field"], c["other"]) for c in log if c["kind"] == "alternate"} == {
-        ("name", "A"), ("name", "Same Size"), ("company", "Second"), ("title", "Other"), ("Custom", "Alternate")}
+        ("name", "Long"), ("name", "name long"), ("company", "Second"), ("title", "Other"), ("Custom", "Alternate")}
     merged = next(c for c in log if c["kind"] == "merged")
     origins = json.loads(merged["kept_from"])
     assert origins["name"] == 2 and origins["company"] == 1 and origins["Custom"] == 2
@@ -139,10 +139,10 @@ def test_merge_choices_alternates_and_kept_origins(tmp_path):
 def test_invalid_emails_do_not_match_and_blank_rows_count(tmp_path):
     source(tmp_path, 'name,email,notes\nA,bad,\nB,bad,\nC,a@@example.invalid,\nD,a@example,\n,,only notes\n\n')
     result = call(tmp_path)
-    assert result["counts"]["contacts_out"] == 4 and result["counts"]["invalid_emails"] == 4
-    assert result["counts"]["blank_rows"] == 2 and result["counts"]["rows_read"] == 6
+    assert result["counts"]["contacts_out"] == 5 and result["counts"]["invalid_emails"] == 4
+    assert result["counts"]["blank_rows"] == 1 and result["counts"]["rows_read"] == 6
     assert all(not r["emails"] for r in table(result["paths"]["clean"]))
-    assert [c["row"] for c in changes(result) if c["kind"] == "blank_row"] == ["5", "6"]
+    assert [c["row"] for c in changes(result) if c["kind"] == "blank_row"] == ["6"]
 
 
 def test_determinism_source_ledger_unchanged_modes_and_formula_escaping(tmp_path):
@@ -257,3 +257,28 @@ def test_schema_branch_and_registration():
     assert front["name"] == front["metadata"]["openclaw"]["skillKey"] == "documents-admin"
     assert "Never write contacts back" in skill and "owner's yes" in skill and "profile" in skill
     assert "personal-assistant:documents-admin" in (ROOT / "skills/personal-assistant/SKILL.md").read_text()
+
+
+def test_shared_switchboard_or_role_email_never_merges_different_people(tmp_path):
+    source(tmp_path, 'name,email,phone\nAlice Smith,alice@example.invalid,+1 202 555 0000\n'
+           'Bob Jones,bob@example.invalid,+1 202 555 0000\nCarol,info@example.invalid,\nDan,INFO@example.invalid,\n')
+    result = call(tmp_path)
+    assert [r["source_rows"] for r in table(result["paths"]["clean"])] == ["1", "2", "3", "4"]
+    assert result["name_conflicts"] == [{"rows": [1, 2], "names": ["Alice Smith", "Bob Jones"]},
+                                        {"rows": [3, 4], "names": ["Carol", "Dan"]}]
+    assert result["counts"]["name_conflicts"] == 2 and result["counts"]["merged_clusters"] == 0
+    assert [c["kind"] for c in changes(result)].count("name_conflict") == 2
+
+
+def test_group_writable_owner_file_is_read(tmp_path):
+    source(tmp_path, 'name,email\nCasey,c@example.invalid\n')
+    path = next((tmp_path / "imports").rglob("*.csv"))
+    path.chmod(0o664)
+    path.parent.chmod(0o775)
+    assert "error" not in call(tmp_path)
+
+
+def test_importable_phone_cells_and_outlook_headers(tmp_path):
+    source(tmp_path, 'First Name,Last Name,E-mail Address,Mobile Phone\nCasey,Demo,c@example.invalid,+1 202 555 0101\n')
+    text = Path(call(tmp_path)["paths"]["clean"]).read_text()
+    assert "+12025550101" in text and "'+1" not in text and "c@example.invalid" in text

@@ -19,8 +19,8 @@ OP_SCHEMA = {"type": "object", "additionalProperties": False,
 LIMIT = 5 * 1024 * 1024
 COLUMNS = "contact_id name emails phones company title notes invalid_emails source_rows".split()
 ALIASES = {"name": ["name", "full name", "display name"], "first": ["first name", "given name"],
-           "last": ["last name", "family name"], "email": ["email", "e-mail", "email address"],
-           "phone": ["phone", "mobile", "phone number"],
+           "last": ["last name", "family name"], "email": ["email", "e-mail", "email address", "e-mail address", "e-mail 2 address", "e-mail 3 address"],
+           "phone": ["phone", "mobile", "phone number", "mobile phone", "business phone", "home phone", "primary phone"],
            "company": ["company", "organization", "organization 1 - name"],
            "title": ["title", "job title", "organization 1 - title"], "notes": ["notes"]}
 
@@ -41,6 +41,12 @@ def _phone(value, code):
     return value
 
 
+def _tokens(name):
+    text = "".join(c for c in unicodedata.normalize("NFKD", name.casefold())
+                   if not unicodedata.combining(c) and not unicodedata.category(c).startswith("P"))
+    return frozenset(text.split())
+
+
 def _unique(values):
     return list(dict.fromkeys(values))
 
@@ -54,7 +60,13 @@ def _read(root, data):
     if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 2 or relative.parts[0] != "imports":
         raise ValueError("contacts path must be relative under imports/")
     path = root / relative
-    legacy._validate_existing_path(root, path)
+    current = root
+    for part in relative.parts:  # Read-only input: refuse symlinks, but not the owner's file permissions.
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("contacts path must not contain a symlink")
+    if not path.is_file():
+        raise ValueError("contacts path is not a regular file")
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd, "rb") as handle:
         content = handle.read(LIMIT + 1)
@@ -111,7 +123,7 @@ def _dedupe(headers, kinds, table, code):
             if before != after:
                 log("normalised", row=number, field=headers[i], before=before, after=after)
         row["name"] = [n for n in row["name"] if n] or [_space(" ".join(row["first"] + row["last"]))]
-        if not any(row["name"] + row["emails"] + row["phones"] + row["invalid_emails"]):
+        if not any(value for values in row.values() for value in values):
             log("blank_row", row=number)
             continue
         rows.append((number, row))
@@ -131,8 +143,20 @@ def _dedupe(headers, kinds, table, code):
     groups = {}
     for i, row in enumerate(rows):
         groups.setdefault(find(i), []).append(row)
-    contacts, names = [], {}
+    conflicts, kept_groups = [], []
     for group in groups.values():
+        tokens = [_tokens(n) for _, row in group for n in row["name"] if _tokens(n)]
+        widest = max(tokens, key=len, default=frozenset())
+        if all(t <= widest for t in tokens):
+            kept_groups.append(group)
+            continue
+        # A shared phone or email links different names (a switchboard, info@): the owner decides.
+        item = {"rows": [n for n, _ in group], "names": _unique(n for _, row in group for n in row["name"] if n)}
+        conflicts.append(item)
+        log("name_conflict", **item)
+        kept_groups.extend([member] for member in group)
+    contacts, names = [], {}
+    for group in kept_groups:
         numbers = [n for n, _ in group]
         contact = {"contact_id": "c-" + hashlib.sha256(",".join(map(str, sorted(numbers))).encode()).hexdigest()[:10], "source_rows": numbers}
         origins = {}
@@ -167,8 +191,9 @@ def _dedupe(headers, kinds, table, code):
     counts = {"rows_read": len(table), "contacts_out": len(contacts), "rows_merged": len(rows) - len(contacts)}
     counts.update({key: sum(c["kind"] == kind for c in changes) for key, kind in (
         ("blank_rows", "blank_row"), ("merged_clusters", "merged"), ("normalised_fields", "normalised"),
-        ("invalid_emails", "invalid_email"), ("alternates", "alternate"), ("possible_duplicates", "possible_duplicate"))})
-    return contacts, changes, possible, counts, list(extras.values())
+        ("invalid_emails", "invalid_email"), ("alternates", "alternate"), ("possible_duplicates", "possible_duplicate"),
+        ("name_conflicts", "name_conflict"))})
+    return contacts, changes, possible, conflicts, counts, list(extras.values())
 
 
 def _cell(value):
@@ -181,15 +206,16 @@ def _csv(columns, rows):
     stream = io.StringIO(newline="")
     writer = csv.writer(stream)
     for row in [columns, *[[_cell(r.get(k, "")) for k in columns] for r in rows]]:
-        writer.writerow(["'" + v if v.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else v for v in row])
+        writer.writerow(["'" + v if v.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) and not re.fullmatch(r"\+[0-9]+(; \+?[0-9]+)*", v) else v
+                         for v in row])
     return stream.getvalue()
 
 
 def dispatch(ledger, data):
     try:
         headers, kinds, rows = _read(ledger.root, data)
-        contacts, changes, possible, counts, extras = _dedupe(headers, kinds, rows, data.get("default_country_code"))
-        columns = "kind row field before after value rows contact_id kept other kept_from name".split()
+        contacts, changes, possible, conflicts, counts, extras = _dedupe(headers, kinds, rows, data.get("default_country_code"))
+        columns = "kind row field before after value rows contact_id kept other kept_from name names".split()
         def md(value):
             return _cell(value).replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", " ").replace("<", "&lt;").replace(">", "&gt;")
         markdown = ["# Contact changes", "", "| " + " | ".join(columns) + " |", "| " + " | ".join(["---"] * len(columns)) + " |"]
@@ -210,6 +236,6 @@ def dispatch(ledger, data):
                 os.fchmod(handle.fileno(), 0o600)
                 handle.write(texts[kind])
         return {"counts": counts, "paths": {k: str(p) for k, p in paths.items()},
-                "possible_duplicates": possible[:20], "source_unchanged": True}
+                "possible_duplicates": possible[:20], "name_conflicts": conflicts[:20], "source_unchanged": True}
     except (ValueError, OSError, RuntimeError, csv.Error) as exc:
         return {"error": str(exc)}

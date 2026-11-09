@@ -50,7 +50,7 @@ def build():
     key = {"clusters": clusters, "possible_duplicates": pairs, "counts": {
         "rows_read": 300, "blank_rows": 5, "contacts_out": 240, "merged_clusters": 40,
         "rows_merged": 55, "normalised_fields": normalised, "invalid_emails": 6,
-        "alternates": 3, "possible_duplicates": 6}}
+        "alternates": 3, "possible_duplicates": 6, "name_conflicts": 0}}
     stream = io.StringIO(newline="")
     writer = csv.writer(stream)
     writer.writerow(HEADERS)
