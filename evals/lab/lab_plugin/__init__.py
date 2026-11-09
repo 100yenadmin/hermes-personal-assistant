@@ -340,6 +340,35 @@ def register_calendar(ctx, calendar):
 ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden"}
 
 
+MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label:inbox|-(?:in|is|category|label):\S+|(?:newer|older)_than:\S+)$")
+
+
+def mail_search(threads, query, accounts):
+    """The seeded threads are one recent account inbox; voice samples are sent mail outside it.
+
+    Scope operators narrow nothing inside the inbox but keep the sent samples out; from:, to: and
+    subject: match their own field; other terms match the whole thread. All must hold (any, with OR).
+    """
+    tokens = [t.strip('"()') for t in query.lower().split()]
+    if any(t.startswith("account:") and t[len("account:"):] not in accounts for t in tokens):
+        return []
+    scoped = any(MAILBOX_SCOPE.match(t) and t != "in:anywhere" for t in tokens)
+    terms = []
+    for t in tokens:
+        if not t or t in ("or", "and", "all") or t.startswith("account:") or MAILBOX_SCOPE.match(t):
+            continue
+        field, _, value = t.partition(":") if t.startswith(("from:", "to:", "subject:")) else (None, "", t)
+        if value:
+            terms.append((field, value))
+    inbox = [t for k, t in threads.items() if k != "voice-samples"]
+    if not terms:
+        return inbox
+    test = any if "or" in tokens else all
+    def match(thread, field, value):
+        return value in (str(thread.get(field, "")) if field else json.dumps(thread)).lower()
+    return [t for t in (inbox if scoped else threads.values()) if test(match(t, f, v) for f, v in terms)]
+
+
 def register_standins(ctx, obs):
     """State is local to this disposable run; direct handler calls also enforce approval."""
     if isinstance(obs.lab.get("offers"), list):
@@ -354,8 +383,7 @@ def register_standins(ctx, obs):
         result = {"error": blocked["message"]} if blocked else None
         if result is None:
             if name == "lab_mail_search":
-                query = str(args.get("query", "")).lower()
-                result = [t for k, t in threads.items() if k != "voice-samples"] if query in ("", "all", "in:anywhere") else [t for t in threads.values() if query in json.dumps(t).lower()]
+                result = mail_search(threads, str(args.get("query", "")), {obs.lab.get("account", "work"), persona_contact(obs.out)["email"]} - {""})
             elif name == "lab_mail_get":
                 result = threads.get(args.get("thread_id"), drafts.get(args.get("draft_id"), {"error": "not found"}))
             elif name == "lab_mail_draft":
