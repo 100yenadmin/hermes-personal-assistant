@@ -8,6 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jsonschema import Draft7Validator, FormatChecker
+from jsonschema.exceptions import best_match
 
 from .context import owner_zone
 from .privacy import clean
@@ -33,20 +34,41 @@ OP_SCHEMA = {"type": "object", "additionalProperties": False,
                      "type": "object", "additionalProperties": False, "required": ["text", "quote"],
                      "properties": {"text": TEXT, "quote": QUOTE}}},
                  "action_items": {"type": "array", "maxItems": 100, "items": {
-                     "type": "object", "additionalProperties": False, "required": ["text", "owner", "due_date", "quote"],
+                     "type": "object", "additionalProperties": False, "required": ["text", "owner", "due_date", "quote", "due_wording"],
                      "properties": {"text": TEXT, "owner": {"type": "string", "minLength": 1, "maxLength": 100},
                                     "due_date": DATE, "quote": QUOTE,
                                     "due_wording": {"type": "string", "minLength": 1, "maxLength": 100}}}},
                  "open_questions": {"type": "array", "maxItems": 50, "items": {
                      "type": "object", "additionalProperties": False, "required": ["question"],
                      "properties": {"question": TEXT, "quote": QUOTE}}}}}
-PLACEHOLDER = {"tbd", "tba", "unknown", "unassigned", "someone", "anyone", "n/a", "na", "none", "?", "-", "owner tbd"}
+PLACEHOLDER = {"tbd", "tba", "unknown", "unassigned", "someone", "anyone", "n/a", "na", "none", "?", "-", "owner tbd",
+               "i", "me", "we", "us", "you", "they", "them", "team", "the team", "all", "everyone", "everybody"}
+STOP = {"with", "that", "this", "will", "from", "have", "about", "them", "they", "their", "there", "then", "than",
+        "next", "week", "what", "when", "should", "would", "could", "into", "your", "just", "also", "make", "sure"}
+SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
 
 
 def _norm(text):
     text = unicodedata.normalize("NFKC", str(text)).casefold()
     text = text.translate(str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-"}))
     return " ".join(text.split())
+
+
+def _same(a, b):
+    """One name is the other or its leading words: "Jordan" and "Jordan Lee" are the same person."""
+    short, long = sorted((a.split(), b.split()), key=len)
+    return bool(short) and long[:len(short)] == short
+
+
+def _words(text):
+    return {w for w in re.findall(r"[^\W\d_]{4,}", _norm(text))} - STOP
+
+
+def _named(name, transcript, speakers):
+    """A person the transcript names: a speaker label, or the name's words as whole words in the text."""
+    if any(_same(name, s) for s in speakers):
+        return True
+    return bool(name) and re.search(r"(?<!\w)" + re.escape(name.split()[0]) + r"(?!\w)", transcript) is not None
 
 
 def _read(root, relative_text):
@@ -73,15 +95,24 @@ def _read(root, relative_text):
 
 
 def _validate(data, transcript):
-    if not Draft7Validator(OP_SCHEMA, format_checker=FormatChecker()).is_valid(data):
-        raise ValueError("invalid minutes: each action item needs text, owner, due_date (YYYY-MM-DD) and a transcript quote")
+    error = best_match(Draft7Validator(OP_SCHEMA, format_checker=FormatChecker()).iter_errors(data))
+    if error:
+        where = "/".join(map(str, error.absolute_path)) or "data"
+        hint = (" (each action item needs text, owner, due_date YYYY-MM-DD, due_wording and a transcript quote of 8+ characters)"
+                if where.startswith("action_items") else "")
+        raise ValueError(f"invalid minutes at {where}: {error.message[:200]}{hint}")
     if _private(data) or clean(data) != data:
         raise ValueError("minutes must not contain card, account or phone numbers or credentials")
     source = _norm(transcript)
-    people = {_norm(a) for a in data["attendees"]}
+    speakers = {_norm(m) for m in SPEAKER.findall(transcript)}
+    people = {_norm(a) for a in data["attendees"]} | speakers
     meeting = dt.date.fromisoformat(data["meeting_date"])
+    if not any(_same(_norm(data["owner_name"]), p) for p in people):
+        raise ValueError("owner_name must be one of the attendees or speakers")
 
-    def quoted(value, what):
+    def quoted(value, what, minimum=8):
+        if len(_norm(value)) < minimum:
+            raise ValueError(f"{what} quote is too short: {value[:80]}")
         if _norm(value) not in source:
             raise ValueError(f"{what} quote is not in the transcript: {value[:80]}")
     for item in data["decisions"]:
@@ -92,14 +123,18 @@ def _validate(data, transcript):
     for item in data["action_items"]:
         owner = _norm(item["owner"])
         if owner in PLACEHOLDER:
-            raise ValueError(f"action item has no real owner; put it under open_questions: {item['text'][:80]}")
-        if owner not in people and owner not in source:
-            raise ValueError(f"action item owner is not an attendee or named in the transcript: {item['owner']}")
+            raise ValueError(f"action item has no named owner (use owner_name for the owner's own items, "
+                             f"or move it to open_questions): {item['text'][:80]}")
+        # An owner is a speaker, or an attendee the transcript names; a word in the text is not a person.
+        if not (any(_same(owner, s) for s in speakers)
+                or any(_same(owner, a) for a in people) and _named(owner, source, speakers)):
+            raise ValueError(f"action item owner is not a speaker or an attendee named in the transcript: {item['owner']}")
         if dt.date.fromisoformat(item["due_date"]) < meeting:
             raise ValueError(f"action item due date is before the meeting: {item['text'][:80]}")
         quoted(item["quote"], "action item")
-        if "due_wording" in item:
-            quoted(item["due_wording"], "due wording")
+        if not _words(item["text"]) & _words(item["quote"]):
+            raise ValueError(f"action item quote does not mention this action: {item['text'][:80]}")
+        quoted(item["due_wording"], "due wording", minimum=3)
     texts = [_norm(i["text"]) for i in data["action_items"]]
     if len(set(texts)) != len(texts):
         raise ValueError("duplicate action item text")
@@ -121,14 +156,16 @@ def _markdown(data, zone_name):
     return "\n".join(lines) + "\n"
 
 
-def _write(root, path, text):
+def _stage(root, path, text):
+    """Write a private temporary beside path; the caller replaces path with it, so a failure leaves the old file."""
     legacy._validate_existing_path(root, path)
     if path.exists() and path.stat().st_nlink > 1:
         raise ValueError("minutes output must not be hard-linked")
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-        os.fchmod(handle.fileno(), 0o600)
         handle.write(text)
+    return temp
 
 
 def _get(conn, identity):
@@ -136,9 +173,11 @@ def _get(conn, identity):
     return legacy.row_to_dict(row) if row else None
 
 
-def _put(conn, identity, fields, status):
+def _put(conn, identity, fields, status, remove=()):
     old = _get(conn, identity)
     merged = {**(old or {}).get("fields", {}), **fields}
+    for key in remove:
+        merged.pop(key, None)
     stamp = now()
     conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set "
                  "action_type=excluded.action_type,status=excluded.status,"
@@ -161,36 +200,52 @@ def dispatch(ledger, data):
         me = _norm(data["owner_name"])
         prefix = "minutes:" + data["name"] + ":"
         loops = {}
+        meeting = dt.date.fromisoformat(data["meeting_date"])
         for item in data["action_items"]:
-            mine = _norm(item["owner"]) == me
-            due = dt.datetime.combine(dt.date.fromisoformat(item["due_date"]), dt.time(17), zone).isoformat()
+            mine = _same(_norm(item["owner"]), me)
+            day = dt.date.fromisoformat(item["due_date"])
+            due = dt.datetime.combine(day, dt.time(17), zone).isoformat()
+            # The chase ladder counts from opened_at: someone else's item is chased from two days after its
+            # due date; the owner's own item reaches its day-2 reminder on the due date.
+            opened = max(meeting, day - dt.timedelta(days=2)) if mine else day
             loops[prefix + stable_id("minutes", data["name"], _norm(item["text"]))] = {
                 "title": item["text"], "loop_kind": "our_promise" if mine else "waiting_on_them",
-                "counterparty": "Owner" if mine else item["owner"], "next_actor": "us" if mine else "them",
-                "opened_at": data["meeting_date"], "due_at": due,
+                "counterparty": "Owner" if mine else item["owner"], "next_actor": "owner" if mine else "them",
+                "opened_at": opened.isoformat(), "meeting_date": data["meeting_date"], "due_at": due,
                 "next_step": f"{item['owner']}: {item['text']} by {item['due_date']}",
                 "source_ref": f"minutes {data['name']}: \"{item['quote']}\""}
         record = {k: v for k, v in data.items() if k not in {"action", "path"}}
         record.update({"timezone": zone_name, "source": data["path"], "loop_ids": sorted(loops)})
         legacy._ensure_directory(ledger.root, output)
-        for path in paths.values():
-            legacy._validate_existing_path(ledger.root, path)
-        with ledger.connect() as conn:
-            conn.execute("begin immediate")
-            existing = [r[0] for r in conn.execute("select action_id from actions where action_id like ?", (prefix + "%",))]
-            for identity, fields in loops.items():
-                old = _get(conn, identity)
-                if not old or old["status"] == "cancelled":
-                    fields = {**fields, "chase_log": []}
-                _put(conn, identity, fields, "open" if not old or old["status"] == "cancelled" else old["status"])
-            for identity in set(existing) - set(loops):  # An item dropped on re-save stops being chased.
-                old = _get(conn, identity)
-                if old and old["status"] == "open":
-                    _put(conn, identity, {"loop_cancelled": {"by": "owner", "at": now(), "reason": "removed from the saved minutes"}}, "cancelled")
-            _write(ledger.root, paths["markdown"], _markdown(data, zone_name))
-            _write(ledger.root, paths["json"], json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+        staged = {}
+        try:
+            staged = {"markdown": _stage(ledger.root, paths["markdown"], _markdown(data, zone_name))}
+            staged["json"] = _stage(ledger.root, paths["json"], json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+            _commit(ledger, prefix, loops, staged, paths)
+        finally:
+            for temp in staged.values():
+                temp.unlink(missing_ok=True)
         return {"paths": {k: str(p) for k, p in paths.items()}, "action_items": len(data["action_items"]),
                 "decisions": len(data["decisions"]), "open_questions": len(data.get("open_questions", [])),
                 "loop_ids": sorted(loops), "sent": False}
     except (ValueError, OSError, RuntimeError) as exc:
         return {"error": str(exc)}
+
+
+def _commit(ledger, prefix, loops, staged, paths):
+    with ledger.connect() as conn:
+        conn.execute("begin immediate")
+        existing = [r[0] for r in conn.execute("select action_id from actions where action_id like ?", (prefix + "%",))]
+        for identity, fields in loops.items():
+            old = _get(conn, identity)
+            reopen = not old or old["status"] == "cancelled"
+            if reopen:
+                fields = {**fields, "chase_log": []}
+            _put(conn, identity, fields, "open" if reopen else old["status"], remove=("loop_cancelled",) if reopen else ())
+        for identity in set(existing) - set(loops):  # An item dropped on re-save stops being chased.
+            old = _get(conn, identity)
+            if old and old["status"] != "cancelled" and not (old.get("fields") or {}).get("confirmation"):
+                _put(conn, identity, {"loop_cancelled": {"by": "owner", "at": now(), "reason": "removed from the saved minutes"}}, "cancelled")
+        for kind in ("markdown", "json"):  # A failed replace raises inside the transaction, so no loop change commits.
+            legacy._validate_existing_path(ledger.root, paths[kind])
+            os.replace(staged[kind], paths[kind])

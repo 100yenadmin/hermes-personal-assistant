@@ -29,7 +29,7 @@ MINUTES = {"action": "save", "path": "imports/meetings/sync.txt", "name": "studi
                {"text": "Send Birch the revised logo files", "owner": "Jordan", "due_date": "2026-11-13",
                 "quote": "I'll send Birch the revised logo files by Friday.", "due_wording": "by Friday"},
                {"text": "Review the Cedar contract and reply", "owner": "Avery", "due_date": "2026-11-12",
-                "quote": "I'll review the Cedar contract and reply to them by November 12."}],
+                "quote": "I'll review the Cedar contract and reply to them by November 12.", "due_wording": "by November 12"}],
            "open_questions": [{"question": "Who books the photographer for the Maple shoot, and by when?",
                                "quote": "Someone should book the photographer for the Maple shoot"},
                               {"question": "When should the invoice template be updated, and who owns it?"}]}
@@ -79,8 +79,9 @@ def test_save_writes_private_minutes_and_one_loop_per_item(home):
     jordan, avery = by_owner["Jordan"], by_owner["Avery"]
     assert jordan["status"] == avery["status"] == "open"
     assert jordan["fields"]["loop_kind"] == "waiting_on_them" and jordan["fields"]["next_actor"] == "them" and jordan["fields"]["counterparty"] == "Jordan"
-    assert avery["fields"]["loop_kind"] == "our_promise" and avery["fields"]["next_actor"] == "us"
-    assert jordan["fields"]["due_at"] == "2026-11-13T17:00:00+00:00" and jordan["fields"]["opened_at"] == "2026-11-09"
+    assert avery["fields"]["loop_kind"] == "our_promise" and avery["fields"]["next_actor"] == "owner"
+    assert jordan["fields"]["due_at"] == "2026-11-13T17:00:00+00:00" and jordan["fields"]["opened_at"] == "2026-11-13"
+    assert avery["fields"]["opened_at"] == "2026-11-10" and avery["fields"]["meeting_date"] == "2026-11-09"
     assert loop_state(jordan, {}) == "open"
     assert (home / "imports/meetings/sync.txt").read_text() == TRANSCRIPT
 
@@ -105,13 +106,19 @@ def test_resave_is_idempotent_updates_in_place_and_cancels_dropped_items(home):
     dropped = (set(ids) - set(moved["loop_ids"])).pop()
     assert rows[dropped]["status"] == "cancelled" and rows[dropped]["fields"]["loop_cancelled"]["reason"] == "removed from the saved minutes"
     revived = save(home)
-    assert loops(home)[dropped]["status"] == "open" and loops(home)[dropped]["fields"]["chase_log"] == []
+    back = loops(home)[dropped]
+    assert back["status"] == "open" and back["fields"]["chase_log"] == [] and "loop_cancelled" not in back["fields"]
+    assert loop_state(back, {}) == "open"
 
 
 @pytest.mark.parametrize("change,message", [
-    ({"owner": "TBD"}, "no real owner"),
-    ({"owner": "someone"}, "no real owner"),
-    ({"owner": "Riley"}, "not an attendee"),
+    ({"owner": "TBD"}, "no named owner"),
+    ({"owner": "someone"}, "no named owner"),
+    ({"owner": "team"}, "no named owner"),
+    ({"owner": "I"}, "no named owner"),
+    ({"owner": "we"}, "no named owner"),
+    ({"owner": "birch"}, "not a speaker"),  # A word in the transcript is not a person.
+    ({"owner": "Riley"}, "not a speaker"),
     ({"due_date": "2026-11-02"}, "before the meeting"),
     ({"due_date": "Friday"}, "invalid minutes"),
     ({"quote": "I'll send Birch the final logo files tomorrow."}, "not in the transcript"),
@@ -136,7 +143,7 @@ def test_other_refusals(home, tmp_path):
     assert "not in the transcript" in save(home, decisions=[{"text": "x", "quote": "We agreed to go with the red palette."}])["error"]
     assert "not in the transcript" in save(home, open_questions=[{"question": "Who?", "quote": "Nobody said this sentence."}])["error"]
     items = copy.deepcopy(MINUTES["action_items"])
-    items[1]["text"] = items[0]["text"]
+    items[1] = {**items[0], "owner": "Jordan"}
     assert "duplicate action item" in save(home, action_items=items)["error"]
     assert "phone numbers" in save(home, overview="Pay by card number: 4242 4242 4242 4242.")["error"]
     assert "relative under imports/" in save(home, path="../outside.txt")["error"]
@@ -187,3 +194,94 @@ def test_hard_linked_output_refused(home, tmp_path):
     (home / "exports/minutes/studio-sync-2026-11-09.md").hardlink_to(outside)
     assert "hard-linked" in save(home)["error"]
     assert outside.read_text() == "keep" and not loops(home)
+
+
+def test_owner_name_matching_and_speakers(home):
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[1]["owner"] = "Avery Chen"  # The owner's full name still marks the owner's own item.
+    result = save(home, owner_name="Avery", action_items=items)
+    assert "error" not in result, result
+    owner_item = next(r for r in loops(home).values() if r["fields"]["title"].startswith("Review the Cedar"))
+    assert owner_item["fields"]["loop_kind"] == "our_promise" and owner_item["fields"]["next_actor"] == "owner"
+    assert "owner_name must be one of the attendees" in save(home, owner_name="Riley")["error"]
+    # A speaker label counts as a person even when the attendee list misses them.
+    assert "error" not in save(home, attendees=["Avery", "Jordan"])
+
+
+@pytest.mark.parametrize("change,where", [
+    ({"summary": "x"}, "invalid minutes at data"), ({"overview": None}, "overview"),
+    ({"name": "Studio Sync"}, "invalid minutes at name"),
+    ({"open_questions": [{"text": "Who?"}]}, "invalid minutes at open_questions/0")])
+def test_schema_errors_name_the_field(home, change, where):
+    data = {**copy.deepcopy(MINUTES), **change}
+    if change.get("overview", "") is None:
+        del data["overview"]
+    result = entry.dispatch(home, {"operation": "minutes", "data": data})
+    assert where in result["error"], result
+
+
+def test_short_quote_names_the_item_field(home):
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[0]["quote"] = "Will do"
+    error = save(home, action_items=items)["error"]
+    assert "action_items/0/quote" in error and "8+ characters" in error
+
+
+def test_chases_start_after_the_due_date_and_owner_items_remind_on_the_day(home):
+    save(home)
+    def steps(day):
+        packet = entry.dispatch(home, {"operation": "next_action", "data": {"loops_only": True, "at": day + "T10:00:00+00:00"}})
+        return {c["counterparty"]: c["chase"]["step"] for c in packet["candidates"] if c["action_id"].startswith("minutes:")}
+    assert steps("2026-11-11") == {"Owner": "none", "Jordan": "none"}
+    assert steps("2026-11-12") == {"Owner": "day2", "Jordan": "none"}  # The owner's own item: reminded on its due day.
+    assert steps("2026-11-15") == {"Owner": "day5", "Jordan": "day2"}  # Jordan's item: two days after it was due.
+
+
+def test_failed_file_replace_leaves_old_files_and_no_loop_change(home, monkeypatch):
+    first = save(home)
+    before = {k: Path(p).read_text() for k, p in first["paths"].items()}
+    rows = {k: (r["status"], r["fields"]) for k, r in loops(home).items()}
+    import os as real_os
+    from personal_assistant import minutes
+    original = real_os.replace
+    def replace(src, dst):
+        if str(dst).endswith(".json"):
+            raise OSError("disk full")
+        return original(src, dst)
+    monkeypatch.setattr(minutes.os, "replace", replace)
+    items = copy.deepcopy(MINUTES["action_items"])[:1]
+    assert "disk full" in save(home, action_items=items)["error"]
+    assert {k: (r["status"], r["fields"]) for k, r in loops(home).items()} == rows  # The dropped item stays open.
+    assert Path(first["paths"]["json"]).read_text() == before["json"]
+    assert not list((home / "exports/minutes").glob(".*.tmp"))
+
+
+def test_dropped_completed_unconfirmed_item_is_cancelled_but_confirmed_kept(home):
+    ids = save(home)["loop_ids"]
+    with Ledger(home).connect() as conn:
+        conn.execute("update actions set status='completed' where action_id=?", (ids[0],))
+        row = conn.execute("select fields_json from actions where action_id=?", (ids[1],)).fetchone()[0]
+        fields = json.loads(row)
+        fields["confirmation"] = {"by": "Jordan", "at": "2026-11-12T10:00:00+00:00", "evidence": "Files received"}
+        conn.execute("update actions set status='completed', fields_json=? where action_id=?", (json.dumps(fields), ids[1]))
+    save(home, action_items=[], decisions=MINUTES["decisions"])
+    rows = loops(home)
+    assert rows[ids[0]]["status"] == "cancelled" and rows[ids[1]]["status"] == "completed"
+
+
+@pytest.mark.parametrize("change,message", [
+    ({"quote": "        "}, "too short"),
+    ({"quote": "Let's also move the sync to Tuesdays from next week."}, "does not mention this action"),
+    ({"owner": "contract"}, "not a speaker"),
+    ({"due_wording": "by Thursday"}, "not in the transcript")])
+def test_grounding_refusals(home, change, message):
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[0].update(change)
+    assert message in save(home, action_items=items)["error"]
+    assert not loops(home)
+
+
+def test_attendee_never_named_in_transcript_cannot_own_an_item(home):
+    items = copy.deepcopy(MINUTES["action_items"])
+    items[0]["owner"] = "Riley"
+    assert "not a speaker" in save(home, attendees=["Avery", "Jordan", "Sam", "Riley"], action_items=items)["error"]

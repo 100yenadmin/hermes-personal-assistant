@@ -49,23 +49,27 @@ without claiming a clean export exists.
    `imports/meetings/`. Never invent lines the transcript does not contain.
 2. Read it and draft the minutes: title, meeting date, attendees, a short summary,
    decisions, action items and open questions. Every decision and action item
-   carries a short verbatim `quote` from the transcript.
-3. Every action item needs an owner and a `due_date` (YYYY-MM-DD). Resolve a
-   relative date ("by Friday") against the meeting date in the owner's time zone
-   and keep the spoken words in `due_wording`. When the transcript gives no clear
-   owner or no date, do not guess: put the item under `open_questions` as a
-   question for the owner.
+   carries a verbatim `quote`: contiguous words from one speaker's line, no
+   ellipses, that mention the action.
+3. Every action item needs a named owner (a speaker, or an attendee the
+   transcript names), a `due_date` (YYYY-MM-DD) and the spoken `due_wording`
+   ("by Friday", "tomorrow", "by the 12th"). Resolve the wording against the
+   meeting date in the owner's time zone. Write the owner's own items with the
+   owner's name as `owner_name`. When the transcript gives no clear owner or no
+   date, do not guess: put the item under `open_questions` as a question for the owner.
 4. Save through the structured tool:
    `pa(operation="minutes", data={"action":"save", "path":"imports/meetings/<file>",
    "name":"<slug>", "title":..., "meeting_date":..., "owner_name":<the owner's name
    as said in the meeting>, "attendees":[...], "overview":<short summary>, "decisions":[{"text","quote"}],
-   "action_items":[{"text","owner","due_date","quote","due_wording"?}],
+   "action_items":[{"text","owner","due_date","quote","due_wording"}],
    "open_questions":[{"question","quote"?}]})`.
    A refusal names the item to fix; fix it or move it to open questions, then save again.
-   Saving again with the same name replaces the minutes and keeps one loop per item.
+   Saving again with the same name replaces the minutes and keeps one loop per
+   item; keep each item's text unchanged so its loop and chase history carry over.
 5. Report the action items as owner, action and date, the open questions, and both
-   file paths. Each action item is now a follow-through loop: someone else's item is
-   a `waiting_on_them` loop, the owner's own item a reminder. Sending the minutes to
+   file paths. Each action item is now a follow-through loop: someone else's item
+   is chased from two days after its due date; the owner is reminded of their own
+   item on its due date. Sending the minutes to
    attendees is an exact-action send that needs the owner's yes to the recipients and text.
 
 ## File contract
