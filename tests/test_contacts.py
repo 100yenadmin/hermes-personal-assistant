@@ -101,7 +101,8 @@ def test_company_title_aliases(tmp_path, header, field):
     ("202.555.0101", "1", "+12025550101"), ("1-202-555-0101", "1", "+12025550101"),
     ("6591234567", "65", "+6591234567"), ("9123 4567", "65", "+6591234567"),
     ("090-1234-5678", "81", "+819012345678"), ("819012345678", "81", "+819012345678"), ("010-1234-5678", "82", "+821012345678"),
-    ("123-45", None, "12345"), ("00", None, "+")])
+    ("123-45", None, "12345"), ("00", None, "+"),
+    ("06 1234 5678", "39", "+390612345678"), ("333 123 4567", "39", "+393331234567"), ("020 7946 0018", "44", "+442079460018")])
 def test_phone_rules(tmp_path, number, code, expected):
     source(tmp_path, f'name,phone\nCasey,{number}\n')
     result = call(tmp_path, **({"default_country_code": code} if code else {}))
@@ -323,3 +324,11 @@ def test_structured_names_survive_a_display_name(tmp_path):
         ("Mom", "Jane", "Smith", "1"), ("Lee", "Lee", "", "2"), ("Jo", "Joanne", "Park", "3; 4")]
     assert any((c["kind"], c["field"], c["kept"], c["other"], c["row"]) == ("alternate", "given_name", "Joanne", "Jo", "4")
                for c in changes(result))
+
+
+def test_same_display_name_with_different_structured_names_is_a_conflict(tmp_path):
+    source(tmp_path, 'Name,Given Name,Family Name,Phone 1 - Value\nDoctor,Jane,Smith,+12025550101\n'
+           'Doctor,John,Jones,+12025550101\nMom,Ana,Lee,+12025550102\n,Ana,Lee,+12025550102\n')
+    result = call(tmp_path)
+    assert [r["source_rows"] for r in table(result["paths"]["clean"])] == ["1", "2", "3; 4"]
+    assert result["counts"]["name_conflicts"] == 1 and result["counts"]["merged_clusters"] == 1

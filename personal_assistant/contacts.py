@@ -39,8 +39,8 @@ def _phone(value, code):
     value = value[:match.start()] if match else value
     value = ("+" if value.startswith(("+", "00")) else "") + re.sub(r"[^0-9]", "", value[2:] if value.startswith("00") else value)
     if code and value and not value.startswith("+"):
-        if value.startswith("0"):  # A national number: drop one trunk 0.
-            value = "+" + code + value[1:]
+        if value.startswith("0"):  # A national number: drop one trunk 0 (Italy and San Marino keep it).
+            value = "+" + code + (value if code in {"39", "378"} else value[1:])
         elif value.startswith(code) and len(value) - len(code) >= 8:  # Already carries the code, without the +.
             value = "+" + value
         else:
@@ -152,7 +152,8 @@ def _dedupe(headers, kinds, table, code):
         groups.setdefault(find(i), []).append(row)
     conflicts, kept_groups = [], []
     for group in groups.values():
-        tokens = [_tokens(n) for _, row in group for n in row["name"] if _tokens(n)]
+        # One name set per row: display names plus the given and family names.
+        tokens = [t for _, row in group for t in [frozenset().union(*map(_tokens, row["name"] + [" ".join(row["first"] + row["last"])]))] if t]
         widest = max(tokens, key=len, default=frozenset())
         if all(t <= widest for t in tokens):
             kept_groups.append(group)
