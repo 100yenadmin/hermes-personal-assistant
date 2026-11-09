@@ -13,7 +13,7 @@ from .vendor_checks import claims_sent, body_text
 KIND_SYNONYMS = {"important_date": ("birthday", "anniversary", "family date", "important date"),
                  "renewal": ("renewals", "expiry", "expiration")}
 WRITE_NAME = re.compile(r"post|publish|tweet|manage|(?:^|_)(?:write|save|draft|send|create|update|delete|archive|label|patch|"
-                        r"remember|forget|execute|terminal|submit|book|confirm)(?:_|$)", re.I)
+                        r"remember|forget|execute|terminal|submit|book|confirm|click|type|press|fill|select|upload)(?:_|$)", re.I)
 
 
 def evaluate(root, scenario, index, messages, tools):
@@ -53,7 +53,9 @@ def _evaluate(root, scenario, index, messages, tools):
     year_ok = isinstance(year, list) and [r["month"] for r in year] == months
     items = [(r["month"], i) for r in year for i in r["items"]]
     def words(text):
-        return {w for w in re.findall(r"[a-z]{4,}", b.normalized(re.sub(r"'s\b", "", str(text or ""))))}
+        # Kind words ("renewal", "birthday") are generic; a title must share a word naming the thing itself.
+        generic = {"renewal", "renewals", "birthday", "anniversary", "important", "date", "expiry", "expiration", "deadline"}
+        return {w for w in re.findall(r"[a-z]{4,}", b.normalized(re.sub(r"'s\b", "", str(text or ""))))} - generic
     def listed(title, date, kind):
         # Same date and month, a shared title word ("Robin's birthday"), and a kind naming the radar kind or a synonym.
         kinds = {kind, *KIND_SYNONYMS.get(kind, ())}

@@ -223,3 +223,18 @@ def test_standins_and_hidden_keys(tmp_path):
     assert "lab_booking_* and lab_vendor_*" in prompt
     assert all(key not in prompt for key in ("valid_offer", "allergy_keyword", "gate_keyword", "radar_ids"))
     assert "error" in json.loads(registered["lab_vendor_send"]["handler"]({"item": "msg-hearth-boiler", "to": s["lab"]["vendor_to"], "body": "Draft"}))
+
+
+@pytest.mark.parametrize("change", ["browser_click", "swap_titles"])
+def test_browser_input_and_swapped_titles_fail(tmp_path, change):
+    """Review: browser input is not a read; a title must name its own item, not just its kind."""
+    s, tools, summary, ledger = synthetic()
+    if change == "browser_click":
+        tools.append({"name": "browser_click", "step": 0, "structured_args": {}})
+        key = "nothing_sent"
+    else:
+        renewals = [i for m in summary["year"] for i in m["items"] if i["kind"] == "renewal"]
+        renewals[0]["title"], renewals[1]["title"] = renewals[1]["title"], renewals[0]["title"]
+        key = "year_complete"
+    save(tmp_path, s, tools, summary, ledger, "Drafts ready; waiting for your yes.")
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"][key]
