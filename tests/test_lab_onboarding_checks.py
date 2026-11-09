@@ -132,6 +132,7 @@ def test_seeded_inbox_uses_s24_mechanism_and_no_setup_progress(tmp_path):
     "**Urgent**\n- Cedar contract: approve by 16:00\n- Maple venue hold: decide by 15:00\n\n**FYI**\n- Studio update: no action",
     "## Urgent\n1. Cedar contract, review due 16:00\n2. Maple venue hold expires 15:00",
     "Urgent: Cedar contract — Alex would like approval by 16:00.\nUrgent: Maple venue — decide by 15:00; I'll hold a reply draft for your yes.",
+    "**Urgent**\n1. Cedar contract — two options:\n2. Maple venue hold — decide by 15:00",
 ])
 def test_first_win_accepts_usual_triage_layouts(tmp_path, prose):
     s, transcript, _ = synthetic(tmp_path)
@@ -146,5 +147,13 @@ def test_items_under_an_fyi_heading_are_not_urgent(tmp_path):
     s, transcript, _ = synthetic(tmp_path)
     text = transcript[-1]["content"]
     transcript[-1]["content"] = "**FYI**\n- Cedar contract\n- Maple venue\n" + text[text.index('{"lab_summary"'):]
+    common.write(tmp_path / "transcript.json", transcript)
+    assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["first_win"]
+
+
+def test_items_under_a_not_urgent_heading_are_not_urgent(tmp_path):
+    s, transcript, _ = synthetic(tmp_path)
+    text = transcript[-1]["content"]
+    transcript[-1]["content"] = "**Not urgent**\n- Cedar contract\n- Maple venue\n" + text[text.index('{"lab_summary"'):]
     common.write(tmp_path / "transcript.json", transcript)
     assert not checks.evaluate(tmp_path, s)["steps"][0]["checks"]["first_win"]
