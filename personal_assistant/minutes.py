@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import os
 import re
+import stat
 import unicodedata
 import uuid
 from pathlib import Path
@@ -20,7 +21,7 @@ LIMIT = 2 * 1024 * 1024
 TEXT = {"type": "string", "minLength": 1, "maxLength": 500}
 QUOTE = {"type": "string", "minLength": 8, "maxLength": 500}
 DATE = {"type": "string", "format": "date"}
-OP_SCHEMA = {"type": "object", "additionalProperties": False,
+SAVE_SCHEMA = {"type": "object", "additionalProperties": False,
              "required": ["action", "path", "name", "title", "meeting_date", "owner_name", "attendees", "overview",
                           "decisions", "action_items"],
              "properties": {
@@ -42,6 +43,16 @@ OP_SCHEMA = {"type": "object", "additionalProperties": False,
                  "open_questions": {"type": "array", "maxItems": 50, "items": {
                      "type": "object", "additionalProperties": False, "required": ["question"],
                      "properties": {"question": TEXT, "quote": QUOTE}}}}}
+READ_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["action", "path"],
+               "properties": {"action": {"const": "read"}, "path": {"type": "string", "minLength": 1},
+                              "offset": {"type": "integer", "minimum": 0},
+                              "from": {"type": "integer", "minimum": 0}}}
+# read returns the transcript's numbered lines so the agent can draft from them; save writes the minutes.
+OP_SCHEMA = {"type": "object", "required": ["action"],
+             "if": {"properties": {"action": {"const": "read"}}, "required": ["action"]},
+             "then": READ_SCHEMA, "else": SAVE_SCHEMA}
+PAGE = 40_000  # Characters per read call, counting each line's JSON overhead; next_offset pages the rest.
+PAGE_LINES = 2_000
 PLACEHOLDER = {"tbd", "tba", "unknown", "unassigned", "someone", "anyone", "n/a", "na", "none", "?", "-", "owner tbd",
                "i", "me", "we", "us", "you", "they", "them", "team", "the team", "all", "everyone", "everybody"}
 STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "has", "had", "was", "are", "its",
@@ -125,8 +136,11 @@ def _read(root, relative_text, label=None):
     path = root / relative
     if not path.is_file():
         raise ValueError(f"{path_label} path is not a regular file")
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0))
     with os.fdopen(fd, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError(f"{path_label} path must be a regular file without other hard links")
         content = handle.read(LIMIT + 1)
     if len(content) > LIMIT:
         raise ValueError(f"{text_label} exceeds 2 MB")
@@ -137,7 +151,7 @@ def _read(root, relative_text, label=None):
 
 
 def _validate(data, transcript):
-    error = best_match(Draft7Validator(OP_SCHEMA, format_checker=FormatChecker()).iter_errors(data))
+    error = best_match(Draft7Validator(SAVE_SCHEMA, format_checker=FormatChecker()).iter_errors(data))
     if error:
         where = "/".join(map(str, error.absolute_path)) or "data"
         hint = (" (each action item needs text, owner, due_date YYYY-MM-DD, due_wording and a transcript quote of 8+ characters)"
@@ -257,8 +271,46 @@ def _put(conn, identity, fields, status, remove=()):
                   (old or {}).get("created_at", stamp), stamp))
 
 
+def _page(root, data):
+    """Numbered transcript lines from offset, at most PAGE characters; writes nothing."""
+    error = best_match(Draft7Validator(READ_SCHEMA).iter_errors(data))
+    if error:
+        raise ValueError(f"invalid minutes read at {'/'.join(map(str, error.absolute_path)) or 'data'}: {error.message[:200]}")
+    if Path(data["path"]).parts[:2] != ("imports", "meetings"):
+        raise ValueError("minutes read path must be under imports/meetings/")
+    lines = _read(root, data["path"]).splitlines()
+    start = int(data.get("offset", 0))  # Draft 7 accepts 1.0 as an integer.
+    skip = int(data.get("from", 0))  # Character position inside the first line, to resume a cut line.
+    out, size, resume = [], 0, None
+    for index in range(start, len(lines)):
+        base = skip if index == start else 0
+        piece = lines[index][base:]
+        cost = min(len(piece), PAGE) + 24
+        if out and (size + cost > PAGE or len(out) >= PAGE_LINES):
+            resume = (index, 0)
+            break
+        line = {"n": index + 1, "text": piece[:PAGE]}
+        if base:
+            line["from"] = base
+        out.append(line)
+        if len(piece) > PAGE:  # A line longer than a page comes back in parts; the next call resumes it.
+            line["truncated"] = True
+            resume = (index, base + PAGE)
+            break
+        size += cost
+    result = {"path": data["path"], "total_lines": len(lines), "offset": start, "lines": out,
+              "next_offset": resume[0] if resume else None, "sent": False}
+    if resume and resume[1]:
+        result["next_from"] = resume[1]
+    return result
+
+
 def dispatch(ledger, data):
     try:
+        if isinstance(data, dict) and data.get("action") == "read":
+            return _page(ledger.root, data)
+        if not isinstance(data, dict) or data.get("action") not in (None, "save"):
+            raise ValueError("minutes action must be read or save")
         transcript = _read(ledger.root, data.get("path", "")) if isinstance(data.get("path"), str) else ""
         _validate(data, transcript)
         try:

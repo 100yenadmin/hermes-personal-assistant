@@ -852,3 +852,11 @@ def test_s33_credit_is_invoice_duties_only():
     assert [area["duties"][i] for i in row["covers"]] == [
         "Send invoices and reminders on schedule", "Chase overdue invoices on a polite escalation ladder",
         "Never initiate a payment or transfer"]
+
+
+def test_s34_credit_is_minutes_duty_only():
+    area = next(a for a in AREAS if a["key"] == "documents")
+    row = next(t for t in area["tests"] if t["scenario"] == "s34_meeting_minutes_en")
+    assert row == {"scenario": "s34_meeting_minutes_en", "kind": "partial", "covers": [0],
+                   "label": "minutes from a raw transcript: an owner and a date on every action item, open questions kept, nothing sent"}
+    assert area["duties"][0] == "Clean briefs, agendas and minutes with owners and dates on every action"
