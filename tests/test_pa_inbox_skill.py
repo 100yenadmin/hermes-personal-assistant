@@ -16,7 +16,7 @@ def test_r6_skill_names_buckets_digest_tracking_and_no_silent_mutation():
     text = flat(R6 / "SKILL.md")
     assert "five buckets: urgent, needs you, handled, FYI, junk" in text
     assert "digest of 5 lines or fewer that names every urgent item and every decision needed" in text
-    assert "Junk is report-only: no archive, delete, label or read-state change without a yes" in text
+    assert "Junk is report-only during triage" in text and "never delete or label" in text
     assert "`pa:inbox:<account-alias>:<thread_id>`" in text
     for field in ("`thread_id`", "`bucket`", "`waiting_for`", "`due_at`", "`decision_needed`", "`loop_kind`"):
         assert field in text

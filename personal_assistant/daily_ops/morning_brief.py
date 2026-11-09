@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-from .common import Q_BULK, Q_HUMANS, envelope, mail_accounts, mail_sections, now_utc, run_calendar, run_mail
+from .common import Q_AWAITING, Q_BULK, Q_HUMANS, envelope, mail_accounts, mail_sections, now_utc, run_calendar, run_mail
 from .config import config_dir, load_config, profile_root, validate_or_raise
 from .gog_collector import DailyOpsError
 from . import trip_context

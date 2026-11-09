@@ -1,5 +1,8 @@
 # Drafts in the owner's voice, and sends after a yes
 
+Junk archive uses the separate exact-list approval path in `triage.md`; it never
+permits delete or label operations. A send approval does not authorize archive.
+
 ## Before drafting
 
 1. Read the voice: `pa(operation="profile", data={"action":"list","kind":"preference","category":"voice"})`

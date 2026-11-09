@@ -117,7 +117,7 @@ def collect(cfg: dict, *, profile: str | None = None, moment: dt.datetime | None
     complete, truncated = calendar.complete, calendar.truncated
     if any(row.get("attendees_omitted") for row in meetings):
         complete, truncated = False, True
-    # The second daily triage: the same humans and bulk reads as the morning brief.
+    # The second daily triage: the same humans, bulk and awaiting reads as the morning brief.
     for index, account in enumerate(mail_accounts(cfg), 1):
         mail, mail_complete, mail_truncated = mail_sections(account, index, run_mail)
         sections.update(mail)

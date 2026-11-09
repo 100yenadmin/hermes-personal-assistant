@@ -14,6 +14,7 @@ MAX_ITEMS = 1000
 # Twice-daily triage reads: the morning brief and the evening register share these.
 HUMANS_SHOWN = 25
 Q_HUMANS = "is:unread -category:promotions -category:updates -category:social -category:forums newer_than:2d"
+Q_AWAITING = "in:inbox -is:unread -category:promotions -category:updates -category:social -category:forums newer_than:7d"
 Q_BULK = "is:unread (category:promotions OR category:updates OR category:social OR category:forums) newer_than:3d"
 
 
@@ -156,9 +157,10 @@ def mail_accounts(cfg: dict) -> list[str]:
 
 
 def mail_sections(account: str, index: int, read_mail: Callable[..., Collected]) -> tuple[dict, bool, bool]:
-    """Humans and bulk sections for one account; a failed read raises, never an empty result."""
+    """Humans, bulk and awaiting sections; a failed read raises, never an empty result."""
     humans = read_mail(account, Q_HUMANS, page_size=25, max_items=500)
     bulk = read_mail(account, Q_BULK, page_size=100, max_items=2000)
+    awaiting = read_mail(account, Q_AWAITING, page_size=25, max_items=200)
     bulk_count = bulk.total if bulk.total is not None else len(bulk.items)
     # The packet lists the first HUMANS_SHOWN threads. Any more were read but not listed: like any
     # bounded section the packet is then incomplete and truncated, and it carries the exact query
@@ -177,4 +179,11 @@ def mail_sections(account: str, index: int, read_mail: Callable[..., Collected])
             "complete": bulk.complete, "truncated": bulk.truncated,
         },
     }
-    return sections, humans_complete and bulk.complete, humans_truncated or bulk.truncated
+    omitted = max(len(awaiting.items) - HUMANS_SHOWN, 0)
+    awaiting_complete = awaiting.complete and omitted == 0
+    awaiting_truncated = awaiting.truncated or omitted > 0
+    sections[f"awaiting_{index}"] = {
+        "items": awaiting.items[:HUMANS_SHOWN], "count": len(awaiting.items), "shown": min(len(awaiting.items), HUMANS_SHOWN),
+        "omitted": omitted, "query": Q_AWAITING, "complete": awaiting_complete, "truncated": awaiting_truncated,
+    }
+    return sections, humans_complete and bulk.complete and awaiting_complete, humans_truncated or bulk.truncated or awaiting_truncated
