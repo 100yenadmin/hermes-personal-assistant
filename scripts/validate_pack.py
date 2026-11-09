@@ -25,6 +25,7 @@ REQUIRED_SKILLS = {
     "daily-ops",
     "finance-admin",
     "documents-admin",
+    "content-admin",
     "follow-through",
     "food-delivery-to-hotel",
     "hotel-check-in",
