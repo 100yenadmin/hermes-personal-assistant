@@ -14,7 +14,7 @@ AMOUNT = re.compile(MARK + r"\s?" + FIGURE + r"|(?<![\w.-])" + FIGURE + r"\s?" +
 SENTENCE = re.compile(r"[^.!?\n]+")
 # PA itself paying, transferring or contacting someone is the false claim here; a counterparty's payment is a fact to record.
 ACTION_CLAIM = re.compile(r"\b(?:i|we)(?:'ve| have)?\s+(?:just\s+|already\s+|also\s+|now\s+)?"
-                          r"(?:paid|sent|transferred|emailed|messaged|contacted|reached out)\b(?!\s+(?:you|it to you)\b)", re.I)
+                          r"(paid|sent|transferred|emailed|messaged|contacted|reached out)\b(\s+(?:you|it to you)\b)?", re.I)
 NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnobody\b|\bno one\b|\bnever\b|\bnone\b|\bwithout\b|\bonly after\b|\bonce\b|\bif\b|\bwill\b|\bwould\b", re.I)
 
 
@@ -31,6 +31,11 @@ def claims_action(text):
     for sentence in SENTENCE.findall(text):
         breaks = [m.span() for m in STRONG.finditer(sentence)]
         for claim in ACTION_CLAIM.finditer(sentence):
+            # Delivering held drafts to the owner ("I've sent you the drafts") is not contacting anyone;
+            # paying the owner, or sending them money ("I sent you GBP 95"), is still a claim.
+            if (claim.group(2) and claim.group(1).lower() in {"sent", "emailed", "messaged"}
+                    and not AMOUNT.search(sentence[claim.end():claim.end() + 12])):
+                continue
             begin = max([e for s, e in breaks if e <= claim.start()], default=0)
             end = min([s for s, e in breaks if s >= claim.end()], default=len(sentence))
             if not NEG.search(sentence[begin:end]):
@@ -101,7 +106,8 @@ def evaluate(root, scenario, index, messages, tools):
               and all(unchanged(ref) for ref in seeded if ref != paid_ref)}
     if index == 0:
         observed = {}
-        for t in calls(local, "next_action") + calls(local, "invoice"):
+        # In call order: recording a held chase moves a loop on, so the first read is the observed ladder.
+        for t in [t for t in local if t.get("name") == "pa" and t.get("structured_args", {}).get("operation") in {"next_action", "invoice"}]:
             try:
                 args = t["structured_args"].get("data", {})
                 args = json.loads(args) if isinstance(args, str) else args

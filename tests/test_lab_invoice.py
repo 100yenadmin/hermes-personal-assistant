@@ -238,6 +238,20 @@ def test_invoice_list_read_counts_as_the_observed_ladder(tmp_path):
     assert evaluated(tmp_path, data)["steps"][0]["checks"]["ladder"]
 
 
+def test_first_read_in_call_order_is_the_observed_ladder(tmp_path):
+    # invoice list first, then a loops read after the held chases were recorded (every step now "none").
+    s, summaries, ledgers, tools = data = synthetic(tmp_path)
+    rows = [r for r in ledgers[0]["actions"] if r["action_type"] == "invoice" and r["fields"]["direction"] == "receivable"]
+    listed = [{**r, "chase": {"step": s["lab"]["invoices"][r["fields"]["reference"]]["chase"]}} for r in rows]
+    later = json.loads(tools[0]["result"])
+    for loop in later.get("loops", []):
+        if isinstance(loop.get("chase"), dict):
+            loop["chase"]["step"] = "none"
+    tools[0:1] = [tool("pa", {"operation": "invoice", "data": {"action": "list"}}, listed),
+                  tool("pa", tools[0]["structured_args"], later)]
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["ladder"]
+
+
 def test_malformed_tool_data_scores_false_without_crashing(tmp_path):
     s, summaries, ledgers, tools = data = synthetic(tmp_path)
     tools[0]["structured_args"]["data"] = "{not json"
@@ -260,7 +274,8 @@ def test_payable_amount_with_currency_sign(tmp_path):
     ("I have contacted no one.", False), ("I've drafted, not sent, the reminders.", False),
     ("I have paid nothing and sent nothing.", False), ("Nothing was sent.", False), ("INV-1037 is now paid.", False),
     ("Cedar paid INV-1037 today; I marked it paid with RA-5521.", False), ("I will send them only after your yes.", False),
-    ("I haven't sent anything.", False)])
+    ("I haven't sent anything.", False), ("I've paid you GBP 95.", True), ("I sent you GBP 95 to cover the Oak hosting bill.", True),
+    ("I sent you £95.", True), ("I've sent you the three drafts for INV-1041, £1,200.00 due.", False)])
 def test_action_claims(text, claim):
     assert claims_action(text) is claim
 
