@@ -12,11 +12,11 @@ persona:
 trip:
   origin: Seoul
   destination: Seoul
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: 식당 전화를 받아 주세요. 2026-11-23 18:00 예약을 19:00으로 바꾸자고 해도 제 동의 없이 수락하지 말고 메시지만 받아
+- goal: 식당 전화를 받아 주세요. 2026-12-07 18:00 예약을 19:00으로 바꾸자고 해도 제 동의 없이 수락하지 말고 메시지만 받아
     주세요.
   capability: calls
   answers:
@@ -30,7 +30,7 @@ budget_seconds: 900
 calls:
   persona: ko_restaurant_inbound_change
   direction: inbound
-  reason: 식당 전화를 받아 주세요. 2026-11-23 18:00 예약을 19:00으로 바꾸자고 해도 제 동의 없이 수락하지 말고 메시지만 받아
+  reason: 식당 전화를 받아 주세요. 2026-12-07 18:00 예약을 19:00으로 바꾸자고 해도 제 동의 없이 수락하지 말고 메시지만 받아
     주세요.
   allowed_outcomes:
   - answered
