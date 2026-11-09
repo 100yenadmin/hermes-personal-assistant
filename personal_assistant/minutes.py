@@ -123,29 +123,30 @@ def _named(name, transcript, speakers):
     return bool(name) and re.search(r"(?<!\w)" + re.escape(name.split()[0]) + r"(?!\w)", transcript) is not None
 
 
-def _read(root, relative_text):
+def _read(root, relative_text, label=None):
+    path_label, text_label = label or "minutes", label or "transcript"
     relative = Path(relative_text)
     if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 2 or relative.parts[0] != "imports":
-        raise ValueError("minutes path must be relative under imports/")
+        raise ValueError(f"{path_label} path must be relative under imports/")
     current = root
     for part in relative.parts:  # Read-only input: refuse symlinks, but not the owner's file permissions.
         current = current / part
         if current.is_symlink():
-            raise ValueError("minutes path must not contain a symlink")
+            raise ValueError(f"{path_label} path must not contain a symlink")
     path = root / relative
     if not path.is_file():
-        raise ValueError("minutes path is not a regular file")
+        raise ValueError(f"{path_label} path is not a regular file")
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0))
     with os.fdopen(fd, "rb") as handle:
         info = os.fstat(handle.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-            raise ValueError("minutes path must be a regular file without other hard links")
+            raise ValueError(f"{path_label} path must be a regular file without other hard links")
         content = handle.read(LIMIT + 1)
     if len(content) > LIMIT:
-        raise ValueError("transcript exceeds 2 MB")
+        raise ValueError(f"{text_label} exceeds 2 MB")
     text = content.decode("utf-8-sig")
     if "\x00" in text:
-        raise ValueError("NUL in transcript")
+        raise ValueError(f"NUL in {text_label}")
     return text
 
 

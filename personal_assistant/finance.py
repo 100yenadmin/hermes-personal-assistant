@@ -12,7 +12,7 @@ from jsonschema import Draft7Validator, FormatChecker
 
 from .context import evaluation_moment, owner_zone
 from .evidence import _date, _text
-from .expenses import FIELDS as EXPENSE_FIELDS, _number, _rows
+from .expenses import FIELDS as EXPENSE_FIELDS, _number, _rows, card_duplicates
 from .privacy import clean
 from .invoices import _iban
 from .profile import _private
@@ -165,6 +165,7 @@ def _monthly(rows, expenses, month):
                         and _normalize(f["counterparty"]) == _normalize(e.get("merchant", ""))
                         and abs((dt.date.fromisoformat(f["paid_on"]) - dt.date.fromisoformat(e["date"])).days) <= 3):
                     result["possible_duplicates"].append({"invoice_id": bill["action_id"], "expense_id": expense["action_id"]})
+    result["possible_duplicates"].extend(p for p in card_duplicates(candidates) if p["dates"][-1].startswith(month + "-"))
     return result, paid, expenses
 
 
@@ -197,7 +198,12 @@ def _export(ledger, summary, paid, expenses):
              "| " + " | ".join(["---"] * len(columns)) + " |"]
     lines.extend("| " + " | ".join(md(cell) for cell in row) + " |" for row in table)
     lines += ["", "## Possible duplicates (listed, never merged)"]
-    lines.extend(f"- {md(p['invoice_id'])} / {md(p['expense_id'])}" for p in summary["possible_duplicates"])
+    for pair in summary["possible_duplicates"]:
+        if "invoice_id" in pair:
+            lines.append(f"- {md(pair['invoice_id'])} / {md(pair['expense_id'])}")
+        else:
+            lines.append("- " + md(f"{pair['merchant']}: {pair['amount']} {pair['currency']}; "
+                                  f"{', '.join(pair['dates'])}; {', '.join(pair['expense_ids'])}"))
     output = ledger.root / "exports" / "finance"
     legacy._ensure_directory(ledger.root, output)
     paths = {kind: output / ("monthly-" + summary["month"] + suffix)
