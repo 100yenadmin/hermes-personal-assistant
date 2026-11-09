@@ -1,5 +1,30 @@
 # Personal Assistant Plugin
 
+![Personal Assistant for Hermes](docs/media/banner.jpg)
+
+Your Hermes agent runs errands on the real sites, fills every field, and stops at the last button until you say yes.
+
+**Watch the demo:** coming with the launch post.
+
+[![Latest release](https://img.shields.io/github/v/release/100yenadmin/hermes-personal-assistant?include_prereleases&label=release)](https://github.com/100yenadmin/hermes-personal-assistant/releases)
+[![Hermes >= 0.21.1](https://img.shields.io/badge/Hermes-%3E%3D%200.21.1-informational)](https://github.com/NousResearch/hermes-agent)
+
+## Install
+
+```bash
+hermes plugins install 100yenadmin/hermes-personal-assistant --ref 57f701e83ebb807be4d1429d7e35f02bdf5dd5d8 --enable --yes-deps
+```
+
+This installs the stable release v0.11.0, and `--enable` turns the plugin on; leave `--enable` off to install it disabled and inspect it first (see [Installation details](#installation-details)). `--yes-deps` (Hermes 0.22 or newer) lets Hermes install the plugin's Python dependencies (listed in `plugin.yaml`) into your Hermes environment without asking again; leave it off to review them first. On Hermes 0.21, leave `--yes-deps` off: Hermes lists the dependencies and how to install them. No API key is needed to start. A cloud browser (Browserbase) and the optional phone and Daily Ops features need their own keys, described below. Restart your gateway (`hermes gateway restart`) and start a new chat.
+
+## Try it
+
+1. **Install** with the line above, then type `/pa setup` in a new chat. PA asks a few short questions about you, your preferences and what it may do on its own.
+2. **Ask for an errand**, for example: "Book a table for two at a sushi place near Shinjuku on Friday at 19:00."
+3. **See the prepared result.** PA searches the real site, fills every field, and stops at the final button. It shows you an approval packet (place, time, price, cancellation terms and the evidence it read). PA's skills stop there until you say yes to that exact action. [What it touches](#what-it-touches) explains what the approval gate enforces and what stays under Hermes's own approval policy.
+
+## How it works
+
 Personal Assistant is a persistent personal-operations layer for Hermes. It helps
 an agent carry context, commitments, evidence, and follow-through across
 conversations and workflows without replacing Hermes's provider tools,
@@ -68,7 +93,7 @@ purchase, book, update a provider, or mutate another system.
 
 Installing the plugin does not:
 
-- enable the plugin;
+- enable the plugin, unless you pass `--enable` as the one-line install does;
 - create reminders or recurring jobs;
 - grant provider or conversation-injection permissions;
 - send email, change calendars, make purchases, or perform other provider actions;
@@ -121,7 +146,7 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
   - lists your cron jobs and skills;
   - for the "grill me" profile, reads up to 20 recent sent emails through a mail read path you have already authorised, to learn tone and key contacts. PA stores no raw mail text; as with any tool result, what the mail read returns stays in Hermes's session history.
 - Inbox and travel-mail work you ask for reads messages and their attachments through the mail integration your agent already has. Twice a day, through the Daily Ops routines you accept, it sorts unread mail into urgent, needs you, handled, FYI and junk, and sends you a digest of five lines or fewer. It writes drafts in your mail provider only if you opted in during setup (`inbox.drafts.accepted`, which lets gog hold `gmail.compose`; that scope can also send, so a send still needs your yes for that message). Every send, archive, delete or label change needs your yes for that item.
-- Calendar work writes events, holds or invites only after your yes for that item, and only to the calendars you opted in to during setup (`calendar.write_scope`, which lets gog hold `calendar.events`). Guests are notified only when you said so. Without these opt-ins, PA's calendar and mail access stays read-only.
+- Calendar work writes events, holds or invites only after your yes for that item, with one standing exception: during trip work, minimal private trip events (see **Calendar** below). Writes go only to the calendars you opted in to during setup (`calendar.write_scope`, which lets gog hold `calendar.events`). Guests are notified only when you said so. Without these opt-ins, PA's mail access stays read-only, and its calendar access is read-only apart from the agent's own calendar tool adding those minimal private trip events.
 - While signing in to a provider during an errand, the agent may read your connected email or SMS to pick up a sign-in link or verification code, if those integrations are connected.
 - Chief of Staff jobs (opt-in, each accepted separately) run scheduled agent turns. These read PA's ledger and USER.md or the manual, and may read your calendar and inbox through integrations you have already authorised. The weekly closeout also searches the web for tools related to your saved radar topics.
 - For a trip import, the agent reads the `.ics` or guide file you give it with its own file tool and passes the text to PA; PA itself opens no file or URL.
@@ -129,7 +154,7 @@ Owner-memory and evidence records refuse recognised card numbers, credentials an
 - PA's own code reads Hermes's Kanban database and its cron job and suggestion stores.
 
 **Other changes the agent makes in Hermes and your calendar.**
-- **Calendar.** During trip work the agent may add minimal private events (flight and hotel times, check-in and leave-for-airport reminders) through your agent's calendar tool without asking each time. Events with booking details, shared or work calendars, invites, and removing events for a cancelled booking need your yes.
+- **Calendar (the one standing exception).** During trip work the agent may add minimal private events to your own calendar without asking each time: flight and hotel times, and check-in and leave-for-airport reminders, with empty notes and no guests. It uses your agent's calendar tool. Anything more needs your yes for that item: booking references or other details, shared or work calendars, invites, and removing events for a cancelled booking.
 - **Kanban.** For errands with an open commitment (refunds, returns, renewal decisions, promised replies), the agent creates and updates a task on Hermes's Kanban board and stores its ID in the ledger.
 - **Cron jobs.** During setup the agent lists your existing brief and alert cron jobs. With your approval in the review, it may adapt or replace one so that each brief has a single publisher.
 
@@ -196,9 +221,9 @@ These skills never install software, silently edit SOUL.md, USER.md or skills,
 or send unapproved messages. Follow-ups use only owner-approved HeartBeat 2.0
 `at` wakes in the same chat.
 
-## Quick start
+## Agent quick start
 
-After an approved installation and activation:
+For agents and developers, after installation and activation:
 
 1. Call `pa(operation="status")` to confirm the plugin responds and inspect
    durable state without changing it.
@@ -240,27 +265,39 @@ weather, and itinerary support. These are optional domain modules over the same
 PA control plane. `personal-assistant:content-admin` plans dated social content
 and newsletter drafts in the owner's voice, held for approval; nothing posts automatically.
 
-## Installation
+## Installation details
 
-Install one reviewed full Git commit and leave it disabled while inspecting the
-manifest and [`after-install.md`](after-install.md):
+The one-line install at the top pins the stable release v0.11.0. Releases newer than that (the `-rc` pre-releases on the [Releases page](https://github.com/100yenadmin/hermes-personal-assistant/releases)) are release candidates. Hermes needs the full 40-character commit for `--ref`, not a tag: `git ls-remote https://github.com/100yenadmin/hermes-personal-assistant refs/tags/<tag>` prints it.
+
+To inspect before turning it on, install it disabled:
 
 ```bash
 hermes plugins install 100yenadmin/hermes-personal-assistant \
-  --ref <40-character-approved-commit> --no-enable
+  --ref 57f701e83ebb807be4d1429d7e35f02bdf5dd5d8 --no-enable
 ```
 
-Install the declared `python_dependencies` into that Hermes environment, then
-enable `personal-assistant` through Hermes's native plugin controls after the
-profile owner approves activation. Restart or reload only at an agreed idle
-point. Verify `pa` and `personal-assistant:personal-assistant` discovery before
-use.
+Read the manifest and [`after-install.md`](after-install.md). When you are ready, enable it:
 
-Pinned revisions do not update automatically. A direct pinned install moves only
-with `hermes plugins install … --force --ref <approved SHA>`. Some Hermes versions
-replace the plugin folder, so copy PA's local configuration files out first and
-put them back afterwards (see `docs/release-process.md`). For an isolated loader
-check without profile or provider mutation, use `scripts/check_pa_native.py`.
+```bash
+hermes plugins enable personal-assistant
+```
+
+Without `--yes-deps`, Hermes 0.22 and newer ask before installing the declared Python dependencies; Hermes 0.21 lists them and how to install them. Restart or reload at a quiet moment, then check that the `pa` tool and the `personal-assistant:personal-assistant` skill are listed.
+
+Pinned installs do not update on their own. To move to another release, run `hermes plugins install … --force --ref <full commit>`. Some Hermes versions replace the plugin folder, so copy PA's local configuration files out first and put them back afterwards (see `docs/release-process.md`). For an isolated loader check without touching a profile or provider, use `scripts/check_pa_native.py`.
+
+## Troubleshooting
+
+- **`pa` is not listed after install.** Run `hermes plugins list`. If PA shows as disabled, run `hermes plugins enable personal-assistant`, then restart the gateway and start a new chat.
+- **The install stops at a dependency question.** Add `--yes-deps` (Hermes 0.22 or newer), or answer yes, so Hermes can install the Python dependencies in `plugin.yaml`.
+- **A site blocks the local browser or needs a sign-in.** PA stops and hands over honestly. For a cloud browser, set `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` in the profile's secrets and put `agent-browser` on PATH (#39).
+- **`hermes plugins validate` warns about `pa_delivery_ack`.** That tool registers only when conversation delivery is turned on, so the warning is expected.
+
+## Report a bug
+
+Open an issue with the [issue tracker](https://github.com/100yenadmin/hermes-personal-assistant/issues/new/choose). For a security problem, use a [private security advisory](https://github.com/100yenadmin/hermes-personal-assistant/security/advisories/new) instead of a public issue.
+
+[Releases](https://github.com/100yenadmin/hermes-personal-assistant/releases) · [CHANGELOG](CHANGELOG.md) · [CONTRIBUTING](CONTRIBUTING.md)
 
 ## Verification and rollback
 
