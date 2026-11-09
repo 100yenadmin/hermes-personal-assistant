@@ -10,6 +10,7 @@ and `propose` save interview progress only; after apply, recorded changes keep s
 | Persona, tone, boundaries | Only the delimited Personal Assistant section of profile SOUL.md | `soul_section` |
 | Travel profile, processes, Chief of Staff context, provenance and precedence | Existing PA user skill, or a new pinned operating manual | `manual_skill` |
 | Quiet hours, timezone, brief time needed by code | PA automations preferences | `pa_preferences` (no file readback) |
+| `first_errands`: first two tasks in order | Manual “First errands”; finish errand 1 right after apply | `manual_skill` |
 | A real project rule | Only the context file Hermes actually loaded | `context_file` |
 
 Unlisted deeper answers are not setup `record` IDs: persist safe summaries in a `propose`

@@ -8,6 +8,10 @@ from .m34_checks import calls, fields, report
 SENDS = {"lab_mail_send", "lab_send_message", "send_message"}
 
 
+def nothing_sent(tools):
+    return not [t for t in tools if t.get("name") in SENDS] and not calls(tools, "action_confirm") and not calls(tools, "action_claim")
+
+
 def _text(value):
     return " ".join(str(value or "").casefold().split())
 
@@ -107,6 +111,5 @@ def evaluate(root, scenario, index, messages, tools):
                     and all(any(_has(q, k) for q in told) for k in lab["open_questions"])
                     and all(any(_has(d, k) for d in agreed) for k in lab["decisions"])
                     and markdown is not None and resolved(summary.get("minutes")) == markdown,
-        "nothing_sent": not [t for t in local if t.get("name") in SENDS]
-                        and not calls(local, "action_confirm") and not calls(local, "action_claim"),
+        "nothing_sent": nothing_sent(local),
     }

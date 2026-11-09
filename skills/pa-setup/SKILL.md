@@ -12,11 +12,8 @@ metadata:
 # Personal Assistant Setup
 
 Every `references/...` path is relative to this skill directory.
-
 ## When to use
-
-Use when the context note says guided setup is active, or the user asks to set up
-or review PA, says “grill me”, or sends `/pa setup grill`. Resume saved progress; do not restart a completed interview.
+Use when guided setup is active, the user asks to set up or review PA, says “grill me”, or sends `/pa setup grill`. Resume saved progress; do not restart a completed interview.
 
 ## Rules
 - Ask one question per message, with a recommended answer grounded in discovery.
@@ -32,7 +29,6 @@ or review PA, says “grill me”, or sends `/pa setup grill`. Resume saved prog
 - Never pay, book, send as the user, contact people, or cancel without confirmation.
 
 ## Setup operations
-
 “Setup status” means `pa(operation="setup", data={"action":"status"})`.
 Use that same wrapper for every action below; do not invent separate tools.
 Progress lives in the `pa:setup` record, never a state-loop event.
@@ -52,6 +48,14 @@ Answer sources are `user` or `discovered`. File targets are `user_memory`,
 `soul_section`, `manual_skill`, and `context_file`; `pa_preferences` is proposal-only.
 Read `status`, `requested_mode`, `next_question`, `answers`, `skipped`, `asked`,
 `proposal`, `proposal_draft`, `applied`, `fresh_check`, `requested_section`, `covered`, `related`, `sections`, and profile `groups`/`current_group`/`sitting_group`/`sitting_done`. Omitting `section` on `start` preserves the section; bare `/pa setup` continues active setup, offers the saved check, or shows the menu when core is complete. Only question-bank IDs may appear in `record`. Use `start` for a requested start, never to reset a fresh-session check.
+### Essentials (first run)
+For fresh `/pa setup` or “set me up”, start `essentials`; existing progress keeps its section.
+Ask the 4 essentials one per message; combine “Here is what I already know” with the first unanswered question. Use already authorized discovery only; defer extra consent/discovery asks from steps 2–4.
+Then one review and apply (steps 6–7), with no sitting-by-sitting review.
+Finish errand 1 right after apply, in the same reply or the next one, in this chat: load inbox-triage, the daily brief, follow-through or booking prep and follow its usual approval rules.
+“Finished” means deliver the result itself (triaged list, brief, held draft), never a plan or question. If access is missing, say what in one line and do errand 2 instead.
+Deferred, never skipped: offer `/new` and trip check-in after the first win; ask travel core only when a trip comes up, never re-ask saved answers. Profile and Chief of Staff continue later during real work.
+No terminal steps: never ask the owner to run a shell command or restart anything during essentials; leave unavailable pinning pending without a command.
 ## Chief of Staff section
 `/pa setup chief-of-staff`: first check mode; if off, explain `/pa mode chief-of-staff on`, restart and a new session, then stop.
 Use setup `{"action":"start","section":"chief_of_staff"}`; follow the CoS flow in `references/question-bank.md` and the reviewed destinations in `references/where-answers-go.md`.
@@ -112,7 +116,7 @@ For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"st
    hashes; never compute or invent them. On a failed readback, fix the write and call
    again; with no file targets use `readbacks: []`. Keep failures and pending writes
    visible. Verify preference/job changes through their own status operations.
-8. Core only (CoS and profile skip 8–9 and follow their question-bank flows). Ask for `/new` and then any message
+8. Core only (essentials defer 8–9 until after the first win; CoS and profile skip 8–9 and follow their question-bank flows). Ask for `/new` and then any message
    (never `/pa setup`, which reopens setup), then ask, for example, “When would you check in
    before my next flight?” Do not arm a wake yet: `/new` can orphan existing HB2 wakes.
 9. Complete the fresh-session check below, then load
@@ -124,7 +128,6 @@ For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"st
    say “Open your Telegram chat with me and say ‘arm my check-in’” and hand off there.
 
 ## Fresh-session check
-
 The new-session hook may load this section without the interview. First read `pa(operation="setup", data={"action":"status"})`; do not call `start`.
 For `profile`, use the next sitting's two-fact saved-file readback instead; no `/new` check.
 Pick the check by `fresh_check.section`, else `requested_section`: `chief_of_staff` runs the CoS check in `references/question-bank.md` (no flight question, no trip or check-in arming); anything else runs the core check below.

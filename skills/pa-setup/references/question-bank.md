@@ -5,6 +5,15 @@ ask only for corrections. Every recommendation names its basis; a fallback is
 a suggestion, never a discovered fact. Record core answers through setup `record`.
 The destination rules are in `where-answers-go.md`.
 
+## Essentials
+
+| ID | Friendly question | Recommended answer | Save after apply |
+|---|---|---|---|
+| `call_and_quiet` | “What should I call you, what are your quiet hours, and which timezone?” | Reuse known identity/timing; otherwise suggest 22:00–07:00, asking for the zone. Defer travel-local and HB2 details until a trip. | Name/hours/zone in USER.md; PA preferences; detail in manual. |
+| `voice_tone` | Use the existing Voice row below. | Use its recommendation. | Use its existing destinations. |
+| `authority` | “What must I never do without your yes?” | Recommend prepare and hold; never send, pay, book or cancel without yes. | SOUL PA boundaries and manual permissions. |
+| `first_errands` | “What are the first two things you'd like off your plate this week?” | From discovery: inbox triage, a morning brief, a mentioned follow-up, or booking prep. | Manual “First errands”, in order; finish errand 1 right after apply. |
+
 ## Core questions
 
 | ID | Friendly question | Form the recommended answer | Save after apply |
@@ -28,7 +37,7 @@ hours or preferred name; record `passed` when the answer uses what was saved.
 ## Going deeper
 
 Ask only when relevant or the user picks a section, one question at a time.
-The setup op supports `core`, `chief_of_staff` and `profile`. Never pass another deeper
+The setup op supports `essentials`, `core`, `chief_of_staff` and `profile`. Never pass another deeper
 section name or ID to setup `start` or `record`, or reuse a core ID for it.
 Keep deeper answers in the review, then save approved facts to the manual,
 USER.md or SOUL.md as below; they are not setup progress records.
