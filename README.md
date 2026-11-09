@@ -6,7 +6,7 @@ Your Hermes agent runs errands on the real sites, fills every field, and stops a
 
 **Watch the demo:** coming with the launch post.
 
-[![Latest release](https://img.shields.io/github/v/release/100yenadmin/hermes-personal-assistant?include_prereleases&label=release)](https://github.com/100yenadmin/hermes-personal-assistant/releases)
+[![Latest stable release](https://img.shields.io/github/v/release/100yenadmin/hermes-personal-assistant?label=stable)](https://github.com/100yenadmin/hermes-personal-assistant/releases/latest)
 [![Hermes >= 0.21.1](https://img.shields.io/badge/Hermes-%3E%3D%200.21.1-informational)](https://github.com/NousResearch/hermes-agent)
 
 ## Install
