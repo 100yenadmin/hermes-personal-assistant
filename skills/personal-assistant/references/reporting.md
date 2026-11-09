@@ -37,8 +37,10 @@ never treat preparation or approval as delivery. Read back the receipt afterward
 
 Before any owner-facing report or approval packet, match each price, fare, fee,
 billing term, open slot, and state such as "held", "in cart" or "staged" to a page
-or tool result kept in this turn. Report only what that evidence shows, in its own
-terms; call anything else unconfirmed, or leave it out.
+or tool result kept in this turn, or to what the owner told you (say it came from
+them). Report only what that evidence shows, in its own terms. A required packet
+field without evidence (amount, currency, refund or cancellation terms) stays in
+the packet marked unknown or unconfirmed; leave out only optional extras.
 - A search time or filter is not an open slot: a slot is open when the page lists
   it as bookable.
 - A menu or product page is not a cart: an item is in the cart only when the cart
