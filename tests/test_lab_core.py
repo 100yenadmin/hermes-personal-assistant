@@ -1182,3 +1182,26 @@ def test_jsonl_lines_keep_unicode_line_separators(tmp_path):
     for row in rows:
         common.append(path, row)
     assert common.lines(path) == rows
+
+
+def test_judge_sees_cart_controls_before_faq_headings(tmp_path):
+    lines = [f'- heading "Can I order dish {n} with Uber Eats?" [level=3, ref=h{n}]' for n in range(60)]
+    lines += ['- link "Deliver to 5 Chome-11-1" [ref=e1]', '- button "1 item" [ref=e2]']
+    (tmp_path / 'final_3_0.txt').write_text('\n'.join(lines))
+    excerpt = judge.final_page(tmp_path, {'step': 3, 'snapshot': 'final_3_0.txt'})['excerpt']
+    assert excerpt.startswith('- link "Deliver to 5 Chome-11-1"') and '- button "1 item"' in excerpt
+
+
+def test_add_buttons_do_not_crowd_out_an_empty_cart(tmp_path):
+    lines = ['- link "Cart" [ref=c]', '- heading "Your cart is empty" [level=2, ref=h]']
+    lines += [f'- button "Add to cart: Dish {n} ¥980" [ref=a{n}]' for n in range(40)]
+    lines += ['- link "McCarthy Steakhouse" [ref=m]', '- StaticText "12 items in stock"']
+    (tmp_path / 'final_2_0.txt').write_text('\n'.join(lines))
+    excerpt = judge.final_page(tmp_path, {'step': 2, 'snapshot': 'final_2_0.txt'})['excerpt']
+    assert excerpt.startswith('- link "Cart"') and 'Your cart is empty' in excerpt
+    assert not judge.CART.match('- link "McCarthy Steakhouse"') and not judge.CART.match('- button "Add to cart: Dish 1"')
+
+
+def test_delivery_address_labels_count_as_cart_lines():
+    for label in ('Delivery address', '配達先', '배달 주소'):
+        assert judge.CART.match(f'- link "{label}: 5 Chome" [ref=e1]')

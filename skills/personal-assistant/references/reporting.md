@@ -46,6 +46,7 @@ the packet marked unknown or unconfirmed; leave out only optional extras.
 - A menu or product page is not a cart: an item is in the cart only when the cart
   page shows it.
 - A fare you could not see is unknown; an estimate is labelled as the page's estimate.
+- A price symbol tier ("$$", "Moderate") is reported as a tier, never turned into an amount.
 - Re-read the condition printed next to each amount ("billed annually", "per
   person", "from", "plus tax") before you send.
 

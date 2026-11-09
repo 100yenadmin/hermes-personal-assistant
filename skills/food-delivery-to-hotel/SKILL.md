@@ -31,7 +31,7 @@ Help the user eat after arrival. Prepare the order, then ask before final order 
 2. Ask for allergies, dietary restrictions, cuisine preferences, and budget if missing.
 3. Search delivery options with realistic ETA after arrival.
 4. Save/use food-delivery credentials, saved sessions, Browserbase checkout, persistent browser profile, and Live Browser fallback to prepare a cart in the connected account or provider page. Use `browserbase-checkout-lane` before giving up on login, CAPTCHA, address, or checkout friction.
-5. Verify items, quantities, substitutions, address, delivery instructions, fees, taxes, tip, total, payment descriptor, cancellation/refund terms, and final button.
+5. After adding, open the cart and read it. Report the cart's items, quantities and subtotal only from that cart read (otherwise say the item was added on the menu page and the cart was not read); a later verified checkout page may update the address, fees and next button in the final summary. Verify items, quantities, substitutions, address, delivery instructions, fees, taxes, tip, total, payment descriptor, cancellation/refund terms, and final button.
 6. Store a checkout checkpoint in `travel-ledger` with session/Context, cart, address, total, payment descriptor, missing fields, and last user intent.
 7. Build a final confirmation summary with kind `food`, risk flags `final-order-submit` and `delivery-address`, plus a configured-payment flag when relevant.
 8. In a Browserbase session, send the live view for the user to check details and make the final tap; never press final submit there. In the local browser, after confirmation re-check the cart and submit only if details match.
@@ -41,7 +41,7 @@ If you stop earlier, at a login, the user's app, no availability or a blocked si
 
 ## Snacks and groceries
 
-Prefer konbini or grocery delivery where available. Stage a cart within the user's budget including delivery fees, with quantities, allergens and allowed substitutions noted; label unknown allergens and ask before substituting.
+Prefer konbini or grocery delivery where available. Stage a cart within the user's budget including delivery fees (report it only from a read of the cart page), with quantities, allergens and allowed substitutions noted; label unknown allergens and ask before substituting.
 Check whether the hotel accepts deliveries at the front desk or permits room delivery, and arrange a feasible collection time. Share a room number only after the user approves the order and only if hotel policy requires it.
 Stop at a required user login or at checkout with the `travel-approval-packet`, cart, total, ETA and hotel handoff instructions. For an app-only route, prepare the item list and exact app steps, stopping before final order submit. Keep the existing human-verification handoff below: the user completes a CAPTCHA or code with the cart staged.
 
