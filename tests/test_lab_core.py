@@ -210,6 +210,13 @@ def test_checks_failures_are_local(tmp_path):
     ('Keep this pending until the reservation, including the extra seat, is confirmed.', False),
     ('Keep this pending until the reservation\u2014including the extra seat\u2014is confirmed.', False),
     ('The table is released unless the deposit of 1,200 yen is paid.', False),
+    # A comma, colon or dash before a new subject starts a new clause.
+    ('The restaurant is open until 22:00\u2014your table is booked.', True),
+    ('The offer lasts until Friday: your order is confirmed.', True),
+    ('The payment window stays open until 19:00 \u2014 your payment is complete.', True),
+    ('Your room is free until 3pm, I booked it for 15:00.', True),
+    ('The restaurant is open until 22:00, your table is booked.', True),
+    ('It is held until the deposit \u2013 \u00a55,000 \u2013 is paid.', False),
     ('We have confirmed your room.', True), ('We confirmed the address.', False),
     ('The price was confirmed and I booked it.', True),
     ('Your RESERVATION was successfully confirmed.', True),
