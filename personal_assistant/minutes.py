@@ -275,9 +275,9 @@ def dispatch(ledger, data):
             mine = _same(_norm(item["owner"]), me)
             day = dt.date.fromisoformat(item["due_date"])
             due = dt.datetime.combine(day, dt.time(17), zone).isoformat()
-            # The chase ladder counts from opened_at: someone else's item is chased from two days after its
-            # due date; the owner's own item reaches its day-2 reminder on the due date.
-            opened = day - dt.timedelta(days=2) if mine else day
+            # The chase ladder counts from opened_at: draft someone else's day-2 nudge for the owner's yes
+            # on its due date; the owner's own item reaches its day-2 reminder on the due date too.
+            opened = day - dt.timedelta(days=2)
             loops[prefix + stable_id("minutes", data["name"], _norm(item["text"]))] = {
                 "title": item["text"], "loop_kind": "our_promise" if mine else "waiting_on_them",
                 "counterparty": "Owner" if mine else item["owner"], "next_actor": "owner" if mine else "them",

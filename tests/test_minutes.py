@@ -81,7 +81,7 @@ def test_save_writes_private_minutes_and_one_loop_per_item(home):
     assert jordan["status"] == avery["status"] == "open"
     assert jordan["fields"]["loop_kind"] == "waiting_on_them" and jordan["fields"]["next_actor"] == "them" and jordan["fields"]["counterparty"] == "Jordan"
     assert avery["fields"]["loop_kind"] == "our_promise" and avery["fields"]["next_actor"] == "owner"
-    assert jordan["fields"]["due_at"] == "2026-11-13T17:00:00+00:00" and jordan["fields"]["opened_at"] == "2026-11-13"
+    assert jordan["fields"]["due_at"] == "2026-11-13T17:00:00+00:00" and jordan["fields"]["opened_at"] == "2026-11-11"
     assert avery["fields"]["opened_at"] == "2026-11-10" and avery["fields"]["meeting_date"] == "2026-11-09"
     assert loop_state(jordan, {}) == "open"
     assert (home / "imports/meetings/sync.txt").read_text() == TRANSCRIPT
@@ -229,14 +229,15 @@ def test_short_quote_names_the_item_field(home):
     assert "action_items/0/quote" in error and "8+ characters" in error
 
 
-def test_chases_start_after_the_due_date_and_owner_items_remind_on_the_day(home):
+def test_nudges_and_owner_reminders_start_on_the_due_date(home):
     save(home)
     def steps(day):
         packet = entry.dispatch(home, {"operation": "next_action", "data": {"loops_only": True, "at": day + "T10:00:00+00:00"}})
         return {c["counterparty"]: c["chase"]["step"] for c in packet["candidates"] if c["action_id"].startswith("minutes:")}
     assert steps("2026-11-11") == {"Owner": "none", "Jordan": "none"}
     assert steps("2026-11-12") == {"Owner": "day2", "Jordan": "none"}  # The owner's own item: reminded on its due day.
-    assert steps("2026-11-15") == {"Owner": "day5", "Jordan": "day2"}  # Jordan's item: two days after it was due.
+    assert steps("2026-11-13") == {"Owner": "day2", "Jordan": "day2"}  # Jordan's nudge: drafted on its due day.
+    assert steps("2026-11-15") == {"Owner": "day5", "Jordan": "day2"}
 
 
 def test_failed_file_replace_leaves_old_files_and_no_loop_change(home, monkeypatch):

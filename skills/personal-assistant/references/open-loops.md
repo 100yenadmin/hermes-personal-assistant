@@ -16,14 +16,23 @@ After a verified vendor request or any sent message awaiting a reply, pass `foll
 | `next_actor` | `owner`, `us`, `them` | Who moves next. |
 | `opened_at` | timestamp with offset | When the loop opened. The chase ladder counts days from here. |
 | `next_step` | text | The next concrete step. |
-| `last_chased_at` | timestamp with offset | The latest chase you made. |
+| `last_chased_at` | timestamp with offset | Latest completed ladder step, including a held draft. |
 | `chase_log` | list of `{at, step, how}` | Short log of chases; PA keeps the latest 10. |
+| `awaiting_approval` | `{step, since, days, overdue}` | Computed `next_action` item field, present only when the last log entry's `how` contains `held` (case-insensitive). |
 | `confirmation` | `{by, at, evidence}` | Written only when the other side confirms. |
 | `loop_cancelled` | `{by, at}` | The owner withdrew the loop. |
 
 `next_chase_at` is computed by `next_action`; read it there and never set it by
 hand. Do not put chase dates in `due_at`: renewals and other recipes use
 `due_at` as the decision deadline.
+
+Chase-log `how` values include `reminder`, `nudge draft held`, `nudge sent` and
+`nudge declined`. A held draft is not contact: report "nudge drafted, awaiting
+your yes since <date>", never as chased, nudged or sent. Record a new `nudge sent`
+entry after the owner's yes and the governed send, or `nudge declined` on a no.
+In `awaiting_approval`, `step` and `since` are the last entry's step and timestamp;
+`days` counts owner-local calendar days and `overdue` is true from 2 days.
+Any later entry whose `how` does not contain `held` ends the wait.
 
 ## Record an ask to the owner
 

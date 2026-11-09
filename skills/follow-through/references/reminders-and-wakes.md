@@ -11,10 +11,12 @@ A nudge draft is held for the owner's yes. Show the recipient, channel and the
 exact text. Before drafting to or about a person, read their rules with
 `pa(operation="profile", data={"action":"list","name":"<name>"})` and follow
 them. Keep the tone polite and short; quote the original ask's date.
+Report it as "nudge drafted, awaiting your yes since <date>", never as chased, nudged or sent.
+While `awaiting_approval` is set, offer send, edit or drop, never another draft; list overdue approvals first in the brief.
 
 On a yes to the exact text and recipient, send only through
 `action_prepare` with `enforcement_profile="exact_action"`, `action_confirm`
-with that explicit confirmation, one provider call and `action_result`. A change
+with that explicit confirmation, one provider call and `action_result`, then record `how: "nudge sent"`. A change
 to the text or recipient needs a new prepare and confirm. If the owner says no,
 record the chase with `how: "nudge declined"` and ask whether to keep, snooze
 (`snoozed_until`) or cancel the loop.
