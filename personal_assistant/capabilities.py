@@ -16,6 +16,7 @@ _SPECS = (
     ("messaging", ("send_message", "message"), "the profile's existing messaging integration"),
     ("kanban", ("kanban_show",), "native Hermes Kanban"),
     ("automation", ("cronjob_manage",), "native Hermes scheduling"),
+    ("heartbeat", ("pulse",), "HeartBeat 2.0 wakes and roles"),
     ("secure_access", ("secure_access", "credential", "vault"), "an optional existing secret broker"),
 )
 
@@ -23,6 +24,15 @@ _SPECS = (
 def _matches(name: str, hints: Iterable[str]) -> bool:
     lowered = name.lower()
     return any(lowered == hint or hint in lowered for hint in hints)
+
+
+def _has_roles(entry: Any) -> bool:
+    schema = getattr(entry, "schema", None)
+    for key in ("parameters", "properties"):
+        if not isinstance(schema, dict):
+            return False
+        schema = schema.get(key)
+    return isinstance(schema, dict) and "role" in schema
 
 
 def _native_entries() -> tuple[list[Any], Callable[[Callable[..., Any]], bool | None]]:
@@ -104,6 +114,8 @@ def discover(entries: Iterable[Any] | None = None,
             "authentication": "unverified",
             "recovery_action": _recovery(status, capability),
         })
+        if capability == "heartbeat":
+            rows[-1]["roles"] = any(_has_roles(entry) for entry in matched)
     from .browserbase import secret
     present = secret_present or ((lambda name: bool(secret(name))) if native else (lambda name: False))
     try:

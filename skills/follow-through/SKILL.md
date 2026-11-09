@@ -95,8 +95,14 @@ occurrence.
 
 ## Wakes
 
-PA adds no scheduler. Create an HB2 `at` wake only for a date the owner approved
-in this chat, with `owner_asked: true`, in the same chat, naming
-`personal-assistant:follow-through` and the action id. Never create a wake for
-your own chase dates or from a follow-up turn. Details:
-`references/reminders-and-wakes.md`.
+PA adds no scheduler. Inside a PA follow-through role turn (HB2 header `role`,
+note starts "PA follow-through role"), arm plain `at` wakes (no `owner_asked`)
+for the next chase date or approval timeout: at most 3 per turn, none already
+armed or pending for the same loop and step, and within HB2's limits. Report a refusal;
+never work around it.
+
+Outside a role turn: Create an HB2 `at` wake only for a date the owner approved
+in this chat, with `owner_asked: true`, naming `personal-assistant:follow-through`
+and the action id; never for your own chase dates or from a follow-up turn.
+On any HB2 wake turn, HB2 delivers the final reply; never also use a message tool.
+Shapes: `references/reminders-and-wakes.md`.
