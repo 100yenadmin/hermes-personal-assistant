@@ -103,6 +103,7 @@ lab:
       - auth
   held: 2
   escalations: 1
+  open_item_words: [deliver, 'log[ -]?in|sign[ -]?in', wholesale]  # Each seeded open item appears.
   output_contract: 'End with JSON {"lab_summary": {"volume": <n>, "median_hours": <hours>, "median_of": <answered
     count>, "unanswered": <n>, "recurring": [{"topic": "<topic>", "count": <n>}], "held": <n>, "escalations": <n>,
     "open_items": [{"item": "<item>", "next_step": "<step>", "owner": "<owner>"}]}}. Keep the short owner-facing
