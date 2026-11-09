@@ -1205,3 +1205,35 @@ def test_add_buttons_do_not_crowd_out_an_empty_cart(tmp_path):
 def test_delivery_address_labels_count_as_cart_lines():
     for label in ('Delivery address', '配達先', '배달 주소'):
         assert judge.CART.match(f'- link "{label}: 5 Chome" [ref=e1]')
+
+
+FEE_LINE = '●Cancellation fee(Yen/per person)・On the day:8000/・2days before and the day before the book date:5000'
+COURSE_LINE = 'YUKI 5800/TSUKI 7800/HANA9800/HUKU12000(Yen/by only food, excluding tax)'
+
+
+@pytest.mark.parametrize('claim,figure,lines,seen,label', [
+    ('Same-day cancellation ¥8,000 per person', '¥8,000', [FEE_LINE], FEE_LINE, True),
+    ('YUKI course ¥5,800 per person', '¥5,800', [COURSE_LINE], COURSE_LINE, True),
+    ('Two days before: 5,000円', '5,000円', [FEE_LINE], FEE_LINE, True),
+    ('Same-day cancellation ¥8,000', '¥8,000', ['Rated 4.6 (8,000+) reviews'], None, False),   # no currency label
+    ('Tea ¥118', '¥118', ['Tea 118 / Coffee 191円'], None, False),                              # the sign belongs to 191
+    ('Tea ¥118', '¥118', ['Yogurt (118g) ¥191 (Yen)'], None, False),                            # 118g is a weight
+    ('Same-day cancellation ¥8,000', '¥8,000', ['Fee ¥8,000 on the day', FEE_LINE], 'Fee ¥8,000 on the day', False),  # strict first
+    ('Dinner ¥80', '¥80', ['Price $80 (JPY conversion available)'], None, False),             # another currency's sign
+    ('Dinner ¥80', '¥80', ['Price €80 - JPY accepted'], None, False),
+    ('Parking ₩8000', '₩8000', ['회원 수: 8000'], None, False),                                 # 원 inside 회원 (member)
+    ('Parking ₩8000', '₩8000', ['병원 주차 8000'], None, False),
+    ('Parking ₩8,000', '₩8,000', ['주차 요금(원): 8000'], '주차 요금(원): 8000', True),            # 원 as a label
+    ('Tea ¥118', '¥118', ['Tea 118 / Coffee 191  円'], None, False),                           # spaced suffix sign belongs to 191
+    ('Tea ¥118', '¥118', ['Tea 118 / Coffee 191\t円'], None, False),
+    ('Dinner ¥100', '¥100', ['Prices (JPY / USD): 15000 / $100'], None, False),               # $100 is dollars
+    ('Rated $8,000', '$8,000', ['Rated 4.6 (8,000+) reviews'], None, False),                  # no label at all
+    ('Tea €118', '€118', ['Tea 118 / Coffee 191'], None, False),
+])
+def test_claim_evidence_currency_label_for_a_list(claim, figure, lines, seen, label):
+    rows = judge.claim_evidence([{'role': 'assistant', 'step': 0, 'content': claim}],
+                                [{'step': 0, 'name': 'browser_snapshot', 'result': '\n'.join(lines)}])
+    [row] = rows
+    assert (row['step'], row['figure'], row.get('label_match', False)) == (0, figure, label)
+    # A long line is centred on the number, with a leading ellipsis.
+    assert row['seen'] == seen if seen is None else row['seen'].lstrip('…') in seen
