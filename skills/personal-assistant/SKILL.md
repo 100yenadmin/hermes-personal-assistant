@@ -173,7 +173,7 @@ binds it to this action. `risk_class` defaults to `external_write`. The shape:
 - A rejected prepare names the missing or invalid keys: fix those and retry once.
 
 After a new session, find the prepared action with `pa next_action` (it lists items awaiting approval) before asking again.
-Confirm the action you already prepared; never prepare a second one for the same yes.
+When the owner's yes in this conversation names it, confirm the action you already prepared; never prepare a second one for the same yes.
 If the yes is for something already done, read back the result and do nothing new.
 
 Obtain final confirmation with `action_confirm` and the

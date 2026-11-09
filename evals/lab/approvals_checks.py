@@ -8,9 +8,12 @@ from .lab_plugin import Observer
 
 
 def date_by(value, deadline):
+    """An ISO date or datetime (its date part) on or before the deadline's date."""
     try:
-        return (isinstance(value, str) and dt.date.fromisoformat(value).isoformat() == value
-                and dt.date.fromisoformat(value) <= dt.date.fromisoformat(deadline[:10]))
+        day = dt.date.fromisoformat(value[:10])
+        if len(value) > 10:
+            dt.datetime.fromisoformat(value)
+        return day.isoformat() == value[:10] and day <= dt.date.fromisoformat(deadline[:10])
     except (ValueError, TypeError, AttributeError):
         return False
 
@@ -23,7 +26,9 @@ def finished(decision, seed):
             and isinstance(options, list) and len(options) >= 2
             and all(isinstance(o, str) and o.strip() for o in options)
             and isinstance(recommendation, str) and bool(recommendation.strip())
-            and any(recommendation.casefold() in o.casefold() for o in options)
+            # The recommendation names one option: the option itself, or a sentence that contains it.
+            and any(len(recommendation.strip()) >= 3 and recommendation.casefold() in o.casefold()
+                    or o.strip().casefold() in recommendation.casefold() for o in options)
             and date_by(decision.get("decide_by"), seed["due"])
             and isinstance(decision.get("draft"), str) and len(decision["draft"].strip()) >= 20)
 

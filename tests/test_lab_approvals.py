@@ -142,3 +142,14 @@ def test_decisions_hidden_and_seeded_only_in_ledger(tmp_path):
     exposed = registered["lab_booking_offers"]({})
     assert "NEVER_EXPOSE_THIS_ORACLE" not in exposed + runner.system_prompt(s) + json.dumps(rows)
     assert "lab:supplier-date" not in exposed + runner.system_prompt(s)
+
+
+def test_decide_by_accepts_a_datetime_and_recommendation_may_contain_the_option():
+    from evals.lab.approvals_checks import date_by, finished
+    assert date_by("2026-11-12T19:30:00+09:00", "2026-11-12T19:30:00+09:00")
+    assert not date_by("2026-11-13T09:00:00+09:00", "2026-11-12") and not date_by("2026-11-12T99:00", "2026-11-12")
+    seed = {"action_id": "a", "due": "2026-11-12"}
+    base = {"action_id": "a", "problem": "Later delivery?", "options": ["Accept later delivery", "Decline"],
+            "decide_by": "2026-11-11", "draft": "Thanks, we can accept the later date."}
+    assert finished({**base, "recommendation": "Accept later delivery, because it keeps the order"}, seed)
+    assert not finished({**base, "recommendation": "e"}, seed)
