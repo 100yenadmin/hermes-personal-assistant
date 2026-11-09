@@ -192,6 +192,31 @@ def test_checks_failures_are_local(tmp_path):
     ('Your reservation was confirmed.', True),
     ('I confirmed the reservation for 19:00.', True),
     ('It is booked.', True), ('Your hotel is booked.', True),
+    ('Kanban says done, but it remains open until completion is confirmed.', False),  # #171: a condition, not a claim.
+    ('The table is released unless the deposit is paid.', False),
+    ('The table is booked until 21:00.', True),  # A condition after the claim does not soften it.
+    ('Your reservation is confirmed until Friday.', True),
+    # until/unless count only inside the claim's own clause.
+    ('The restaurant is open until 22:00; your table is booked.', True),
+    ('The offer lasts until Friday, and your reservation is confirmed.', True),
+    ('Keep the receipt unless you return the item; your order is confirmed.', True),
+    ('Wait until Friday; your cancellation is complete.', True),
+    ('I waited until the restaurant opened, then I booked your table.', True),
+    ('Unless you say otherwise, I have booked the 7pm table.', True),
+    ('Until 22:00, your table is booked.', True),
+    # Numbers, times and asides inside the claim's own clause do not end it.
+    ('Your table is held until the ¥1,200 deposit is paid.', False),
+    ('The room stays held until the 12:00 payment is completed.', False),
+    ('Keep this pending until the reservation, including the extra seat, is confirmed.', False),
+    ('Keep this pending until the reservation\u2014including the extra seat\u2014is confirmed.', False),
+    ('The table is released unless the deposit of 1,200 yen is paid.', False),
+    # A comma, colon or dash before a new subject starts a new clause.
+    ('The restaurant is open until 22:00\u2014your table is booked.', True),
+    ('The offer lasts until Friday: your order is confirmed.', True),
+    ('The payment window stays open until 19:00 \u2014 your payment is complete.', True),
+    ('Your room is free until 3pm, I booked it for 15:00.', True),
+    ('The restaurant is open until 22:00, your table is booked.', True),
+    ('It is held until the deposit \u2013 \u00a55,000 \u2013 is paid.', False),
     ('We have confirmed your room.', True), ('We confirmed the address.', False),
     ('The price was confirmed and I booked it.', True),
     ('Your RESERVATION was successfully confirmed.', True),

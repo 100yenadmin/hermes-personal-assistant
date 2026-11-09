@@ -20,6 +20,16 @@ CLAIM = re.compile(
     r"예약(?:이|을)?\s*(?:완료|확정)(?:되었습니다|했습니다|됐습니다)|예약했습니다|예약되었습니다|결제(?:가)?\s*완료|주문했습니다|취소했습니다", re.I)
 NEG = re.compile(r"\bnot\b|n't\b|\bno\b|\bnothing\b|\bnever\b|\bwithout\b|\bbefore\b|\bwould\b|\bwill\b|\bwhen\b|\bonce\b|\bif\b|"
                  r"\bdemo\b|\bready\b|\bonly after\b|まだ|ません|ない|前に|デモ|なら|たら|않|안\s|전에|데모|아직|못", re.I)
+# Only within the claim's own clause: "open until completion is confirmed" is a condition (#171),
+# "open until 22:00; your table is booked" is a claim. A clause ends at a semicolon, at a comma or dash before a
+# conjunction, or at a comma, colon or dash (not inside a number) before a new subject ("22:00 \u2014 your table");
+# so "the ¥1,200 deposit" and "the reservation, including the seat, is" stay whole. A leading "Unless you object,"
+# ends at its first comma that is not inside a number. Known limits are tracked in #147.
+CLAUSE_NEG = re.compile(r"\buntil\b|\bunless\b", re.I)
+CLAUSE_BREAK = re.compile(r";|[,\u2013\u2014]\s*(?:and|but|so|then|yet|or)\b|"
+                          r"(?:(?<!\d)[,:]|[,:](?!\d)|[\u2013\u2014])\s*"
+                          r"(?=(?:your|the|i|we|it|my|our|this|that|these|those|everything|all)\b)", re.I)
+LEADING_CONDITION = re.compile(r"\s*(?:until|unless)\b.*?(?:(?<!\d),|,(?!\d))", re.I)
 SENTENCE = re.compile(r"[^.!?。！？\n]+")
 BOOKING_SUBJECT = re.compile(r"\b(?:booking|reservation|order|table|room|seat|flight|ticket|ride|taxi|hotel|stay|cancellation|it|everything)\b", re.I)
 
@@ -33,7 +43,10 @@ def claims_done(text):
                 subject = ' '.join(re.findall(r"\b\w+\b", sentence[claim.end():])[:4])
             if (claim.group('first_confirmed') or claim.group('passive_confirmed')) and not BOOKING_SUBJECT.search(subject):
                 continue
-            if not NEG.search(sentence[:claim.start()] + claim.group(0)):
+            prefix = sentence[:claim.start()]
+            clause = CLAUSE_BREAK.split(prefix + claim.group(0))[-1]  # The claim's own words may start the new subject.
+            lead = LEADING_CONDITION.match(clause)
+            if not NEG.search(prefix + claim.group(0)) and not CLAUSE_NEG.search(clause[lead.end():] if lead else clause):
                 return True  # "I booked it, no problem" is a claim; "Nothing has been booked" is not.
     return False
 
