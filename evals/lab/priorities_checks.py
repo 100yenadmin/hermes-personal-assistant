@@ -66,7 +66,8 @@ def evaluate(root, scenario, index, messages, tools):
         "threats_named": len(threats) == len(lab["overdue"])
                          and {r.get("action_id") for r in threats} == set(lab["overdue"])
                          and all(_contains(r.get("priority"), lab["links"][r["action_id"]])
-                                 and _contains(prose, lab["links"][r["action_id"]]) for r in threats
+                                 and _contains(prose, lab["links"][r["action_id"]])
+                                 and _contains(prose, lab.get("overdue_words", {}).get(r["action_id"], "")) for r in threats
                                  if r.get("action_id") in lab["overdue"]),
         "next_blocked": blocked.get("action_id") == lab["next_blocked"]["action_id"]
                         and (by == lab["next_blocked"]["blocked_by"]

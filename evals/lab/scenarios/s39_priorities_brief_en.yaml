@@ -69,6 +69,7 @@ lab:
     lab:plants: null
   overdue: [lab:deck, lab:kit-photos]
   next_blocked: {action_id: 'lab:kit-page', blocked_by: 'lab:kit-photos'}
+  overdue_words: {'lab:deck': deck, 'lab:kit-photos': photo}  # The brief names each overdue item.
   next_blocked_words: [landing page, photo]  # The brief must name the blocked step and its blocker.
   overloaded: Sam
   output_contract: >-

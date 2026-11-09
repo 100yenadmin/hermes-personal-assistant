@@ -117,7 +117,7 @@ def test_isolated_failure(tmp_path, case, key):
     elif case == "no_threat_prose":
         text = "Sam Demo is overloaded with 5 open items. The landing page is blocked by the photos."
     elif case == "no_overload_prose":
-        text = "Overdue items threaten the seed round and Studio Kit. The landing page is blocked by the photos."
+        text = "The overdue deck threatens the seed round; the overdue photos threaten the Studio Kit. The landing page is blocked by the photos."
     else:
         summary["threats"][0]["priority"] = "Hire a second designer"
     result = evaluated(tmp_path, (s, summary, text, tools, ledger))
@@ -168,3 +168,11 @@ def test_browser_input_is_not_a_read(tmp_path, name):
     s, summary, text, tools, ledger = synthetic(tmp_path)
     tools.append({"name": name, "step": 0, "structured_args": {}})
     assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["nothing_sent"]
+
+
+def test_the_brief_must_name_each_overdue_item(tmp_path):
+    """Bot review: priority words alone, without the overdue items, do not name the threats."""
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    text = text.replace("The overdue pitch deck threatens the seed round; overdue photos threaten the Studio Kit launch. ",
+                        "The seed round and Studio Kit launch are on track. ")
+    assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["threats_named"]
