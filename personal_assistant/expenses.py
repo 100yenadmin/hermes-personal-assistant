@@ -5,6 +5,9 @@ import io
 import os
 import re
 from decimal import Decimal, localcontext
+from pathlib import Path
+
+from jsonschema import Draft7Validator
 
 from .evidence import _date, _enum, _text
 from .profile import _private
@@ -32,6 +35,17 @@ OP_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["acti
     {"if": {"properties": {"action": {"const": "void"}}}, "then": {"required": ["expense_id", "reason"]}},
     {"if": {"properties": {"action": {"const": "export"}}}, "then": {"required": ["trip_id"]}},
 ]}
+IMPORT_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["action", "path"],
+                 "properties": {"action": {"const": "import"}, "path": {"type": "string", "minLength": 1},
+                                "currency": FIELDS["currency"], "preview": {"type": "boolean"},
+                                "name": {"type": "string", "pattern": r"^[a-z0-9][a-z0-9-]{0,40}$"},
+                                "categories": {"type": "array", "items": {
+                                    "type": "object", "additionalProperties": False, "required": ["line", "category"],
+                                    "properties": {"line": {"type": "integer", "minimum": 1},
+                                                   "category": FIELDS["category"]}}}},
+                 "if": {"required": ["preview"], "properties": {"preview": {"const": True}}},
+                 "then": {"not": {"required": ["categories"]}}, "else": {"required": ["categories"]}}
+OP_SCHEMA = {"anyOf": [OP_SCHEMA, IMPORT_SCHEMA]}
 
 
 def _safe(value):
@@ -90,6 +104,8 @@ def save(ledger, identity, fields, source, source_action_id=None, trip_id=None):
     # A voided readback stays void unless the money changed (its default date moves with verified_at).
     # A voided receipt recorded again with a changed amount, currency, kind, date or merchant is a correction.
     money = ("amount", "currency", "kind") + (("date",) if source == "owner_receipt" else ())
+    if source == "statement":
+        money += ("date", "merchant")
     if source == "owner_receipt" and old and old["fields"].get("merchant") and fields.get("merchant"):
         money += ("merchant",)
     keep = old and old["status"] == "void" and all(old["fields"].get(k) == fields.get(k) for k in money)
@@ -103,6 +119,157 @@ def _rows(ledger, trip_id=None, include_void=False):
                    and (include_void or r["status"] != "void")
                    and (trip_id is None or r["fields"].get("trip_ref") == trip_id)],
                   key=lambda r: (r["fields"]["date"], r["action_id"]))
+
+
+def _csv_text(columns, table):
+    text = io.StringIO(newline="")
+    writer = csv.writer(text)
+    writer.writerow(columns)
+    writer.writerows([["'" + cell if cell.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else cell
+                       for cell in row] for row in table])
+    return text.getvalue()
+
+
+def _md(text):
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", " ").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _merchant(text):
+    text = " ".join(text.casefold().split())
+    return re.sub(r"(?:\s*(?:#[0-9]+|\*[a-z0-9]+))+$", "", text).strip()
+
+
+def card_duplicates(rows):
+    """Pure, deterministic charge pairs across sources; a matching later refund resolves the pair."""
+    groups, result = {}, []
+    for row in rows:
+        if row["action_type"] != "expense" or row["status"] == "void":
+            continue
+        f = row["fields"]
+        merchant = _merchant(f.get("merchant", ""))
+        if merchant:
+            groups.setdefault((merchant, Decimal(f["amount"]), f["currency"]), []).append(row)
+    for (merchant, amount, currency), group in sorted(groups.items()):
+        charges = sorted([r for r in group if r["fields"]["kind"] == "charge"],
+                         key=lambda r: (r["fields"]["date"], r["action_id"]))
+        refunds = [r["fields"]["date"] for r in group if r["fields"]["kind"] == "refund"]
+        for i, first in enumerate(charges):
+            early = first["fields"]["date"]
+            if any(date >= early for date in refunds):
+                continue
+            for second in charges[i + 1:]:
+                late = second["fields"]["date"]
+                if (dt.date.fromisoformat(late) - dt.date.fromisoformat(early)).days > 3:
+                    break
+                result.append({"expense_ids": [first["action_id"], second["action_id"]], "merchant": merchant,
+                               "amount": _number(amount), "currency": currency, "dates": [early, late]})
+    return result
+
+
+def _statement_lines(root, data):
+    from .minutes import _read, LIMIT
+    relative = Path(data["path"])
+    if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 3 or relative.parts[:2] != ("imports", "statements"):
+        raise ValueError("statement path must be relative under imports/statements/ without ..")
+    text = _read(root, data["path"])
+    _safe(text)  # Scan the whole file, including headers, unknown columns and rows that will be skipped.
+    previous = csv.field_size_limit(LIMIT)
+    try:
+        table = list(csv.reader(io.StringIO(text, newline=""), strict=True))
+    finally:
+        csv.field_size_limit(previous)
+    headers = [h.strip().casefold() for h in table[0]] if table else []
+    if not headers or len(set(headers)) != len(headers):
+        raise ValueError("missing or duplicate statement CSV headers")
+    if not {"date", "amount"} <= set(headers) or not {"merchant", "description"} & set(headers):
+        raise ValueError("statement requires date, merchant or description, and amount columns")
+    if "currency" not in headers and "currency" not in data:
+        raise ValueError("statement requires currency column or request currency")
+    lines, skipped = [], []
+    for number, raw in enumerate(table[1:], 1):
+        try:
+            if len(raw) != len(headers):
+                raise ValueError("inconsistent CSV row width")
+            row = dict(zip(headers, raw))
+            amount = row["amount"].strip()
+            kind = "refund" if amount.startswith("-") or any(row.get(k, "").strip().casefold() in ("refund", "credit")
+                                                            for k in ("type", "kind")) else "charge"
+            date = row["date"].strip()
+            if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date):
+                raise ValueError("date must be YYYY-MM-DD")
+            merchant = row.get("merchant", row.get("description", "")).strip()
+            if not merchant:
+                raise ValueError("merchant or description is required")
+            fields = validate({"date": date, "merchant": merchant, "amount": amount[1:] if amount.startswith("-") else amount,
+                               "currency": row.get("currency", data.get("currency", "")).strip(),
+                               "kind": kind, "category": "other"})
+            lines.append({"line": number, **{k: v for k, v in fields.items() if k != "category"}})
+        except ValueError as exc:
+            skipped.append({"line": number, "reason": str(exc)})
+    return lines, skipped
+
+
+def _import_statement(ledger, data):
+    if not Draft7Validator(IMPORT_SCHEMA).is_valid(data):
+        raise ValueError("invalid statement import path, preview or categories")
+    lines, skipped = _statement_lines(ledger.root, data)
+    if data.get("preview", False):
+        return {"lines": lines, "skipped": skipped, "count": len(lines)}
+    categories, repeated = {}, set()
+    for item in data["categories"]:
+        if item["line"] in categories:
+            repeated.add(item["line"])
+        categories[item["line"]] = item["category"]
+    numbers = {row["line"] for row in lines}
+    missing, unknown = sorted(numbers - categories.keys()), sorted(categories.keys() - numbers)
+    if missing or unknown or repeated:
+        raise ValueError(f"statement category lines: missing {missing}; unknown {unknown}; repeated {sorted(repeated)}")
+    name = data.get("name", Path(data["path"]).stem)
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", name):
+        raise ValueError("statement report name must be a slug")
+    output = ledger.root / "exports" / "statements"
+    paths = {k: output / (name + suffix) for k, suffix in (("csv", ".csv"), ("markdown", ".md"))}
+    for path in paths.values():
+        legacy._validate_existing_path(ledger.root, path)
+    rows, totals = [], {}
+    with localcontext() as ctx:
+        ctx.prec = max(28, sum(len(row["amount"]) for row in lines) + 3)
+        for line in lines:
+            number = line["line"]
+            fields = {**{k: v for k, v in line.items() if k != "line"}, "category": categories[number],
+                      "evidence_ref": f"statement {data['path']} line {number}"}
+            identity = "expense:" + stable_id("statement", data["path"], str(number))
+            saved = save(ledger, identity, fields, "statement")
+            rows.append({"line": number, **saved["fields"], "expense_id": identity})
+            bucket = totals.setdefault(fields["currency"], {})
+            category = fields["category"]
+            bucket[category] = bucket.get(category, Decimal(0)) + Decimal(fields["amount"]) * (-1 if fields["kind"] == "refund" else 1)
+    totals = {c: {k: _number(v) for k, v in sorted(bucket.items())} for c, bucket in sorted(totals.items())}
+    duplicates = card_duplicates(_rows(ledger))
+    columns = "line date kind category amount currency merchant evidence_ref expense_id".split()
+    table = [[str(row.get(k, "")) for k in columns] for row in rows]
+    markdown = [f"# {_md(name)} — statement reconciliation", "", "| " + " | ".join(columns) + " |",
+                "| " + " | ".join(["---"] * len(columns)) + " |"]
+    markdown.extend("| " + " | ".join(_md(cell) for cell in row) + " |" for row in table)
+    markdown += ["", "## Totals by category"]
+    for currency, bucket in totals.items():
+        for category, total in bucket.items():
+            markdown.append(f"- {currency} {category}: {total}")
+            table.append(["", "", "category_total", category, total, currency, "", "", ""])
+    markdown += ["", "## Possible duplicates"]
+    for pair in duplicates:
+        markdown.append("- " + _md(f"{pair['merchant']}: {pair['amount']} {pair['currency']}; "
+                                  f"{', '.join(pair['dates'])}; {', '.join(pair['expense_ids'])}"))
+        table.append(["", " / ".join(pair["dates"]), "possible_duplicate", "", pair["amount"], pair["currency"],
+                      pair["merchant"], "", " / ".join(pair["expense_ids"])])
+    legacy._ensure_directory(ledger.root, output)
+    for kind, text in (("csv", _csv_text(columns, table)), ("markdown", "\n".join(markdown) + "\n")):
+        fd = os.open(paths[kind], os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(text)
+    return {"count": len(rows), "by_category": totals, "possible_duplicates": duplicates,
+            "paths": {k: str(p) for k, p in paths.items()}, "skipped": skipped, "sent": False}
 
 
 def export(ledger, trip_id):
@@ -126,12 +293,8 @@ def export(ledger, trip_id):
     totals = {currency: {k: _number(v) for k, v in total.items()} for currency, total in sorted(totals.items())}
     columns = "date kind category amount currency merchant description evidence_ref source expense_id".split()
     table = [[str({**r["fields"], "expense_id": r["action_id"]}.get(k, "")) for k in columns] for r in rows]
-    csv_text = io.StringIO(newline="")
-    writer = csv.writer(csv_text)
-    writer.writerow(columns)
-    writer.writerows([["'" + cell if cell.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else cell for cell in row] for row in table])
-    def md(text):
-        return text.replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", " ").replace("<", "&lt;").replace(">", "&gt;")
+    csv_text = _csv_text(columns, table)
+    md = _md
     lines = [f"# {md(trip['title'])} — expenses", "", "## Totals"]
     for currency, total in totals.items():
         lines.append(f"- {currency}: charges {total['charges']}; refunds {total['refunds']}; net {total['net']}")
@@ -144,7 +307,7 @@ def export(ledger, trip_id):
     paths = {kind: output / (safe_id + suffix) for kind, suffix in (("csv", ".csv"), ("markdown", ".md"))}
     for path in paths.values():
         legacy._validate_existing_path(ledger.root, path)
-    for kind, text in (("csv", csv_text.getvalue()), ("markdown", "\n".join(lines) + "\n")):
+    for kind, text in (("csv", csv_text), ("markdown", "\n".join(lines) + "\n")):
         fd = os.open(paths[kind], os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
             os.fchmod(handle.fileno(), 0o600)
@@ -154,6 +317,8 @@ def export(ledger, trip_id):
 
 
 def dispatch(ledger, data):
+    if data.get("action") == "import":
+        return _import_statement(ledger, data)
     _safe({k: data[k] for k in ("reason", "merchant", "description", "evidence_ref", "source_action_id") if k in data})
     action = data.get("action")
     allowed = {"record": {*FIELDS, "expense", "trip_id", "source_action_id"}, "void": {"expense_id", "reason"},
