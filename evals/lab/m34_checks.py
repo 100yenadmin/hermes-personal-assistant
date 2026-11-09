@@ -118,6 +118,9 @@ def _evaluate(root, scenario, index, messages, tools):
                     and (seeded.get(k, {}).get("next_actor") == "them" or k == lab["unconfirmed_id"])}
         due = {k for k, v in expected.items() if v != "none"}  # Extra held texts are harmless; none for a loop with nothing due.
         result["draft_nudges"] = required <= drafted <= due and not calls(local, "action_confirm") and not any(c["name"] == "lab_mail_send" for c in mail)
+    elif kind == "documents":
+        from . import documents_checks
+        result.update(documents_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "radar":
         items = {r.get("action_id"): r for r in data.get("radar", [])}
         result["all_four_with_leads"] = all(items.get(k, {}).get("lead_days") == lead and items[k].get("next_step") for k, lead in lab["radar"].items())
