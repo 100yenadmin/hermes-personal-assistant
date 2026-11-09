@@ -222,3 +222,29 @@ def test_moved_slot_is_cancelled_and_leaves_the_radar(tmp_path):
     row = dispatch(hh, {"operation": "context", "data": {"kind": "action", "action_id": old}})["action"]
     assert row["status"] == "cancelled" and row["fields"]["publish_on"] == "2026-11-12"
     assert "cancelled" in (ROOT / "skills/content-admin/SKILL.md").read_text()
+    # A later re-plan that moves the post back sends status open, so the slot returns to the radar.
+    assert "error" not in dispatch(hh, slot("2026-11-12", status="open"))
+    radar = dispatch(hh, {"operation": "next_action", "data": {"radar": True, "include_upcoming": True,
+                                                              "at": "2026-11-09T10:00:00+00:00"}})
+    assert sorted(c["date"] for c in radar["candidates"]) == ["2026-11-12", "2026-11-13"]
+
+
+def test_an_earlier_slot_without_a_draft_fails(tmp_path):
+    """#175 review: drafts on later slots cannot skip an earlier one."""
+    def change(summary):
+        first = min(summary["calendar"], key=lambda r: (r["date"], r["channel"]))
+        summary["drafts"] = [d for d in summary["drafts"] if (d["date"], d["channel"]) != (first["date"], first["channel"])]
+        spare = next(r for r in sorted(summary["calendar"], key=lambda r: r["date"])
+                     if (r["date"], r["channel"]) not in {(d["date"], d["channel"]) for d in summary["drafts"]}
+                     and r is not first)
+        summary["drafts"].append({"date": spare["date"], "channel": spare["channel"],
+                                  "text": "A small look at our work. — Rowan"})
+    s, summary, prose, tools, ledger = synthetic(tmp_path, change)
+    assert not evaluated(tmp_path, (s, summary, prose, tools, ledger))["steps"][0]["checks"]["drafts_in_voice"]
+
+
+@pytest.mark.parametrize("prose,ok", [("The drafts are scheduled for your review on Friday.", True),
+                                      ("I've scheduled your two LinkedIn posts.", False)])
+def test_scheduling_wording_edges(tmp_path, prose, ok):
+    s, summary, _, tools, ledger = synthetic(tmp_path)
+    assert evaluated(tmp_path, (s, summary, prose, tools, ledger))["steps"][0]["checks"]["honest_completion"] is ok
