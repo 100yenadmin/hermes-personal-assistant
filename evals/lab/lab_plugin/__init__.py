@@ -109,6 +109,8 @@ class Observer:
             if tool_name in {"lab_booking_submit", "lab_vendor_send", "lab_flight_rebook", "lab_booking_change"}:
                 append(self.out / ("vendor-calls.jsonl" if tool_name == "lab_vendor_send" else "flight-calls.jsonl" if tool_name == "lab_flight_rebook" else "booking-calls.jsonl"), {"name": tool_name, "step": self.step,
                        "args": args, "result": {"error": message}, "accepted": False})
+            if tool_name == "lab_mail_archive":
+                append(self.out / "mail-calls.jsonl", {"name": tool_name, "step": self.step, "args": args, "result": {"error": message}, "accepted": False})
             return {"action": "block", "message": message}
         data = args.get("data")
         if isinstance(data, str):
@@ -337,7 +339,7 @@ def register_calendar(ctx, calendar):
 
 
 # Scoring fields in the scenario's thread fixtures; m34_checks reads them from scenario.json, the agent never sees them.
-ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden"}
+ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden", "awaiting_reply"}
 
 
 MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label:inbox|-(?:in|is|category|label):\S+|(?:newer|older)_than:\S+)$")
@@ -352,6 +354,10 @@ def mail_search(threads, query, accounts):
     tokens = [t.strip('"()') for t in query.lower().split()]
     if any(t.startswith("account:") and t[len("account:"):] not in accounts for t in tokens):
         return []
+    if any("read" in t for t in threads.values()):
+        threads = {k: t for k, t in threads.items()
+                   if ("is:unread" not in tokens or t.get("read") is not True)
+                   and (not {"-is:unread", "is:read"}.intersection(tokens) or t.get("read") is True)}
     scoped = any(MAILBOX_SCOPE.match(t) and t != "in:anywhere" for t in tokens)
     terms = []
     for t in tokens:
@@ -381,6 +387,8 @@ def register_standins(ctx, obs):
     def handler(name, args):
         blocked = obs.pre(name, args)
         result = {"error": blocked["message"]} if blocked else None
+        if blocked and name == "lab_mail_archive":
+            return json.dumps(result)  # pre also logs denials when the host skips the handler.
         if result is None:
             if name == "lab_mail_search":
                 result = mail_search(threads, str(args.get("query", "")), {obs.lab.get("account", "work"), persona_contact(obs.out)["email"]} - {""})
@@ -394,6 +402,8 @@ def register_standins(ctx, obs):
                     result = drafts[identity] = {**args, "draft_id": identity, "status": "draft"}
             elif name == "lab_mail_send":
                 result = {"status": "sent", "message_id": "synthetic-send", **args}
+            elif name == "lab_mail_archive":
+                result = {"status": "archived", "thread_id": args["thread_id"]} if args.get("thread_id") in threads else {"error": "unknown thread"}
             elif name == "lab_calendar_events":
                 result = list(events.values())
             elif name == "lab_calendar_get":
@@ -409,7 +419,7 @@ def register_standins(ctx, obs):
         log = "mail-calls.jsonl" if name.startswith("lab_mail_") else "calendar-writes.jsonl" if obs.write_action(name, args) else "calendar-reads.jsonl"
         append(obs.out / log, {"name": name, "step": obs.step, "args": args, "result": result, "accepted": not blocked and "error" not in result})
         return json.dumps(result)
-    names = ["lab_mail_" + n for n in ("search", "get", "draft", "send")] if threads else []
+    names = ["lab_mail_" + n for n in ("search", "get", "draft", "send", "archive")] if threads else []
     names += ["lab_calendar_" + n for n in ("events", "get", "freebusy", "create", "update", "respond")] if events else []
     for name in names:
         properties = {k: {"type": "string"} for k in ("item", "thread_id", "event_id", "draft_id", "query", "body", "subject", "start", "end", "timezone", "send_updates", "response")}

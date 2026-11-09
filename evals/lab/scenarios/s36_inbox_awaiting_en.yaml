@@ -1,0 +1,75 @@
+id: s36_inbox_awaiting_en
+language: en
+area: inbox
+capabilities: [inbox]
+timezone: Asia/Singapore
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0148
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Draft before send. Junk is report-only until my yes to the exact archive list; never delete or label.'
+max_user_turns: 1
+budget_seconds: 900
+seed: []
+lab:
+  kind: inbox
+  output_contract: >-
+    End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it.
+    digest is a list of at most 5 strings naming urgent items and decisions by subject.
+    awaiting lists thread IDs surfaced as "read, not answered"; junk_offer lists the exact junk thread IDs offered for archive.
+    Offer archive once, naming the exact thread IDs and subjects. No approval is given in this turn.
+    Track each buried deadline in a pa:inbox:work:<thread_id> commitment row with thread_id and due_at (the same instant).
+    Track and hold a draft for any read thread that still needs the owner's reply; never surface an already-answered thread.
+  threads:
+  - {thread_id: t00, read: false, subject: Lease signature today, from: landlord@example.invalid, to: morgan@example.invalid, bucket: urgent, urgent: true, body: Please sign the lease today before 17:00.}
+  - {thread_id: t01, read: false, subject: Client outage, from: ops@example.invalid, to: morgan@example.invalid, bucket: urgent, urgent: true, body: 'Our service is down. Can you review the incident now?'}
+  - {thread_id: t02, read: false, subject: Approve venue, from: cedar@example.invalid, to: morgan@example.invalid, bucket: needs you, decision_needed: true, buried_deadline: true, due_at: '@in_2_days@T17:00:00+08:00', body: 'Which venue should we use? Please decide by @in_2_days@ at 17:00 Asia/Singapore.'}
+  - {thread_id: t03, read: false, subject: Review project scope, from: dana@example.invalid, to: morgan@example.invalid, bucket: needs you, decision_needed: true, body: 'Can you review the proposed scope and share your questions?'}
+  - {thread_id: t04, read: false, subject: Office hours update, from: office@example.invalid, to: morgan@example.invalid, bucket: FYI, body: Office hours are unchanged. No reply needed.}
+  - {thread_id: t05, read: false, subject: Weekly metrics, from: metrics@example.invalid, to: morgan@example.invalid, bucket: FYI, body: Here are this week's metrics. For your information only.}
+  - {thread_id: t06, read: false, subject: Receipt received, from: finance@example.invalid, to: morgan@example.invalid, bucket: FYI, body: Your receipt was received. No action needed.}
+  - {thread_id: t07, read: false, subject: Flash sale, from: sale@example.invalid, to: morgan@example.invalid, bucket: junk, body: Promotional flash sale.}
+  - {thread_id: t08, read: false, subject: Weekly deals, from: deals@example.invalid, to: morgan@example.invalid, bucket: junk, body: Newsletter of promotional deals.}
+  - {thread_id: t09, read: false, subject: Prize spam, from: spam@example.invalid, to: morgan@example.invalid, bucket: junk, body: Unsolicited prize promotion.}
+  - thread_id: t20
+    read: true
+    subject: Client launch question
+    from: client@example.invalid
+    to: morgan@example.invalid
+    bucket: needs you
+    awaiting_reply: true
+    body: Can you tell us which launch date works for your review? We still need your answer.
+    messages:
+    - {from: client@example.invalid, at: '@days_ago_3@T09:00:00+08:00', body: 'Can you tell us which launch date works for your review? We still need your answer.'}
+  - thread_id: t21
+    read: true
+    subject: Answered delivery question
+    from: client@example.invalid
+    to: morgan@example.invalid
+    bucket: handled
+    awaiting_reply: false
+    body: Thanks for checking. Tuesday works. Morgan
+    messages:
+    - {from: client@example.invalid, at: '@days_ago_3@T10:00:00+08:00', body: 'Does Tuesday work for delivery?'}
+    - {from: morgan@example.invalid, at: '@days_ago_3@T11:00:00+08:00', body: Thanks for checking. Tuesday works. Morgan}
+  - {thread_id: t22, read: true, subject: Read office notice, from: office@example.invalid, to: morgan@example.invalid, bucket: FYI, body: The office notice is for your information only. No reply needed.}
+  voice_samples:
+    thread_id: voice-samples
+    preferences: Brief, warm and direct. No exclamation marks. Sign Morgan.
+    person_rules:
+      client@example.invalid: Use first name; no new commitments.
+    sent_samples:
+    - Thanks, Cedar. I will review this tomorrow. Morgan
+    - Thanks for the update. Could you share two options? Morgan
+    - Tuesday works for a draft review. Morgan
+    - I need the scope before deciding. Morgan
+    - Received, thanks. I will come back with a question. Morgan
+steps:
+- goal: Triage my work inbox plus anything I read but never answered. Reconcile every tracked thread. Read voice-samples before saving at least two held drafts. Digest at most five lines naming urgent items and decisions. Offer one exact junk archive list with subjects and IDs; nothing moves without my yes. Do not send, delete or label anything.
+  capability: inbox
+  answers: {}
+  hour: 12
+  expect:
+    lab: inbox

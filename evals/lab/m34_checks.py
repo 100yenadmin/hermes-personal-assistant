@@ -200,6 +200,19 @@ def _evaluate(root, scenario, index, messages, tools):
                 and row.get("sent_samples") == lab["voice_samples"]["sent_samples"] for row in value)
         result["voice_read"] = bool(drafts) and any(voice_read(c) for c in mail[:mail.index(drafts[0])])
         result["junk_report_only"] = not any(c["name"] in {"lab_mail_send", "lab_mail_archive", "lab_mail_delete", "lab_mail_label"} for c in mail)
+        if any("awaiting_reply" in t for t in lab["threads"]):
+            awaiting = {t["thread_id"] for t in lab["threads"] if t.get("awaiting_reply")}
+            answered = {t["thread_id"] for t in lab["threads"] if t.get("awaiting_reply") is False}
+            result["awaiting_surfaced"] = awaiting <= set(data.get("awaiting", [])) and not answered.intersection(data.get("awaiting", []))
+            result["awaiting_tracked"] = all(any(r.get("action_type") == "commitment" and k.startswith("pa:inbox:")
+                and k.endswith(":" + tid) and fields(r).get("thread_id") == tid for k, r in rows.items()) for tid in awaiting)
+            result["awaiting_draft_held"] = awaiting <= {c["args"].get("thread_id") for c in drafts} and not any(
+                c["name"] == "lab_mail_send" and c["args"].get("thread_id") in awaiting for c in mail)
+            junk = {t["thread_id"] for t in lab["threads"] if t.get("bucket") == "junk"}
+            prose = text.split('"lab_summary"', 1)[0]
+            offers = re.findall(r"\barchive\b[^?\n]*\?", prose, re.I)
+            result["junk_offer_exact"] = set(data.get("junk_offer", [])) == junk and len(offers) == 1
+            result["nothing_moved"] = not any(c["name"] in {"lab_mail_archive", "lab_mail_send"} for c in mail)
     elif kind == "invite":
         # First step is a proposal; second step contains the scripted item-specific yes.
         if index == 0:

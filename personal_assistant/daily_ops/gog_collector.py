@@ -80,8 +80,9 @@ def _validate_read_args(args: list[Any]) -> None:
     if any(_CONTROL_RE.search(item) for item in args):
         raise DailyOpsError("provider operation contains control characters")
     if args[0:2] == ["gmail", "search"]:
+        from .common import Q_AWAITING
         query = args[2]
-        if not query or query.lstrip().startswith("-"):
+        if not query or query.lstrip().startswith("-") and query != Q_AWAITING:
             raise DailyOpsError("gmail query must be data, not an option")
         specs = {"--max": "int", "--page": "page", "--all": "bool"}
     elif args[0:2] == ["calendar", "events"]:
@@ -136,6 +137,9 @@ def run(account: str, args: list[str], readonly: bool = True, extra_flags: list[
     cmd = [binary, "-a", account] + BASE_FLAGS + ["--readonly"]
     if args[:2] == ["gmail", "search"]:
         cmd.append("--gmail-no-send")
+        if args[2].startswith("-"):
+            # Keep the exact approved query as data, after all validated CLI flags.
+            args = args[:2] + args[3:] + ["--", args[2]]
     cmd += list(extra_flags or []) + args
     try:
         completed = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)

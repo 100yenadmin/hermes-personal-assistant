@@ -3,7 +3,8 @@
 ## When
 
 Twice a day, inside the two existing Daily Ops routines: the morning brief and
-the evening register both carry `humans_N` (unread human mail) and `bulk_N`
+the evening register both carry `humans_N` (unread human mail), `awaiting_N`
+(read human inbox mail from the last 7 days) and `bulk_N`
 (bulk counts) for each account. There is no third job. Outside a routine,
 triage only a scope the owner names. Read the owner's inbox rules from the
 manual (triage times, reply SLA, what counts as urgent, junk handling).
@@ -12,12 +13,24 @@ A section with `complete: false` or `truncated: true` was not fully read: say
 so in the digest. A failed mail read is a failure to report, never an empty
 inbox.
 
-`humans_N` lists the first `shown` threads; `omitted` counts unread human
+`humans_N` and `awaiting_N` list the first `shown` threads; `omitted` counts
 threads that were read but not listed, and such a section is incomplete and
 truncated. When `omitted` is above 0, triage the rest before calling the inbox
 covered: run a read-only `gog gmail search` for that account with exactly the
 section's `query` string and page past the listed threads. Never widen the
-query. If you cannot, the digest says how many unread threads were not triaged.
+query. If you cannot, the digest says how many threads were not triaged.
+
+## Reconcile each pass, before triage
+
+Read every open `pa:inbox:*` commitment row, then re-read its thread through
+the mail integration. Record whether the owner replied, a reply was sent or
+received, and update the same row using provider evidence and the closure rules
+below. This includes tracked threads outside today's section queries.
+For every `awaiting_N` thread, inspect the last message and the owner's identity.
+If someone else asks or needs something of the owner, treat it as needs you,
+set `waiting_for: "owner reply"`, track it (step 3), and hold a draft (step 4).
+If the last message is from the owner, do not surface it. Read FYI needs no reply.
+Name each read-but-unanswered thread as "read, not answered" in the digest.
 
 ## Five buckets
 
@@ -71,6 +84,15 @@ decision) and status completed. A Kanban card marked done is not confirmation.
 
 ## Junk
 
-Report counts and examples only. Archive, delete, label, unsubscribe or mark
-read only after the owner's yes for that exact set, through the exact-action
-path. Daily Ops never mutates mail on its own.
+During triage, junk stays report-only. Then offer once per pass, never repeat
+the offer in the same pass: "Archive these N junk threads? <subject list>".
+Include the exact thread IDs and subjects. This approval covers archive only,
+never delete or label. Nothing moves without the owner's yes to that exact list;
+a changed list needs a new yes. No yes means leave every thread in place.
+After that yes, use `pa.action_prepare` with `enforcement_profile: "exact_action"`,
+the exact thread IDs and the provider's archive operation as the final action;
+then `pa.action_confirm`; then the archive call once per listed thread; then
+provider readback and `pa.action_result`. Bind each call's complete arguments
+and one-call budget to its exact-action approval under that single list yes.
+If the provider or grant cannot archive, report that limit and leave mail in place.
+Daily Ops never mutates mail on its own.
