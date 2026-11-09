@@ -118,6 +118,9 @@ def _evaluate(root, scenario, index, messages, tools):
                     and (seeded.get(k, {}).get("next_actor") == "them" or k == lab["unconfirmed_id"])}
         due = {k for k, v in expected.items() if v != "none"}  # Extra held texts are harmless; none for a loop with nothing due.
         result["draft_nudges"] = required <= drafted <= due and not calls(local, "action_confirm") and not any(c["name"] == "lab_mail_send" for c in mail)
+    elif kind == "documents":
+        from . import documents_checks
+        result.update(documents_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "radar":
         items = {r.get("action_id"): r for r in data.get("radar", [])}
         result["all_four_with_leads"] = all(items.get(k, {}).get("lead_days") == lead and items[k].get("next_step") for k, lead in lab["radar"].items())
@@ -137,11 +140,22 @@ def _evaluate(root, scenario, index, messages, tools):
         result["sections"] = all(isinstance(sections.get(k), list) and sections[k] for k in ("Done", "In progress", "Blocked with questions"))
         entries = [(section, item) for section, items in sections.items() if isinstance(items, list) for item in items if isinstance(item, dict)]
         actual = {item.get("action_id"): (section, item) for section, item in entries}
+        # A routine-health finding is grounded by this step's health read, by its id or occurrence id.
+        health = set()
+        for t in calls(local, "automations"):
+            try:
+                value = json.loads(t.get("result") or "{}") if isinstance(t.get("result"), str) else t.get("result") or {}
+            except ValueError:
+                continue
+            value = value.get("data", value) if isinstance(value, dict) else {}
+            findings = value.get("findings", []) if isinstance(value, dict) else []
+            health |= {str(f[k]) for f in findings if isinstance(f, dict) for k in ("id", "occurrence_id") if f.get(k)}
         result["grounded_tasks"] = (set(lab["tasks"]) <= set(actual)
                                     and all(actual[k][0] == v and str(fields(rows.get(k, {})).get("evidence") or "\0") in str(actual[k][1].get("evidence") or "") for k, v in lab["tasks"].items() if k in actual)
                                     # An extra item must be a real row, done if under Done, and carry its recorded evidence when it has some.
-                                    and all(item.get("action_id") in rows and (section != "Done" or rows[item["action_id"]].get("status") in {"completed", "confirmed", "verified"})
-                                            and str(fields(rows[item["action_id"]]).get("evidence") or "") in str(item.get("evidence") or "")
+                                    and all((str(item.get("action_id")) in health and section != "Done")
+                                            or (item.get("action_id") in rows and (section != "Done" or rows[item["action_id"]].get("status") in {"completed", "confirmed", "verified"})
+                                                and str(fields(rows[item["action_id"]]).get("evidence") or "") in str(item.get("evidence") or ""))
                                             for section, item in entries if item.get("action_id") not in lab["tasks"]))
         result["blocked_questions"] = bool(sections.get("Blocked with questions")) and all(str(i.get("question", "")).strip().endswith("?") for i in sections.get("Blocked with questions", []))
     elif kind == "health":

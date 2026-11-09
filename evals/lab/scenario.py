@@ -8,7 +8,17 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
-LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands", "customer_comms"}
+LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands", "customer_comms", "documents"}
+
+
+def fixture_path(name):
+    base = Path(__file__).parent / "fixtures"
+    if not isinstance(name, str) or Path(name).is_absolute() or ".." in Path(name).parts:
+        raise ValueError("lab.files: invalid fixture")
+    path = (base / name).resolve()
+    if not path.is_relative_to(base.resolve()) or not path.is_file():
+        raise ValueError("lab.files: missing fixture")
+    return path
 
 
 def validate(s):
@@ -150,7 +160,16 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense", "documents"}, "lab.kind")
+        files = s["lab"].get("files", {})
+        require(isinstance(files, dict), "lab.files")
+        for destination, source in files.items():
+            parts = Path(destination).parts if isinstance(destination, str) else ()
+            require(len(parts) > 1 and parts[0] == "imports" and ".." not in parts, "lab.files.destination")
+            require(source != s["lab"].get("key") and not str(source).endswith(".key.json"), "lab.files.oracle")
+            fixture_path(source)
+        if "key" in s["lab"]:
+            fixture_path(s["lab"]["key"])
         if s["lab"]["kind"] == "expense":
             from .lab_plugin import BOOKING_FIELDS
             from personal_assistant.expenses import validate as expense_valid
