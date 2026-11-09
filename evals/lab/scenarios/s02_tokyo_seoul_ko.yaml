@@ -16,11 +16,11 @@ persona:
 trip:
   origin: Tokyo
   destination: Seoul
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: 2026-11-20 오전 NRT→ICN 직항 항공편을 Trip.com에서 성인 1명, 30,000엔 이하로 찾아 최종 확인 화면에서
+- goal: 2026-12-04 오전 NRT→ICN 직항 항공편을 Trip.com에서 성인 1명, 30,000엔 이하로 찾아 최종 확인 화면에서
     멈춰 주세요.
   capability: flight
   answers:
@@ -41,7 +41,7 @@ steps:
       - 예약
       - 支払
       - 確認
-- goal: 2026-11-20부터 2026-11-27까지 명동 호텔을 1명, 1박 150,000원 이하로 찾아 투숙객 정보 화면까지 준비해 주세요.
+- goal: 2026-12-04부터 2026-12-11까지 명동 호텔을 1명, 1박 150,000원 이하로 찾아 투숙객 정보 화면까지 준비해 주세요.
   capability: hotel
   answers:
     preference: No preference
@@ -61,7 +61,7 @@ steps:
       - 예약
       - 支払
       - 確認
-- goal: 2026-11-21 19:00 명동 저녁 2명을 네이버 또는 캐치테이블에서 준비해 주세요. 로그인 벽이면 예약 요약과 다음 단계를 알려
+- goal: 2026-12-05 19:00 명동 저녁 2명을 네이버 또는 캐치테이블에서 준비해 주세요. 로그인 벽이면 예약 요약과 다음 단계를 알려
     주세요.
   capability: restaurant
   answers:
@@ -93,7 +93,7 @@ steps:
   expect:
     or_handoff: true
     ledger: true
-- goal: 2026-11-20 15:00 ICN에서 명동 롯데호텔 서울까지 카카오 T 택시를 준비해 주세요. 앱 전용이면 정확한 단계를 알려 주세요.
+- goal: 2026-12-04 15:00 ICN에서 명동 롯데호텔 서울까지 카카오 T 택시를 준비해 주세요. 앱 전용이면 정확한 단계를 알려 주세요.
     호출하지 마세요.
   capability: taxi
   answers:

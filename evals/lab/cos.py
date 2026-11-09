@@ -129,7 +129,10 @@ def protected_files(hh):
 
 
 def skill_block(package, name):
-    path = package / "skills" / name.split(":")[-1] / "SKILL.md"
+    leaf = name.split(":")[-1]
+    path = package / "skills" / leaf / "SKILL.md"
+    if not path.exists():  # The R1-R8 skills sit under the personal-assistant umbrella skill.
+        path = package / "skills" / "personal-assistant" / leaf / "SKILL.md"
     return (f'[IMPORTANT: The user has invoked the "{name}" skill, indicating they want you to follow '
             'its instructions. The full skill content is loaded below.]\n\n' + path.read_text().strip())
 

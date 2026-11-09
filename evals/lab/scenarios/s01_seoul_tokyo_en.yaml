@@ -16,11 +16,11 @@ persona:
 trip:
   origin: Seoul
   destination: Tokyo
-  depart_date: '2026-11-20'
-  return_date: '2026-11-27'
+  depart_date: '2026-12-04'
+  return_date: '2026-12-11'
   travellers: 1
 steps:
-- goal: Find a nonstop ICN to HND flight on Trip.com for 1 adult on 2026-11-20 morning
+- goal: Find a nonstop ICN to HND flight on Trip.com for 1 adult on 2026-12-04 morning
     under 300,000 KRW. Reach final review and stop.
   capability: flight
   answers:
@@ -42,7 +42,7 @@ steps:
       - 예약
       - 支払
       - 確認
-- goal: Prepare a Shinjuku hotel on Trip.com for 2026-11-20 to 2026-11-27, 1 adult,
+- goal: Prepare a Shinjuku hotel on Trip.com for 2026-12-04 to 2026-12-11, 1 adult,
     under 20,000 JPY/night. Reach guest details and stop.
   capability: hotel
   answers:
@@ -63,7 +63,7 @@ steps:
       - 예약
       - 支払
       - 確認
-- goal: Prepare Tabelog dinner for 2 in Shinjuku on 2026-11-21 at 19:00, under 6,000
+- goal: Prepare Tabelog dinner for 2 in Shinjuku on 2026-12-05 at 19:00, under 6,000
     JPY/person. Stop at login or TableCheck/OpenTable JP final details.
   capability: restaurant
   answers:
@@ -107,7 +107,7 @@ steps:
       - 예약
       - 支払
       - 確認
-- goal: Prepare HND to Keio Plaza Hotel Tokyo airport taxi on 2026-11-20 at 15:00.
+- goal: Prepare HND to Keio Plaza Hotel Tokyo airport taxi on 2026-12-04 at 15:00.
     For GO app-only, hand off with exact steps, do not request a ride.
   capability: taxi
   answers:
