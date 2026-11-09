@@ -55,7 +55,8 @@ def _skill_text():
 def test_follow_through_skill_front_matter_and_size():
     import yaml
 
-    assert SKILL.stat().st_size < 6000
+    # 6000 until the HB2 role rule (#151); keep the skill lean.
+    assert SKILL.stat().st_size < 6500
     front = yaml.safe_load(_skill_text().split("---", 2)[1])
     assert front["name"] == "follow-through" and front["description"]
     assert front["metadata"]["openclaw"]["skillKey"] == "follow-through"

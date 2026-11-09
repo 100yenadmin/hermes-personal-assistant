@@ -102,9 +102,7 @@ armed for the same loop and step, and within HB2's limits. Report a refusal;
 never work around it.
 
 Outside a role turn: Create an HB2 `at` wake only for a date the owner approved
-in this chat, armed there with `owner_asked: true`, naming
-`personal-assistant:follow-through` and the action id; never for your own chase
-dates or from a follow-up turn.
+in this chat, with `owner_asked: true`, naming `personal-assistant:follow-through`
+and the action id; never for your own chase dates or from a follow-up turn.
 On any HB2 wake turn, HB2 delivers the final reply; never also use a message tool.
-See
-`references/reminders-and-wakes.md`.
+Shapes: `references/reminders-and-wakes.md`.

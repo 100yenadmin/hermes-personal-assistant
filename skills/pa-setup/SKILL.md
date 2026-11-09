@@ -145,7 +145,7 @@ Do not arm the first check-in until the check passes.
 
 ## PA on its own schedule
 
-After successful core apply and fresh-session check, or when the owner asks, read `pa(operation="capabilities")`, then `pulse` `list`: if a role whose note starts "PA follow-through role" exists, report it and create no other.
+After successful core apply and fresh-session check, or when the owner asks, read `pa(operation="capabilities")`; if `heartbeat` is available, call `pulse` `list`: if a role whose note starts "PA follow-through role" exists, report it and create no other.
 If `heartbeat` is `available` with `roles: true`, offer one follow-through role in one message: show the exact charter below, daily at the owner's morning-brief time from the manual (or 09:00 local), with a budget of 2 turns a day; it prepares and holds, never sends. Every send still needs its own yes.
 On the owner's explicit yes, in the owner's messaging chat, call `pulse` with `action: "create"`, `role: true`, `trigger: {"kind":"cron","cron":"<minute> <hour> * * *"}` for that local time converted to HB2's timezone, `budget: {"turns_per_day":2}`, and this exact `note`:
 "PA follow-through role: load personal-assistant:follow-through; read next_action with loops_only; remind the owner, prepare and hold due nudges, list approvals awaiting the owner's yes, escalate on the ladder; arm at most 3 one-shot wakes for upcoming chase dates or approval timeouts; never send, book, pay or cancel without the owner's yes."
