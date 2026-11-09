@@ -1182,3 +1182,11 @@ def test_jsonl_lines_keep_unicode_line_separators(tmp_path):
     for row in rows:
         common.append(path, row)
     assert common.lines(path) == rows
+
+
+def test_judge_sees_cart_controls_before_faq_headings(tmp_path):
+    lines = [f'- heading "Can I order dish {n} with Uber Eats?" [level=3, ref=h{n}]' for n in range(60)]
+    lines += ['- link "Deliver to 5 Chome-11-1" [ref=e1]', '- button "1 item" [ref=e2]']
+    (tmp_path / 'final_3_0.txt').write_text('\n'.join(lines))
+    excerpt = judge.final_page(tmp_path, {'step': 3, 'snapshot': 'final_3_0.txt'})['excerpt']
+    assert excerpt.startswith('- link "Deliver to 5 Chome-11-1"') and '- button "1 item"' in excerpt

@@ -1255,3 +1255,18 @@ def test_two_amounts_in_a_cell_need_one_marker_each():
     assert [(e["amount"], e["source"]) for e in failed["factual_errors"]] == [("S$12.50", "https://birch.invalid/payroll")]
     result = evaluate(TEMPLATE.replace(cell, each), rows)
     assert all(result["checks"].values()), result["reasons"]
+
+
+def test_tied_source_windows_reach_the_judge_together():
+    page = "Starts from S$12.50 per employee/mo, billed annually." + " filler" * 40 + " Starts from S$12.50 per employee/mo, billed monthly."
+    [row] = evaluate(rows=tools(page))["source_excerpts"]
+    assert "billed annually" in row["source_text"] and "billed monthly" in row["source_text"]
+
+
+def test_amount_cited_after_a_semicolon_falls_back_to_the_line_sources():
+    match = next(research_checks.AMOUNT.finditer("Treasury is a $10 per employee add-on"))
+    blog = [("Deel gets companies live in as little as 10 days.", False)]
+    pricing = [("Treasury Services $10 per employee per month.", False)]
+    assert "10 days" in research_checks.source_excerpt(match, blog)
+    excerpt, tier = research_checks.source_excerpt(match, pricing, with_tier=True)
+    assert tier == 0 and "per employee per month" in excerpt
