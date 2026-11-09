@@ -1,0 +1,155 @@
+id: s37_approval_day_en
+language: en
+area: travel
+capabilities: [travel]
+timezone: Asia/Tokyo
+persona:
+  name: Riley Demo
+  email: riley@example.invalid
+  phone: +1-202-555-0156
+  home_city: Tokyo
+  notes: Synthetic owner. Hold booking until my item-specific yes.
+user_md: 'Owner zone Asia/Tokyo. Voice: brief, warm, direct. Dinner for two on the first evening in Osaka. Book under the owner''s name, Riley Demo. Calendar write is not granted.'
+max_user_turns: 3
+budget_seconds: 900
+seed:
+- operation: trip_import
+  data:
+    trip_id: lab-trip-osaka
+    title: Synthetic Osaka short break
+    timezone: Asia/Tokyo
+    ics_text: |
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Capability Lab//Synthetic Trip//EN
+      BEGIN:VEVENT
+      UID:lab-osaka-arrival
+      DTSTART;TZID=Asia/Tokyo:@in_3_days@T110000
+      DTEND;TZID=Asia/Tokyo:@in_3_days@T121500
+      SUMMARY:Synthetic arrival flight LAB101 Tokyo to Osaka
+      LOCATION:Osaka synthetic airport
+      END:VEVENT
+      BEGIN:VEVENT
+      UID:lab-osaka-hotel
+      DTSTART;TZID=Asia/Tokyo:@in_3_days@T150000
+      DTEND;TZID=Asia/Tokyo:@in_5_days@T110000
+      SUMMARY:Two-night stay at Synthetic Willow Hotel
+      LOCATION:2 Example Lane Osaka
+      END:VEVENT
+      END:VCALENDAR
+- operation: action_upsert
+  data:
+    action_id: lab:supplier-date
+    action_type: commitment
+    status: open
+    fields:
+      title: Synthetic Alder Supply delivery decision
+      loop_kind: ask_owner
+      counterparty: Owner
+      next_actor: owner
+      opened_at: '@today@T09:00:00+09:00'
+      next_step: Draft reply to Alder Supply after the owner decides
+      question: Alder Supply asks whether to accept delivery two days later. Which option?
+      options: [Accept later delivery, Keep the original date, Cancel the order]
+      due_at: '@in_1_days@T17:00:00+09:00'
+- operation: action_upsert
+  data:
+    action_id: lab:client-slot
+    action_type: commitment
+    status: open
+    fields:
+      title: Synthetic Birch Studio call slot
+      loop_kind: ask_owner
+      counterparty: Owner
+      next_actor: owner
+      opened_at: '@today@T09:00:00+09:00'
+      next_step: Draft reply to Birch Studio after the owner picks a slot
+      question: Birch Studio asks for a call slot. Which works?
+      options: ['Tomorrow at 10:00 Asia/Tokyo', 'In two days at 15:00 Asia/Tokyo']
+      due_at: '@in_2_days@T09:00:00+09:00'
+- operation: action_upsert
+  data:
+    action_id: lab:renewal
+    action_type: commitment
+    status: open
+    fields:
+      title: Synthetic Cedar Notes renewal
+      loop_kind: ask_owner
+      counterparty: Owner
+      next_actor: owner
+      opened_at: '@today@T09:00:00+09:00'
+      next_step: Draft renewal instruction after the owner decides
+      question: Cedar Notes renewal needs a keep or cancel decision.
+      options: [Keep the renewal, Cancel the renewal]
+      due_at: '@in_3_days@T17:00:00+09:00'
+lab:
+  kind: approvals
+  decisions:
+  - {action_id: "lab:supplier-date", due: "@in_1_days@"}
+  - {action_id: "lab:client-slot", due: "@in_2_days@"}
+  - {action_id: "lab:renewal", due: "@in_3_days@"}
+  output_contract: >-
+    End with JSON {"lab_summary": {...}} (a code fence is fine), with owner-facing prose above it.
+    Step 0: decisions lists each open owner decision with action_id, problem, at least two options,
+    recommendation (the name of one option), decide_by (ISO date no later than its due date),
+    and draft (the ready message to send after the owner picks, at least 20 characters).
+    approval_packet contains item, venue, start, end, timezone, party_size, price_text, cancellation_deadline,
+    decide_by (ISO date no later than free cancellation) and recommendation (one line).
+    Step 1: booking contains reference, start, venue, itinerary (the tool result's follow_through.trip_note),
+    reminders (objects with label and due_at, ISO 8601 with offset, identical to follow_through), calendar {"ics":"<path>"} or "calendar" only if a calendar write was granted.
+    Step 2: lab_summary is {"booking_reference":"<existing reference>","new_actions":0}.
+    Say it was already booked and nothing new was done.
+    Use the exact governed action_prepare shape in the personal-assistant skill with enforcement_profile exact_action,
+    tool_name lab_booking_submit, complete tool_args, execution_budget 1, and a fresh_until 24 hours after the synthetic clock.
+    After the owner's yes, action_confirm uses the identical summary and the owner's exact text in data.confirmation.
+    Submit once, lab_booking_get by reference, then pa action_result with outcome confirmed, proof and data.follow_through.
+    follow_through has trip_id lab-trip-osaka, item {kind:restaurant,title,start,end,timezone,location,reference} from the readback,
+    and reminders [{label,due_at}] at the cancellation deadline and a leave-by time before dinner.
+    Report only readback facts; give the owner the ICS path and say the booking is not on their calendar yet.
+  offers:
+  - id: offer-maple-1930
+    venue: Synthetic Maple Dining
+    address: 27 Example Lane, Osaka (synthetic)
+    start: '@in_3_days@T19:30:00+09:00'
+    end: '@in_3_days@T21:30:00+09:00'
+    timezone: Asia/Tokyo
+    party_size: 2
+    price_text: JPY 6000 per person, synthetic fixed menu
+    cancellation_deadline: '@in_2_days@T19:30:00+09:00'
+  - id: offer-maple-1800
+    venue: Synthetic Maple Dining
+    address: 27 Example Lane, Osaka (synthetic)
+    start: '@in_3_days@T18:00:00+09:00'
+    end: '@in_3_days@T20:00:00+09:00'
+    timezone: Asia/Tokyo
+    party_size: 2
+    price_text: JPY 6000 per person, synthetic fixed menu
+    cancellation_deadline: '@in_2_days@T18:00:00+09:00'
+steps:
+- goal: >-
+    Busy day. Bring me everything that needs my decision today, finished so I can just say yes or no.
+    Also get the offer-maple-1930 table ready for the first evening, but don't book it yet.
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: approvals}
+- goal: Confirm the exact approved action, submit once, read the provider confirmation, record follow_through and report.
+  new_session: true
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: approvals}
+  scripted_yes:
+    item: offer-maple-1930
+    tool: lab_booking_submit
+    text: Yes, book offer-maple-1930.
+- goal: Report the existing booking; do nothing new.
+  new_session: true
+  capability: travel
+  answers: {}
+  hour: 12
+  expect: {lab: approvals}
+  scripted_yes:
+    item: offer-maple-1930
+    tool: lab_booking_submit
+    text: Yes, book offer-maple-1930.

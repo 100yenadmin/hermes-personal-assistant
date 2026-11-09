@@ -292,6 +292,42 @@ def test_scripted_dialogue_seed_hour_and_yes(tmp_path, monkeypatch, number):
         assert sim_user.scripted_yes(s["steps"][1]) == seen[1][0]
 
 
+@pytest.mark.parametrize("name", ["s27_booking_after_yes_en", "s37_approval_day_en"])
+def test_scripted_dialogue_session_ids_and_history(tmp_path, monkeypatch, name):
+    from contextlib import nullcontext
+    import hashlib
+    s = copy.deepcopy(catalog()[name])
+    # An ordinary step after the last reset must keep that session and its history.
+    s["steps"].append({k: v for k, v in s["steps"][-1].items() if k != "new_session"})
+    s["max_user_turns"] += 1
+    hh = tmp_path / "home/.hermes"
+    hh.mkdir(parents=True)
+    seen, dispatched = [], []
+    api = SimpleNamespace(entry=SimpleNamespace(dispatch=lambda h, d: dispatched.append(d)))
+    def turn(message, **kwargs):
+        seen.append(kwargs)
+        return {"final_response": "Synthetic reply only", "messages": [{"role": "assistant", "content": "Synthetic history"}]}
+    monkeypatch.setattr(cos, "cron_scope", lambda scheduled: nullcontext())
+    meta = {"start": MOMENT.timestamp()}
+    observer = SimpleNamespace(pages=[], capture=lambda n: [])
+    cos.dialogue(hh, tmp_path, Path(__file__).parents[1], s, api, turn, observer, meta, lambda h: {})
+    sessions = common.read(tmp_path / "run.json")["sessions"]
+    assert len(sessions) == len(s["steps"])
+    for i, (step, call) in enumerate(zip(s["steps"], seen)):
+        expected_suffix = str(tmp_path) + (":step" + str(i) if step.get("new_session") else "")
+        assert call["session_id"] == sessions[str(i)]
+        if i == 0 or step.get("new_session"):
+            assert call["hist"] == []
+            assert call["session_id"].endswith(hashlib.sha256(expected_suffix.encode()).hexdigest()[:6])
+            assert call["session_id"].startswith(MOMENT.astimezone(dt.timezone.utc).strftime("%Y%m%d_%H%M%S_"))
+            if i:
+                assert call["session_id"] not in [c["session_id"] for c in seen[:i]]
+        else:
+            assert call["hist"] == [{"role": "assistant", "content": "Synthetic history"}]
+            assert call["session_id"] == seen[i - 1]["session_id"]
+    assert dispatched
+
+
 @pytest.mark.parametrize("number", [20,21,22,23,24,26])
 def test_unsupported_completion_claim_fails(tmp_path,number):
     s,_=run(tmp_path,number)

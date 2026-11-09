@@ -158,7 +158,7 @@ def evaluate(root, scenario):
     for i, step in enumerate(scenario["steps"]):
         messages = [m["content"] for m in assistants if m.get("step") == i]
         if "lab" in scenario:
-            oracle = booking_checks if scenario["lab"].get("kind") in {"booking", "vendor_request", "disruption", "expense"} else m34_checks
+            oracle = booking_checks if scenario["lab"].get("kind") in {"booking", "approvals", "vendor_request", "disruption", "expense"} else m34_checks
             if scenario["lab"].get("kind") == "onboarding":
                 from . import onboarding_checks as oracle
             result = oracle.evaluate(root, scenario, i, messages, tools)

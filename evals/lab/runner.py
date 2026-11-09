@@ -137,7 +137,7 @@ def guard_reply(scenario, reply, simulated):
 
 def system_prompt(scenario):
     if "lab" in scenario:
-        standins = "lab_booking_*" if scenario["lab"].get("kind") in {"booking", "expense"} else "lab_mail_* and lab_calendar_*"
+        standins = "lab_booking_*" if scenario["lab"].get("kind") in {"booking", "approvals", "expense"} else "lab_mail_* and lab_calendar_*"
         if scenario["lab"].get("kind") == "vendor_request":
             standins = "lab_booking_* and lab_vendor_*"
         if scenario["lab"].get("kind") == "disruption":
@@ -288,15 +288,15 @@ def one(args):
         kwargs = dict(base_url="https://chatgpt.com/backend-api/codex", api_key=api_key, provider="openai-codex", model=MODEL, reasoning_config={"effort": "low"}, service_tier="", max_iterations=60, quiet_mode=True, skip_context_files=True, skip_memory=not onboarding, skip_background_review=True, save_trajectories=False)
         task_id = "pl" + hashlib.sha256(str(root).encode()).hexdigest()[:8]
         # Hermes' native timestamp + hex shape, deterministic within this run root.
-        session_id = (dt.datetime.fromtimestamp(meta["start"], dt.timezone.utc).strftime("%Y%m%d_%H%M%S_")
-                      + hashlib.sha256(str(root).encode()).hexdigest()[:6]) if s.get("lab", {}).get("kind") in {"booking", "vendor_request", "disruption", "expense", "onboarding"} else None
+        from .scenario import SESSION_KINDS
+        default_session_id = cos.session_id(root, meta["start"]) if s.get("lab", {}).get("kind") in SESSION_KINDS else None
 
-        def turn(message, user=False, system="", hist=None, platform=None):
+        def turn(message, user=False, system="", hist=None, platform=None, session_id=None):
             remaining = s["budget_seconds"] - (time.time() - meta["start"])
             if remaining <= 0:
                 raise TimeoutError("dialogue budget exhausted")
             agent = AIAgent(**kwargs, enabled_toolsets=[] if user else ["pa_lab_surface"], run_budget_seconds=remaining,
-                            **({"session_id": session_id} if session_id and not user else {}),
+                            **({"session_id": session_id or default_session_id} if (session_id or default_session_id) and not user else {}),
                             **({"platform": platform} if platform else {}))
             try:
                 if user:
@@ -320,11 +320,18 @@ def one(args):
         step, message = 0, s["steps"][0]["goal"]
         if calls:
             message = calls.message(s["language"], message)
+        step_session_id = default_session_id
         for number in range(0 if scripted else s["max_user_turns"]):
             observer.step, observer.turn = step, number
+            if step_session_id and str(step) not in meta.setdefault("sessions", {}):
+                if s["steps"][step].get("new_session"):
+                    history = []
+                    step_session_id = cos.session_id(root, meta["start"], step)
+                meta["sessions"][str(step)] = step_session_id
             before = ledger(hh)
             transcript.append({"role": "user", "content": message, "step": step})
-            result = turn(message, system=system, hist=history)
+            result = turn(message, system=system, hist=history,
+                          **({"session_id": step_session_id} if step_session_id else {}))
             history = result.get("messages") or []
             write(root / f"history-step-{step}.json", history)
             reply = result.get("final_response", "")

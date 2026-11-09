@@ -10,4 +10,7 @@ Required for v1 final actions: data shared for check-ins, delivery address for f
 
 Required for non-monetary actions: recipient and message preview for messages, recipient for calls, calendar visibility and attendees for calendar writes, changed fields and data shared for profile changes.
 
+Optional `decide_by`: when the hold, price or free cancellation lapses, or the owner's own deadline.
+Optional `recommendation`: one line with your recommended choice and why.
+
 Never include full card number, CVV, one-time code, password value, passport scan, raw cookie, session token, private key, or seed phrase.

@@ -171,7 +171,7 @@ class Observer:
 
     def approved(self, args, tool_name=None):
         from evals.lab.sim_user import scripted_yes
-        if (self.lab.get("kind") in {"booking", "vendor_request", "disruption", "expense"} and tool_name == "pa"
+        if (self.lab.get("kind") in {"booking", "approvals", "vendor_request", "disruption", "expense"} and tool_name == "pa"
                 and args.get("operation") == "action_confirm"):
             def strings(value):
                 if isinstance(value, str):
@@ -202,7 +202,7 @@ class Observer:
                     continue
                 if any(m.get("role") == "user" and index == m.get("step") <= self.step
                        and m.get("content") == text for m in turns):
-                    if self.lab.get("kind") in {"vendor_request", "disruption"}:
+                    if self.lab.get("kind") in {"vendor_request", "disruption", "approvals"}:
                         from evals.lab.booking_checks import arguments, operation, successful, result_of, string_values
                         from evals.lab.common import lines
                         return any(operation(t, "action_confirm") and successful(t) and t.get("step", 999) <= self.step
@@ -340,7 +340,7 @@ def register_calendar(ctx, calendar):
 
 # Scoring fields in the scenario's thread fixtures; m34_checks reads them from scenario.json, the agent never sees them.
 ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden",
-               "awaiting_reply", "keywords"}
+               "awaiting_reply", "keywords", "decisions"}
 
 
 MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label:inbox|-(?:in|is|category|label):\S+|(?:newer|older)_than:\S+)$")

@@ -14,6 +14,8 @@ read existing state before any retry; never replay an uncertain send.
 
 ## Exceptions and escalation
 
+Every decision you bring the owner is finished: the draft or packet ready to go, a decide-by date and your recommendation with one line of why. Several decisions can share one message; never send a bare question.
+
 Report an exception in the current turn, or as the scheduled final response when
 unattended. Do not wait for the next daily summary. Respect quiet hours; unattended
 exceptions wait unless the owner explicitly allowed quiet-hours exceptions.
