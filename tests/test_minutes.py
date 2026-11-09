@@ -1,5 +1,6 @@
 """Synthetic transcript-to-minutes through the public entry contract; no network, no sends."""
 import copy
+import datetime as dt
 import json
 from pathlib import Path
 import socket
@@ -325,3 +326,23 @@ def test_failed_staging_write_leaves_no_temporary(home, monkeypatch):
     monkeypatch.setattr(minutes.os, "fdopen", real)
     assert not list((home / "exports/minutes").glob(".*.tmp"))
     assert "error" not in save(home)  # A retry in the same process works.
+
+
+@pytest.mark.parametrize("wording,due,meeting,ok", [
+    ("by Friday", "2026-11-13", "2026-11-09", True), ("Friday", "2026-11-13", "2026-11-13", True),
+    ("next Monday", "2026-11-16", "2026-11-09", True), ("on the 3rd", "2026-12-03", "2026-11-30", True),
+    ("by 5", "2026-11-09", "2026-11-09", True), ("today or tomorrow", "2026-11-10", "2026-11-09", True),
+    ("Friday in two weeks", "2026-11-27", "2026-11-09", True), ("by Friday, December 25", "2026-12-25", "2026-11-09", True),
+    ("a week from today", "2026-11-16", "2026-11-09", True), ("a week from tomorrow", "2026-11-17", "2026-11-09", True),
+    ("before the 12th", "2026-11-11", "2026-11-09", True), ("by end of week", "2026-11-13", "2026-11-09", True),
+    ("by Friday", "2026-11-12", "2026-11-09", False), ("by Friday.", "2026-12-25", "2026-11-09", False),
+    ("tomorrow", "2026-11-11", "2026-11-09", False), ("by the 12th", "2026-11-13", "2026-11-09", False),
+    ("next Friday", "2026-12-04", "2026-11-09", False)])
+def test_date_wording_checks_only_plain_forms(wording, due, meeting, ok):
+    from personal_assistant.minutes import _date_fits
+    assert _date_fits(wording, dt.date.fromisoformat(due), dt.date.fromisoformat(meeting)) is ok
+
+
+def test_speaker_labels_with_twelve_hour_times():
+    from personal_assistant.minutes import SPEAKER
+    assert SPEAKER.findall("12:03 PM Riley: hi\n(9:15 a.m.) Jordan: yes\n12:04 Amy: ok\n12:05 Pam: sure\n") == ["Riley", "Jordan", "Amy", "Pam"]

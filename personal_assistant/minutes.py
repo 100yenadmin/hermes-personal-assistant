@@ -48,7 +48,7 @@ STOP = {"the", "and", "for", "you", "our", "but", "not", "all", "any", "can", "h
         "his", "her", "him", "she", "who", "how", "let", "get", "got", "one", "too", "yes", "now", "off", "out",
         "with", "that", "this", "will", "from", "have", "about", "them", "they", "their", "there", "then", "than",
         "next", "week", "what", "when", "should", "would", "could", "into", "your", "just", "also", "make", "sure"}
-SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*|\(?\d{1,2}:\d{2}(?::\d{2})?\)?\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
+SPEAKER = re.compile(r"^\s*(?:\[[^\]]*\]\s*|\(?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP]\.?[mM]\.?(?!\w))?\)?\s*)?([^\W\d][\w .'-]{0,40}?)\s*:", re.M)
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -75,15 +75,17 @@ def _within(owner, person):
 
 
 def _date_fits(wording, due, meeting):
-    """Cheap consistency for the common spoken forms; other wording is not checked."""
-    words = set(re.findall(r"[a-z]+", _norm(wording)))
-    named = [i for i, day in enumerate(WEEKDAYS) if day in words]
-    if named and (due.weekday() not in named or not 0 <= (due - meeting).days <= (14 if words & {"next", "week"} else 7)):
-        return False  # "by Friday" is the coming Friday; "next Friday" or "Friday week" at most two weeks out.
-    if "today" in words and due != meeting or "tomorrow" in words and due != meeting + dt.timedelta(days=1):
-        return False
-    day = re.fullmatch(r"(?:by |on |before )?(?:the )?(\d{1,2})(?:st|nd|rd|th)?", _norm(wording))
-    return not day or int(day.group(1)) == due.day
+    """Checks only the plainest spoken forms; any other wording ("a week from today", "before the 12th") passes."""
+    plain = " ".join(re.sub(r"[^\w\s]", " ", _norm(wording)).split())
+    span = (due - meeting).days
+    weekday = re.fullmatch(r"(?:(by|on|this|next) )?(" + "|".join(WEEKDAYS) + ")", plain)
+    if weekday:  # "by Friday" is the coming Friday; "next Friday" at most two weeks out.
+        return due.weekday() == WEEKDAYS.index(weekday.group(2)) and 0 <= span <= (14 if weekday.group(1) == "next" else 7)
+    relative = re.fullmatch(r"(?:by )?(today|tomorrow)", plain)
+    if relative:
+        return span == ("today", "tomorrow").index(relative.group(1))
+    day = re.fullmatch(r"(?:by |on )?(?:the (\d{1,2})(?:st|nd|rd|th)?|(\d{1,2})(?:st|nd|rd|th))", plain)
+    return not day or int(day.group(1) or day.group(2)) == due.day  # "the 12th", never a bare "by 5" (a time).
 
 
 def _named(name, transcript, speakers):
