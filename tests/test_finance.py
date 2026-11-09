@@ -145,8 +145,12 @@ def test_cash_latest_label_across_currency_and_as_of_cutoff(ledger):
     balance(ledger, account_label=" ＭＡＩＮ ", as_of="2026-11-09", currency="JPY", amount="200")
     balance(ledger, account_label="Main", as_of="2026-11-10", currency="EUR", amount="300")
     view = call(ledger, "cash_position", as_of="2026-11-09")
-    assert set(view["currencies"]) == {"JPY"}
+    # The same label in another currency never hides the earlier currency's balance.
+    assert set(view["currencies"]) == {"USD", "JPY"}
     assert view["currencies"]["JPY"]["projected_7d"]["amount"] == "200"
+    assert [b["age_days"] for b in view["currencies"]["USD"]["balances"]] == [1]
+    later = call(ledger, "cash_position", as_of="2026-11-10")
+    assert set(later["currencies"]) == {"USD", "JPY", "EUR"}
     assert call(ledger, "cash_position", as_of="2026-11-07") == {"as_of": "2026-11-07", "currencies": {}, "gaps": []}
 
 
@@ -299,3 +303,16 @@ def test_skills_document_owner_evidence_cadence_and_projection():
         assert text in skill
     route = (root / "skills/personal-assistant/SKILL.md").read_text()
     assert "states a balance, or asks for a cash position or monthly summary" in route
+
+
+def test_unrelated_commitments_with_odd_fields_do_not_break_views(ledger):
+    dispatch(ledger.root, {"operation": "action_upsert", "data": {"action_id": "rent-reminder", "fields": {"amount": 1200, "as_of": 5}}})
+    balance(ledger)
+    assert call(ledger, "cash_position")["currencies"]
+    assert call(ledger, "monthly", month="2026-11")["month"] == "2026-11"
+
+
+def test_refund_is_not_a_possible_duplicate(ledger):
+    invoice(ledger, "bill", status="paid", direction="payable", amount="30", counterparty="Synthetic Vendor")
+    expense(ledger, "refund", amount="30", date="2026-11-13", merchant="Synthetic Vendor", kind="refund")
+    assert call(ledger, "monthly", month="2026-11")["possible_duplicates"] == []

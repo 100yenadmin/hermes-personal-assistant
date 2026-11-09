@@ -95,7 +95,8 @@ def _cash_position(rows, expenses, as_of):
     latest = {}
     for row in sorted(rows, key=lambda r: (r["fields"].get("as_of", ""), r["action_id"])):
         if row["action_type"] == "balance" and row["fields"]["as_of"] <= as_of:
-            latest[_normalize(row["fields"]["account_label"])] = row
+            # One account label can hold several currencies; each keeps its own latest balance.
+            latest[(_normalize(row["fields"]["account_label"]), row["fields"]["currency"])] = row
     balances = list(latest.values())
     invoices = [r for r in rows if r["action_type"] == "invoice" and r["status"] == "open"]
     recent = [r for r in expenses if start <= r["fields"]["date"] <= as_of]
@@ -155,7 +156,7 @@ def _monthly(rows, expenses, month):
             f = bill["fields"]
             for expense in spent:
                 e = expense["fields"]
-                if (Decimal(f["amount"]) == Decimal(e["amount"])
+                if (e["kind"] == "charge" and Decimal(f["amount"]) == Decimal(e["amount"])
                         and _normalize(f["counterparty"]) == _normalize(e.get("merchant", ""))
                         and abs((dt.date.fromisoformat(f["paid_on"]) - dt.date.fromisoformat(e["date"])).days) <= 3):
                     result["possible_duplicates"].append({"invoice_id": bill["action_id"], "expense_id": expense["action_id"]})
@@ -214,9 +215,11 @@ def dispatch(ledger, data):
         if data["as_of"] > today:
             raise ValueError("finance.as_of must not be after owner-local today")
         return _balance(ledger, data)
-    rows, expenses = ledger.list("action"), _rows(ledger)
+    # Only finance rows: other commitments may carry arbitrary fields such as a numeric amount.
+    rows = [r for r in ledger.list("action") if r["action_type"] in ("balance", "invoice")]
+    expenses = _rows(ledger)
     with localcontext() as ctx:
-        ctx.prec = max(28, sum(len(r["fields"].get("amount", "")) for r in rows) + 3)
+        ctx.prec = max(28, sum(len(r["fields"]["amount"]) for r in rows + expenses) + 3)
         if action == "cash_position":
             return _cash_position(rows, expenses, data.get("as_of", today))
         result, paid, spent = _monthly(rows, expenses, data["month"])
