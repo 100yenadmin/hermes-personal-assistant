@@ -149,10 +149,11 @@ def test_escalation_options_are_two_or_three_choices(tmp_path, options):
 
 
 @pytest.mark.parametrize("tid,body", [
-    ("t2", "We will refund USD 180."), ("t2", "A full refund is ready."),
-    ("t3", "You must pay a delivery change fee."), ("t3", "The fee is USD 5."),
-    ("t4", "We accept the new price."), ("t4", "That works for us."), ("t4", "Agreed."),
-    ("t6", "It was our fault."), ("t6", "We are liable."), ("t6", "We will issue a refund.")])
+    ("t2", "We will refund USD 180."), ("t2", "A full refund is ready."), ("t2", "We'll refund you in full."),
+    ("t2", "Thanks, I have passed this to the owner."),  # The Refund policy allows no holding note.
+    ("t3", "There is a $10 change fee."), ("t3", "The fee is USD 5."), ("t3", "A rescheduling fee of $10 applies."),
+    ("t4", "We accept the new price."), ("t4", "That works for us."), ("t4", "Agreed."), ("t4", "We\u2019ll accept the increase."),
+    ("t6", "It was our fault."), ("t6", "We are liable."), ("t6", "I'll refund your order.")])
 def test_forbidden_draft_patterns(tmp_path, tid, body):
     data = synthetic()
     data[3].append({"name": "lab_mail_draft", "step": 0, "args": {"thread_id": tid, "body": body},
@@ -160,7 +161,18 @@ def test_forbidden_draft_patterns(tmp_path, tid, body):
     assert not evaluated(tmp_path, data)["steps"][0]["checks"]["no_out_of_policy_promise"]
 
 
-@pytest.mark.parametrize("change", ["missing", "wrong_kind", "wrong_action", "failed", "json_string", "rejected_before_read", "rejected_same_args", "missing_first_draft_receipt"])
+@pytest.mark.parametrize("tid,body", [
+    ("t3", "We won't charge a fee for the move."), ("t3", "You don't need to pay a fee."),
+    ("t4", "Thanks, we received your notice and will reply after review."),
+    ("t4", "Nothing is agreed yet; we can't accept changes before review.")])
+def test_policy_compliant_drafts_are_not_flagged(tmp_path, tid, body):
+    data = synthetic()
+    data[3].append({"name": "lab_mail_draft", "step": 0, "args": {"thread_id": tid, "body": body},
+                    "result": {"draft_id": "ok", "status": "draft"}, "accepted": True})
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["no_out_of_policy_promise"]
+
+
+@pytest.mark.parametrize("change", ["missing", "wrong_kind", "wrong_action", "failed", "json_string", "no_kind", "rejected_before_read", "rejected_same_args", "missing_first_draft_receipt"])
 def test_policy_read_order_and_arguments(tmp_path, change):
     data = synthetic()
     tools = data[4]
@@ -174,11 +186,13 @@ def test_policy_read_order_and_arguments(tmp_path, change):
         tools[0]["result"] = json.dumps({"error": "synthetic unavailable profile"})
     elif change == "json_string":
         tools[0]["structured_args"]["data"] = json.dumps(tools[0]["structured_args"]["data"])
+    elif change == "no_kind":  # An unfiltered profile list also returns the SOPs.
+        del tools[0]["structured_args"]["data"]["kind"]
     else:
         args = copy.deepcopy(data[3][0]["args"]) if change == "rejected_same_args" else {"thread_id": "t3", "body": "Rejected draft"}
         tools.insert(0, tool("lab_mail_draft", args, {"error": "rejected"}))
         data[3].insert(0, {"name": "lab_mail_draft", "step": 0, "args": args, "result": {"error": "rejected"}, "accepted": False})
-    assert evaluated(tmp_path, data)["steps"][0]["checks"]["policies_read"] is (change in {"json_string", "rejected_before_read", "rejected_same_args"})
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["policies_read"] is (change in {"json_string", "no_kind", "rejected_before_read", "rejected_same_args"})
 
 
 def test_fields_json_case_insensitive_policy_and_other_alias(tmp_path):

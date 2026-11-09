@@ -40,7 +40,7 @@ def evaluate(root, scenario, index, messages, tools):
         data = args.get("data", {})
         if isinstance(data, str):
             data = json.loads(data)
-        if t.get("name") == "pa" and args.get("operation") == "profile" and data.get("action") == "list" and data.get("kind") == "sop":
+        if t.get("name") == "pa" and args.get("operation") == "profile" and data.get("action") == "list" and data.get("kind") in ("sop", None):
             result = result_of(t)
             policies_read |= isinstance(result, (list, dict)) and "error" not in result
 

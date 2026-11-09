@@ -11,8 +11,8 @@ message. Read its steps, limits and escalation before preparing a reply.
 ## In policy
 
 Follow the policy's `steps`, offer only what they allow, and stay grounded in
-the thread. On the `pa:inbox:<alias>:<thread_id>` row record
-`policy_ref: "<sop title> v<version>"`.
+the thread. On the `pa:inbox:<alias>:<thread_id>` row (create it if the
+thread has none) record `policy_ref: "<sop title> v<version>"`.
 Keep the voice, person rules, draft rights and read-back requirements in
 `drafts-and-sends.md`.
 
@@ -22,7 +22,7 @@ No matching policy, an unclear policy, a request past its limits, or a trigger
 in its `escalation` goes to the owner. Examples include an amount above the
 limit, a legal threat, or a change to price or terms.
 Write no committing draft. A holding acknowledgement that promises nothing
-is allowed only when the policy says so.
+is allowed only when the policy says so; otherwise save no draft for the thread.
 Give the owner the escalation packet from `../../references/reporting.md`:
 `problem`, `options` (2–3), `recommendation` and `decision_deadline`.
 Track the thread row with `loop_kind: ask_owner`, `decision_needed` and
