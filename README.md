@@ -222,9 +222,9 @@ These skills never install software, silently edit SOUL.md, USER.md or skills,
 or send unapproved messages. Follow-ups use only owner-approved HeartBeat 2.0
 `at` wakes in the same chat.
 
-## Quick start
+## Agent quick start
 
-After an approved installation and activation:
+For agents and developers, after installation and activation:
 
 1. Call `pa(operation="status")` to confirm the plugin responds and inspect
    durable state without changing it.
@@ -266,27 +266,34 @@ weather, and itinerary support. These are optional domain modules over the same
 PA control plane. `personal-assistant:content-admin` plans dated social content
 and newsletter drafts in the owner's voice, held for approval; nothing posts automatically.
 
-## Installation
+## Installation details
 
-Install one reviewed full Git commit and leave it disabled while inspecting the
-manifest and [`after-install.md`](after-install.md):
+The one-line install at the top pins the stable release v0.11.0. Releases newer than that (the `-rc` pre-releases on the [Releases page](https://github.com/100yenadmin/hermes-personal-assistant/releases)) are release candidates; install one by its tag or full commit with `--ref`.
+
+To inspect before turning it on, install it disabled, read the manifest and [`after-install.md`](after-install.md), then enable it with Hermes's plugin controls:
 
 ```bash
 hermes plugins install 100yenadmin/hermes-personal-assistant \
-  --ref <40-character-approved-commit> --no-enable
+  --ref 57f701e83ebb807be4d1429d7e35f02bdf5dd5d8 --no-enable
+hermes plugins enable personal-assistant
 ```
 
-Install the declared `python_dependencies` into that Hermes environment, then
-enable `personal-assistant` through Hermes's native plugin controls after the
-profile owner approves activation. Restart or reload only at an agreed idle
-point. Verify `pa` and `personal-assistant:personal-assistant` discovery before
-use.
+Without `--yes-deps`, Hermes asks before installing the declared Python dependencies. Restart or reload at a quiet moment, then check that the `pa` tool and the `personal-assistant:personal-assistant` skill are listed.
 
-Pinned revisions do not update automatically. A direct pinned install moves only
-with `hermes plugins install … --force --ref <approved SHA>`. Some Hermes versions
-replace the plugin folder, so copy PA's local configuration files out first and
-put them back afterwards (see `docs/release-process.md`). For an isolated loader
-check without profile or provider mutation, use `scripts/check_pa_native.py`.
+Pinned installs do not update on their own. To move to another release, run `hermes plugins install … --force --ref <tag or commit>`. Some Hermes versions replace the plugin folder, so copy PA's local configuration files out first and put them back afterwards (see `docs/release-process.md`). For an isolated loader check without touching a profile or provider, use `scripts/check_pa_native.py`.
+
+## Troubleshooting
+
+- **`pa` is not listed after install.** Run `hermes plugins list`. If PA shows as disabled, run `hermes plugins enable personal-assistant`, then restart the gateway and start a new chat.
+- **The install stops at a dependency question.** Add `--yes-deps`, or answer yes, so Hermes can install the Python dependencies in `plugin.yaml`.
+- **A site blocks the local browser or needs a sign-in.** PA stops and hands over honestly. For a cloud browser, set `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` in the profile's secrets and put `agent-browser` on PATH (#39).
+- **`hermes plugins validate` warns about `pa_delivery_ack`.** That tool registers only when conversation delivery is turned on, so the warning is expected.
+
+## Report a bug
+
+Open an issue with the [issue tracker](https://github.com/100yenadmin/hermes-personal-assistant/issues/new/choose). For a security problem, use a [private security advisory](https://github.com/100yenadmin/hermes-personal-assistant/security/advisories/new) instead of a public issue.
+
+[Releases](https://github.com/100yenadmin/hermes-personal-assistant/releases) · [CHANGELOG](CHANGELOG.md) · [CONTRIBUTING](CONTRIBUTING.md) · [LICENSE](LICENSE)
 
 ## Verification and rollback
 
