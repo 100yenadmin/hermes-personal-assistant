@@ -525,4 +525,17 @@ def test_read_budget_counts_line_overhead_and_cuts_one_huge_line(home, monkeypat
     monkeypatch.setattr(minutes, "PAGE", 100)
     (home / "imports/meetings/long.txt").write_text("Avery: " + "x" * 500 + "\nJordan: ok\n")
     first = read(home, path="imports/meetings/long.txt")
-    assert first["lines"] == [{"n": 1, "text": ("Avery: " + "x" * 500)[:100], "truncated": True}] and first["next_offset"] == 1
+    whole = "Avery: " + "x" * 500
+    assert first["lines"] == [{"n": 1, "text": whole[:100], "truncated": True}]
+    assert first["next_offset"] == 0 and first["next_from"] == 100
+    # Paging with offset and from rebuilds the long line and the line after it.
+    parts, page = [], first
+    while page["next_offset"] is not None:
+        parts += page["lines"]
+        page = read(home, path="imports/meetings/long.txt", offset=page["next_offset"], **({"from": page["next_from"]} if "next_from" in page else {}))
+    parts += page["lines"]
+    rebuilt = {}
+    for line in parts:
+        rebuilt[line["n"]] = rebuilt.get(line["n"], "") + line["text"]
+    assert rebuilt == {1: whole, 2: "Jordan: ok"}
+    assert parts[1]["from"] == 100 and "from" not in parts[-1]

@@ -45,7 +45,8 @@ SAVE_SCHEMA = {"type": "object", "additionalProperties": False,
                      "properties": {"question": TEXT, "quote": QUOTE}}}}}
 READ_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["action", "path"],
                "properties": {"action": {"const": "read"}, "path": {"type": "string", "minLength": 1},
-                              "offset": {"type": "integer", "minimum": 0}}}
+                              "offset": {"type": "integer", "minimum": 0},
+                              "from": {"type": "integer", "minimum": 0}}}
 # read returns the transcript's numbered lines so the agent can draft from them; save writes the minutes.
 OP_SCHEMA = {"type": "object", "required": ["action"],
              "if": {"properties": {"action": {"const": "read"}}, "required": ["action"]},
@@ -278,19 +279,29 @@ def _page(root, data):
         raise ValueError("minutes read path must be under imports/meetings/")
     lines = _read(root, data["path"]).splitlines()
     start = int(data.get("offset", 0))  # Draft 7 accepts 1.0 as an integer.
-    out, size = [], 0
-    for n, text in enumerate(lines[start:], start + 1):
-        cost = min(len(text), PAGE) + 24
+    skip = int(data.get("from", 0))  # Character position inside the first line, to resume a cut line.
+    out, size, resume = [], 0, None
+    for index in range(start, len(lines)):
+        base = skip if index == start else 0
+        piece = lines[index][base:]
+        cost = min(len(piece), PAGE) + 24
         if out and (size + cost > PAGE or len(out) >= PAGE_LINES):
+            resume = (index, 0)
             break
-        line = {"n": n, "text": text[:PAGE]}
-        if len(text) > PAGE:
-            line["truncated"] = True  # One line longer than a page comes back cut, never whole.
+        line = {"n": index + 1, "text": piece[:PAGE]}
+        if base:
+            line["from"] = base
         out.append(line)
+        if len(piece) > PAGE:  # A line longer than a page comes back in parts; the next call resumes it.
+            line["truncated"] = True
+            resume = (index, base + PAGE)
+            break
         size += cost
-    end = start + len(out)
-    return {"path": data["path"], "total_lines": len(lines), "offset": start, "lines": out,
-            "next_offset": end if end < len(lines) else None, "sent": False}
+    result = {"path": data["path"], "total_lines": len(lines), "offset": start, "lines": out,
+              "next_offset": resume[0] if resume else None, "sent": False}
+    if resume and resume[1]:
+        result["next_from"] = resume[1]
+    return result
 
 
 def dispatch(ledger, data):
