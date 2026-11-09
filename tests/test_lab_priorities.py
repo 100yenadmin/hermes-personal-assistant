@@ -2,6 +2,7 @@
 import copy
 import datetime as dt
 import json
+import re
 import socket
 
 import pytest
@@ -129,3 +130,26 @@ def test_mail_receipt_without_tool_log_still_fails(tmp_path):
     common.append(tmp_path / "mail-calls.jsonl", {"name": "lab_mail_send", "step": 0, "accepted": False})
     result = evaluated(tmp_path, data)
     assert [k for k, ok in result["steps"][0]["checks"].items() if not ok] == ["nothing_sent"]
+
+
+@pytest.mark.parametrize("tool,ok", [
+    ({"name": "pa", "structured_args": {"operation": "profile", "data": {"action": "list"}}}, True),
+    ({"name": "pa", "structured_args": {"operation": "profile", "data": None}}, True),
+    ({"name": "pa", "structured_args": {"operation": "evidence", "data": {"action": "record"}}}, True),
+    ({"name": "todo", "structured_args": {}}, True),
+    ({"name": "skill_manage", "structured_args": {}}, False),
+    ({"name": "pa", "structured_args": {"operation": "profile", "data": {"action": "remember"}}}, False),
+    ({"name": "pa", "structured_args": {"operation": "action_confirm", "data": {}}}, False)])
+def test_reads_a_real_run_makes_pass_and_writes_fail(tmp_path, tool, ok):
+    """Review: profile list and todo are ordinary reads; other writes still fail."""
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    tools.append({"step": 0, **tool})
+    assert evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["nothing_sent"] is ok
+
+
+def test_next_blocked_accepts_a_blocker_list_and_overload_needs_the_name(tmp_path):
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    summary["next_blocked"] = {"action_id": "lab:kit-page", "blocked_by": ["lab:kit-photos"]}
+    assert evaluated(tmp_path, (s, summary, text, tools, ledger))["all_pass"]
+    text = re.sub(r"(?i)\bsam(?: demo)?\b", "the same person", text)
+    assert not evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["overloaded"]

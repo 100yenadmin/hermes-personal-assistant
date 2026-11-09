@@ -67,3 +67,16 @@ def test_linking_by_id_merges_existing_fields(tmp_path):
     rows = Ledger(tmp_path).list("action")
     assert len(rows) == 1
     assert rows[0]["fields"] == {**original, "priority": "Close the seed round"}
+
+
+@pytest.mark.parametrize("counterparty", [{"name": "Sam", "email": "sam@example.invalid"}, ["Sam", "Lee"], 42, "  "])
+def test_a_structured_counterparty_never_breaks_next_action(tmp_path, counterparty):
+    """Review: a dict or list counterparty is accepted by action_upsert, so load must not hash it."""
+    hh = tmp_path / "home"
+    hh.mkdir()
+    result = dispatch(hh, {"operation": "action_upsert", "data": {"action_id": "odd", "action_type": "commitment",
+              "status": "open", "fields": {"title": "Odd loop", "loop_kind": "delegated", "next_actor": "them",
+                                           "counterparty": counterparty, "opened_at": "2026-11-10"}}})
+    assert "error" not in result, result
+    out = dispatch(hh, {"operation": "next_action", "data": {"at": AT}})
+    assert "error" not in out and out["load"] == {"them": 1}

@@ -6,9 +6,25 @@ from .common import lines, read
 from .m34_checks import fields, report
 from .minutes_checks import nothing_sent
 
-READ_TOOLS = {"read_file", "search_files", "skill_view", "skills_list",
-              "lab_mail_search", "lab_mail_read", "lab_calendar_events", "lab_calendar_freebusy"}
-READ_OPS = {"status", "capabilities", "context", "recipes", "next_action"}
+# Any tool whose name reads as a write fails; harmless Hermes reads (todo, skills_list, web_search) pass.
+WRITE_NAME = re.compile(r"post|publish|tweet|manage|(?:^|_)(?:write|save|draft|send|create|update|delete|archive|label|patch|"
+                        r"remember|forget|execute|terminal|submit)(?:_|$)", re.I)
+READ_OPS = {"status", "capabilities", "context", "recipes", "next_action", "evidence"}
+
+
+def _allowed(tool):
+    name = str(tool.get("name") or "")
+    if name != "pa":
+        return not WRITE_NAME.search(name)
+    args = tool.get("structured_args") or {}
+    data = args.get("data") or {}
+    try:
+        data = json.loads(data) if isinstance(data, str) else data
+    except ValueError:
+        return False
+    action = data.get("action") if isinstance(data, dict) else None
+    op = args.get("operation")
+    return op in READ_OPS | {"action_upsert"} or op == "profile" and action in {None, "list", "pending_files"}
 
 
 def _prose(text):
@@ -41,8 +57,9 @@ def evaluate(root, scenario, index, messages, tools):
     threats = summary.get("threats")
     threats = [r for r in threats if isinstance(r, dict)] if isinstance(threats, list) else []
     local = [t for t in tools if t.get("step") == index]
-    allowed = all(t.get("name") in READ_TOOLS or t.get("name") == "pa" and
-                  t.get("structured_args", {}).get("operation") in READ_OPS | {"action_upsert"} for t in local)
+    allowed = all(_allowed(t) for t in local)
+    blocked = summary.get("next_blocked") if isinstance(summary.get("next_blocked"), dict) else {}
+    by = blocked.get("blocked_by")
     mail = [t for t in lines(root / "mail-calls.jsonl") if t.get("step") == index]
     return {
         "linked": linked,
@@ -51,8 +68,10 @@ def evaluate(root, scenario, index, messages, tools):
                          and all(_contains(r.get("priority"), lab["links"][r["action_id"]])
                                  and _contains(prose, lab["links"][r["action_id"]]) for r in threats
                                  if r.get("action_id") in lab["overdue"]),
-        "next_blocked": summary.get("next_blocked") == lab["next_blocked"],
+        "next_blocked": blocked.get("action_id") == lab["next_blocked"]["action_id"]
+                        and (by == lab["next_blocked"]["blocked_by"]
+                             or isinstance(by, list) and lab["next_blocked"]["blocked_by"] in by),
         "overloaded": _contains(summary.get("overloaded"), lab["overloaded"])
-                      and _contains(prose, lab["overloaded"]),
+                      and bool(re.search(r"\b" + re.escape(lab["overloaded"]) + r"\b", prose, re.I)),
         "nothing_sent": allowed and nothing_sent(local + mail),
     }

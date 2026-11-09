@@ -15,7 +15,7 @@ Load for open items, due chases or recording a loop. Use the user's language.
 Every `references/...` path is relative to this skill directory. The open-loop
 fields are defined in the Open loops section of `personal-assistant:personal-assistant`.
 
-After a verified request or sent message awaiting a reply, pass `follow_through.loop` (counterparty, our next step) in `action_result`; no separate `action_upsert`. Report the reply as chased. This opens `waiting_on_them` at `<action id>:loop`, with nudges at `<loop action id>:nudge:<step>`. Existing-loop steps record a chase, never another `follow_through.loop`.
+After a verified vendor request or sent message awaiting a reply, pass `follow_through.loop` (counterparty, our next step) in `action_result`; no separate `action_upsert`. Report the reply as chased. This opens `waiting_on_them` at `<action id>:loop`, with nudges at `<loop action id>:nudge:<step>`. Existing-loop steps record a chase, never another `follow_through.loop`.
 
 When a commitment clearly serves a top-three priority in USER.md, set `fields.priority` to its short name exactly as written; otherwise leave it unset. Never invent priorities.
 When an item cannot start until another finishes, set `fields.blocked_by` to that item's `action_id`.

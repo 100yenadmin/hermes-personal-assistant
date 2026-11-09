@@ -506,10 +506,11 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             if guidance:
                 item["next_step"] = guidance
         candidates.append(item)
-        if action.get("action_type") == "commitment" and fields.get("next_actor"):
-            actor = fields["next_actor"]
-            if actor == "them" and fields.get("counterparty"):
-                actor = fields["counterparty"]
+        actor = fields.get("next_actor")
+        if action.get("action_type") == "commitment" and isinstance(actor, str) and actor:
+            counterparty = fields.get("counterparty")
+            if actor == "them" and isinstance(counterparty, str) and counterparty.strip():
+                actor = counterparty.strip()  # Only text names a holder; structured values never break the brief.
             load[actor] = load.get(actor, 0) + 1
     candidates.sort(key=lambda row: (row.get("due_at") is None, row.get("due_at") or "", row["action_id"]))
     page = _page(candidates, limit, offset)

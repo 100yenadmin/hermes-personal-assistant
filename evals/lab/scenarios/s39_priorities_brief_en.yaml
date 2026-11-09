@@ -20,7 +20,7 @@ seed:
     action_id: lab:deck
     action_type: commitment
     status: open
-    fields: {title: Send the updated pitch deck to Fern Capital, next_actor: owner, due_at: '@yesterday@', loop_kind: ask_owner, counterparty: Fern Capital, opened_at: '@today@', next_step: Send the updated pitch deck, chase_log: []}
+    fields: {title: Send the updated pitch deck to Fern Capital, next_actor: owner, due_at: '@yesterday@', loop_kind: our_promise, counterparty: Fern Capital, opened_at: '@today@', next_step: Send the updated pitch deck, chase_log: []}
 - operation: action_upsert
   data:
     action_id: lab:dataroom
@@ -50,7 +50,7 @@ seed:
     action_id: lab:interviews
     action_type: commitment
     status: open
-    fields: {title: Schedule designer interviews, next_actor: owner, due_at: '@in_7_days@', blocked_by: 'lab:job-post', loop_kind: ask_owner, counterparty: Owner, opened_at: '@today@', next_step: Schedule interviews after the job ad, chase_log: []}
+    fields: {title: Schedule designer interviews, next_actor: owner, due_at: '@in_7_days@', blocked_by: 'lab:job-post', loop_kind: our_promise, counterparty: Owner, opened_at: '@today@', next_step: Schedule interviews after the job ad, chase_log: []}
 - operation: action_upsert
   data:
     action_id: lab:plants
