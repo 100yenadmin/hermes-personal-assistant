@@ -282,3 +282,33 @@ def test_importable_phone_cells_and_outlook_headers(tmp_path):
     source(tmp_path, 'First Name,Last Name,E-mail Address,Mobile Phone\nCasey,Demo,c@example.invalid,+1 202 555 0101\n')
     text = Path(call(tmp_path)["paths"]["clean"]).read_text()
     assert "+12025550101" in text and "'+1" not in text and "c@example.invalid" in text
+
+
+def test_read_only_owner_file_is_read(tmp_path):
+    source(tmp_path, 'name,email\nCasey,c@example.invalid\n')
+    path = next((tmp_path / "imports").rglob("*.csv"))
+    path.chmod(0o400)
+    assert "error" not in call(tmp_path)
+
+
+def test_malformed_emails_are_invalid_and_never_merge_keys(tmp_path):
+    source(tmp_path, 'name,email\nAlice,@example.invalid\nAlice,@example.invalid\nBob,a@.\nDan,d@example.\nEve,e@example.invalid\n')
+    result = call(tmp_path)
+    assert [r["source_rows"] for r in table(result["paths"]["clean"])] == ["1", "2", "3", "4", "5"]
+    assert result["counts"]["invalid_emails"] == 4 and result["counts"]["merged_clusters"] == 0
+
+
+def test_same_name_set_is_one_review_item(tmp_path):
+    source(tmp_path, "name,email\n" + "".join(f"Unknown,u{i}@example.invalid\n" for i in range(400)))
+    result = call(tmp_path)
+    assert result["counts"]["possible_duplicates"] == 1
+    assert result["possible_duplicates"] == [{"rows": list(range(1, 401)), "name": "Unknown"}]
+
+
+def test_phone_extension_kept_apart(tmp_path):
+    source(tmp_path, 'name,phone\nCasey,+1 202 555 0101 ext. 23\nCasey,202-555-0101 x23\nDana,202-555-0101x24\n'
+           'Eli,+1 202 555 0101\nFay,+1 202 555 0102;ext=7\n')
+    result = call(tmp_path, default_country_code="1")
+    rows = table(result["paths"]["clean"])
+    assert [r["source_rows"] for r in rows] == ["1; 2", "3", "4", "5"]
+    assert [r["phones"] for r in rows] == ["+12025550101 ext. 23", "+12025550101 ext. 24", "+12025550101", "+12025550102 ext. 7"]

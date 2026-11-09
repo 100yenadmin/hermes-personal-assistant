@@ -29,7 +29,14 @@ def _space(value):
     return " ".join(value.split())
 
 
+EXTENSION = re.compile(r"\s*(?:;\s*ext=|(?<![a-z])ext\.?|(?<![a-z])extension|(?<![a-z])x|#)\s*([0-9]{1,6})\s*$", re.I)
+PHONE_CELL = r"\+?[0-9]+(?: ext\. [0-9]+)?"
+
+
 def _phone(value, code):
+    match = EXTENSION.search(value)  # Keep an extension apart; its digits are not subscriber digits.
+    extension = match.group(1) if match else ""
+    value = value[:match.start()] if match else value
     value = ("+" if value.startswith(("+", "00")) else "") + re.sub(r"[^0-9]", "", value[2:] if value.startswith("00") else value)
     if code and value and not value.startswith("+"):
         if value.startswith("0"):  # A national number: drop one trunk 0.
@@ -38,7 +45,7 @@ def _phone(value, code):
             value = "+" + value
         else:
             value = "+" + code + value
-    return value
+    return value + (" ext. " + extension if extension and value else "")
 
 
 def _tokens(name):
@@ -109,11 +116,11 @@ def _dedupe(headers, kinds, table, code):
         for i, before in enumerate(raw):
             kind, after = kinds[i], _space(before)
             if kind in {"email", "phone"}:
-                parts = [_space(p) for p in re.split(r"\s*:::\s*|[;,]", after) if _space(p)]
+                parts = [_space(p) for p in re.split(r"\s*:::\s*|[;,](?!\s*ext=)", after) if _space(p)]
                 values = [p.lower() if kind == "email" else _phone(p, code) for p in parts]
                 after = "; ".join(values)
                 for value in values:
-                    valid = value.count("@") == 1 and "." in value.split("@")[-1] and not re.search(r"\s", value)
+                    valid = bool(re.fullmatch(r"[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+", value))
                     key = "phones" if kind == "phone" else "emails" if valid else "invalid_emails"
                     row[key].append(value)
                     if key == "invalid_emails":
@@ -135,7 +142,7 @@ def _dedupe(headers, kinds, table, code):
         return i
     seen = {}
     for i, (_, row) in enumerate(rows):
-        keys = [("email", v) for v in row["emails"]] + [("phone", v) for v in row["phones"] if len(re.sub(r"\D", "", v)) >= 7]
+        keys = [("email", v) for v in row["emails"]] + [("phone", v) for v in row["phones"] if len(re.sub(r"\D", "", v.split(" ext. ")[0])) >= 7]
         for key in keys:
             if key in seen:
                 parent[find(i)] = find(seen[key])
@@ -181,13 +188,14 @@ def _dedupe(headers, kinds, table, code):
             bucket = names.setdefault(_space(name), []) if name.strip() else []
             if not any(c[0] is contact for c in bucket):
                 bucket.append((contact, raw_name))
-    possible = []
-    for group in names.values():
-        for i, (a, name) in enumerate(group):
-            for b, _ in group[i + 1:]:
-                item = {"rows": sorted(a["source_rows"] + b["source_rows"]), "name": name}
-                possible.append(item)
-                log("possible_duplicate", **item)
+    possible, listed = [], set()
+    for group in names.values():  # One review item per shared name, never every pair.
+        rows_ = sorted(r for contact, _ in group for r in contact["source_rows"])
+        if len(group) > 1 and tuple(rows_) not in listed:
+            listed.add(tuple(rows_))
+            item = {"rows": rows_, "name": group[0][1]}
+            possible.append(item)
+            log("possible_duplicate", **item)
     counts = {"rows_read": len(table), "contacts_out": len(contacts), "rows_merged": len(rows) - len(contacts)}
     counts.update({key: sum(c["kind"] == kind for c in changes) for key, kind in (
         ("blank_rows", "blank_row"), ("merged_clusters", "merged"), ("normalised_fields", "normalised"),
@@ -206,7 +214,7 @@ def _csv(columns, rows):
     stream = io.StringIO(newline="")
     writer = csv.writer(stream)
     for row in [columns, *[[_cell(r.get(k, "")) for k in columns] for r in rows]]:
-        writer.writerow(["'" + v if v.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) and not re.fullmatch(r"\+[0-9]+(; \+?[0-9]+)*", v) else v
+        writer.writerow(["'" + v if v.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) and not re.fullmatch(PHONE_CELL + "(?:; " + PHONE_CELL + ")*", v) else v
                          for v in row])
     return stream.getvalue()
 
