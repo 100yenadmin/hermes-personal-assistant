@@ -8,7 +8,7 @@ This release finishes the steps after the owner says yes (roadmap M5, in part). 
 
 After the yes (M5-a, #107, #108):
 
-- **Bookkeeping from the readback.** `pa action_result` with outcome `confirmed` takes `follow_through`. In the same atomic write as the result, it does the following:
+- **Bookkeeping from the readback.** `pa action_result` with outcome `confirmed` takes `follow_through`. In the same call, right after the result is recorded, it does the following (if the call is interrupted, re-recording the readback finishes it; see Retries):
   - records the booked item on its trip, with the provider readback as its source;
   - sets up to three reminders, such as leave-by, check-in or the cancellation deadline;
   - writes a single-event ICS file in the profile.

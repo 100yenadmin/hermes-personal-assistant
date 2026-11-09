@@ -291,10 +291,10 @@ needs both.
 
 **Why.** A VA finishes errands. PA still stops at the handoff.
 
-**Status (0.12.0-rc.1).** The steps after the yes are built and pass in the lab
-against stand-in providers. That covers recording a booked item from the
-readback, reminders, the ICS file, vendor requests that become chased loops,
-and appointment, delivery and errand items. Expenses from bookings and
+**Status (0.12.0-rc.1).** The steps after the yes are built. In the lab, against
+stand-in providers, these pass: recording a booked restaurant or appointment from
+the readback, reminders, the ICS file, and vendor requests that become chased
+loops. Delivery and errand items are built but not yet in a lab scenario. Expenses from bookings and
 receipts (M5-c) and changed or cancelled legs (M5-d: what a leg breaks, one
 options packet, and the replacement) are built too. A yes given in another
 session is also claimed exactly once. Lab s27 (a booking after the yes) passed
