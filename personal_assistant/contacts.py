@@ -31,6 +31,7 @@ def _space(value):
 
 EXTENSION = re.compile(r"\s*(?:;\s*ext=|(?<![a-z])ext\.?|(?<![a-z])extension|(?<![a-z])x|#)\s*([0-9]{1,6})\s*$", re.I)
 PHONE_CELL = r"\+?[0-9]+(?: ext\. [0-9]+)?"
+KEEP_ZERO = {"39", "378", "225"}  # Italy, San Marino, Côte d'Ivoire: the leading 0 belongs to the number.
 
 
 def _phone(value, code):
@@ -39,9 +40,13 @@ def _phone(value, code):
     value = value[:match.start()] if match else value
     value = ("+" if value.startswith(("+", "00")) else "") + re.sub(r"[^0-9]", "", value[2:] if value.startswith("00") else value)
     if code and value and not value.startswith("+"):
-        if value.startswith("0"):  # A national number: drop one trunk 0 (Italy and San Marino keep it).
-            value = "+" + code + (value if code in {"39", "378"} else value[1:])
-        elif value.startswith(code) and len(value) - len(code) >= 8:  # Already carries the code, without the +.
+        rest = value[len(code):]
+        # Already carries the code, without the +. Where the leading 0 is part of the number,
+        # national numbers can start with the code digits (Italian mobiles 39x), so need more.
+        coded = value.startswith(code) and ((rest.startswith("0") or len(rest) >= 10) if code in KEEP_ZERO else len(rest) >= 8)
+        if value.startswith("0"):  # A national number: drop one trunk 0, unless the 0 is part of it.
+            value = "+" + code + (value if code in KEEP_ZERO else value[1:])
+        elif coded:
             value = "+" + value
         else:
             value = "+" + code + value
