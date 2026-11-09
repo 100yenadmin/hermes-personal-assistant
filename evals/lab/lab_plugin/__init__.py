@@ -340,13 +340,13 @@ def register_calendar(ctx, calendar):
 ORACLE_KEYS = {"bucket", "urgent", "decision_needed", "buried_deadline", "due_at", "expected_action", "policy", "forbidden"}
 
 
-MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label:inbox)$")
+MAILBOX_SCOPE = re.compile(r"^(?:in:(?:inbox|anywhere)|is:\S+|category:\S+|label:inbox|-(?:in|is|category|label):\S+|(?:newer|older)_than:\S+)$")
 
 
-def mail_search(threads, query, account):
-    """The seeded threads are one account's inbox: scope operators narrow nothing, other terms must all appear."""
-    terms = [t.strip('"') for t in query.lower().split()]
-    if any(t.startswith("account:") and t != "account:" + account for t in terms):
+def mail_search(threads, query, accounts):
+    """The seeded threads are one recent account inbox: scope operators narrow nothing, other terms must all appear."""
+    terms = [t.strip('"()') for t in query.lower().split()]
+    if any(t.startswith("account:") and t[len("account:"):] not in accounts for t in terms):
         return []
     terms = [t.split(":", 1)[1] if t.startswith(("from:", "to:", "subject:")) else t for t in terms
              if t and t not in ("or", "and", "all") and not t.startswith("account:") and not MAILBOX_SCOPE.match(t)]
@@ -372,7 +372,7 @@ def register_standins(ctx, obs):
         result = {"error": blocked["message"]} if blocked else None
         if result is None:
             if name == "lab_mail_search":
-                result = mail_search(threads, str(args.get("query", "")), obs.lab.get("account", "work"))
+                result = mail_search(threads, str(args.get("query", "")), {obs.lab.get("account", "work"), persona_contact(obs.out)["email"]} - {""})
             elif name == "lab_mail_get":
                 result = threads.get(args.get("thread_id"), drafts.get(args.get("draft_id"), {"error": "not found"}))
             elif name == "lab_mail_draft":

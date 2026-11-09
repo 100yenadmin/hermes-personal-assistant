@@ -782,6 +782,12 @@ def test_mail_search_reads_scope_operators_as_the_seeded_inbox(tmp_path):
         assert search(query) == inbox, query
     assert search("in:inbox account:work customer OR vendor") == search("customer OR vendor") == ["t4", "t5"]
     assert search("account:personal in:inbox") == []
+    (tmp_path / "scenario.json").write_text(json.dumps({"persona": {"email": "Rowan@example.invalid"}}))
+    assert search("account:rowan@example.invalid in:inbox") == inbox
+    # Daily Ops section queries name the whole recent inbox.
+    assert search("is:unread -category:promotions -category:updates -category:social -category:forums newer_than:2d") == inbox
+    assert search("is:unread (category:promotions OR category:updates OR category:social OR category:forums) newer_than:3d") == inbox
+    assert search("in:sent") == []
     assert search("in:inbox mug damaged") == ["t1"]
     assert search("from:cedar@example.invalid") == ["t1"]
     assert search("damaged OR artwork") == [t for t in inbox if t in search("damaged") + search("artwork")] == ["t1", "t5"]
