@@ -165,7 +165,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense", "documents", "invoice"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes"}, "lab.kind")
         files = s["lab"].get("files", {})
         require(isinstance(files, dict), "lab.files")
         for destination, source in files.items():
@@ -205,6 +205,24 @@ def validate(s):
                     and seeded[remittance["reference"]]["direction"] == "receivable"
                     and all(isinstance(remittance.get(k), str) and remittance[k] for k in ("paid_on", "evidence")), "lab.remittance")
             require(len(s["steps"]) == 2, "steps")
+        if s["lab"]["kind"] == "minutes":
+            lab = s["lab"]
+            def iso(value):
+                try:
+                    return isinstance(value, str) and dt.date.fromisoformat(value).isoformat() == value
+                except ValueError:
+                    return False
+            def keyword_lists(value):
+                return isinstance(value, list) and bool(value) and all(
+                    isinstance(k, list) and k and all(isinstance(w, str) and w.strip() for w in k) for k in value)
+            require(len(lab["files"]) == 1 and len(s["steps"]) == 1, "lab.files")
+            require(iso(lab.get("meeting_date")) and isinstance(lab.get("owner_name"), str) and lab["owner_name"].strip(), "lab.meeting_date")
+            items = lab.get("expected_items")
+            require(isinstance(items, list) and bool(items) and all(
+                isinstance(i, dict) and set(i) == {"owner", "due_date", "keywords"} and isinstance(i["owner"], str) and i["owner"].strip()
+                and iso(i["due_date"]) and i["due_date"] >= lab["meeting_date"] and keyword_lists([i["keywords"]]) for i in items),
+                "lab.expected_items")
+            require(keyword_lists(lab.get("open_questions")) and keyword_lists(lab.get("decisions")), "lab.open_questions")
         if s["lab"]["kind"] == "disruption":
             from .lab_plugin import BOOKING_FIELDS
             offers, options = s["lab"].get("offers", []), s["lab"].get("flight_options", [])
