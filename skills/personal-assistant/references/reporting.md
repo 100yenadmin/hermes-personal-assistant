@@ -55,7 +55,7 @@ the packet marked unknown or unconfirmed; leave out only optional extras.
 ## Priorities in reports
 
 In briefs, end-of-day notes and weekly reviews:
-- Name the priority each overdue item threatens, or say it is not linked.
+- Name the priority each overdue item threatens, or say it is not linked. Only overdue items are threats; mention an item that is still on time as upcoming, never as a threat.
 - Name the next blocked step: the earliest-due open item whose `blocked_by` item is still open, and what blocks it.
 - When one holder has at least twice as many open items as any other holder and at least 4, name them as overloaded, with the count; use `next_action.load` (counterparty for `them` when set, otherwise `next_actor`) across all pages.
 No KPI or OKR work.

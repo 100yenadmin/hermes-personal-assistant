@@ -74,7 +74,7 @@ lab:
   overloaded: Sam
   output_contract: >-
     End with JSON {"lab_summary": {"links": [{"action_id": "<id>", "priority": "<priority>"}],
-    "threats": [{"action_id": "<id>", "priority": "<priority>"}],
+    "threats": [{"action_id": "<overdue item id>", "priority": "<priority>"}],
     "next_blocked": {"action_id": "<id>", "blocked_by": "<id>"}, "overloaded": "<name>|null"}}.
     Use JSON null for an unlinked item or no overloaded person. Keep owner-facing prose above the JSON.
 steps:
