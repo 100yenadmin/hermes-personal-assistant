@@ -11,6 +11,8 @@ metadata:
 
 # Rideshare Booking
 
+Read `reporting.md` in `../personal-assistant/references/` (relative to this skill directory) for reporting, bridge recovery, progress and pre-send checks.
+
 Every `references/...` path in this skill is relative to this skill directory.
 
 Prepare ground transportation and ask before the final ride request.

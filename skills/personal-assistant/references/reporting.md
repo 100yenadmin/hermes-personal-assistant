@@ -33,6 +33,20 @@ sources, dates/timezones, amounts, attachments, tone, privacy, and exact action
 against current authority. Show the final message and ask for that send's yes;
 never treat preparation or approval as delivery. Read back the receipt afterward.
 
+## Report check
+
+Before any owner-facing report or approval packet, match each price, fare, fee,
+billing term, open slot, and state such as "held", "in cart" or "staged" to a page
+or tool result kept in this turn. Report only what that evidence shows, in its own
+terms; call anything else unconfirmed, or leave it out.
+- A search time or filter is not an open slot: a slot is open when the page lists
+  it as bookable.
+- A menu or product page is not a cart: an item is in the cart only when the cart
+  page shows it.
+- A fare you could not see is unknown; an estimate is labelled as the page's estimate.
+- Re-read the condition printed next to each amount ("billed annually", "per
+  person", "from", "plus tax") before you send.
+
 ## End-of-day note
 
 R5 owns the existing daily_brief job's `end_of_day` occurrence at `eod_time`
