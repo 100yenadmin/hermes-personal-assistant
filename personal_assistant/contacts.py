@@ -17,7 +17,7 @@ OP_SCHEMA = {"type": "object", "additionalProperties": False,
                  "name": {"type": "string", "pattern": r"^[a-z0-9][a-z0-9-]{0,40}$"},
                  "default_country_code": {"type": "string", "pattern": r"^[0-9]{1,3}$"}}}
 LIMIT = 5 * 1024 * 1024
-COLUMNS = "contact_id name emails phones company title notes invalid_emails source_rows".split()
+COLUMNS = "contact_id name given_name family_name emails phones company title notes invalid_emails source_rows".split()
 ALIASES = {"name": ["name", "full name", "display name"], "first": ["first name", "given name"],
            "last": ["last name", "family name"], "email": ["email", "e-mail", "email address", "e-mail address", "e-mail 2 address", "e-mail 3 address"],
            "phone": ["phone", "mobile", "phone number", "mobile phone", "business phone", "home phone", "primary phone"],
@@ -167,19 +167,20 @@ def _dedupe(headers, kinds, table, code):
         numbers = [n for n, _ in group]
         contact = {"contact_id": "c-" + hashlib.sha256(",".join(map(str, sorted(numbers))).encode()).hexdigest()[:10], "source_rows": numbers}
         origins = {}
-        for field in ("name", "emails", "phones", "company", "title", "notes", "invalid_emails", *extras.values()):
+        for field in ("name", "first", "last", "emails", "phones", "company", "title", "notes", "invalid_emails", *extras.values()):
+            out = {"first": "given_name", "last": "family_name"}.get(field, field)  # Structured names survive a display name.
             values = [(v, n) for n, row in group for v in row[field] if v]
             unique = _unique(v for v, _ in values)
             if field in {"emails", "phones", "invalid_emails", "notes"}:
-                contact[field] = " | ".join(unique) if field == "notes" else unique
-                origins[field] = {v: next(n for x, n in values if x == v) for v in unique}
+                contact[out] = " | ".join(unique) if field == "notes" else unique
+                origins[out] = {v: next(n for x, n in values if x == v) for v in unique}
             else:
                 kept = max(unique, key=len) if field == "name" and unique else next(iter(unique), "")
-                contact[field] = kept
-                origins[field] = next((n for v, n in values if v == kept), None)
+                contact[out] = kept
+                origins[out] = next((n for v, n in values if v == kept), None)
                 for v in unique:
                     if v != kept:
-                        log("alternate", field=field, kept=kept, other=v, row=next(n for x, n in values if x == v))
+                        log("alternate", field=out, kept=kept, other=v, row=next(n for x, n in values if x == v))
         if len(group) > 1:
             log("merged", rows=numbers, contact_id=contact["contact_id"], kept_from=origins)
         contacts.append(contact)

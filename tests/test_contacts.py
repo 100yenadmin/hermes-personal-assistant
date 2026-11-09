@@ -55,7 +55,7 @@ def test_normalisation_and_google_columns(tmp_path):
            '  Casey   Demo ," A@EXAMPLE.INVALID ; b@example.invalid, C@example.invalid ::: bad-address ",a@example.invalid,00 44 (20) 5550 1010,  Demo   Co , Lead   Dev ,  a   note ,  extra   value  \n')
     result = call(tmp_path)
     row = table(result["paths"]["clean"])[0]
-    assert row == {"contact_id": "c-" + hashlib.sha256(b"1").hexdigest()[:10], "name": "Casey Demo",
+    assert row == {"contact_id": "c-" + hashlib.sha256(b"1").hexdigest()[:10], "name": "Casey Demo", "given_name": "", "family_name": "",
                    "emails": "a@example.invalid; b@example.invalid; c@example.invalid", "phones": "+442055501010",
                    "company": "Demo Co", "title": "Lead Dev", "notes": "a note", "invalid_emails": "bad-address",
                    "source_rows": "1", "Extra": "extra value"}
@@ -312,3 +312,14 @@ def test_phone_extension_kept_apart(tmp_path):
     rows = table(result["paths"]["clean"])
     assert [r["source_rows"] for r in rows] == ["1; 2", "3", "4", "5"]
     assert [r["phones"] for r in rows] == ["+12025550101 ext. 23", "+12025550101 ext. 24", "+12025550101", "+12025550102 ext. 7"]
+
+
+def test_structured_names_survive_a_display_name(tmp_path):
+    source(tmp_path, 'Name,Given Name,Family Name,E-mail 1 - Value\nMom,Jane,Smith,jane@example.invalid\n'
+           ',Lee,,lee@example.invalid\nJo,Joanne,Park,jo@example.invalid\nJo,Jo,Park,JO@example.invalid\n')
+    result = call(tmp_path)
+    rows = table(result["paths"]["clean"])
+    assert [(r["name"], r["given_name"], r["family_name"], r["source_rows"]) for r in rows] == [
+        ("Mom", "Jane", "Smith", "1"), ("Lee", "Lee", "", "2"), ("Jo", "Joanne", "Park", "3; 4")]
+    assert any((c["kind"], c["field"], c["kept"], c["other"], c["row"]) == ("alternate", "given_name", "Joanne", "Jo", "4")
+               for c in changes(result))
