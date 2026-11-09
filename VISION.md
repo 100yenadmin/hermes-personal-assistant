@@ -142,7 +142,9 @@ retries blindly.
 - **L3 Commit.** A yes for each action, always. L3 is never automated.
 
 L2 is the last expansion of autonomy. It arrives in M8, after L0 and L1 are
-proven, and covers only internal nudges and task writes.
+proven, and covers only internal nudges and task writes. The owner confirms
+L2 before M8 builds it (#159); without that confirmation, every send keeps its
+own yes.
 
 ## Product principles
 

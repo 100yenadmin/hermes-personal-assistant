@@ -457,6 +457,8 @@ Meeting preparation (agendas and pre-reads ahead of meetings) and basic priority
 
 **Exit.**
 - The delegation and decision-log fixtures pass.
+- Meeting preparation (agendas and pre-reads sent ahead of a meeting) and
+  priority mapping (#158) each pass a lab check 3 of 3.
 - Two consenting owners with teams each have six scheduled Chief of Staff runs
   within two weeks (#7). A justified silence counts as a run, but each owner
   must still receive reports, use at least one recommendation, and explicitly
@@ -524,9 +526,10 @@ Meeting preparation (agendas and pre-reads ahead of meetings) and basic priority
     is measured.
 - **The Chief of Staff gate is the VA core, not full parity.** Transactions and
   phone calls depend on outside accounts. Team work does not depend on them.
-- **L2 is the last expansion of autonomy.** It arrives in M8, after L0 and L1
-  are proven, and covers only internal nudges and task writes. L3 always needs
-  an exact-action yes.
+- **L2 is the last expansion of autonomy.** If the owner confirms it (#159), it
+  arrives in M8, after L0 and L1 are proven, and covers only internal nudges and
+  task writes. If not, M8 automates preparation and every team send keeps its
+  own yes. L3 always needs an exact-action yes.
 - **Week-one reliability comes before breadth.** An assistant that works only
   when asked, or whose follow-up log overstates what happened, loses the job
   before breadth matters (gap review, 9 November 2026).
