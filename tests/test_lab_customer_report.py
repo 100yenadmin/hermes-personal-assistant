@@ -177,7 +177,8 @@ def test_customer_report_reference_is_reachable_from_both_routes():
 
 @pytest.mark.parametrize("late,login", [("Delayed deliveries", "Password problems"),
                                         ("Shipping took longer than promised", "Cannot access account"),
-                                        ("Parcels arriving late", "Sign-in trouble")])
+                                        ("Parcels arriving late", "Sign-in trouble"),
+                                        ("Order lateness", "Authentication problems")])
 def test_honest_topic_labels_pass(tmp_path, late, login):
     """Review: topics in the customer's words still match their recurring complaint."""
     data = synthetic(tmp_path)
@@ -198,7 +199,9 @@ def test_a_search_that_returns_whole_threads_counts_as_reading_them(tmp_path):
 @pytest.mark.parametrize("text,ok", [("We replied to 7 of 8 threads within a day; one is unanswered.", True),
                                      ("You replied in a median of 4 hours.", True),
                                      ("I responded to the late-delivery customers.", False),
-                                     ("I've answered all of them.", False)])
+                                     ("I've answered all of them.", False),
+                                     ("I just replied to the wholesale thread.", False),
+                                     ("I already responded to the unanswered one.", False)])
 def test_reply_wording(tmp_path, text, ok):
     data = synthetic(tmp_path)
     data["text"] = text
