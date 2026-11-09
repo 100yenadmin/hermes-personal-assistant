@@ -64,7 +64,7 @@ seed:
     - Track the promised date in a waiting_on_them thread row and use the follow-through chase ladder.
     tools: [lab_mail_get, lab_mail_draft, pa]
     done_when: Chase draft saved and read back; promised date tracked, or marked unknown pending a firm date.
-    escalation: An unclear commitment, any legal threat or chargeback goes to the owner.
+    escalation: A second missed promised date, any legal threat or chargeback goes to the owner.
 lab:
   kind: inbox
   output_contract: >-
@@ -122,7 +122,7 @@ lab:
     policy: null
     forbidden: []
 steps:
-- goal: 'Work through the customer and vendor inbox under my reply policies: draft what a policy covers, escalate what it does not with a decision packet, and send nothing.'
+- goal: 'Work through the customer and vendor threads in my work inbox under my reply policies: draft what a policy covers, escalate what it does not with a decision packet, and send nothing.'
   capability: inbox
   skill: personal-assistant:r6-inbox-replies
   answers: {}
