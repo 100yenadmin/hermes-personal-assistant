@@ -58,7 +58,11 @@ def variables(timezone, moment=None, hour=12):
     # Default local noon, or the scenario step's explicit hour on the same local date.
     current = current.replace(hour=hour, minute=0, second=0, microsecond=0)
     past = current - dt.timedelta(days=7)
+    next_weekday = current + dt.timedelta(days=1)
+    while next_weekday.weekday() >= 5:
+        next_weekday += dt.timedelta(days=1)
     values = {"now": current.isoformat(), "today": current.date().isoformat(),
+            "next_weekday": next_weekday.date().isoformat(),
             "tomorrow": (current.date() + dt.timedelta(days=1)).isoformat(),
             "yesterday": (current.date() - dt.timedelta(days=1)).isoformat(),
             "last_week_date": past.date().isoformat(), "last_week_at": past.isoformat(),

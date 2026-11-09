@@ -373,7 +373,7 @@ def digest(root):
                          "tools": tools}
         if "offers" in scenario["lab"]:
             result["m34"]["booking_calls"] = lines(root / "booking-calls.jsonl")
-        if scenario["lab"].get("kind") == "vendor_request":
+        if scenario["lab"].get("kind") in {"vendor_request", "family"}:
             result["m34"]["vendor_calls"] = lines(root / "vendor-calls.jsonl")
         if scenario["lab"].get("kind") == "disruption":
             result["m34"]["flight_calls"] = lines(root / "flight-calls.jsonl")

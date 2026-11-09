@@ -21,6 +21,7 @@
     "../finance-admin",
     "../documents-admin",
     "../content-admin",
+    "../family-admin",
     "../food-delivery-to-hotel",
     "../hotel-check-in",
     "../itinerary-intake",
