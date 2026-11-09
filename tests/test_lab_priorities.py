@@ -86,6 +86,34 @@ def test_passing_priorities_run(tmp_path, snapshot):
         assert all(by_id[seed["data"]["action_id"]][k] == v for k, v in f.items())
 
 
+@pytest.mark.parametrize("change,ok", [(None, True), ("due_at", False), ("counterparty", False),
+                                      ("blocked_by", False), ("next_actor", False), ("status", False)])
+def test_linking_preserves_expanded_seed_values(tmp_path, change, ok):
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    seed_rows = [{"action_id": r["action_id"], "action_type": r["action_type"], "status": r["status"],
+                  "fields_json": json.dumps(r["fields"])} for r in ledger["actions"]]
+    common.write(tmp_path / "seed.json", {"variables": {}, "ledger": {"actions": seed_rows}})
+    row = next(r for r in ledger["actions"] if r["action_id"] == "lab:kit-page")
+    if change == "status":
+        row["status"] = "cancelled"
+    elif change:
+        row["fields"][change] = {"due_at": "2030-01-01T12:00:00+00:00", "counterparty": "Someone else",
+                                 "blocked_by": "another-item", "next_actor": "owner"}[change]
+    result = evaluated(tmp_path, (s, summary, text, tools, ledger))
+    assert result["steps"][0]["checks"]["linked"] is ok
+
+
+@pytest.mark.parametrize("seed_snapshot", [None, {"ledger": {"actions": []}}])
+def test_linking_without_expanded_seed_keeps_due_presence_fallback(tmp_path, seed_snapshot):
+    s, summary, text, tools, ledger = synthetic(tmp_path)
+    if seed_snapshot is not None:
+        common.write(tmp_path / "seed.json", seed_snapshot)
+    for row in ledger["actions"]:
+        row["fields"]["due_at"] = "2030-01-01T12:00:00+00:00"
+        row["fields"]["counterparty"] = "Someone else"
+    assert evaluated(tmp_path, (s, summary, text, tools, ledger))["steps"][0]["checks"]["linked"]
+
+
 @pytest.mark.parametrize("case,key", [
     ("wrong_link", "linked"), ("plants_linked", "linked"), ("duplicate", "linked"),
     ("missing_threat", "threats_named"), ("wrong_blocker", "next_blocked"),
