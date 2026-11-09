@@ -7,7 +7,6 @@ Your Hermes agent runs errands on the real sites, fills every field, and stops a
 **Watch the demo:** coming with the launch post.
 
 [![Latest release](https://img.shields.io/github/v/release/100yenadmin/hermes-personal-assistant?include_prereleases&label=release)](https://github.com/100yenadmin/hermes-personal-assistant/releases)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Hermes >= 0.21.1](https://img.shields.io/badge/Hermes-%3E%3D%200.21.1-informational)](https://github.com/NousResearch/hermes-agent)
 
 ## Install
@@ -293,7 +292,7 @@ Pinned installs do not update on their own. To move to another release, run `her
 
 Open an issue with the [issue tracker](https://github.com/100yenadmin/hermes-personal-assistant/issues/new/choose). For a security problem, use a [private security advisory](https://github.com/100yenadmin/hermes-personal-assistant/security/advisories/new) instead of a public issue.
 
-[Releases](https://github.com/100yenadmin/hermes-personal-assistant/releases) · [CHANGELOG](CHANGELOG.md) · [CONTRIBUTING](CONTRIBUTING.md) · [LICENSE](LICENSE)
+[Releases](https://github.com/100yenadmin/hermes-personal-assistant/releases) · [CHANGELOG](CHANGELOG.md) · [CONTRIBUTING](CONTRIBUTING.md)
 
 ## Verification and rollback
 
