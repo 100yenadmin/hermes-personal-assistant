@@ -98,7 +98,7 @@ def seed(hh, scenario, dispatch, moment=None):
         "quiet_hours": {"start": "22:00", "end": "07:00"}, **scenario.get("preferences", {})}}})
     for item in scenario.get("seed", []):
         item = expand(item, values)
-        if scenario.get("lab", {}).get("kind") in {"booking", "disruption"} and item["operation"] == "trip_import":
+        if scenario.get("lab", {}).get("kind") in {"booking", "disruption", "expense"} and item["operation"] == "trip_import":
             # Relative day tokens are ISO dates; ICS requires compact basic dates.
             item["data"]["ics_text"] = re.sub(r"(?m)^(DT(?:START|END)[^:\n]*:)(\d{4})-(\d{2})-(\d{2})T",
                                              r"\1\2\3\4T", item["data"]["ics_text"])

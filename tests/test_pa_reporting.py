@@ -41,7 +41,12 @@ def test_reporting_contract_and_domain_pointers():
                      '`problem`', '`options`: 2–3', '`recommendation`', '`decision_deadline`',
                      'plan and ETA first', '8 tool calls or 3 minutes', "owner's yes", 'recipient/channel'):
         assert fragment in text
-    for name in ('trip-concierge', 'research', 'restaurant-reservations'):
+    check = ' '.join(text.split('## Report check', 1)[1].split('## ', 1)[0].split())
+    for fragment in ('kept in this turn', 'say it came from them', 'stays in the packet marked unknown or unconfirmed',
+                     'leave out only optional extras', 'not an open slot', 'is not a cart', "the page's estimate"):
+        assert fragment in check
+    for name in ('trip-concierge', 'research', 'restaurant-reservations', 'food-delivery-to-hotel',
+                 'rideshare-booking', 'tripcom-flight-hotel-booking'):
         pointer = (ROOT / 'skills' / name / 'SKILL.md').read_text()
         assert '`reporting.md` in `../personal-assistant/references/`' in pointer
         assert (ROOT / 'skills' / name / '../personal-assistant/references/reporting.md').is_file()

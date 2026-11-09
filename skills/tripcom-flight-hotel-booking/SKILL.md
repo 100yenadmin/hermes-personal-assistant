@@ -11,6 +11,8 @@ metadata:
 
 # Trip.com Flight And Hotel Booking
 
+Read `reporting.md` in `../personal-assistant/references/` (relative to this skill directory) for reporting, bridge recovery, progress and pre-send checks.
+
 Every `references/...` path in this skill is relative to this skill directory.
 
 Use Trip.com as the default user-friendly aggregator when the user asks to find or book flights/hotels and does not name a different provider.

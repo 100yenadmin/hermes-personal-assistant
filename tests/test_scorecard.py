@@ -414,7 +414,7 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 6, "none": 7}
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 7, "none": 6}  # s30 gives finance its first row.
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()
@@ -813,3 +813,12 @@ def test_non_finite_run_times_are_malformed(tmp_path, single_test, fields):
     (folder / "run.json").write_text(json.dumps({"status": "ok", **fields}))  # json.dumps writes NaN/Infinity.
     c = card(tmp_path)
     assert area(c)["tests"][0]["runs"] == 0 and c["excluded"][0]["reason"] == "malformed_run"
+
+
+def test_s30_credit_is_partial_and_limited_to_trip_expenses():
+    for key, covers, label in (
+        ("travel", [], "stand-in booking charge and forwarded receipt recorded; per-trip expense export"),
+        ("finance", [], "categorised trip expenses from a readback and a receipt; no card reconciliation"),
+    ):
+        row = next(t for a in AREAS if a["key"] == key for t in a["tests"] if t["scenario"] == "s30_trip_expenses_en")
+        assert row == {"scenario": "s30_trip_expenses_en", "kind": "partial", "covers": covers, "label": label}
