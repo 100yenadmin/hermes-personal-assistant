@@ -770,44 +770,13 @@ def test_hung_live_url_lookup_keeps_every_tool_row(tmp_path, monkeypatch):
     assert common.lines(tmp_path / "tools.jsonl")[-1]["page_url"] == SOURCE
 
 
-def test_hung_hook_capture_keeps_every_tool_row(tmp_path, monkeypatch):
-    # Review (#195): the hook's evidence capture (snapshot, screenshot) can hang on a wedged browser too.
-    import sys
-    import threading
-    import time
-    from evals.lab import lab_plugin
-    from evals.lab.lab_plugin import Observer
-    observer = Observer(tmp_path)
-    monkeypatch.setattr(lab_plugin, "CAPTURE_SECONDS", 0.2)
-    monkeypatch.setitem(sys.modules, "tools", None)  # No live URL lookup in this test.
-    release, captured = threading.Event(), []
-
-    def capture(number):
-        captured.append(number)
-        release.wait(10)
-        return []
-    monkeypatch.setattr(observer, "capture", capture)
-    try:
-        start = time.monotonic()
-        observer.post("browser_click", {"ref": "e1"}, "first", task_id="task")
-        observer.post("browser_snapshot", {}, "second", task_id="task")  # The first capture still runs: skipped.
-        observer.post("web_search", {"query": "fare"}, "third", task_id="task")
-        assert time.monotonic() - start < 3
-    finally:
-        release.set()
-    assert [r["name"] for r in common.lines(tmp_path / "tools.jsonl")] == ["browser_click", "browser_snapshot", "web_search"]
-    assert len(captured) == 1
-
-
 def test_late_capture_never_replaces_a_newer_guard_snapshot(tmp_path, monkeypatch):
-    # Review (#195, P1): a capture that outlives the hook wait finished after a newer snapshot and put back an older
-    # one, so pre() resolved a "Confirm booking" ref against the old page and the tripwire missed the click.
+    # Review (#195, P1): a capture still running after Hermes abandoned its hook (30 s) finished after a newer snapshot and
+    # put back an older one, so pre() resolved a "Confirm booking" ref against the old page and the tripwire missed the click.
     import sys
     import threading
-    from evals.lab import lab_plugin
     from evals.lab.lab_plugin import Observer
     observer = Observer(tmp_path)
-    monkeypatch.setattr(lab_plugin, "CAPTURE_SECONDS", 0.2)
     old, new = '- button "Details" [ref=e7]', '- button "Confirm booking" [ref=e7]'
     shot = threading.Event()
 
@@ -821,14 +790,20 @@ def test_late_capture_never_replaces_a_newer_guard_snapshot(tmp_path, monkeypatc
     monkeypatch.setitem(sys.modules, "tools", SimpleNamespace(
         browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={"task": {}}),
         browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    observer.snapshots["task"] = ""
+    abandoned = threading.Thread(target=observer.capture, args=(0,), daemon=True)  # The abandoned hook's capture.
     try:
-        observer.post("browser_click", {"ref": "e3"}, json.dumps({"success": True}), task_id="task")
+        abandoned.start()
+        for _ in range(500):  # It publishes the page it saw before the screenshot, which then hangs.
+            if observer.snapshots["task"] == old:
+                break
+            abandoned.join(0.01)
+        assert observer.snapshots["task"] == old and abandoned.is_alive()
         observer.post("browser_snapshot", {}, json.dumps({"success": True, "snapshot": new}), task_id="task")
         assert observer.snapshots["task"] == new
     finally:
         shot.set()
-    assert observer.capture_lock.acquire(timeout=5)  # The late capture has finished.
-    observer.capture_lock.release()
+    abandoned.join(10)
     assert observer.snapshots["task"] == new
     assert (tmp_path / "final_0_0.txt").read_text() == old  # Its evidence is still kept.
 

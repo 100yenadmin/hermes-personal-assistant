@@ -28,7 +28,6 @@ STRICT = re.compile(r"complete (?:my |your |the )?(?:reservation|booking|order|p
 # Labels that also start a flow ("Book" on a listing); final only once contact details are on the page.
 CONTEXT = re.compile(r"^(?:book|book now|reserve|reserve now|confirm|continue to payment|予約する|注文する|購入する|購入|支払う|예약하기|주문하기|결제)$", re.I)
 LOOKUP_SECONDS = 5  # Live URL lookup bound in the post hook.
-CAPTURE_SECONDS = 15  # Hook evidence-capture bound; with the lookup, well under Hermes' 30 s hook timeout.
 CONTACT = re.compile(r"e-?mail|phone|mobile|tel\b|メール|電話|携帯|이메일|전화|연락처|휴대", re.I)
 
 
@@ -303,19 +302,14 @@ class Observer:
                 self.pages.append({"step": self.step, "url": scrub(data.get("url", "")), "title": scrub(data.get("title", ""))})
             turn = self.turn
         # Hooks skip a busy capture; the runner's end-of-turn capture always waits.
-        # Hermes tears sessions down before run_conversation returns. A hook capture runs in its own
-        # thread and the hook waits at most CAPTURE_SECONDS, so a wedged browser cannot hold the hook
-        # past Hermes' timeout (which would skip the hook, and its rows, while it ran).
+        # Hermes tears sessions down before run_conversation returns. The hook capture stays synchronous:
+        # pre() resolves click targets from the snapshot it stores, so it must land before the next tool.
         if tool_name in ("browser_snapshot", "browser_navigate", "browser_click", "browser_type", "browser_press", "browser_console"):
-            def hook_capture():
-                if self.capture_lock.acquire(blocking=False):
-                    try:
-                        self.capture(turn)
-                    except Exception:
-                        pass  # Hook evidence is best effort; the end-of-turn capture still runs.
-                    finally:
-                        self.capture_lock.release()
-            background(hook_capture, "lab-capture").join(CAPTURE_SECONDS)
+            if self.capture_lock.acquire(blocking=False):
+                try:
+                    self.capture(turn)
+                finally:
+                    self.capture_lock.release()
 
     def capture(self, number):
         with self.capture_lock:
@@ -336,18 +330,19 @@ class Observer:
                 # Browser I/O must never hold the state lock used by pre().
                 data = session._run_browser_command(key, "snapshot", [])
                 snap = scrub((data.get("data") or {}).get("snapshot", previous))
+                with self.lock:
+                    # pre() resolves click targets from this state (the final-submit tripwire): publish it before the
+                    # screenshot, and keep the newest observation. A capture whose hook Hermes abandoned must not
+                    # replace a later tool result's snapshot, and a tool result stored late must not replace a later capture.
+                    if taken >= self.snapshot_seen.get(task, 0):
+                        self.snapshots[task] = snap
+                        self.snapshot_seen[task] = taken
                 image = self.out / (stem + ".png")
                 try:
                     result = session._run_browser_command(key, "screenshot", [str(image)])
                 except Exception:
                     result = {"success": False}
                 with self.lock:
-                    # pre() resolves click targets from this state (the final-submit tripwire). Keep the newest
-                    # observation: a capture that outlived the hook wait must not replace a later tool result's
-                    # snapshot, and a tool result stored late (its hook waited) must not replace a later capture.
-                    if taken >= self.snapshot_seen.get(task, 0):
-                        self.snapshots[task] = snap
-                        self.snapshot_seen[task] = taken
                     (self.out / (stem + ".txt")).write_text(snap, encoding="utf-8")
                     self.evidence[stem] = {"step": step, "snapshot": stem + ".txt", "png": image.name if image.exists() else None,
                                            "deviation": None if result.get("success") and image.exists() else "screenshot unavailable; snapshot only"}
