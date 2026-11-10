@@ -109,7 +109,7 @@ never work around it. A `next_chase_at` at local midnight with no `snoozed_until
 09:00 local, or when the owner's quiet hours end if later; keep any other time
 (a snooze or approval timeout) exact. `respond` with `notify: true` only when the owner must
 see or decide something now; when nothing is due, `notify: false` (`no_change`,
-or `progress` if you armed wakes).
+or `progress` if you armed wakes). Keep the summary under 280 characters.
 
 Outside a role turn: Arm `at` only for a date the owner approved
 in this chat, with `owner_asked: true`, naming `personal-assistant:follow-through`
