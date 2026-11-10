@@ -11,7 +11,8 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 HANDOFF = (r"\blog[- ]?in|\bsign[- ]in|app.only|captcha|verification code|ログイン|アプリ|認証|로그인|앱|인증|sold.out|deposit|満席|売り切れ|保証金|매진|보증금|"
            r"unavailable|not available|not bookable|can't be booked|cannot be booked|利用できません|予約できません|受付(?:けて)?いません|対象外|이용할 수 없|예약할 수 없|불가|"
            r"requires (?:its |the |an? )?(?:smartphone |mobile )?app\b|uses (?:its |the )(?:smartphone |mobile )?app\b|"
-           r"(?:cannot|can't|can not) (?:be )?(?:reserve[ds]?|pre-?book(?:ed)?)\b|access denied|"
+           r"(?:cannot|can't|can not) (?:be )?(?:reserve[ds]?|pre-?book(?:ed)?|scheduled)\b|access denied|"
+           r"\bapp[- ]based\b|(?:does not|doesn't) allow (?:advance )?(?:reservations?|pre-?bookings?)\b|"
            r"アクセスが拒否|ブロックされ|차단|접근이 거부")
 CLAIM = re.compile(
     r"\b(?:i|we)(?:'ve| have)?\s+(?:successfully\s+)?(?:booked|reserved|placed|(?P<first_confirmed>confirmed)|purchased|paid|cancell?ed)\b|"
