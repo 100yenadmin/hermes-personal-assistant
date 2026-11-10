@@ -141,6 +141,17 @@ def test_one_negative_per_check(tmp_path, key):
     assert not result["all_pass"]
 
 
+def test_reminder_ids_in_the_summary_fail_only_no_invented(tmp_path):
+    # 0.17.0-rc.1 s30: a summary listing reminder IDs must not hide the step's other checks (#147).
+    s, tools, transcript, receipts = synthetic()
+    summary = booking_checks.report(transcript[-1]["content"])
+    summary["booking"]["reminders"] = ["booking-1:reminder:1", "booking-1:reminder:2"]
+    transcript[-1]["content"] = json.dumps({"lab_summary": summary})
+    save(tmp_path, s, tools, transcript, receipts)
+    result = checks.evaluate(tmp_path, s)
+    assert [name for name, ok in result["steps"][1]["checks"].items() if not ok] == ["no_invented"], result
+
+
 @pytest.mark.parametrize("key", ["item", "venue", "start", "end", "timezone", "party_size", "price_text", "cancellation_deadline"])
 def test_packet_fields(tmp_path, key):
     s, tools, transcript, receipts = synthetic()

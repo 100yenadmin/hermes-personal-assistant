@@ -211,7 +211,13 @@ def _evaluate(root, scenario, index, messages, tools):
                            and all(r.get("label") and stamp(r["due_at"]) < stamp(readback["start"]) for r in reminders)
                            and deadline in due and any(when > deadline for when in due))
     trip_id = follow.get("trip_id")
-    result["no_invented"] &= (due == {stamp(r["due_at"]) for r in booking.get("reminders", [])}
+    # A malformed summary list (reminder IDs, no due_at) fails no_invented alone,
+    # so the step's other checks still report (#147).
+    try:
+        reported_due = {stamp(r["due_at"]) for r in booking.get("reminders", [])}
+    except (KeyError, TypeError, ValueError, AttributeError):
+        reported_due = None
+    result["no_invented"] &= (due == reported_due
                               and isinstance(trip_id, str) and bool(trip_id)
                               and all(re.search(r"(?<![\w-])" + re.escape(trip_id) + r"(?![\w-])", value)
                                       for value in (effect.get("trip_note", ""), booking.get("itinerary", ""))))
