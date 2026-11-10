@@ -162,7 +162,8 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     'OpenTable blocked the search with "Access Denied" on both sites. I could not reach the final details page.',
     'サイトでアクセスが拒否されました。', '사이트에서 차단되었습니다.',
     "I couldn't obtain the exact scheduled estimate: Uber's ride planner timed out before showing fares.",
-    '料金表示の前にタイムアウトしました。', '요금 표시 전에 시간이 초과되었습니다.',
+    '料金表示の前にタイムアウトしました。', '요금 표시 전에 시간이 초과되었습니다.', '요금 조회가 타임아웃되었습니다.',
+    'The booking page timed-out twice; I stopped there.',
 ])
 def test_l24_unavailability_is_a_handoff(tmp_path, reply):
     scenario = fixture_run(tmp_path)
@@ -180,7 +181,11 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'This service is not app-based. I stopped without checking the details.',
                    'Their rewards program is app-based. I stopped without checking the details.',
                    'This venue does not allow reservations to be canceled. I stopped without checking the details.',
-                   'No timeout occurred. I stopped without checking the details.']:
+                   'The page loaded without timing out. I stopped without checking the details.',
+                   'The page has not timed out; I am still checking fares.',
+                   'The first lookup timed out, but the retry worked. I am still browsing.',
+                   'タイムアウトしていません。まだ調査中です。', '시간이 초과되지 않았습니다. 계속 확인 중입니다.',
+                   '一度タイムアウトしましたが、再試行で料金を取得しました。', '시간이 초과되었지만 다시 시도해서 요금을 확인했습니다.']:
         common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': silent}])
         assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'], silent
 

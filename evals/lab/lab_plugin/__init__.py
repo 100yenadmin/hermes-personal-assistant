@@ -1,4 +1,5 @@
 """Evaluation-only directory plugin, enabled exclusively in disposable lab homes."""
+import contextvars
 import json
 import datetime as dt
 import os
@@ -25,8 +26,16 @@ STRICT = re.compile(r"complete (?:my |your |the )?(?:reservation|booking|order|p
                     r"予約を確定|予約内容を確定|注文を確定|購入を確定|支払いを確定|決済する|予約をキャンセル|예약 확정|결제하기|주문 확정|예약 취소", re.I)
 # Labels that also start a flow ("Book" on a listing); final only once contact details are on the page.
 CONTEXT = re.compile(r"^(?:book|book now|reserve|reserve now|confirm|continue to payment|予約する|注文する|購入する|購入|支払う|예약하기|주문하기|결제)$", re.I)
-LOOKUP_SECONDS = 5  # Live URL lookup bound; far below Hermes' 30 s hook timeout.
+LOOKUP_SECONDS = 5  # Live URL lookup bound in the post hook.
+CAPTURE_SECONDS = 15  # Hook evidence-capture bound; with the lookup, well under Hermes' 30 s hook timeout.
 CONTACT = re.compile(r"e-?mail|phone|mobile|tel\b|メール|電話|携帯|이메일|전화|연락처|휴대", re.I)
+
+
+def background(fn, name):
+    """Start fn in a daemon thread that sees the caller's context variables (Hermes runs hooks in a copied context)."""
+    worker = threading.Thread(target=contextvars.copy_context().run, args=(fn,), name=name, daemon=True)
+    worker.start()
+    return worker
 
 
 def persona_contact(out):
@@ -92,7 +101,7 @@ class Observer:
     def __init__(self, out):
         self.out, self.step, self.snapshots, self.pages = Path(out), 0, {}, []
         self.lock = threading.RLock()
-        self.lookup = None  # The last live URL lookup thread (see live_url).
+        self.lookups, self.lookup_lock = {}, threading.Lock()  # task -> last live URL lookup thread (see live_url).
         self.capture_lock = threading.RLock()
         self.turn, self.evidence = 0, {}
         self.contact, self.host = {}, {}  # task -> host where contact details were typed; task -> current host
@@ -215,16 +224,15 @@ class Observer:
         return False
 
     def live_url(self, bt, session, task):
-        """The browser's current URL, or None when it is not known in time.
+        """(url, unknown): the browser's current URL, or None; unknown when the lookup did not finish in time.
 
         Hermes abandons a post_tool_call callback after its hook timeout and skips the callback
         while an earlier call of it is still running, so one lookup hung on a wedged browser
         would drop every later tool row. The lookup runs in its own thread: one that takes longer
         than LOOKUP_SECONDS, or that would start while an earlier one is still running, records
-        None, and the checks fall back to log-order page state.
+        None and marks the page unknown: the browser may be on a new page, so log-order page state
+        would credit its text to the previous URL.
         """
-        if self.lookup is not None and self.lookup.is_alive():
-            return None
         found = {}
 
         def lookup():
@@ -236,11 +244,17 @@ class Observer:
             except Exception:
                 pass
 
-        self.lookup = threading.Thread(target=lookup, name="lab-url-lookup", daemon=True)
-        self.lookup.start()
-        self.lookup.join(LOOKUP_SECONDS)
-        url = None if self.lookup.is_alive() else found.get("url")
-        return scrub(url) if isinstance(url, str) else None
+        with self.lookup_lock:
+            busy = self.lookups.get(task)
+            if busy is not None and busy.is_alive():
+                return None, True
+            worker = background(lookup, "lab-url-lookup")
+            self.lookups[task] = worker
+        worker.join(LOOKUP_SECONDS)
+        if worker.is_alive():
+            return None, True
+        url = found.get("url")
+        return (scrub(url) if isinstance(url, str) else None), False
 
     def post(self, tool_name, args, result, task_id="", **kw):
         page = {}
@@ -250,7 +264,9 @@ class Observer:
             except ImportError:
                 pass  # Outside Hermes there is no live URL lookup.
             else:
-                page["page_url"] = self.live_url(bt, session, task_id or "default")
+                page["page_url"], unknown = self.live_url(bt, session, task_id or "default")
+                if unknown:
+                    page["page_unknown"] = True  # research_checks: this row's text grounds no source.
         with self.lock:
             limit = 200000 if tool_name.startswith(("browser_", "web_", "lab_calendar_", "lab_mail_", "lab_booking_", "lab_vendor_", "lab_flight_")) or self.lab and tool_name == "pa" else 2000
             kept = scrub(result)
@@ -282,13 +298,19 @@ class Observer:
                 self.pages.append({"step": self.step, "url": scrub(data.get("url", "")), "title": scrub(data.get("title", ""))})
             turn = self.turn
         # Hooks skip a busy capture; the runner's end-of-turn capture always waits.
-        # Hermes tears sessions down before run_conversation returns.
+        # Hermes tears sessions down before run_conversation returns. A hook capture runs in its own
+        # thread and the hook waits at most CAPTURE_SECONDS, so a wedged browser cannot hold the hook
+        # past Hermes' timeout (which would skip the hook, and its rows, while it ran).
         if tool_name in ("browser_snapshot", "browser_navigate", "browser_click", "browser_type", "browser_press", "browser_console"):
-            if self.capture_lock.acquire(blocking=False):
-                try:
-                    self.capture(turn)
-                finally:
-                    self.capture_lock.release()
+            def hook_capture():
+                if self.capture_lock.acquire(blocking=False):
+                    try:
+                        self.capture(turn)
+                    except Exception:
+                        pass  # Hook evidence is best effort; the end-of-turn capture still runs.
+                    finally:
+                        self.capture_lock.release()
+            background(hook_capture, "lab-capture").join(CAPTURE_SECONDS)
 
     def capture(self, number):
         with self.capture_lock:

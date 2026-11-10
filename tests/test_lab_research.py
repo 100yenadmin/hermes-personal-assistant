@@ -554,6 +554,14 @@ def test_browser_live_url_overrides_result_links_and_page_state(page_url):
     assert result["checks"]["cited_and_seen"] is (page_url == SOURCE)
 
 
+@pytest.mark.parametrize("unknown", [True, False])
+def test_unknown_page_grounds_nothing(unknown):
+    # Review (#195): after a lookup that did not finish, the click may have moved to another page.
+    rows = [{"name": "browser_navigate", "args": {"url": SOURCE}, "page_url": SOURCE, "result": "overview"},
+            {"name": "browser_click", "page_url": None, **({"page_unknown": True} if unknown else {}), "result": "S$12.50"}]
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"] is (not unknown)
+
+
 @pytest.mark.parametrize("failure", [{"success": False}, {"error": "navigation failed"},
                                       {"data": {"error": "navigation failed"}}])
 def test_failed_navigation_clears_legacy_page_state(failure):
@@ -702,9 +710,13 @@ def test_observer_logs_live_url_outside_state_lock(tmp_path, monkeypatch, mode):
     from evals.lab.lab_plugin import Observer
     observer = Observer(tmp_path)
     monkeypatch.setattr(observer, "capture", lambda number: [])
+    seen = []
+
     def command(key, verb, args, timeout):
-        assert not observer.lock._is_owned()
-        assert (key, verb, args, timeout) == ("task", "get", ["url"], 3)
+        free = observer.lock.acquire(blocking=False)  # The lookup thread can take the state lock: post does not hold it.
+        if free:
+            observer.lock.release()
+        seen.append((free, key, verb, args, timeout))
         if mode == "error":
             raise OSError("synthetic URL failure")
         return {"success": True, "data": {"url": SOURCE}}
@@ -713,6 +725,7 @@ def test_observer_logs_live_url_outside_state_lock(tmp_path, monkeypatch, mode):
         browser_tool_session=SimpleNamespace(_run_browser_command=command)))
     observer.post("browser_snapshot", {}, "snapshot", task_id="task")
     row = common.lines(tmp_path / "tools.jsonl")[0]
+    assert seen == ([(True, "task", "get", ["url"], 3)] if mode in {"success", "error"} else [])
     if mode == "outside":
         assert "page_url" not in row
     else:
@@ -747,13 +760,43 @@ def test_hung_live_url_lookup_keeps_every_tool_row(tmp_path, monkeypatch):
         assert time.monotonic() - start < 3
     finally:
         release.set()
-    observer.lookup.join(5)
+    observer.lookups["task"].join(5)
     rows = common.lines(tmp_path / "tools.jsonl")
     assert [r["name"] for r in rows] == ["browser_snapshot", "browser_click", "web_search"]
-    assert [r.get("page_url") for r in rows[:2]] == [None, None] and "page_url" not in rows[2]
+    assert [(r.get("page_url"), r.get("page_unknown")) for r in rows] == [(None, True), (None, True), (None, None)]
     assert calls == ["get"]
+    monkeypatch.setattr(lab_plugin, "LOOKUP_SECONDS", 5)
     observer.post("browser_snapshot", {}, "fourth", task_id="task")  # A finished lookup no longer blocks the next.
     assert common.lines(tmp_path / "tools.jsonl")[-1]["page_url"] == SOURCE
+
+
+def test_hung_hook_capture_keeps_every_tool_row(tmp_path, monkeypatch):
+    # Review (#195): the hook's evidence capture (snapshot, screenshot) can hang on a wedged browser too.
+    import sys
+    import threading
+    import time
+    from evals.lab import lab_plugin
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    monkeypatch.setattr(lab_plugin, "CAPTURE_SECONDS", 0.2)
+    monkeypatch.setitem(sys.modules, "tools", None)  # No live URL lookup in this test.
+    release, captured = threading.Event(), []
+
+    def capture(number):
+        captured.append(number)
+        release.wait(10)
+        return []
+    monkeypatch.setattr(observer, "capture", capture)
+    try:
+        start = time.monotonic()
+        observer.post("browser_click", {"ref": "e1"}, "first", task_id="task")
+        observer.post("browser_snapshot", {}, "second", task_id="task")  # The first capture still runs: skipped.
+        observer.post("web_search", {"query": "fare"}, "third", task_id="task")
+        assert time.monotonic() - start < 3
+    finally:
+        release.set()
+    assert [r["name"] for r in common.lines(tmp_path / "tools.jsonl")] == ["browser_click", "browser_snapshot", "web_search"]
+    assert len(captured) == 1
 
 
 def test_full_skill_layout_with_realistic_web_and_live_browser_rows(tmp_path):

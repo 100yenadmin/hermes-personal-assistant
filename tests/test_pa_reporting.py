@@ -39,7 +39,8 @@ def test_end_of_day_items_are_recorded_rows_and_gaps_are_named_apart():
     text = (ROOT / 'skills/personal-assistant/references/reporting.md').read_text()
     eod = ' '.join(text.split('## End-of-day note', 1)[1].split('## ', 1)[0].split())
     assert 'Items are recorded rows (their `action_id`) and these findings.' in eod
-    assert 'could not be read is not an item' in eod and '(“Not checked: …”)' in eod
+    assert 'A source is not an item: one that could not be read goes in one line after the three sections (“Not checked: …”)' in eod
+    assert 'one read with nothing new needs no line' in eod
 
 
 def test_reporting_contract_and_domain_pointers():
