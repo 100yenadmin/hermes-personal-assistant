@@ -40,8 +40,11 @@ Call `pulse` `list` first, then for each:
 
 Report a refusal; never work around it.
 
-Set each wake's `at` to 09:00 owner local time on its date: `next_chase_at` is
-that date's midnight, which falls in quiet hours. In `respond`, set
+A `next_chase_at` at local midnight is a chase date, which falls in quiet hours:
+set the wake's `at` to 09:00 owner local time that day, or to the end of the
+owner's quiet hours if that is later. Keep any other time exact: a snoozed
+loop's `next_chase_at` is its snooze time, and an approval timeout keeps its
+deadline. In `respond`, set
 `notify: true` only when the owner must see or decide something now: a due
 reminder, a held draft or an escalation. When nothing is due, set
 `notify: false`: `no_change`, or `progress` with a one-line summary if you only

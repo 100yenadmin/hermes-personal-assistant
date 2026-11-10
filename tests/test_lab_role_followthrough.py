@@ -451,6 +451,9 @@ def test_day0_role_turn_stays_silent_when_nothing_is_due(tmp_path):
     ("2026-11-12T01:00:00+00:00", None, True),  # 09:00 in Singapore, written in UTC
     ("2026-11-12T06:30:00+08:00", None, False),
     ("2026-11-12T06:30:00+08:00", {"start": "23:00", "end": "06:00"}, True),  # scenario quiet hours win
+    ("2026-11-12T09:00:00+08:00", {"start": "22:00", "end": "09:15"}, False),  # 09:00 is still quiet for this owner
+    ("2026-11-12T09:15:00+08:00", {"start": "22:00", "end": "09:15"}, True),  # end is waking, as in HB2
+    ("2026-11-12T03:00:00+08:00", {"start": "00:00", "end": "00:00"}, True),  # start == end: no quiet hours
 ])
 def test_wakes_must_land_outside_quiet_hours(tmp_path, at, quiet, ok):
     s = fixture_run(tmp_path)
@@ -462,3 +465,26 @@ def test_wakes_must_land_outside_quiet_hours(tmp_path, at, quiet, ok):
     result = score(tmp_path, s, 0)
     assert result["wakes_in_waking_hours"] is ok
     assert {k for k, v in result.items() if not v} == (set() if ok else {"wakes_in_waking_hours"})
+
+
+def test_wake_hours_use_the_scenario_zone_across_dst(tmp_path):
+    s = fixture_run(tmp_path)
+    s["timezone"] = "America/New_York"  # November turns are at -05:00; this April wake is at -04:00.
+    at = "2027-04-01T07:30:00-04:00"  # 07:30 local: awake. Today's fixed offset would read 06:30 (quiet).
+    common.append(tmp_path / "pulse-calls.jsonl", {"step": 0, "action": "create",
+        "args": {"note": "PA follow-through wake: lab:chase day2", "trigger": {"kind": "at", "at": at}},
+        "result": {"id": "lab-at-1", "armed": True, "kind": "at", "at": at}})
+    assert score(tmp_path, s, 0)["wakes_in_waking_hours"] is True
+
+
+@pytest.mark.parametrize("quiet,ok", [({"start": "23:00", "end": "06:00"}, True), ({"start": "24:00", "end": "06:00"}, False),
+                                      ({"end": "09:15"}, False), ("22:00-07:00", False), (None, False)])
+def test_scenario_quiet_hours_preference_is_validated(quiet, ok):
+    s = scenario()
+    s["preferences"] = {"quiet_hours": quiet}
+    if ok:
+        validate(s)
+        assert cos.QUIET_HOURS == {"start": "22:00", "end": "07:00"}
+    else:
+        with pytest.raises(ValueError, match="quiet_hours"):
+            validate(s)

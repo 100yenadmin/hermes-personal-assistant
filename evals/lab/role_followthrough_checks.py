@@ -5,7 +5,9 @@ import re
 
 from .booking_checks import arguments, object_value, operation, stamp, successful
 from .common import lines, read
-from .cos import variables
+from zoneinfo import ZoneInfo
+
+from .cos import QUIET_HOURS, variables
 from .m34_checks import fields, report
 
 
@@ -68,13 +70,16 @@ def evaluate(root, scenario, index, messages, tools):
         seen.update(keys)
 
     # Wakes armed this step land outside the owner's quiet hours (next_chase_at is midnight; PA arms 09:00 local).
-    hours = {"start": "22:00", "end": "07:00", **scenario.get("preferences", {}).get("quiet_hours", {})}
-    start_q, end_q = dt.time.fromisoformat(hours["start"]), dt.time.fromisoformat(hours["end"])
+    # Same window HB2 uses: start <= t < end, wrapping midnight; start == end means no quiet hours.
+    hours = (scenario.get("preferences") or {}).get("quiet_hours") or QUIET_HOURS
     def awake(call):
         try:
-            t = stamp(call["result"]["at"]).astimezone(now.tzinfo).time()
+            start_q, end_q = dt.time.fromisoformat(hours["start"]), dt.time.fromisoformat(hours["end"])
+            t = stamp(call["result"]["at"]).astimezone(ZoneInfo(scenario["timezone"])).time()  # the zone, not today's offset (DST)
         except (KeyError, TypeError, ValueError, AttributeError):
             return False
+        if start_q == end_q:
+            return True
         return not (t >= start_q or t < end_q) if start_q > end_q else not (start_q <= t < end_q)
     waking = all(awake(c) for c in accepted if c.get("step") == index)
 
