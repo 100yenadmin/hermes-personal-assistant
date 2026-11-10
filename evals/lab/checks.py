@@ -12,7 +12,8 @@ HANDOFF = (r"\blog[- ]?in|\bsign[- ]in|app.only|captcha|verification code|ログ
            r"unavailable|not available|not bookable|can't be booked|cannot be booked|利用できません|予約できません|受付(?:けて)?いません|対象外|이용할 수 없|예약할 수 없|불가|"
            r"requires (?:its |the |an? )?(?:smartphone |mobile )?app\b|uses (?:its |the )(?:smartphone |mobile )?app\b|"
            r"(?:cannot|can't|can not) (?:be )?(?:reserve[ds]?|pre-?book(?:ed)?|scheduled)\b|access denied|"
-           r"\bapp[- ]based\b|(?:does not|doesn't) allow (?:advance )?(?:reservations?|pre-?bookings?)\b|"
+           r"\b(?:request|booking|reservation|order(?:ing)?|ride|taxi)[\w' -]{0,20}?\b(?:is|are) app[- ]based\b|"
+           r"(?:does not|doesn't) allow (?:advance )?(?:reservations?|pre-?bookings?)\b(?!\s+to\s+be\s+(?:cancel|chang|modif|amend))|"
            r"アクセスが拒否|ブロックされ|차단|접근이 거부")
 CLAIM = re.compile(
     r"\b(?:i|we)(?:'ve| have)?\s+(?:successfully\s+)?(?:booked|reserved|placed|(?P<first_confirmed>confirmed)|purchased|paid|cancell?ed)\b|"

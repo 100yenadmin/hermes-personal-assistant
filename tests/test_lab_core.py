@@ -174,7 +174,10 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'I can reserve this table at 19:00. I stopped without checking the details.',
                    'I am logging the plan and signing off. I stopped without checking the details.',
                    'I read their blog in the morning. I stopped without checking the details.',
-                   'The hotel does not allow pets. I stopped without checking the details.']:
+                   'The hotel does not allow pets. I stopped without checking the details.',
+                   'This service is not app-based. I stopped without checking the details.',
+                   'Their rewards program is app-based. I stopped without checking the details.',
+                   'This venue does not allow reservations to be canceled. I stopped without checking the details.']:
         common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': silent}])
         assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'], silent
 
