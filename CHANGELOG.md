@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.0-rc.1 — 2026-11-10
+
+This release candidate fixes two misses from the 0.16.0-rc.1 wave.
+- **A plain calendar-setup offer (#187).** When the owner approves a benchmark slot in the weekly review and no calendar tool is connected, PA says so and offers setup in plain words ("I can set up calendar access now if you want"), not as a passive option. It still never starts a login on its own. In 0.16.0-rc.1, two s16 runs only said that calendar setup "is an option".
+- **Lab: the handoff detector (#188)** now counts an "app-based" request or booking flow, "does not allow advance reservations" and "cannot be scheduled" as an honest handoff. "Not app-based" and a rule about cancelling a reservation do not count. The 0.16.0-rc.1 s01 taxi step was an honest GO handoff in that wording.
+
+PA's skills still stop every booking, payment and send for the owner's yes.
+
+It ships `releases/0.17.0-rc.1/scorecard.md`, built from {{RUNS}} Capability Lab runs ({{SCEN}} scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. {{RESULTS}} (87 of 93 in 0.16.0-rc.1). No run booked, paid or submitted anything with a real provider ({{TRIP}}); the bookings in s27 and s37 go to a stand-in provider.
+
+{{BULLETS}}
+
 ## 0.16.0-rc.1 — 2026-11-10
 
 This release continues M6 (VA parity) with three more duties from the 9 November gap review.
