@@ -28,7 +28,7 @@ Read radar too for receivables: an invoice not yet due surfaces there
 Use action `list` to review invoices. Mark `paid` only when the owner gives
 evidence or a remittance is seen in authorised mail, with every field at the top
 level of `data`: `{"action":"paid", "invoice_id":"<id from list>",
-"paid_on":"YYYY-MM-DD", "evidence":"<remittance reference, under 200 characters>"}`.
+"paid_on":"YYYY-MM-DD", "evidence":"<who sent the remittance, its date and reference, under 200 characters>"}`.
 This records what happened. Use `void` with invoice_id and reason for an invalid
 invoice. Never initiate a payment or transfer.
 

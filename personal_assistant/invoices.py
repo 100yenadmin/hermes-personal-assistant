@@ -62,6 +62,9 @@ def _iban(value):
     return False
 
 
+SAFE_KEY = re.compile(r"[a-z][a-z_]{0,39}")
+
+
 def _shape_hint(data):
     """Name the fields the action takes, so a model can correct its call (key names only, never values)."""
     action = data.get("action")
@@ -69,10 +72,19 @@ def _shape_hint(data):
         return "action must be one of " + ", ".join(sorted(ALLOWED))
     required = sorted(RECORD if action == "record" else ALLOWED[action] if action != "list" else ())
     optional = sorted(ALLOWED[action] - set(required))
-    unknown = sorted(str(k)[:40] for k in data if k != "action" and k not in ALLOWED[action])[:5]
+    extra = [k for k in data if k != "action" and k not in ALLOWED[action]]
+    # Echo only plain lowercase names: a key can carry an IBAN, card number or secret.
+    named = sorted(k for k in extra if isinstance(k, str) and SAFE_KEY.fullmatch(k))[:5]
+    others = len(extra) - len(named)
+    missing = sorted(set(required) - set(data))
     hint = f"{action} takes " + (", ".join(required) or "no required fields")
     hint += f"; optional: {', '.join(optional)}" if optional else ""
-    hint += f"; not accepted: {', '.join(unknown)}" if unknown else ""
+    hint += f"; missing: {', '.join(missing)}" if missing else ""
+    hint += f"; not accepted: {', '.join(named)}" if named else ""
+    hint += f"; plus {others} other key{'s' if others != 1 else ''} not accepted" if others else ""
+    if not extra and not missing:
+        return hint + ("; the field names are right, so check the values: dates as YYYY-MM-DD, text within its "
+                       "length limit, status open, paid or void, a receivable category services, products or other")
     return hint + "; send them at the top level of data, dates as YYYY-MM-DD"
 
 

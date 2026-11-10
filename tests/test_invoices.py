@@ -383,3 +383,25 @@ def test_unknown_action_lists_the_actions(tmp_path):
 def test_skill_shows_the_flat_paid_call():
     skill = " ".join((Path(__file__).resolve().parents[1] / "skills/finance-admin/SKILL.md").read_text().split())
     assert '{"action":"paid", "invoice_id":"<id from list>", "paid_on":"YYYY-MM-DD", "evidence":' in skill
+
+
+@pytest.mark.parametrize("key", ["GB82WEST12345698765432", "4111 1111 1111 1111", "card number 4111111111111111 exp 12/29",
+                                 "password=hunter2hunter2", "Smith"])
+def test_hint_never_echoes_a_key_that_could_carry_data(tmp_path, key):
+    with pytest.raises(ValueError) as error:
+        dispatch(tmp_path, {"operation": "invoice", "data": {"action": "list", key: "x"}})
+    message = str(error.value)
+    assert key not in message and "4111" not in message and "hunter2" not in message
+    assert "plus 1 other key not accepted" in message
+
+
+@pytest.mark.parametrize("data", [{"action": "paid", "invoice_id": "x", "paid_on": "10/11/2026", "evidence": "RA"},
+                                  {"action": "list", "status": "closed"}])
+def test_right_names_wrong_values_point_at_the_values(tmp_path, data):
+    with pytest.raises(ValueError, match="the field names are right, so check the values"):
+        dispatch(tmp_path, {"operation": "invoice", "data": data})
+
+
+def test_missing_fields_are_named(tmp_path):
+    with pytest.raises(ValueError, match="missing: evidence, paid_on"):
+        dispatch(tmp_path, {"operation": "invoice", "data": {"action": "paid", "invoice_id": "x"}})
