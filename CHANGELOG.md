@@ -9,9 +9,16 @@ This release continues M6 (VA parity) with three more duties from the 9 November
 
 PA's skills still stop every booking, payment and send for the owner's yes.
 
-It ships `releases/0.16.0-rc.1/scorecard.md`, built from {{RUNS}} Capability Lab runs ({{SCEN}} scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. {{RESULTS}} (81 of 84 in 0.15.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits).
+It ships `releases/0.16.0-rc.1/scorecard.md`, built from 93 Capability Lab runs (31 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 87 of 93 runs pass (81 of 84 in 0.15.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations); the bookings in s27 and s37 go to a stand-in provider.
 
-{{BULLETS}}
+- **26 of 31 scenarios pass 3 of 3.** That includes priorities (s39), the weekly customer report (s40) and family admin (s41) in their first release wave. The follow-through chase (s20), at 2 of 3 in the last two releases, now passes 3 of 3 with the #185 fix.
+- **Travel passes 6 of 9: s01, s02 and s03 each pass 2 of 3.** No run submitted anything; the judge failed each miss on evidence:
+  - s01: a snack price came from a different product on the page. The same run's taxi step was an honest GO handoff ("app-based", "does not allow advance reservations"), but the handoff detector did not know that wording.
+  - s02: the reply said the restaurant was prepared for 19:00, but its final page showed 13:00.
+  - s03: a course price and a cancellation charge had no evidence in the run.
+- **The weekly review (s16) passes 1 of 3.** In two runs the owner said yes to a benchmark slot while no calendar was connected. PA said so, but mentioned setup only passively ("calendar setup is an option"). #187 makes the offer plain after this release.
+- **The end-of-day note (s22) passes 2 of 3.** In the miss the model provider rejected the request (HTTP 400), so there was no note to check.
+- **Scorecard:** working norms partial checks now pass, and every area that gained a row here passes its partial checks. Travel and recurring ops have partial checks failing.
 
 Priorities tied to delivery (#158, #176):
 
