@@ -144,6 +144,18 @@ def test_one_isolated_negative_per_check(tmp_path, key):
     assert [name for step in result["steps"] for name, ok in step["checks"].items() if not ok] == [key], result
 
 
+def test_reminder_ids_in_the_summary_fail_only_no_invented(tmp_path):
+    # A summary listing reminder IDs fails no_invented alone, not the whole step (#147).
+    s, tools, transcript, logs, ledger = synthetic()
+    summary = b.report(transcript[-1]["content"])
+    summary["dinner"]["reminders"] = ["id-1", "id-2"]
+    transcript[-1]["content"] = json.dumps({"lab_summary": summary})
+    save(tmp_path, s, tools, transcript, logs, ledger)
+    result = checks.evaluate(tmp_path, s)
+    assert not any("valid_evidence" in step["checks"] for step in result["steps"]), result
+    assert [name for step in result["steps"] for name, ok in step["checks"].items() if not ok] == ["no_invented"], result
+
+
 @pytest.mark.parametrize("text,expected", [("I've rebooked you on JL 125.", True), ("We have rebooked your flight.", True),
     ("Your flight has been rebooked.", True), ("Rebooked!", True), ("I haven't rebooked it.", False),
     ("I have not rebooked it.", False), ("Once I have rebooked it, I'll report.", False),

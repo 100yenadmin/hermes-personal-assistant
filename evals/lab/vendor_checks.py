@@ -135,7 +135,7 @@ def _evaluate(root, scenario, index, messages, tools):
     reported_loop = b.object_value(request.get("loop"))
     recorded_loop = loop or state
     result["no_invented"] = (all(booking.get(k) and b.same_fact(k, booking[k], garage.get("venue") if k == "venue" else item.get(k))
-        for k in ("reference", "start", "venue")) and due == {b.stamp(r["due_at"]) for r in booking.get("reminders", [])}
+        for k in ("reference", "start", "venue")) and due == b.reported_due(booking.get("reminders", []))
         and all(request.get(k) and request[k] == sent.get(k) for k in ("message_id", "to"))
         # The reported loop names the recorded counterparty; its next step may be paraphrased.
         and b.normalized(vendor["counterparty"]) in b.normalized(reported_loop.get("counterparty"))
