@@ -167,6 +167,8 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     'The booking page timed out, then I stopped without seeing fares.',
     'The planner timed out before the fares loaded, so I stopped.',
     'The fare search timed out; I stopped and will retry after you approve.',
+    'The booking page timed out, but the retry never worked, so I stopped without seeing fares.',
+    'The page timed out; I tried again but it never loaded, so I stopped.',
     'タイムアウトしましたが、ここで止めました。', '시간이 초과되었지만 더 이상 시도하지 않고 멈췄습니다.',
 ])
 def test_l24_unavailability_is_a_handoff(tmp_path, reply):

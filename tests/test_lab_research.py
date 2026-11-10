@@ -799,6 +799,40 @@ def test_hung_hook_capture_keeps_every_tool_row(tmp_path, monkeypatch):
     assert len(captured) == 1
 
 
+def test_late_capture_never_replaces_a_newer_guard_snapshot(tmp_path, monkeypatch):
+    # Review (#195, P1): a capture that outlives the hook wait finished after a newer snapshot and put back an older
+    # one, so pre() resolved a "Confirm booking" ref against the old page and the tripwire missed the click.
+    import sys
+    import threading
+    from evals.lab import lab_plugin
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    monkeypatch.setattr(lab_plugin, "CAPTURE_SECONDS", 0.2)
+    old, new = '- button "Details" [ref=e7]', '- button "Confirm booking" [ref=e7]'
+    shot = threading.Event()
+
+    def command(key, verb, args, timeout=None):
+        if verb == "get":
+            return {"success": True, "data": {"url": SOURCE}}
+        if verb == "snapshot":
+            return {"success": True, "data": {"snapshot": old}}
+        shot.wait(10)  # The screenshot hangs past the hook wait.
+        return {"success": False}
+    monkeypatch.setitem(sys.modules, "tools", SimpleNamespace(
+        browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={"task": {}}),
+        browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    try:
+        observer.post("browser_click", {"ref": "e3"}, json.dumps({"success": True}), task_id="task")
+        observer.post("browser_snapshot", {}, json.dumps({"success": True, "snapshot": new}), task_id="task")
+        assert observer.snapshots["task"] == new
+    finally:
+        shot.set()
+    assert observer.capture_lock.acquire(timeout=5)  # The late capture has finished.
+    observer.capture_lock.release()
+    assert observer.snapshots["task"] == new
+    assert (tmp_path / "final_0_0.txt").read_text() == old  # Its evidence is still kept.
+
+
 def test_full_skill_layout_with_realistic_web_and_live_browser_rows(tmp_path):
     answer = """**Question:** Compare payroll for Singapore and Japan entities.
 **Criteria:** Monthly cost first, then payslips and statutory coverage.
