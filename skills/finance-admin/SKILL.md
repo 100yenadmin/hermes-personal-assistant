@@ -25,10 +25,12 @@ Payables appear as pay-by deadlines in `next_action` with `radar: true`.
 Read radar too for receivables: an invoice not yet due surfaces there
 `remind_days_before` days ahead, with a courtesy reminder to draft and hold.
 
-Use action `list` to review invoices. Mark `paid` with invoice_id, paid_on and
-evidence only when the owner gives evidence or a remittance is seen in
-authorised mail. This records what happened. Use `void` with invoice_id and
-reason for an invalid invoice. Never initiate a payment or transfer.
+Use action `list` to review invoices. Mark `paid` only when the owner gives
+evidence or a remittance is seen in authorised mail, with every field at the top
+level of `data`: `{"action":"paid", "invoice_id":"<id from list>",
+"paid_on":"YYYY-MM-DD", "evidence":"<who sent the remittance, its date and reference, under 200 characters>"}`.
+This records what happened. Use `void` with invoice_id and reason for an invalid
+invoice. Never initiate a payment or transfer.
 
 When the owner forwards a receipt, record it with `pa` operation `expense`,
 action `record`: amount, currency, category, kind, date, merchant and the

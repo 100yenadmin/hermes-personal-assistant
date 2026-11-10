@@ -62,6 +62,40 @@ def _iban(value):
     return False
 
 
+# Key names the hint may echo: PA's own field names and the wrappers models send. Any
+# other key is only counted, since a key can carry an IBAN, card number or secret.
+KNOWN_KEYS = set(FIELDS) | {"fields", "answers", "data", "args", "arguments", "action_id", "id",
+                            "at", "date", "proof", "note", "notes", "payment_evidence"}
+VALUE_HINTS = {"amount": 'amount as a string like "850.00"', "currency": "currency as 3 capital letters like GBP",
+               "direction": "direction receivable or payable", "status": "status open, paid or void",
+               "category": "category services, products or other for a receivable",
+               "remind_days_before": "remind_days_before a whole number from 0 to 60",
+               **{k: f"{k} as YYYY-MM-DD" for k in ("issue_date", "due_date", "paid_on")},
+               **{k: f"{k} as text up to {n} characters" for k, n in TEXT_LIMITS.items()}}
+
+
+def _shape_hint(data):
+    """Name the fields the action takes, so a model can correct its call (key names only, never values)."""
+    action = data.get("action")
+    if not isinstance(action, str) or action not in ALLOWED:
+        return "action must be one of " + ", ".join(sorted(ALLOWED))
+    required = sorted(RECORD if action == "record" else ALLOWED[action] if action != "list" else ())
+    optional = sorted(ALLOWED[action] - set(required))
+    extra = [k for k in data if k != "action" and k not in ALLOWED[action]]
+    named = sorted(k for k in extra if k in KNOWN_KEYS)[:5]
+    others = len(extra) - len(named)
+    missing = sorted(set(required) - set(data))
+    hint = f"{action} takes " + (", ".join(required) or "no required fields")
+    hint += f"; optional: {', '.join(optional)}" if optional else ""
+    hint += f"; missing: {', '.join(missing)}" if missing else ""
+    hint += f"; not accepted: {', '.join(named)}" if named else ""
+    hint += f"; plus {others} other key{'s' if others != 1 else ''} not accepted" if others else ""
+    if not extra and not missing:
+        sent = [VALUE_HINTS[k] for k in sorted(data) if k in VALUE_HINTS]
+        return hint + "; the field names are right, so check the values: " + ", ".join(sent)
+    return hint + "; send them at the top level of data, dates as YYYY-MM-DD"
+
+
 def _validate(data):
     if _private({k: v for k, v in data.items() if k != "invoice_id"}):  # Generated hex ids are not owner text.
         raise ValueError("PA does not store payment or account numbers or credentials")
@@ -71,7 +105,7 @@ def _validate(data):
                 and re.search(r"\d{%d,}" % (17 if key == "reference" else 8), value)):
             raise ValueError("PA does not store payment or account numbers")
     if not Draft7Validator(OP_SCHEMA, format_checker=FormatChecker()).is_valid(data):
-        raise ValueError("invalid invoice action or fields")
+        raise ValueError("invalid invoice action or fields: " + _shape_hint(data))
     for key, limit in TEXT_LIMITS.items():
         if key in data:
             _text(data[key], "invoice." + key, limit)
