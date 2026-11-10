@@ -152,6 +152,9 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     'GO requires its smartphone app to request this ride.',
     'This provider requires an app to book.',
     'GO uses its mobile app, and advance reservations cannot start at Haneda Airport.',  # 0.15 wave, s01.
+    "GO's taxi-request flow is app-based, and it does not allow advance reservations with an airport as the pickup location.",  # 0.16 wave, s01.
+    "The 15:00 pickup cannot be scheduled through GO's standard reservation feature.",
+    'This venue does not allow reservations online.',
     'You cannot reserve this airport-origin trip for 15:00.',
     "GO's app route is available, but it cannot prebook this journey.",
     'Complete your own sign-in in the GO app.',
@@ -170,7 +173,11 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'The form requires its application number.',
                    'I can reserve this table at 19:00. I stopped without checking the details.',
                    'I am logging the plan and signing off. I stopped without checking the details.',
-                   'I read their blog in the morning. I stopped without checking the details.']:
+                   'I read their blog in the morning. I stopped without checking the details.',
+                   'The hotel does not allow pets. I stopped without checking the details.',
+                   'This service is not app-based. I stopped without checking the details.',
+                   'Their rewards program is app-based. I stopped without checking the details.',
+                   'This venue does not allow reservations to be canceled. I stopped without checking the details.']:
         common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': silent}])
         assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'], silent
 
