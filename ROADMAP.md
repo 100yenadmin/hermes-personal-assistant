@@ -128,7 +128,7 @@ A code inventory, an adversarial cross-model plan review and the live lab result
 - card statements (#146), then a read-only accounting feed and the tax pack;
 - documents in the owner's Drive and CRM (#156);
 - the blind voice test, run during inbox onboarding instead of at the end of M6;
-- the remaining breadth areas are built: social and content admin (0.15.0-rc.1), then the weekly customer report and family admin (0.16.0-rc.1) (#157).
+- the #157 slices are built: social and content admin (0.15.0-rc.1), then the weekly customer report and family admin (0.16.0-rc.1) (#157).
 
 **How it is measured.**
 - An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption. Built in 0.15.0-rc.1 (lab s37: a yes in a new chat confirms the prepared booking once).
