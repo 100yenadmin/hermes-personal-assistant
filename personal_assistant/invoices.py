@@ -62,6 +62,20 @@ def _iban(value):
     return False
 
 
+def _shape_hint(data):
+    """Name the fields the action takes, so a model can correct its call (key names only, never values)."""
+    action = data.get("action")
+    if not isinstance(action, str) or action not in ALLOWED:
+        return "action must be one of " + ", ".join(sorted(ALLOWED))
+    required = sorted(RECORD if action == "record" else ALLOWED[action] if action != "list" else ())
+    optional = sorted(ALLOWED[action] - set(required))
+    unknown = sorted(str(k)[:40] for k in data if k != "action" and k not in ALLOWED[action])[:5]
+    hint = f"{action} takes " + (", ".join(required) or "no required fields")
+    hint += f"; optional: {', '.join(optional)}" if optional else ""
+    hint += f"; not accepted: {', '.join(unknown)}" if unknown else ""
+    return hint + "; send them at the top level of data, dates as YYYY-MM-DD"
+
+
 def _validate(data):
     if _private({k: v for k, v in data.items() if k != "invoice_id"}):  # Generated hex ids are not owner text.
         raise ValueError("PA does not store payment or account numbers or credentials")
@@ -71,7 +85,7 @@ def _validate(data):
                 and re.search(r"\d{%d,}" % (17 if key == "reference" else 8), value)):
             raise ValueError("PA does not store payment or account numbers")
     if not Draft7Validator(OP_SCHEMA, format_checker=FormatChecker()).is_valid(data):
-        raise ValueError("invalid invoice action or fields")
+        raise ValueError("invalid invoice action or fields: " + _shape_hint(data))
     for key, limit in TEXT_LIMITS.items():
         if key in data:
             _text(data[key], "invoice." + key, limit)

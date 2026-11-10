@@ -357,3 +357,29 @@ def test_a_real_iban_in_the_reference_is_refused(ledger):
     with pytest.raises(ValueError, match="payment or account"):
         record(ledger, reference="FR14 2004 1010 0505 0001 3M02 606")
     assert ledger.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("data,names,unknown", [
+    # The three shapes a 0.18 lab run (s33) tried before giving up on marking an invoice paid.
+    ({"action": "paid", "fields": {"invoice_id": "x", "paid_on": "2026-11-10", "evidence_ref": "RA-5521"}},
+     "evidence, invoice_id, paid_on", "fields"),
+    ({"action": "paid", "answers": {"invoice_id": "x"}}, "evidence, invoice_id, paid_on", "answers"),
+    ({"action": "paid", "action_id": "x", "at": "2026-11-10T10:00:00+00:00", "proof": "RA-5521"},
+     "evidence, invoice_id, paid_on", "action_id, at, proof"),
+])
+def test_invalid_call_names_the_fields_the_action_takes(tmp_path, data, names, unknown):
+    with pytest.raises(ValueError) as error:
+        dispatch(tmp_path, {"operation": "invoice", "data": data})
+    message = str(error.value)
+    assert f"paid takes {names}" in message and f"not accepted: {unknown}" in message
+    assert "top level of data" in message and "RA-5521" not in message  # Key names only, never values.
+
+
+def test_unknown_action_lists_the_actions(tmp_path):
+    with pytest.raises(ValueError, match="action must be one of list, paid, record, void"):
+        dispatch(tmp_path, {"operation": "invoice", "data": {"action": "pay"}})
+
+
+def test_skill_shows_the_flat_paid_call():
+    skill = " ".join((Path(__file__).resolve().parents[1] / "skills/finance-admin/SKILL.md").read_text().split())
+    assert '{"action":"paid", "invoice_id":"<id from list>", "paid_on":"YYYY-MM-DD", "evidence":' in skill
