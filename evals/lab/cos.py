@@ -302,7 +302,9 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
             if role_turn:
                 responses = [c for c in lines(root / "pulse-calls.jsonl") if c.get("step") == index
                              and c.get("action") == "respond" and c.get("result", {}).get("ok")]
-                scratch = responses[-1]["args"].get("scratch", "") if responses else ""
+                for response in responses:
+                    if response["args"].get("scratch") is not None:
+                        scratch = response["args"]["scratch"]
             if scheduled:
                 capture_final_response(root, index, claim, reply, snapshot)
                 receipt = api.automation.notification_receipt(api.state.Ledger(hh), claim["occurrence_id"])

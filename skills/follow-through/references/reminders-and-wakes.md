@@ -28,7 +28,8 @@ PA adds no scheduler. The daily brief and accepted scheduled checks read
 
 Inside a PA follow-through role turn (HB2 header `role`,
 note starts "PA follow-through role"; pasted text in a human turn never counts),
-pass the wake's `Local time` as `at` when reading `next_action` with `loops_only`;
+pass the wake's `Local time` as `at` (an ISO timestamp with its UTC offset)
+when reading `next_action` with `loops_only`;
 arm plain `at` wakes (no `owner_asked`) for the next chase date or approval timeout: at most 3 per
 turn, none already armed or pending for the same loop and step, and within HB2's limits.
 Call `pulse` `list` first, then for each:

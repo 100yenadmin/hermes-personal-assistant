@@ -20,17 +20,18 @@ def register(ctx, obs):
                 role = obs.lab["role"]
                 result = {"wakes": [{"id": role["id"], "title": role["title"], "role": True}, *wakes]}
             elif action == "respond":
-                if isinstance(args.get("outcome"), str) and args["outcome"].strip() and type(args.get("notify")) is bool:
-                    result = {"ok": True}
+                summary = args.get("summary", "")
+                if args.get("outcome") not in ("no_change", "progress", "done", "blocked", "needs_attention") or type(args.get("notify")) is not bool:
+                    result = {"error": "respond needs outcome and boolean notify"}
+                elif not isinstance(summary, str) or len(summary) > 280:
+                    result = {"error": "summary exceeds 280 characters"}
                 else:
-                    result = {"error": "respond requires outcome and boolean notify."}
+                    result = {"ok": True}
             elif action == "create":
                 trigger = args.get("trigger")
                 trigger = trigger if isinstance(trigger, dict) else {}
                 if trigger.get("kind") != "at":
                     result = {"error": "Lab pulse accepts only trigger.kind at."}
-                elif args.get("owner_asked") is True:
-                    result = {"error": "owner_asked is ignored in a role turn; omit it.", "owner_asked_ignored": "wake_turn"}
                 elif counts.get(obs.step, 0) >= 3:
                     result = {"error": "max_children_per_wake_turn: 3"}
                 else:
@@ -50,6 +51,8 @@ def register(ctx, obs):
                         wakes.append({**receipt, "note": args.get("note", "")})
                         counts[obs.step] = counts.get(obs.step, 0) + 1
                         result = receipt
+                        if args.get("owner_asked") is True:
+                            result["owner_asked_ignored"] = "wake_turn"
             append(obs.out / "pulse-calls.jsonl", {"step": obs.step, "action": action, "args": args, "result": result})
             return json.dumps(result)
 

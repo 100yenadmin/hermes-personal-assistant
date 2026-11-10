@@ -86,6 +86,8 @@ def validate(s):
         require(type(s["trip"]["travellers"]) is int and s["trip"]["travellers"] > 0, "trip.travellers")
     require(isinstance(s.get("steps"), list) and s["steps"], "steps")
     role_turns = any(isinstance(st, dict) and st.get("type") == "role_turn" for st in s["steps"])
+    if role_turns:
+        require(lab and s["lab"].get("kind") == "role_followthrough", "lab.kind for role_turn")
     for key in ("max_user_turns", "budget_seconds"):
         require(type(s.get(key)) is int and s[key] >= (0 if key == "max_user_turns" and role_turns else 1), key)
     if role_turns or lab and s["lab"].get("kind") == "role_followthrough":

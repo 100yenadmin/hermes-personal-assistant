@@ -14,7 +14,7 @@ max_user_turns: 0
 budget_seconds: 1800
 seed:
 - {operation: action_upsert, data: {action_id: 'lab:chase', action_type: commitment, status: open, fields: {title: Signed quote from Cedar Demo, loop_kind: waiting_on_them, counterparty: Cedar Demo, next_actor: them, opened_at: '@days_ago_1@', next_step: Await the signed quote, chase_log: []}}}
-- {operation: action_upsert, data: {action_id: 'lab:urgent', action_type: commitment, status: open, fields: {title: Approve the venue contract, loop_kind: ask_owner, counterparty: Owner, next_actor: owner, opened_at: '@days_ago_3@', next_step: Approve the venue contract, chase_log: [], due_at: '@in_1_days@T17:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:urgent', action_type: commitment, status: open, fields: {title: Approve the venue contract, loop_kind: ask_owner, counterparty: Owner, next_actor: owner, opened_at: '@days_ago_1@', next_step: Approve the venue contract, chase_log: [], due_at: '@in_1_days@T17:00:00+08:00'}}}
 - {operation: action_upsert, data: {action_id: 'lab:quiet', action_type: commitment, status: open, fields: {title: Prepare next week summary, loop_kind: our_promise, counterparty: Owner, next_actor: us, opened_at: '@today@', next_step: Prepare the summary next week, chase_log: [], due_at: '@in_7_days@T17:00:00+08:00'}}}
 lab:
   kind: role_followthrough

@@ -1,11 +1,28 @@
 """Offline s42 oracles over synthetic clocks, pulse receipts and saved ledgers."""
-import datetime as dt
+import json
 import re
 
 from .booking_checks import arguments, object_value, operation, stamp, successful
 from .common import lines, read
 from .cos import variables
 from .m34_checks import fields, report
+
+
+def owner_text(text):
+    """Remove lab_summary JSON objects, preserving prose before and after them."""
+    decoder = json.JSONDecoder()
+    chunks, end = [], 0
+    for match in re.finditer(r"\{", text):
+        if match.start() < end:
+            continue
+        try:
+            value, length = decoder.raw_decode(text[match.start():])
+        except ValueError:
+            continue
+        if isinstance(value, dict) and "lab_summary" in value:
+            chunks.append(text[end:match.start()])
+            end = match.start() + length
+    return " ".join([*chunks, text[end:]])
 
 
 def evaluate(root, scenario, index, messages, tools):
@@ -15,8 +32,9 @@ def evaluate(root, scenario, index, messages, tools):
     now = stamp(variables(scenario["timezone"], start, step["hour"], step["day"])["now"])
     local = [t for t in tools if t.get("step") == index]
     pulse = lines(root / "pulse-calls.jsonl")
-    responses = [c for c in pulse if c.get("step") == index and c.get("action") == "respond"]
-    responds = len(responses) == 1 and responses[0].get("result", {}).get("ok") is True
+    responses = [c for c in pulse if c.get("step") == index and c.get("action") == "respond"
+                 and c.get("result", {}).get("ok") is True]
+    responds = len(responses) == 1
     response = responses[-1].get("args", {}) if responses else {}
     responds = bool(responds and response.get("outcome") and type(response.get("notify")) is bool)
 
@@ -59,6 +77,13 @@ def evaluate(root, scenario, index, messages, tools):
     previous = {r["action_id"]: fields(r) for r in read(root / f"ledger-step-{index - 1}.json", {}).get("actions", [])}
     data = report(messages[-1] if messages else "")
     drafts = [d for d in data.get("drafts", []) if isinstance(d, dict) and (d.get("body") or d.get("text"))]
+    quiet = rows.get("lab:quiet", {})
+    escalation = data.get("escalation", {})
+    result["quiet_untouched"] = ("lab:quiet" in rows and "lab:quiet" in initial
+        and quiet.get("chase_log", []) == initial["lab:quiet"].get("chase_log", [])
+        and quiet.get("last_chased_at") == initial["lab:quiet"].get("last_chased_at")
+        and not any(d.get("action_id") == "lab:quiet" for d in drafts)
+        and not (isinstance(escalation, dict) and escalation.get("action_id") == "lab:quiet"))
     chase = rows.get("lab:chase", {}).get("chase_log", [])
     if index == 0:
         result["chase_not_early"] = ("lab:chase" in rows and "lab:chase" in initial
@@ -77,8 +102,8 @@ def evaluate(root, scenario, index, messages, tools):
         result["chase_held"] = ("lab:chase" in previous and chase[:len(before)] == before
             and len(chase) == len(before) + 1 and held(chase[-1])
             and any(d.get("action_id") == "lab:chase" for d in drafts))
-        text = " ".join([str(response.get("summary", "")), *messages]).casefold()
-        title = initial.get("lab:urgent", {}).get("title", "")
-        result["urgent_surfaced"] = (bool(title) and (title.casefold() in text or "lab:urgent" in text)
+        text = " ".join([str(response.get("summary", "")) if response.get("notify") is True else "",
+                         owner_text(messages[-1]) if messages else ""]).casefold()
+        result["urgent_surfaced"] = (bool(re.search(r"\bvenue\b", text) and re.search(r"\bcontract\b", text))
             and (response.get("notify") is True or response.get("outcome") in {"needs_attention", "blocked"}))
     return result

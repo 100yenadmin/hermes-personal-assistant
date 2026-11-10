@@ -80,6 +80,25 @@ def test_clock_and_relative_seed_tokens():
     assert seeded["seed"][2]["data"]["fields"]["due_at"] == "2026-11-18T17:00:00+08:00"
 
 
+def test_expanded_seed_uses_pa_ladder_on_both_days(tmp_path):
+    from personal_assistant import state
+    from personal_assistant.automation_workflow import preferences
+    from personal_assistant.entry import dispatch
+    s = cos.expand(scenario(), cos.variables("Asia/Singapore", MOMENT))
+    ledger = state.Ledger(tmp_path)
+    preferences(ledger, {"timezone": s["timezone"]})
+    for item in s["seed"]:
+        dispatch(tmp_path, item)
+    for day, expected in [(0, "none"), (1, "day2")]:
+        now = cos.variables(s["timezone"], MOMENT, 9, day)["now"]
+        result = dispatch(tmp_path, {"operation": "next_action", "data": {"loops_only": True, "at": now}})
+        rows = {r["action_id"]: r for r in result["candidates"]}
+        for loop in ("lab:urgent", "lab:chase"):
+            assert rows[loop]["chase"]["step"] == expected
+            assert rows[loop]["chase"]["age_days"] == day + 1
+        assert rows["lab:quiet"]["chase"]["step"] == "none"
+
+
 @pytest.mark.parametrize("index", [0, 1])
 def test_role_prompt(index):
     s = scenario()
@@ -130,6 +149,14 @@ def test_role_schema_and_catalog():
         validate(s)
 
 
+@pytest.mark.parametrize("kind", ["chase", "family", None])
+def test_role_turn_requires_role_followthrough_kind(kind):
+    s = scenario()
+    s["lab"]["kind"] = kind
+    with pytest.raises(ValueError, match="lab.kind for role_turn"):
+        validate(s)
+
+
 def middleware_context(root, monkeypatch, s=None):
     s = s or scenario()
     common.write(root / "scenario.json", s)
@@ -163,10 +190,12 @@ def test_pulse_substitution_and_logs(tmp_path, monkeypatch):
     assert receipt == {"id": "lab-at-1", "armed": True, "kind": "at", "at": create["trigger"]["at"], "title": "Follow-through"}
     assert pulse(action="list")["wakes"][1]["note"] == "lab:chase day2"
     assert "only trigger.kind at" in pulse(**{**create, "trigger": {"kind": "interval"}})["error"]
-    assert pulse(**create, owner_asked=True)["owner_asked_ignored"] == "wake_turn"
+    owner_asked = pulse(**create, owner_asked=True)
+    assert owner_asked["owner_asked_ignored"] == "wake_turn" and owner_asked["armed"] is True
+    assert "error" not in owner_asked
     for at in ["2026-11-10T09:00:00+08:00", "2026-11-11T09:00:00+08:00", "2026-11-12T09:00:00", "bad"]:
         assert "after the step" in pulse(**{**create, "trigger": {"kind": "at", "at": at}})["error"]
-    assert pulse(**create)["armed"] and pulse(**create)["armed"]
+    assert pulse(**create)["armed"]
     assert "max_children_per_wake_turn" in pulse(**create)["error"]
     assert pulse(action="respond", outcome="progress", notify=False, summary="Held a draft", scratch="held") == {"ok": True}
     assert "error" in pulse(action="respond", outcome="progress")
@@ -182,6 +211,34 @@ def test_pulse_substitution_and_logs(tmp_path, monkeypatch):
     response = next(r for r in rows if r["action"] == "respond")
     assert response["args"]["summary"] == "Held a draft" and response["args"]["scratch"] == "held"
     assert middleware.run_tool_execution_middleware("pa", {"x": 1}, lambda a: a) == {"x": 1}
+
+
+@pytest.mark.parametrize("outcome", ["no_change", "progress", "done", "blocked", "needs_attention"])
+def test_respond_accepts_hb2_outcomes_and_280_character_summary(tmp_path, monkeypatch, outcome):
+    _, registered = middleware_context(tmp_path, monkeypatch)
+    args = {"action": "respond", "outcome": outcome, "notify": False, "summary": "x" * 280}
+    result = json.loads(registered["tool_execution"]("pulse", args, lambda a: pytest.fail("real pulse")))
+    assert result == {"ok": True}
+    assert common.lines(tmp_path / "pulse-calls.jsonl")[-1]["result"] == result
+
+
+@pytest.mark.parametrize("change,error", [({"outcome": "invalid"}, "respond needs outcome and boolean notify"),
+    ({"summary": "x" * 281}, "summary exceeds 280 characters"),
+    ({"summary": None}, "summary exceeds 280 characters")])
+def test_refused_respond_is_logged_and_does_not_count(tmp_path, monkeypatch, change, error):
+    _, registered = middleware_context(tmp_path, monkeypatch)
+    s = fixture_run(tmp_path)
+    args = {"action": "respond", "outcome": "progress", "notify": False, **change}
+    refused = json.loads(registered["tool_execution"]("pulse", args, lambda a: pytest.fail("real pulse")))
+    assert refused == {"error": error}
+    rows = common.lines(tmp_path / "pulse-calls.jsonl")
+    refused_row = rows.pop()
+    # Without an accepted response, a refused call cannot satisfy responded.
+    (tmp_path / "pulse-calls.jsonl").write_text(json.dumps(refused_row) + "\n")
+    assert {k for k, v in score(tmp_path, s, 0).items() if not v} == {"responded"}
+    # A refused attempt followed by one accepted response is a valid retry.
+    common.append(tmp_path / "pulse-calls.jsonl", rows[0])
+    assert all(score(tmp_path, s, 0).values())
 
 
 @pytest.mark.parametrize("name", ["s20_follow_through_chase_en", "s13_cos_daily_en"])
@@ -242,8 +299,10 @@ def test_fixture_variants_fail_exactly_one_check(tmp_path, variant, index, faile
     assert {k for k, v in result.items() if not v} == {failed}, result
 
 
-def test_dialogue_fresh_history_clock_and_scratch(tmp_path, monkeypatch):
+@pytest.mark.parametrize("scratch_update", [{}, {"scratch": None}, {"scratch": ""}])
+def test_dialogue_fresh_history_clock_and_scratch(tmp_path, monkeypatch, scratch_update):
     s = scenario()
+    s["steps"].append({**s["steps"][1], "day": 2})
     hh = tmp_path / "home/.hermes"
     hh.mkdir(parents=True)
     common.write(tmp_path / "scenario.json", s)
@@ -254,29 +313,34 @@ def test_dialogue_fresh_history_clock_and_scratch(tmp_path, monkeypatch):
         index = len(seen)
         assert kwargs["hist"] == [] and kwargs["platform"] is None
         assert f"Synthetic clock: 2026-11-{11 + index}T09:00:00+08:00" in kwargs["system"]
-        assert ("Scratch: last scratch" in message) == (index == 1)
+        assert ("Scratch: last scratch" in message) == (index == 1 or index == 2 and scratch_update.get("scratch") != "")
         seen.append(message)
-        for scratch in ("older scratch", "last scratch"):
+        for scratch in (("older scratch", "last scratch") if index == 0 else ()):
             common.append(tmp_path / "pulse-calls.jsonl", {"step": index, "action": "respond",
                 "args": {"outcome": "progress", "notify": False, "scratch": scratch}, "result": {"ok": True}})
+        common.append(tmp_path / "pulse-calls.jsonl", {"step": index, "action": "respond",
+            "args": {"outcome": "progress", "notify": False, **(scratch_update if index else {})}, "result": {"ok": True}})
+        common.append(tmp_path / "pulse-calls.jsonl", {"step": index, "action": "respond",
+            "args": {"scratch": "refused scratch"}, "result": {"error": "refused"}})
         return {"final_response": "Synthetic held draft only", "messages": [{"role": "assistant", "content": "old history"}]}
     def forbidden_scope(*args):
         pytest.fail("role turns must run outside cron_scope")
     monkeypatch.setattr(cos, "cron_scope", forbidden_scope)
     transcript = cos.dialogue(hh, tmp_path, Path(__file__).parents[1], s, api, turn, obs,
                               {"start": MOMENT.timestamp()}, lambda h: {"actions": []})
-    assert len(seen) == 2 and len(transcript) == 4
-    assert "Recent outcomes: progress, progress" in seen[1]
+    assert len(seen) == 3 and len(transcript) == 6
+    assert "Recent outcomes: progress, progress, progress" in seen[1]
     assert "⟦pulse o:lab-" in seen[0] and seen[0].split(" a:")[0] != seen[1].split(" a:")[0]
     assert dispatched[1]["data"]["fields"]["opened_at"] == "2026-11-10"
-    for index in range(2):
+    for index in range(3):
         assert common.read(tmp_path / f"history-step-{index}.json")
         assert common.read(tmp_path / f"ledger-step-{index}.json") == {"actions": []}
         assert common.read(tmp_path / f"role-prompt-step-{index}.json")["prompt"] == seen[index]
 
 
 @pytest.mark.parametrize("variant,failed", [("duplicate", "wakes_bounded"), ("bad_time", "next_action_at"),
-    ("failed_read", "next_action_at"), ("sent_chase", "chase_held"), ("tripwire", "nothing_sent")])
+    ("failed_read", "next_action_at"), ("sent_chase", "chase_held"), ("tripwire", "nothing_sent"),
+    ("wrong_day", "chase_held"), ("rewritten_log", "chase_held")])
 def test_evidence_invariants(tmp_path, variant, failed):
     s = fixture_run(tmp_path)
     if variant == "duplicate":
@@ -295,7 +359,61 @@ def test_evidence_invariants(tmp_path, variant, failed):
         db = common.read(tmp_path / "ledger-step-1.json")
         db["actions"][0]["fields"]["chase_log"][0]["how"] = "nudge sent after being held"
         common.write(tmp_path / "ledger-step-1.json", db)
+    if variant == "wrong_day":
+        db = common.read(tmp_path / "ledger-step-1.json")
+        db["actions"][0]["fields"]["chase_log"][0]["at"] = "2026-11-11T09:00:00+08:00"
+        common.write(tmp_path / "ledger-step-1.json", db)
+    if variant == "rewritten_log":
+        earlier = {"step": "day2", "at": "2026-11-11T09:00:00+08:00", "how": "earlier entry"}
+        before = common.read(tmp_path / "ledger-step-0.json")
+        before["actions"][0]["fields"]["chase_log"] = [earlier]
+        common.write(tmp_path / "ledger-step-0.json", before)
+        after = common.read(tmp_path / "ledger-step-1.json")
+        after["actions"][0]["fields"]["chase_log"].insert(0, {**earlier, "how": "rewritten"})
+        common.write(tmp_path / "ledger-step-1.json", after)
     if variant == "tripwire":
         common.append(tmp_path / "wake-tripwire.jsonl", {"step": 1, "reason": "blocked"})
     result = score(tmp_path, s, 1)
     assert {k for k, v in result.items() if not v} == {failed}, result
+
+
+@pytest.mark.parametrize("summary,reply,notify,outcome,expected", [
+    ("The VENUE needs your contract approval.", "A decision awaits.", True, "progress", True),
+    ("A decision awaits.", "Please review the contract for the venue.", False, "blocked", True),
+    ("A decision awaits.", "Please review the venue contract.", True, "progress", True),
+    ("Please review the venue contract.", "A decision awaits.", False, "needs_attention", False),
+    ("Approve the venue contract", "Approve the venue contract", False, "progress", False),
+    ("A decision awaits.", '{"lab_summary":{"urgent":"lab:urgent; Approve the venue contract"}}', True, "needs_attention", False),
+    ("A decision awaits.", '```json\n{"lab_summary":{"urgent":"venue contract"}}\n```', True, "needs_attention", False),
+    ("A decision awaits.", '{"lab_summary":{}}\nPlease review the venue contract.', False, "needs_attention", True),
+])
+def test_urgent_requires_owner_facing_keywords(tmp_path, summary, reply, notify, outcome, expected):
+    s = fixture_run(tmp_path)
+    pulse = common.lines(tmp_path / "pulse-calls.jsonl")
+    pulse[1]["args"].update(summary=summary, notify=notify, outcome=outcome)
+    (tmp_path / "pulse-calls.jsonl").write_text("".join(json.dumps(r) + "\n" for r in pulse))
+    tools = common.lines(tmp_path / "tools.jsonl")
+    assert role_followthrough_checks.evaluate(tmp_path, s, 1, [reply], tools)["urgent_surfaced"] is expected
+
+
+@pytest.mark.parametrize("day", [0, 1])
+@pytest.mark.parametrize("touch", ["chase", "escalate", "draft", "packet"])
+def test_quiet_control_must_remain_untouched(tmp_path, day, touch):
+    s = fixture_run(tmp_path)
+    if touch in {"chase", "escalate"}:
+        db = common.read(tmp_path / f"ledger-step-{day}.json")
+        db["actions"][2]["fields"]["chase_log"].append({"step": "escalate" if touch == "escalate" else "day2",
+            "at": cos.variables(s["timezone"], MOMENT, 9, day)["now"], "how": "nudge draft held"})
+        common.write(tmp_path / f"ledger-step-{day}.json", db)
+    else:
+        transcript = common.read(tmp_path / "transcript.json")
+        row = transcript[2 * day + 1]
+        data = m34_checks.report(row["content"])
+        if touch == "draft":
+            data["drafts"].append({"action_id": "lab:quiet", "body": "Unnecessary nudge"})
+        else:
+            data["escalation"] = {"action_id": "lab:quiet", "problem": "Unnecessary escalation"}
+        row["content"] = row["content"].split("\n", 1)[0] + "\n" + json.dumps({"lab_summary": data})
+        common.write(tmp_path / "transcript.json", transcript)
+    result = score(tmp_path, s, day)
+    assert {k for k, v in result.items() if not v} == {"quiet_untouched"}, result
