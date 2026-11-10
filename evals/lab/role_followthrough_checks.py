@@ -82,8 +82,8 @@ def evaluate(root, scenario, index, messages, tools):
     quiet = rows.get("lab:quiet", {})
     escalation = data.get("escalation", {})
     result["quiet_untouched"] = ("lab:quiet" in rows and "lab:quiet" in initial
-        and raw["lab:quiet"].get("status") == seed_status.get("lab:quiet")
-        and all(quiet.get(k) == initial["lab:quiet"].get(k) for k in ("chase_log", "last_chased_at", "due_at", "next_step"))
+        # The control loop stays exactly as seeded: status and every field (no chase, reschedule, snooze, cancel or confirmation).
+        and raw["lab:quiet"].get("status") == seed_status.get("lab:quiet") and quiet == initial["lab:quiet"]
         and not any(d.get("action_id") == "lab:quiet" for d in drafts)
         and not (isinstance(escalation, dict) and escalation.get("action_id") == "lab:quiet"))
     chase = rows.get("lab:chase", {}).get("chase_log", [])

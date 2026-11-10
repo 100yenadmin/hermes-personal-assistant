@@ -1,8 +1,8 @@
-import os
 """HB2 role-turn proof using synthetic logs only; no model, scheduler or providers."""
 import copy
 import datetime as dt
 import json
+import os
 import socket
 import sys
 from pathlib import Path
@@ -167,15 +167,15 @@ def middleware_context(root, monkeypatch, s=None):
                           register_tool=lambda **kw: None,
                           register_middleware=lambda k, cb: middlewares.update({k: cb}))
     monkeypatch.setenv("PA_LAB_OUT", str(root))
-    # Use a Hermes checkout's middleware when one is available (PA_E2E_HERMES); otherwise skip. No engine is instantiated.
-    if "hermes_cli.middleware" not in sys.modules and os.environ.get("PA_E2E_HERMES"):
-        monkeypatch.syspath_prepend(os.environ["PA_E2E_HERMES"])
-    pytest.importorskip("hermes_cli.middleware")
-    register(ctx)
+    register(ctx)  # Outside Hermes the stand-in registers under the plain "tool_execution" kind.
     return hooks["pre_tool_call"].__self__, middlewares
 
 
 def test_pulse_substitution_and_logs(tmp_path, monkeypatch):
+    # Runs through Hermes's own middleware runner when a Hermes checkout is importable (PA_E2E_HERMES); skips otherwise.
+    if "hermes_cli.middleware" not in sys.modules and os.environ.get("PA_E2E_HERMES"):
+        monkeypatch.syspath_prepend(os.environ["PA_E2E_HERMES"])
+    pytest.importorskip("hermes_cli.middleware")
     obs, registered = middleware_context(tmp_path, monkeypatch)
     from hermes_cli import middleware, plugins
     manager = SimpleNamespace(_middleware={"tool_execution": [registered["tool_execution"]]})
@@ -400,17 +400,20 @@ def test_urgent_requires_owner_facing_keywords(tmp_path, summary, reply, notify,
 
 
 @pytest.mark.parametrize("day", [0, 1])
-@pytest.mark.parametrize("touch", ["chase", "escalate", "draft", "packet", "status", "due", "next_step"])
+@pytest.mark.parametrize("touch", ["chase", "escalate", "draft", "packet", "status", "due", "next_step",
+                                   "loop_cancelled", "snoozed_until", "confirmation"])
 def test_quiet_control_must_remain_untouched(tmp_path, day, touch):
     s = fixture_run(tmp_path)
-    if touch in {"status", "due", "next_step"}:
+    if touch in {"status", "due", "next_step", "loop_cancelled", "snoozed_until", "confirmation"}:
         db = common.read(tmp_path / f"ledger-step-{day}.json")
         row = db["actions"][2]
         assert row["action_id"] == "lab:quiet"
         if touch == "status":
             row["status"] = "completed"
-        else:
+        elif touch in {"due", "next_step"}:
             row["fields"]["due_at" if touch == "due" else "next_step"] = "changed"
+        else:
+            row["fields"][touch] = {"by": "PA", "at": "2026-11-11T09:00:00+08:00"} if touch != "snoozed_until" else "2026-11-20T09:00:00+08:00"
         common.write(tmp_path / f"ledger-step-{day}.json", db)
     elif touch in {"chase", "escalate"}:
         db = common.read(tmp_path / f"ledger-step-{day}.json")
