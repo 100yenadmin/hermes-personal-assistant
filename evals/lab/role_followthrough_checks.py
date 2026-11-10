@@ -72,20 +72,22 @@ def evaluate(root, scenario, index, messages, tools):
     # Wakes armed this step land outside the owner's quiet hours (next_chase_at is midnight; PA arms 09:00 local).
     # Same window HB2 uses: start <= t < end, wrapping midnight; start == end means no quiet hours.
     hours = (scenario.get("preferences") or {}).get("quiet_hours") or QUIET_HOURS
-    # Snoozes and deadlines keep their exact times (skill rule): a wake at exactly a loop's snoozed_until or timed
-    # due_at in this step's ledger is exempt. Derived from the ledger, never from the wake's note.
+    # Snoozes and deadlines keep their exact times (skill rule): a wake for a loop (named in its note, as for
+    # wakes_bounded) at exactly that loop's snoozed_until or timed due_at in this step's ledger is exempt.
+    # The time comes from the ledger, never from the note; another loop's deadline exempts nothing.
     kept = set()
     for row in read(root / f"ledger-step-{index}.json", {}).get("actions", []):
         for key in ("snoozed_until", "due_at"):
             value = fields(row).get(key)
             try:
                 if isinstance(value, str) and "T" in value:
-                    kept.add(stamp(value).timestamp())
+                    kept.add((row.get("action_id"), stamp(value).timestamp()))
             except (TypeError, ValueError, AttributeError):
                 pass
     def awake(call):
         try:
-            if stamp(call["result"]["at"]).timestamp() in kept:
+            when, note = stamp(call["result"]["at"]).timestamp(), str(call.get("args", {}).get("note", ""))
+            if any(aid and aid in note and when == ts for aid, ts in kept):
                 return True
         except (KeyError, TypeError, ValueError, AttributeError):
             return False

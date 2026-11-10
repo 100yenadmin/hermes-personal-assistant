@@ -496,13 +496,15 @@ def test_scenario_quiet_hours_preference_is_validated(quiet, ok):
     ("due_at", "PA follow-through wake: lab:chase deadline", True),  # a deadline keeps its time
     (None, "PA follow-through wake: lab:chase day2; no snooze", False),  # free text never exempts
     (None, "PA follow-through wake: lab:chase approval timeout", False),
+    ("other_loop_due_at", "PA follow-through wake: lab:chase day2", False),  # another loop's deadline exempts nothing
 ])
 def test_only_ledger_snoozes_and_deadlines_keep_quiet_hour_times(tmp_path, ledger_key, note, ok):
     s = fixture_run(tmp_path)
     at = "2026-11-12T23:00:00+08:00"  # inside quiet hours
     if ledger_key:
         db = common.read(tmp_path / "ledger-step-0.json")
-        db["actions"][0]["fields"][ledger_key] = at
+        row = 1 if ledger_key == "other_loop_due_at" else 0  # rows: 0 lab:chase, 1 lab:urgent
+        db["actions"][row]["fields"]["due_at" if ledger_key == "other_loop_due_at" else ledger_key] = at
         common.write(tmp_path / "ledger-step-0.json", db)
     common.append(tmp_path / "pulse-calls.jsonl", {"step": 0, "action": "create",
         "args": {"note": note, "trigger": {"kind": "at", "at": at}},
