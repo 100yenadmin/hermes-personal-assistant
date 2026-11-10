@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.16.0-rc.1, 10 November 2026)
+## Where we are (0.17.0-rc.1, 10 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -76,6 +76,8 @@ In the 0.15.0-rc.1 wave (84 runs on real Hermes, 81 passing), the approval day (
 
 In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), the customer report (s40) and family admin (s41) each passed 3 of 3.
 
+0.17.0-rc.1 makes the weekly review offer calendar setup in plain words (#187) and closes a lab handoff-detector gap (#188). In its wave (93 runs on real Hermes, 89 passing), the weekly review (s16) and the end-of-day note (s22) passed 3 of 3; the content calendar (s38) and trip expenses (s30) passed 2 of 3 (3 of 3 in 0.16.0-rc.1), and Seoul to Tokyo (s01) passed 1 of 3 (2 of 3 in 0.16.0-rc.1).
+
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
 - the safe-action gateway and the durable ledger;
@@ -111,7 +113,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3); meeting minutes with owners and dates (lab s34 3 of 3); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
 | Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); no tax pack yet | M6 |
 | Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1; lab s31 3 of 3 since 0.14.0-rc.1); a read-only weekly report of volume, response time, recurring complaints and open items (0.16.0-rc.1, lab s40 3 of 3) | M6 |
-| Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1, lab s38 3 of 3); no comment replies, mention monitoring or weekly report yet | M6 |
+| Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1; lab s38 3 of 3 in 0.15.0-rc.1 and 0.16.0-rc.1, 2 of 3 in 0.17.0-rc.1); no comment replies, mention monitoring or weekly report yet | M6 |
 
 ## Gap review (9 November 2026): what changes in the order
 

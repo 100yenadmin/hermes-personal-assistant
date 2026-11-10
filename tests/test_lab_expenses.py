@@ -53,7 +53,7 @@ def synthetic():
                 **{k: offer[k] for k in BOOKING_FIELDS}}
     prepare = {"action_id": "booking-1", "enforcement_profile": "exact_action", "summary": material,
         "action_revision": "v1", "workflow_id": "lab-expense", "workflow_revision": "v1", "tool_name": "lab_booking_submit", "tool_args": args,
-        "semantic_target": {"paths": [["item"]], "value": [offer["id"]]}, "fresh_until": "2026-11-10T12:00:00+09:00", "execution_budget": 1,
+        "semantic_target": {"paths": [["item"]], "value": [offer["id"]]}, "fresh_until": "2099-11-10T12:00:00+09:00", "execution_budget": 1,
         "required_pre_action_projections": ["offer_matches"], "preconditions": {"offer_matches": "confirmed"}, "expected_readback": "synthetic-expense/v1"}
     receipt = {"amount": "2450", "currency": "JPY", "category": "transport", "kind": "charge", "date": offer["start"][:10],
                "merchant": "Synthetic Kyoto Taxi", "evidence_ref": "SKT-0917"}

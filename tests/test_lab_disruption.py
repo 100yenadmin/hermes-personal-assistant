@@ -55,7 +55,7 @@ def synthetic():
         key = "option" if "option" in a else "item"
         prepares.append({"action_id": identity, "enforcement_profile": "exact_action", "summary": {"provider": "synthetic", "final_action": name, **a},
             "action_revision": "v1", "workflow_id": "lab-disruption", "workflow_revision": "v1", "tool_name": name, "tool_args": a,
-            "semantic_target": {"paths": [[key]], "value": [a[key]]}, "fresh_until": "2026-11-10T12:00:00+09:00", "execution_budget": 1,
+            "semantic_target": {"paths": [[key]], "value": [a[key]]}, "fresh_until": "2099-11-10T12:00:00+09:00", "execution_budget": 1,
             "required_pre_action_projections": ["details_match"], "preconditions": {"details_match": "confirmed"}, "expected_readback": "synthetic-disruption/v1"})
         effects.append({"ics_path": "/synthetic/" + identity + ".ics", "calendar_write_allowed": False,
                         "reminders": ["dinner-1:reminder:1", "dinner-1:reminder:2"] if identity == "dinner-1" else []})

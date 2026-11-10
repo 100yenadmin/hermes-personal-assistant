@@ -10,6 +10,9 @@ from personal_assistant.state import Ledger
 from test_trip_facts import SEG
 from test_trip_watch_arms import BASE
 
+# The offer hint needs a flight still ahead of the wall clock; SEG's own date has passed.
+FUTURE_SEG = {**SEG, 'scheduled_departure': '2099-11-10T12:00:00+09:00', 'scheduled_arrival': '2099-11-10T19:00:00+01:00'}
+
 
 def test_airport_is_not_leave_time(tmp_path):
     ledger = Ledger(tmp_path)
@@ -31,13 +34,13 @@ def test_airport_is_not_leave_time(tmp_path):
 @pytest.mark.parametrize('form', ['flat', 'string', 'dict'])
 def test_save_flight_forms(tmp_path, form):
     expected = dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {
-        'action': 'record_facts', 'trip_id': 'array', 'source': 'user', 'segments': [SEG]}})
+        'action': 'record_facts', 'trip_id': 'array', 'source': 'user', 'segments': [FUTURE_SEG]}})
     data = {'action': 'record_facts', 'trip_id': form, 'source': 'user', **(
-        SEG if form == 'flat' else {'segments': json.dumps([SEG]) if form == 'string' else SEG})}
+        FUTURE_SEG if form == 'flat' else {'segments': json.dumps([FUTURE_SEG]) if form == 'string' else FUTURE_SEG})}
     saved = dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': json.dumps(data)})
     assert saved['digest'] == expected['digest'] and saved['next_step']['offer_trip_watch']
     with pytest.raises(ValueError, match='record_facts'):
-        tw.dispatch(Ledger(tmp_path), {'action': 'status', 'trip_id': form, **SEG})
+        tw.dispatch(Ledger(tmp_path), {'action': 'status', 'trip_id': form, **FUTURE_SEG})
 
 
 def test_import_offers_watch_once(tmp_path):
@@ -146,11 +149,11 @@ def test_only_the_status_read_accepts_an_unplanned_trip(tmp_path):
 
 
 def test_flat_flight_without_source_and_cancelled_offer(tmp_path):
-    flat = {k: v for k, v in SEG.items()}
+    flat = {k: v for k, v in FUTURE_SEG.items()}
     saved = dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {'action': 'record_facts', 'trip_id': 'flat', **flat}})
     assert saved['segments'] and saved['next_step']['offer_trip_watch']
     cancelled = dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {
-        'action': 'record_facts', 'trip_id': 'gone', 'source': 'user', **{**SEG, 'status': 'cancelled'}}})
+        'action': 'record_facts', 'trip_id': 'gone', 'source': 'user', **{**FUTURE_SEG, 'status': 'cancelled'}}})
     assert 'next_step' not in cancelled
 
 

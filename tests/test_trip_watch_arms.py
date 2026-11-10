@@ -124,7 +124,8 @@ def test_pending_replacement_and_armed_conflict(tmp_path):
         record(tmp_path, wake_id='w_three')
     wakes = Ledger(tmp_path).get('action', 'pa:trip-watch:synthetic')['fields']['wakes']
     assert wakes[0]['superseded_by'] == 'w_two'
-    assert tw.status(Ledger(tmp_path), 'synthetic')['stale_wakes'] == ['w_one']
+    # A wake is stale only while its trigger time is ahead, so judge it at the test's own clock.
+    assert tw.status(Ledger(tmp_path), 'synthetic', at=BASE['at'])['stale_wakes'] == ['w_one']
 
 
 @pytest.mark.parametrize('state,category', [('active', 'verified'), ('proposed', 'pending'), ('paused', 'resume'),
