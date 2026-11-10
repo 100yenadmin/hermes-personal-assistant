@@ -454,6 +454,7 @@ def test_day0_role_turn_stays_silent_when_nothing_is_due(tmp_path):
     ("2026-11-12T09:00:00+08:00", {"start": "22:00", "end": "09:15"}, False),  # 09:00 is still quiet for this owner
     ("2026-11-12T09:15:00+08:00", {"start": "22:00", "end": "09:15"}, True),  # end is waking, as in HB2
     ("2026-11-12T03:00:00+08:00", {"start": "00:00", "end": "00:00"}, True),  # start == end: no quiet hours
+    ("2026-11-12T23:00:00+08:00", {"start": "22:00+01:00", "end": "07:00"}, False),  # malformed window fails, no crash
 ])
 def test_wakes_must_land_outside_quiet_hours(tmp_path, at, quiet, ok):
     s = fixture_run(tmp_path)
@@ -488,3 +489,23 @@ def test_scenario_quiet_hours_preference_is_validated(quiet, ok):
     else:
         with pytest.raises(ValueError, match="quiet_hours"):
             validate(s)
+
+
+@pytest.mark.parametrize("note,ok", [("PA follow-through wake: lab:chase approval timeout", True),
+                                     ("PA follow-through wake: lab:chase snoozed until 23:00", True),
+                                     ("PA follow-through wake: lab:chase day2", False)])
+def test_snooze_and_approval_timeout_wakes_keep_their_times(tmp_path, note, ok):
+    s = fixture_run(tmp_path)
+    at = "2026-11-12T23:00:00+08:00"  # inside quiet hours
+    common.append(tmp_path / "pulse-calls.jsonl", {"step": 0, "action": "create",
+        "args": {"note": note, "trigger": {"kind": "at", "at": at}},
+        "result": {"id": "lab-at-1", "armed": True, "kind": "at", "at": at}})
+    assert score(tmp_path, s, 0)["wakes_in_waking_hours"] is ok
+
+
+@pytest.mark.parametrize("value", ["22:0\u0660", "7:00", "24:00"])
+def test_quiet_hours_validation_rejects_non_ascii_and_out_of_range(value):
+    s = scenario()
+    s["preferences"] = {"quiet_hours": {"start": value, "end": "07:00"}}
+    with pytest.raises(ValueError, match="quiet_hours"):
+        validate(s)

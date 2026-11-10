@@ -73,14 +73,17 @@ def evaluate(root, scenario, index, messages, tools):
     # Same window HB2 uses: start <= t < end, wrapping midnight; start == end means no quiet hours.
     hours = (scenario.get("preferences") or {}).get("quiet_hours") or QUIET_HOURS
     def awake(call):
+        # Snoozes and approval timeouts keep their exact times (skill rule), so only chase-date wakes are held to waking hours.
+        if re.search(r"approval[ _-]timeout|snooz", str(call.get("args", {}).get("note", "")), re.I):
+            return True
         try:
             start_q, end_q = dt.time.fromisoformat(hours["start"]), dt.time.fromisoformat(hours["end"])
             t = stamp(call["result"]["at"]).astimezone(ZoneInfo(scenario["timezone"])).time()  # the zone, not today's offset (DST)
+            if start_q == end_q:
+                return True
+            return not (t >= start_q or t < end_q) if start_q > end_q else not (start_q <= t < end_q)
         except (KeyError, TypeError, ValueError, AttributeError):
             return False
-        if start_q == end_q:
-            return True
-        return not (t >= start_q or t < end_q) if start_q > end_q else not (start_q <= t < end_q)
     waking = all(awake(c) for c in accepted if c.get("step") == index)
 
     tripwire = any(any(row.get("step") == index for row in lines(path)) for path in root.glob("*tripwire.jsonl"))

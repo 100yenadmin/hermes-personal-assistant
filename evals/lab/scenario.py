@@ -67,7 +67,7 @@ def validate(s):
             "cos_daily_time", "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time", "quiet_hours"}, "preferences")
         quiet = s["preferences"].get("quiet_hours", {"start": "00:00", "end": "00:00"})
         require(isinstance(quiet, dict) and set(quiet) == {"start", "end"}
-                and all(isinstance(v, str) and re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", v) for v in quiet.values()),
+                and all(isinstance(v, str) and re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", v) for v in quiet.values()),
                 "preferences.quiet_hours: {start, end} as HH:MM")
     groups = [("persona", ("name", "email", "phone", "home_city", "notes"))]
     if "trip" in s or not (cos or research or calendar or lab):
