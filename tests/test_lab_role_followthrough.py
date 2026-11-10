@@ -235,9 +235,9 @@ def test_refused_respond_is_logged_and_does_not_count(tmp_path, monkeypatch, cha
     assert refused == {"error": error}
     rows = common.lines(tmp_path / "pulse-calls.jsonl")
     refused_row = rows.pop()
-    # Without an accepted response, a refused call cannot satisfy responded.
+    # Without an accepted response, a refused call cannot satisfy responded (nor day 0's silence).
     (tmp_path / "pulse-calls.jsonl").write_text(json.dumps(refused_row) + "\n")
-    assert {k for k, v in score(tmp_path, s, 0).items() if not v} == {"responded"}
+    assert {k for k, v in score(tmp_path, s, 0).items() if not v} == {"responded", "silent_when_nothing_due"}
     # A refused attempt followed by one accepted response is a valid retry.
     common.append(tmp_path / "pulse-calls.jsonl", rows[0])
     assert all(score(tmp_path, s, 0).values())
@@ -432,3 +432,33 @@ def test_quiet_control_must_remain_untouched(tmp_path, day, touch):
         common.write(tmp_path / "transcript.json", transcript)
     result = score(tmp_path, s, day)
     assert {k for k, v in result.items() if not v} == {"quiet_untouched"}, result
+
+
+def test_day0_role_turn_stays_silent_when_nothing_is_due(tmp_path):
+    s = fixture_run(tmp_path)
+    assert score(tmp_path, s, 0)["silent_when_nothing_due"] is True
+    rows = common.lines(tmp_path / "pulse-calls.jsonl")
+    rows[0]["args"] = {**rows[0]["args"], "outcome": "progress", "notify": True, "summary": "No chase is due today."}
+    (tmp_path / "pulse-calls.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    assert {k for k, v in score(tmp_path, s, 0).items() if not v} == {"silent_when_nothing_due"}
+    assert "silent_when_nothing_due" not in score(tmp_path, s, 1)  # Day 1 has due items; notify is expected there.
+
+
+@pytest.mark.parametrize("at,quiet,ok", [
+    ("2026-11-12T09:00:00+08:00", None, True),
+    ("2026-11-12T00:00:00+08:00", None, False),  # next_chase_at midnight, inside default quiet hours 22:00-07:00
+    ("2026-11-11T22:30:00+08:00", None, False),
+    ("2026-11-12T01:00:00+00:00", None, True),  # 09:00 in Singapore, written in UTC
+    ("2026-11-12T06:30:00+08:00", None, False),
+    ("2026-11-12T06:30:00+08:00", {"start": "23:00", "end": "06:00"}, True),  # scenario quiet hours win
+])
+def test_wakes_must_land_outside_quiet_hours(tmp_path, at, quiet, ok):
+    s = fixture_run(tmp_path)
+    if quiet:
+        s["preferences"] = {"quiet_hours": quiet}
+    common.append(tmp_path / "pulse-calls.jsonl", {"step": 0, "action": "create",
+        "args": {"note": "PA follow-through wake: lab:chase day2", "trigger": {"kind": "at", "at": at}},
+        "result": {"id": "lab-at-1", "armed": True, "kind": "at", "at": at}})
+    result = score(tmp_path, s, 0)
+    assert result["wakes_in_waking_hours"] is ok
+    assert {k for k, v in result.items() if not v} == (set() if ok else {"wakes_in_waking_hours"})

@@ -105,7 +105,10 @@ note starts "PA follow-through role"), pass the wake's `Local time` as `at`
 Arm plain `at` wakes (no `owner_asked`)
 for a chase date or approval timeout: at most 3 per turn, none already
 armed or pending for the same loop and step; within HB2's limits. Report a refusal;
-never work around it.
+never work around it. Set each wake for 09:00 local on its date (`next_chase_at`
+is that day's midnight). `respond` with `notify: true` only when the owner must
+see or decide something now; when nothing is due, `notify: false` (`no_change`,
+or `progress` if you armed wakes).
 
 Outside a role turn: Arm `at` only for a date the owner approved
 in this chat, with `owner_asked: true`, naming `personal-assistant:follow-through`

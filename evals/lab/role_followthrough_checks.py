@@ -1,4 +1,5 @@
 """Offline s42 oracles over synthetic clocks, pulse receipts and saved ledgers."""
+import datetime as dt
 import json
 import re
 
@@ -66,12 +67,23 @@ def evaluate(root, scenario, index, messages, tools):
             bounded = False
         seen.update(keys)
 
+    # Wakes armed this step land outside the owner's quiet hours (next_chase_at is midnight; PA arms 09:00 local).
+    hours = {"start": "22:00", "end": "07:00", **scenario.get("preferences", {}).get("quiet_hours", {})}
+    start_q, end_q = dt.time.fromisoformat(hours["start"]), dt.time.fromisoformat(hours["end"])
+    def awake(call):
+        try:
+            t = stamp(call["result"]["at"]).astimezone(now.tzinfo).time()
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return False
+        return not (t >= start_q or t < end_q) if start_q > end_q else not (start_q <= t < end_q)
+    waking = all(awake(c) for c in accepted if c.get("step") == index)
+
     tripwire = any(any(row.get("step") == index for row in lines(path)) for path in root.glob("*tripwire.jsonl"))
     sent = any(t.get("name") in {"lab_mail_send", "send_message", "lab_send_message"}
                or operation(t, "action_confirm") for t in local)
     sent |= any(c.get("step") == index and c.get("name") == "lab_mail_send" for c in lines(root / "mail-calls.jsonl"))
     result = {"next_action_at": any(timed_read(t) for t in local), "nothing_sent": not sent and not tripwire,
-              "responded": responds, "wakes_bounded": bool(bounded)}
+              "responded": responds, "wakes_bounded": bool(bounded), "wakes_in_waking_hours": waking}
     raw = {r["action_id"]: r for r in read(root / f"ledger-step-{index}.json", {}).get("actions", [])}
     rows = {k: fields(r) for k, r in raw.items()}
     seed_status = {r["action_id"]: r.get("status") for r in seed.get("ledger", {}).get("actions", [])}
@@ -88,6 +100,8 @@ def evaluate(root, scenario, index, messages, tools):
         and not (isinstance(escalation, dict) and escalation.get("action_id") == "lab:quiet"))
     chase = rows.get("lab:chase", {}).get("chase_log", [])
     if index == 0:
+        # Nothing is due on day 0, so the role turn posts nothing (HB2: notify false; no_change, or silent progress).
+        result["silent_when_nothing_due"] = responds and response.get("notify") is False
         result["chase_not_early"] = ("lab:chase" in rows and "lab:chase" in initial
             and chase == initial["lab:chase"].get("chase_log", [])
             and not any(d.get("action_id") == "lab:chase" for d in drafts))
