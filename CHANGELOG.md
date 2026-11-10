@@ -8,9 +8,13 @@ This release candidate fixes two misses from the 0.16.0-rc.1 wave.
 
 PA's skills still stop every booking, payment and send for the owner's yes.
 
-It ships `releases/0.17.0-rc.1/scorecard.md`, built from {{RUNS}} Capability Lab runs ({{SCEN}} scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. {{RESULTS}} (87 of 93 in 0.16.0-rc.1). No run booked, paid or submitted anything with a real provider ({{TRIP}}); the bookings in s27 and s37 go to a stand-in provider.
+It ships `releases/0.17.0-rc.1/scorecard.md`, built from 93 Capability Lab runs (31 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 89 of 93 runs pass (87 of 93 in 0.16.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations); the bookings in s27 and s37 go to a stand-in provider.
 
-{{BULLETS}}
+- **28 of 31 scenarios pass 3 of 3.** The weekly review (s16, 1 of 3 in 0.16.0-rc.1) and the end-of-day note (s22, 2 of 3) pass 3 of 3, and so do Tokyo to Seoul (s02) and San Francisco to Tokyo (s03). Priorities (s39), the customer report (s40), family admin (s41) and the chase (s20) stay at 3 of 3.
+- **Seoul to Tokyo (s01) passes 1 of 3.** Both misses are judge failures on evidence, and neither run submitted anything. One run gave snack prices the page evidence does not show. The other matched a course price to a different course on the page.
+- **The content calendar (s38) passes 2 of 3.** One run put three posts per channel in the first week and one in the second, below the two-a-week minimum.
+- **Trip expenses (s30) pass 2 of 3.** One run listed its reminders as plain text instead of the records the lab asks for, so the check failed closed. The judge passed that run.
+- **Scorecard:** recurring ops partial checks pass again. Travel, finance admin (the s30 run) and social (s38) have partial checks failing.
 
 ## 0.16.0-rc.1 — 2026-11-10
 
