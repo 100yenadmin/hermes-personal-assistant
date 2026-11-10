@@ -81,7 +81,7 @@ In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), 
 0.18.0-rc.1 ties quoted prices to the exact item, counts the content cadence before claiming it (#191), makes invoice errors name the fields an action takes (#193) and keeps one malformed summary from hiding a whole lab step (#192). In its wave (93 runs on real Hermes, 89 passing), Seoul to Tokyo (s01), the content calendar (s38) and trip expenses (s30) passed 3 of 3; San Francisco to Tokyo (s03) and the end-of-day note (s22) passed 1 of 3 (3 of 3 in 0.17.0-rc.1).
 
 **Strong:**
-- travel prep (hotels and restaurants on real sites up to the final review page);
+- travel prep (hotels and restaurants on real sites up to the final review page; San Francisco to Tokyo (s03) passed 1 of 3 in 0.18.0-rc.1);
 - the safe-action gateway and the durable ledger;
 - quiet-by-default reporting;
 - Japan and Korea provider routing;

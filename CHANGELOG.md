@@ -2,20 +2,20 @@
 
 ## 0.18.0-rc.1 — 2026-11-10
 
-This release candidate fixes the misses from the 0.17.0-rc.1 wave, plus one invoice gap found while testing it.
+This release candidate fixes the s01 and s38 misses from the 0.17.0-rc.1 wave and the lab gap that hid the rest of the s30 step, plus one invoice gap found while testing it.
 - **Prices tied to the right item (#191).**
   - **Restaurants:** a restaurant-level price or range is still quoted as the page shows it, but a price tied to a course, plan or menu item must be for that exact one. In 0.17.0-rc.1, an s01 run gave a limited-time course's price for the course it chose.
   - **Food and snacks:** PA never presents its own sum of item prices as a cart or verified subtotal; without a cart read, it says the subtotal was not read. It names a stop (login, address, cart) only from a page it read. In 0.17.0-rc.1, two s01 runs summed snack prices into a "verified cart subtotal" without reading the cart, and one claimed a login stop it never reached.
 - **Content cadence counted before it is claimed (#191).** PA counts each channel's posts per seven-day week from the window's first day, folding leftover days into the last week. It fixes any week outside the cadence and says so if the rules make that impossible. In 0.17.0-rc.1, an s38 run planned three posts, then one, and said it met two a week.
 - **Invoice errors that say how to fix the call (#193).** When a call to mark an invoice paid (or record, void or list invoices) has the wrong shape, the error now names the action's required and optional fields, any missing ones, and the keys it does not accept. When the field names are right, it gives each sent field's format. It never echoes a value, and it echoes a key name only if PA already knows it, so a key carrying an account number or secret is only counted. finance-admin shows the exact call. An s33 run in an earlier 0.18 wave tried three wrong shapes, got the same bare error each time, and left a paid invoice open.
-- **Lab: a malformed summary fails one check, not the whole step (#192).** A reminder list in the agent's summary that is not reminder records now fails `no_invented` alone in the booking, disruption and vendor checks, so the step's other checks still report. It hid the 0.17.0-rc.1 s30 miss.
+- **Lab: a malformed summary fails one check, not the whole step (#192).** A reminder list in the agent's summary that is not reminder records now fails `no_invented` alone in the booking, disruption and vendor checks, so the step's other checks still report. In the 0.17.0-rc.1 s30 miss, it hid the step's other checks.
 
 PA's skills still stop every booking, payment and send for the owner's yes.
 
 It ships `releases/0.18.0-rc.1/scorecard.md`, built from 93 Capability Lab runs (31 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 89 of 93 runs pass (89 of 93 in 0.17.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations); the bookings in s27 and s37 go to a stand-in provider.
 
 - **29 of 31 scenarios pass 3 of 3** (28 in 0.17.0-rc.1). Seoul to Tokyo (s01, 1 of 3 in 0.17.0-rc.1), the content calendar (s38, 2 of 3) and trip expenses (s30, 2 of 3) pass 3 of 3, and the invoice chase (s33) stays at 3 of 3.
-- **San Francisco to Tokyo (s03) passes 1 of 3** (3 of 3 in 0.17.0-rc.1). Neither miss submitted anything. One run presented another restaurant's price evidence for the restaurant it recommended. In the other, the lab found no final page or honest handoff on the Uber step; the judge passed that run.
+- **San Francisco to Tokyo (s03) passes 1 of 3** (3 of 3 in 0.17.0-rc.1). Neither miss submitted anything. One run presented another restaurant's price evidence for the restaurant it recommended (a judge failure; its checks passed). In the other, the lab found no final page or honest handoff on the Uber step; the judge passed that run.
 - **The end-of-day note (s22) passes 1 of 3** (3 of 3 in 0.17.0-rc.1). In one run the model provider rejected a request (HTTP 400), so no note was written. The other listed a source that returned no records as an in-progress item, citing the source instead of a recorded task, so the grounding check failed; the judge passed that run.
 - **Scorecard:** finance admin and social partial checks pass again. Travel (s03) and recurring ops (s22) have partial checks failing.
 
