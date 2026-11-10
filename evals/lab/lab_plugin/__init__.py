@@ -5,6 +5,7 @@ import datetime as dt
 import os
 import re
 import threading
+import time
 from pathlib import Path
 from evals.lab.common import append, read, scrub
 
@@ -102,7 +103,7 @@ class Observer:
         self.out, self.step, self.snapshots, self.pages = Path(out), 0, {}, []
         self.lock = threading.RLock()
         self.lookups, self.lookup_lock = {}, threading.Lock()  # task -> last live URL lookup thread (see live_url).
-        self.snapshot_version = {}  # task -> count of snapshots taken from tool results; a capture never overwrites a newer one.
+        self.snapshot_seen = {}  # task -> when the stored guard snapshot was observed; an older observation never replaces it.
         self.capture_lock = threading.RLock()
         self.turn, self.evidence = 0, {}
         self.contact, self.host = {}, {}  # task -> host where contact details were typed; task -> current host
@@ -258,6 +259,7 @@ class Observer:
         return (scrub(url) if isinstance(url, str) else None), False
 
     def post(self, tool_name, args, result, task_id="", **kw):
+        seen = time.monotonic()  # The tool's result (and any snapshot in it) was observed before this hook started.
         page = {}
         if tool_name.startswith("browser_"):
             try:
@@ -292,9 +294,10 @@ class Observer:
                     self.contact[task] = self.host.get(task)
             if tool_name.startswith("browser_"):
                 self.snapshots.setdefault(task_id or "default", "")
-            if tool_name.startswith("browser_") and isinstance(data, dict) and "snapshot" in data:
+            if tool_name.startswith("browser_") and isinstance(data, dict) and "snapshot" in data \
+                    and seen >= self.snapshot_seen.get(task_id or "default", 0):
                 self.snapshots[task_id or "default"] = scrub(data.get("snapshot", ""))
-                self.snapshot_version[task_id or "default"] = self.snapshot_version.get(task_id or "default", 0) + 1
+                self.snapshot_seen[task_id or "default"] = seen
             moved = tool_name in ("browser_navigate", "browser_click", "browser_type", "browser_press") or (tool_name == "browser_console" and isinstance(data, dict) and data.get("url"))
             if moved and isinstance(data, dict):
                 self.pages.append({"step": self.step, "url": scrub(data.get("url", "")), "title": scrub(data.get("title", ""))})
@@ -329,8 +332,7 @@ class Observer:
                 if key not in bt._active_sessions:
                     continue
                 stem = f"final_{number}_{index}"
-                with self.lock:
-                    version = self.snapshot_version.get(task, 0)
+                taken = time.monotonic()
                 # Browser I/O must never hold the state lock used by pre().
                 data = session._run_browser_command(key, "snapshot", [])
                 snap = scrub((data.get("data") or {}).get("snapshot", previous))
@@ -340,10 +342,12 @@ class Observer:
                 except Exception:
                     result = {"success": False}
                 with self.lock:
-                    # pre() resolves click targets from this state (the final-submit tripwire). A capture that
-                    # outlived the hook wait must not replace a snapshot a later tool result already stored.
-                    if self.snapshot_version.get(task, 0) == version:
+                    # pre() resolves click targets from this state (the final-submit tripwire). Keep the newest
+                    # observation: a capture that outlived the hook wait must not replace a later tool result's
+                    # snapshot, and a tool result stored late (its hook waited) must not replace a later capture.
+                    if taken >= self.snapshot_seen.get(task, 0):
                         self.snapshots[task] = snap
+                        self.snapshot_seen[task] = taken
                     (self.out / (stem + ".txt")).write_text(snap, encoding="utf-8")
                     self.evidence[stem] = {"step": step, "snapshot": stem + ".txt", "png": image.name if image.exists() else None,
                                            "deviation": None if result.get("success") and image.exists() else "screenshot unavailable; snapshot only"}

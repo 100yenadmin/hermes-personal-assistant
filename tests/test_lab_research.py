@@ -833,6 +833,47 @@ def test_late_capture_never_replaces_a_newer_guard_snapshot(tmp_path, monkeypatc
     assert (tmp_path / "final_0_0.txt").read_text() == old  # Its evidence is still kept.
 
 
+def test_late_stored_tool_snapshot_never_replaces_a_newer_capture(tmp_path, monkeypatch):
+    # Review (#195, round 4): a tool result showing "Details" was stored while its hook waited on the URL lookup,
+    # after a capture had already seen "Confirm booking"; storage order then discarded the newer capture.
+    import sys
+    import threading
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    old, new = '- button "Details" [ref=e7]', '- button "Confirm booking" [ref=e7]'
+    in_get, get_go, in_shot, shot_go = (threading.Event() for _ in range(4))
+
+    def command(key, verb, args, timeout=None):
+        if verb == "get":
+            in_get.set()
+            get_go.wait(10)
+            return {"success": True, "data": {"url": SOURCE}}
+        if verb == "snapshot":
+            return {"success": True, "data": {"snapshot": new}}
+        in_shot.set()
+        shot_go.wait(10)
+        return {"success": False}
+    monkeypatch.setitem(sys.modules, "tools", SimpleNamespace(
+        browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={"task": {}}),
+        browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    observer.snapshots["task"] = ""
+    tool = threading.Thread(target=observer.post, args=("browser_snapshot", {}, json.dumps({"success": True, "snapshot": old})),
+                            kwargs={"task_id": "task"}, daemon=True)
+    capture = threading.Thread(target=observer.capture, args=(0,), daemon=True)
+    try:
+        tool.start()
+        assert in_get.wait(5)  # The tool's hook waits in the URL lookup; its result is older than what follows.
+        capture.start()
+        assert in_shot.wait(5)  # The capture has seen the newer page.
+        get_go.set()
+        tool.join(10)  # The delayed hook stores its older snapshot; its own capture is skipped (busy).
+    finally:
+        get_go.set()
+        shot_go.set()
+    capture.join(10)
+    assert observer.snapshots["task"] == new
+
+
 def test_full_skill_layout_with_realistic_web_and_live_browser_rows(tmp_path):
     answer = """**Question:** Compare payroll for Singapore and Japan entities.
 **Criteria:** Monthly cost first, then payslips and statutory coverage.
