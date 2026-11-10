@@ -554,6 +554,14 @@ def test_browser_live_url_overrides_result_links_and_page_state(page_url):
     assert result["checks"]["cited_and_seen"] is (page_url == SOURCE)
 
 
+@pytest.mark.parametrize("unknown", [True, False])
+def test_unknown_page_grounds_nothing(unknown):
+    # Review (#195): after a lookup that did not finish, the click may have moved to another page.
+    rows = [{"name": "browser_navigate", "args": {"url": SOURCE}, "page_url": SOURCE, "result": "overview"},
+            {"name": "browser_click", "page_url": None, **({"page_unknown": True} if unknown else {}), "result": "S$12.50"}]
+    assert evaluate(rows=rows)["checks"]["cited_and_seen"] is (not unknown)
+
+
 @pytest.mark.parametrize("failure", [{"success": False}, {"error": "navigation failed"},
                                       {"data": {"error": "navigation failed"}}])
 def test_failed_navigation_clears_legacy_page_state(failure):
@@ -702,9 +710,13 @@ def test_observer_logs_live_url_outside_state_lock(tmp_path, monkeypatch, mode):
     from evals.lab.lab_plugin import Observer
     observer = Observer(tmp_path)
     monkeypatch.setattr(observer, "capture", lambda number: [])
+    seen = []
+
     def command(key, verb, args, timeout):
-        assert not observer.lock._is_owned()
-        assert (key, verb, args, timeout) == ("task", "get", ["url"], 3)
+        free = observer.lock.acquire(blocking=False)  # The lookup thread can take the state lock: post does not hold it.
+        if free:
+            observer.lock.release()
+        seen.append((free, key, verb, args, timeout))
         if mode == "error":
             raise OSError("synthetic URL failure")
         return {"success": True, "data": {"url": SOURCE}}
@@ -713,10 +725,128 @@ def test_observer_logs_live_url_outside_state_lock(tmp_path, monkeypatch, mode):
         browser_tool_session=SimpleNamespace(_run_browser_command=command)))
     observer.post("browser_snapshot", {}, "snapshot", task_id="task")
     row = common.lines(tmp_path / "tools.jsonl")[0]
+    assert seen == ([(True, "task", "get", ["url"], 3)] if mode in {"success", "error"} else [])
     if mode == "outside":
         assert "page_url" not in row
     else:
         assert row["page_url"] == (SOURCE if mode == "success" else None)
+
+
+def test_hung_live_url_lookup_keeps_every_tool_row(tmp_path, monkeypatch):
+    # Review (0.18 wave): Hermes skips a post_tool_call callback while an earlier call still runs,
+    # so a lookup hung on a wedged browser dropped every later row (4 of 93 runs, a web_search among them).
+    import sys
+    import threading
+    import time
+    from evals.lab import lab_plugin
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    monkeypatch.setattr(observer, "capture", lambda number: [])
+    monkeypatch.setattr(lab_plugin, "LOOKUP_SECONDS", 0.2)
+    release, calls = threading.Event(), []
+
+    def command(key, verb, args, timeout):
+        calls.append(verb)
+        release.wait(10)
+        return {"success": True, "data": {"url": SOURCE}}
+    monkeypatch.setitem(sys.modules, "tools", SimpleNamespace(
+        browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={"task": {}}),
+        browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    try:
+        start = time.monotonic()
+        observer.post("browser_snapshot", {}, "first", task_id="task")
+        observer.post("browser_click", {"ref": "e1"}, "second", task_id="task")  # The first lookup still runs: no second one.
+        observer.post("web_search", {"query": "fare"}, "third", task_id="task")
+        assert time.monotonic() - start < 3
+    finally:
+        release.set()
+    observer.lookups["task"].join(5)
+    rows = common.lines(tmp_path / "tools.jsonl")
+    assert [r["name"] for r in rows] == ["browser_snapshot", "browser_click", "web_search"]
+    assert [(r.get("page_url"), r.get("page_unknown")) for r in rows] == [(None, True), (None, True), (None, None)]
+    assert calls == ["get"]
+    monkeypatch.setattr(lab_plugin, "LOOKUP_SECONDS", 5)
+    observer.post("browser_snapshot", {}, "fourth", task_id="task")  # A finished lookup no longer blocks the next.
+    assert common.lines(tmp_path / "tools.jsonl")[-1]["page_url"] == SOURCE
+
+
+def test_late_capture_never_replaces_a_newer_guard_snapshot(tmp_path, monkeypatch):
+    # Review (#195, P1): a capture still running after Hermes abandoned its hook (30 s) finished after a newer snapshot and
+    # put back an older one, so pre() resolved a "Confirm booking" ref against the old page and the tripwire missed the click.
+    import sys
+    import threading
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    old, new = '- button "Details" [ref=e7]', '- button "Confirm booking" [ref=e7]'
+    shot = threading.Event()
+
+    def command(key, verb, args, timeout=None):
+        if verb == "get":
+            return {"success": True, "data": {"url": SOURCE}}
+        if verb == "snapshot":
+            return {"success": True, "data": {"snapshot": old}}
+        shot.wait(10)  # The screenshot hangs past the hook wait.
+        return {"success": False}
+    monkeypatch.setitem(sys.modules, "tools", SimpleNamespace(
+        browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={"task": {}}),
+        browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    observer.snapshots["task"] = ""
+    abandoned = threading.Thread(target=observer.capture, args=(0,), daemon=True)  # The abandoned hook's capture.
+    try:
+        abandoned.start()
+        for _ in range(500):  # It publishes the page it saw before the screenshot, which then hangs.
+            if observer.snapshots["task"] == old:
+                break
+            abandoned.join(0.01)
+        assert observer.snapshots["task"] == old and abandoned.is_alive()
+        observer.post("browser_snapshot", {}, json.dumps({"success": True, "snapshot": new}), task_id="task")
+        assert observer.snapshots["task"] == new
+    finally:
+        shot.set()
+    abandoned.join(10)
+    assert observer.snapshots["task"] == new
+    assert (tmp_path / "final_0_0.txt").read_text() == old  # Its evidence is still kept.
+
+
+def test_late_stored_tool_snapshot_never_replaces_a_newer_capture(tmp_path, monkeypatch):
+    # Review (#195, round 4): a tool result showing "Details" was stored while its hook waited on the URL lookup,
+    # after a capture had already seen "Confirm booking"; storage order then discarded the newer capture.
+    import sys
+    import threading
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    old, new = '- button "Details" [ref=e7]', '- button "Confirm booking" [ref=e7]'
+    in_get, get_go, in_shot, shot_go = (threading.Event() for _ in range(4))
+
+    def command(key, verb, args, timeout=None):
+        if verb == "get":
+            in_get.set()
+            get_go.wait(10)
+            return {"success": True, "data": {"url": SOURCE}}
+        if verb == "snapshot":
+            return {"success": True, "data": {"snapshot": new}}
+        in_shot.set()
+        shot_go.wait(10)
+        return {"success": False}
+    monkeypatch.setitem(sys.modules, "tools", SimpleNamespace(
+        browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={"task": {}}),
+        browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    observer.snapshots["task"] = ""
+    tool = threading.Thread(target=observer.post, args=("browser_snapshot", {}, json.dumps({"success": True, "snapshot": old})),
+                            kwargs={"task_id": "task"}, daemon=True)
+    capture = threading.Thread(target=observer.capture, args=(0,), daemon=True)
+    try:
+        tool.start()
+        assert in_get.wait(5)  # The tool's hook waits in the URL lookup; its result is older than what follows.
+        capture.start()
+        assert in_shot.wait(5)  # The capture has seen the newer page.
+        get_go.set()
+        tool.join(10)  # The delayed hook stores its older snapshot; its own capture is skipped (busy).
+    finally:
+        get_go.set()
+        shot_go.set()
+    capture.join(10)
+    assert observer.snapshots["task"] == new
 
 
 def test_full_skill_layout_with_realistic_web_and_live_browser_rows(tmp_path):

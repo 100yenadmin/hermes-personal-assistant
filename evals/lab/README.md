@@ -36,6 +36,9 @@ Known limits (fix 3; further tuning uses real lab waves):
 - URL keys ignore query strings and fragments, so different query variants share
   evidence. A URL containing `(`, or a schemeless URL, can still contribute a
   date to its source entry.
+- A live lookup that did not finish in time (or was skipped while an earlier one
+  still ran) marks the row `page_unknown`: its text grounds nothing, and the page
+  stays unknown until a later row reports one.
 - Live browser rows use `page_url` exclusively. Older rows and lookup failures
   use log-order page state (navigate, and any non-click/press/type result that
   reports a page `url`, such as back); unknown state contributes no evidence.

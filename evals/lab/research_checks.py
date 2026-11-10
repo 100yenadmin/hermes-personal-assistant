@@ -96,6 +96,8 @@ def fetched_sources(tools):
                 current = tool["page_url"]
                 if name == "browser_navigate" and len(requested) == 1 and not failed:
                     aliases.append((requested[0], current))  # A redirect still answers the requested URL.
+            elif tool.get("page_unknown"):
+                current = None  # The live lookup did not finish: the page is unknown until a later row reports it.
             elif name not in {"browser_navigate", "browser_click", "browser_press", "browser_type"} and isinstance(data, dict) \
                     and isinstance(data.get("url"), str):
                 current = None if failed else data["url"]  # Back and forward report the page they land on.

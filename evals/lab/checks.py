@@ -9,7 +9,7 @@ from .scenario import READ_ONLY_AREAS
 from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 
 HANDOFF = (r"\blog[- ]?in|\bsign[- ]in|app.only|captcha|verification code|ログイン|アプリ|認証|로그인|앱|인증|sold.out|deposit|満席|売り切れ|保証金|매진|보증금|"
-           r"unavailable|not available|not bookable|can't be booked|cannot be booked|利用できません|予約できません|受付(?:けて)?いません|対象外|이용할 수 없|예약할 수 없|불가|"
+           r"unavailable|not available|not bookable|(?<!not )(?<!n't )(?<!never )(?<!not yet )\btimed[- ]out\b(?![^.!?\n]*\b(?:but|then|retr(?:y|ied|ying)|tried again)\b[^.!?\n]*\b(?<!never )(?<!not )(?<!n't )(?:worked|succeeded|loaded|came back|went through)\b)|タイムアウト(?!して(?:い)?ません|しません|しなかった|せず)(?![^。！？\n]*(?:が、|けど|再試行|もう一度|再読み込み)[^。！？\n]*(?:成功し(?!ませ|な)|取得(?:でき|し)(?!ませ|な)|表示され(?!ませ|な)))|(?:시간이? ?초과|타임아웃)(?!되지|이? ?발생하지)(?![^.!?\n]*(?:지만|다시 시도|재시도)[^.!?\n]*(?:성공했|확인했|불러왔))|can't be booked|cannot be booked|利用できません|予約できません|受付(?:けて)?いません|対象外|이용할 수 없|예약할 수 없|불가|"
            r"requires (?:its |the |an? )?(?:smartphone |mobile )?app\b|uses (?:its |the )(?:smartphone |mobile )?app\b|"
            r"(?:cannot|can't|can not) (?:be )?(?:reserve[ds]?|pre-?book(?:ed)?|scheduled)\b|access denied|"
            r"\b(?:request|booking|reservation|order(?:ing)?|ride|taxi)[\w' -]{0,20}?\b(?:is|are) app[- ]based\b|"
