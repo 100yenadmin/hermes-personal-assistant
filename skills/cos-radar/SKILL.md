@@ -48,8 +48,9 @@ Never install software or treat discovery as approval to adopt or activate it.
    availability. Reuse already authorized calendar reads to check the slot.
 2. Use the profile's own calendar tool for the approved destination calendar;
    PA holds no Google token and writes no calendar itself. If no calendar tool
-   is available, say so and, in the same reply, offer to set one up; never start
-   a login silently. Never guess the destination calendar or account.
+   is available, say so and, in the same reply, offer to set one up in plain
+   words ("I can set up calendar access now if you want"), not as a passive
+   option; never start a login silently. Never guess the destination calendar or account.
 3. Use the existing calendar contract described in
    `../travel-email-calendar/SKILL.md`. For this owner-approved benchmark, save
    a non-trip note action with the same stable ID on every retry:
