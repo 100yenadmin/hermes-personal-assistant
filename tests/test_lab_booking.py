@@ -142,14 +142,27 @@ def test_one_negative_per_check(tmp_path, key):
 
 
 def test_reminder_ids_in_the_summary_fail_only_no_invented(tmp_path):
-    # 0.17.0-rc.1 s30: a summary listing reminder IDs must not hide the step's other checks (#147).
+    # 0.17.0-rc.1 s30 (which shares this booking check): a summary listing reminder IDs
+    # must not hide the step's other checks (#147).
     s, tools, transcript, receipts = synthetic()
     summary = booking_checks.report(transcript[-1]["content"])
     summary["booking"]["reminders"] = ["booking-1:reminder:1", "booking-1:reminder:2"]
     transcript[-1]["content"] = json.dumps({"lab_summary": summary})
     save(tmp_path, s, tools, transcript, receipts)
-    result = checks.evaluate(tmp_path, s)
-    assert [name for name, ok in result["steps"][1]["checks"].items() if not ok] == ["no_invented"], result
+    step = checks.evaluate(tmp_path, s)["steps"][1]["checks"]
+    assert "valid_evidence" not in step and {"recorded", "matches_readback", "on_trip", "reminders"} <= set(step), step
+    assert [name for name, ok in step.items() if not ok] == ["no_invented"], step
+
+
+@pytest.mark.parametrize("value", [["id-1", "id-2"], [{"label": "x"}], [{"due_at": "not a time"}],
+                                   [{"due_at": "2026-11-12T20:15:00"}], None, {"due_at": "2026-11-12T20:15:00+09:00"}])
+def test_reported_due_rejects_non_records(value):
+    assert booking_checks.reported_due(value) is None
+
+
+def test_reported_due_reads_records():
+    due = booking_checks.reported_due([{"label": "a", "due_at": "2026-11-12T11:15:00Z"}])
+    assert due == {booking_checks.stamp("2026-11-12T20:15:00+09:00")}
 
 
 @pytest.mark.parametrize("key", ["item", "venue", "start", "end", "timezone", "party_size", "price_text", "cancellation_deadline"])

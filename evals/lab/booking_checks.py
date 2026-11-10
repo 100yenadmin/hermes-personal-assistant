@@ -43,6 +43,17 @@ def stamp(value):
     return parsed
 
 
+def reported_due(reminders):
+    """Due times in a summary's reminder list, or None when it is not reminder records.
+
+    A malformed list (reminder IDs, no due_at) then fails no_invented alone instead
+    of collapsing the whole step to valid_evidence: False (#147)."""
+    try:
+        return {stamp(r["due_at"]) for r in reminders}
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+
+
 def same_fact(key, value, expected):
     try:
         if key in {"start", "end", "cancellation_deadline"}:
@@ -211,15 +222,9 @@ def _evaluate(root, scenario, index, messages, tools):
                            and all(r.get("label") and stamp(r["due_at"]) < stamp(readback["start"]) for r in reminders)
                            and deadline in due and any(when > deadline for when in due))
     trip_id = follow.get("trip_id")
-    # A malformed summary list (reminder IDs, no due_at) fails no_invented alone,
-    # so the step's other checks still report (#147).
-    try:
-        reported_due = {stamp(r["due_at"]) for r in booking.get("reminders", [])}
-    except (KeyError, TypeError, ValueError, AttributeError):
-        reported_due = None
-    result["no_invented"] &= (due == reported_due
+    result["no_invented"] &= (due == reported_due(booking.get("reminders", []))
                               and isinstance(trip_id, str) and bool(trip_id)
-                              and all(re.search(r"(?<![\w-])" + re.escape(trip_id) + r"(?![\w-])", value)
+                              and all(isinstance(value, str) and re.search(r"(?<![\w-])" + re.escape(trip_id) + r"(?![\w-])", value)
                                       for value in (effect.get("trip_note", ""), booking.get("itinerary", ""))))
     owner_prose = prose(text)
     path = effect.get("ics_path")
