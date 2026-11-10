@@ -9,17 +9,21 @@ def text(name):
 
 
 def test_restaurant_price_is_for_the_exact_course():
-    assert "that exact course, plan or menu item" in text("restaurant-reservations")
-    assert "a neighbouring course's price is not this one's" in text("restaurant-reservations")
+    body = text("restaurant-reservations")
+    assert "when you tie it to a course, plan or menu item, for that exact one" in body
+    assert "a neighbouring course's price is not this one's" in body
 
 
 def test_snack_price_and_stop_come_from_the_page():
     body = text("food-delivery-to-hotel")
     assert "Quote an item's price only where the page shows it beside that item" in body
-    assert "name a stopping point (login, address, cart) only as the page you last read shows it" in body
+    assert "Never add item prices yourself or call a sum a cart or verified subtotal" in body
+    assert "without a cart read, say the subtotal was not read" in body
+    assert "Name a stopping point (login, address, cart) only from a page you read" in body
 
 
 def test_content_cadence_is_counted_per_week():
     body = text("content-admin")
-    assert "count each channel's slots in every seven-day week from the window's first day" in body
-    assert "state a cadence only after that count" in body
+    assert "count each channel's slots per seven-day week from today, folding leftover days into the last week" in body
+    assert "move or add slots until every week fits the cadence, and if these rules make that impossible, say so" in body
+    assert "State a cadence only after that count" in body
