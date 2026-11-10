@@ -76,7 +76,7 @@ In the 0.15.0-rc.1 wave (84 runs on real Hermes, 81 passing), the approval day (
 
 In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), the customer report (s40) and family admin (s41) each passed 3 of 3.
 
-0.17.0-rc.1 makes the weekly review offer calendar setup in plain words (#187) and closes a lab handoff-detector gap (#188). In its wave (93 runs on real Hermes, 89 passing), the weekly review (s16) and the end-of-day note (s22) passed 3 of 3; the content calendar (s38) and trip expenses (s30) passed 2 of 3.
+0.17.0-rc.1 makes the weekly review offer calendar setup in plain words (#187) and closes a lab handoff-detector gap (#188). In its wave (93 runs on real Hermes, 89 passing), the weekly review (s16) and the end-of-day note (s22) passed 3 of 3; the content calendar (s38) and trip expenses (s30) passed 2 of 3 (3 of 3 in 0.16.0-rc.1), and Seoul to Tokyo (s01) passed 1 of 3 (2 of 3 in 0.16.0-rc.1).
 
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
