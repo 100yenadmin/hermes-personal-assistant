@@ -40,8 +40,9 @@ Call `pulse` `list` first, then for each:
 
 Report a refusal; never work around it.
 
-A `next_chase_at` at local midnight (in the owner's timezone) on a loop with no
-`snoozed_until` is a chase date, which falls in quiet hours:
+A `next_chase_at` at local midnight (in the owner's timezone) that is not the
+loop's `snoozed_until` is a chase date, which falls in quiet hours (an expired
+snooze field stays on the loop and does not count):
 set the wake's `at` to 09:00 owner local time that day, or to the end of the
 owner's quiet hours if that is later. Keep any other time exact: a snoozed
 loop's `next_chase_at` is its snooze time, and an approval timeout keeps its

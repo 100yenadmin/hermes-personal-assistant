@@ -146,7 +146,7 @@ def test_follow_through_role_wakes_and_owner_approved_dates_outside_roles():
         assert "09:00" in text and "midnight" in text  # Chase wakes outside quiet hours (live s42).
         assert "quiet hours end" in text or "end of the owner's quiet hours" in text
         assert "snooze" in text and "approval timeout" in text  # Only midnight chase dates move; other times stay exact.
-        assert "with no `snoozed_until`" in text  # A snooze ending at midnight is not a chase date.
+        assert "the loop's `snoozed_until`" in text  # Only a snooze ending at that midnight keeps it; an expired field does not.
         assert "`notify: true` only when the owner must see or decide something now" in text
         assert "`notify: false`" in text and "`no_change`" in text
     pa = " ".join((ROOT / "skills/personal-assistant/SKILL.md").read_text().split())
