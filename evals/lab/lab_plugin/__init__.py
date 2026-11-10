@@ -25,6 +25,7 @@ STRICT = re.compile(r"complete (?:my |your |the )?(?:reservation|booking|order|p
                     r"予約を確定|予約内容を確定|注文を確定|購入を確定|支払いを確定|決済する|予約をキャンセル|예약 확정|결제하기|주문 확정|예약 취소", re.I)
 # Labels that also start a flow ("Book" on a listing); final only once contact details are on the page.
 CONTEXT = re.compile(r"^(?:book|book now|reserve|reserve now|confirm|continue to payment|予約する|注文する|購入する|購入|支払う|예약하기|주문하기|결제)$", re.I)
+LOOKUP_SECONDS = 5  # Live URL lookup bound; far below Hermes' 30 s hook timeout.
 CONTACT = re.compile(r"e-?mail|phone|mobile|tel\b|メール|電話|携帯|이메일|전화|연락처|휴대", re.I)
 
 
@@ -91,6 +92,7 @@ class Observer:
     def __init__(self, out):
         self.out, self.step, self.snapshots, self.pages = Path(out), 0, {}, []
         self.lock = threading.RLock()
+        self.lookup = None  # The last live URL lookup thread (see live_url).
         self.capture_lock = threading.RLock()
         self.turn, self.evidence = 0, {}
         self.contact, self.host = {}, {}  # task -> host where contact details were typed; task -> current host
@@ -212,6 +214,34 @@ class Observer:
                     return True
         return False
 
+    def live_url(self, bt, session, task):
+        """The browser's current URL, or None when it is not known in time.
+
+        Hermes abandons a post_tool_call callback after its hook timeout and skips the callback
+        while an earlier call of it is still running, so one lookup hung on a wedged browser
+        would drop every later tool row. The lookup runs in its own thread: one that takes longer
+        than LOOKUP_SECONDS, or that would start while an earlier one is still running, records
+        None, and the checks fall back to log-order page state.
+        """
+        if self.lookup is not None and self.lookup.is_alive():
+            return None
+        found = {}
+
+        def lookup():
+            try:
+                key = bt._last_session_key(task)
+                if key in bt._active_sessions:
+                    data = session._run_browser_command(key, "get", ["url"], timeout=3)  # Counts toward the run budget.
+                    found["url"] = (data.get("data") or {}).get("url")
+            except Exception:
+                pass
+
+        self.lookup = threading.Thread(target=lookup, name="lab-url-lookup", daemon=True)
+        self.lookup.start()
+        self.lookup.join(LOOKUP_SECONDS)
+        url = None if self.lookup.is_alive() else found.get("url")
+        return scrub(url) if isinstance(url, str) else None
+
     def post(self, tool_name, args, result, task_id="", **kw):
         page = {}
         if tool_name.startswith("browser_"):
@@ -220,15 +250,7 @@ class Observer:
             except ImportError:
                 pass  # Outside Hermes there is no live URL lookup.
             else:
-                page["page_url"] = None
-                try:
-                    key = bt._last_session_key(task_id or "default")
-                    if key in bt._active_sessions:
-                        data = session._run_browser_command(key, "get", ["url"], timeout=3)  # Counts toward the run budget.
-                        url = (data.get("data") or {}).get("url")
-                        page["page_url"] = scrub(url) if isinstance(url, str) else None
-                except Exception:
-                    pass
+                page["page_url"] = self.live_url(bt, session, task_id or "default")
         with self.lock:
             limit = 200000 if tool_name.startswith(("browser_", "web_", "lab_calendar_", "lab_mail_", "lab_booking_", "lab_vendor_", "lab_flight_")) or self.lab and tool_name == "pa" else 2000
             kept = scrub(result)

@@ -719,6 +719,43 @@ def test_observer_logs_live_url_outside_state_lock(tmp_path, monkeypatch, mode):
         assert row["page_url"] == (SOURCE if mode == "success" else None)
 
 
+def test_hung_live_url_lookup_keeps_every_tool_row(tmp_path, monkeypatch):
+    # Review (0.18 wave): Hermes skips a post_tool_call callback while an earlier call still runs,
+    # so a lookup hung on a wedged browser dropped every later row (4 of 93 runs, a web_search among them).
+    import sys
+    import threading
+    import time
+    from evals.lab import lab_plugin
+    from evals.lab.lab_plugin import Observer
+    observer = Observer(tmp_path)
+    monkeypatch.setattr(observer, "capture", lambda number: [])
+    monkeypatch.setattr(lab_plugin, "LOOKUP_SECONDS", 0.2)
+    release, calls = threading.Event(), []
+
+    def command(key, verb, args, timeout):
+        calls.append(verb)
+        release.wait(10)
+        return {"success": True, "data": {"url": SOURCE}}
+    monkeypatch.setitem(sys.modules, "tools", SimpleNamespace(
+        browser_tool=SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={"task": {}}),
+        browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    try:
+        start = time.monotonic()
+        observer.post("browser_snapshot", {}, "first", task_id="task")
+        observer.post("browser_click", {"ref": "e1"}, "second", task_id="task")  # The first lookup still runs: no second one.
+        observer.post("web_search", {"query": "fare"}, "third", task_id="task")
+        assert time.monotonic() - start < 3
+    finally:
+        release.set()
+    observer.lookup.join(5)
+    rows = common.lines(tmp_path / "tools.jsonl")
+    assert [r["name"] for r in rows] == ["browser_snapshot", "browser_click", "web_search"]
+    assert [r.get("page_url") for r in rows[:2]] == [None, None] and "page_url" not in rows[2]
+    assert calls == ["get"]
+    observer.post("browser_snapshot", {}, "fourth", task_id="task")  # A finished lookup no longer blocks the next.
+    assert common.lines(tmp_path / "tools.jsonl")[-1]["page_url"] == SOURCE
+
+
 def test_full_skill_layout_with_realistic_web_and_live_browser_rows(tmp_path):
     answer = """**Question:** Compare payroll for Singapore and Japan entities.
 **Criteria:** Monthly cost first, then payslips and statutory coverage.
