@@ -1,0 +1,1166 @@
+{
+  "areas": [
+    {
+      "closes_in": "M4",
+      "duties": [
+        "Triage at least twice a day: urgent / needs-you / handled / FYI / junk",
+        "Draft routine replies in the principal's voice from approved patterns",
+        "Track every open thread to a reply or decision",
+        "Daily digest of five lines or fewer",
+        "Meet the agreed SLA",
+        "Filter newsletters and spam without being asked"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "inbox",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            1,
+            5
+          ],
+          "kind": "partial",
+          "label": "read-but-unanswered threads surfaced, tracked and drafted; one exact junk archive offer; nothing moved",
+          "passed": 3,
+          "run_ids": [
+            "s36_inbox_awaiting_en/s36_inbox_awaiting_en__r001",
+            "s36_inbox_awaiting_en/s36_inbox_awaiting_en__r002",
+            "s36_inbox_awaiting_en/s36_inbox_awaiting_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s36_inbox_awaiting_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            1,
+            3
+          ],
+          "kind": "partial",
+          "label": "synthetic drafts and five-line digest",
+          "passed": 3,
+          "run_ids": [
+            "s24_inbox_triage_en/s24_inbox_triage_en__r001",
+            "s24_inbox_triage_en/s24_inbox_triage_en__r002",
+            "s24_inbox_triage_en/s24_inbox_triage_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s24_inbox_triage_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Inbox",
+      "uncovered_duties": [
+        "Triage at least twice a day: urgent / needs-you / handled / FYI / junk",
+        "Track every open thread to a reply or decision",
+        "Meet the agreed SLA"
+      ]
+    },
+    {
+      "closes_in": "M4",
+      "duties": [
+        "Book with buffers and travel time",
+        "Protect focus blocks",
+        "Resolve conflicts early",
+        "Confirm every meeting 24h ahead",
+        "Send an agenda and one-page brief",
+        "Capture action items within 24h",
+        "Get cross-time-zone arithmetic right",
+        "Decline and reschedule politely in the principal's name"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "calendar",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            1,
+            2,
+            6
+          ],
+          "kind": "partial",
+          "label": "calendar reads and conflicts (lab stand-in for the provider read)",
+          "passed": 3,
+          "run_ids": [
+            "s19_calendar_conflicts_en/s19_calendar_conflicts_en__r001",
+            "s19_calendar_conflicts_en/s19_calendar_conflicts_en__r002",
+            "s19_calendar_conflicts_en/s19_calendar_conflicts_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s19_calendar_conflicts_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            1,
+            6
+          ],
+          "kind": "partial",
+          "label": "synthetic approved invite and readback",
+          "passed": 3,
+          "run_ids": [
+            "s25_calendar_invite_en/s25_calendar_invite_en__r001",
+            "s25_calendar_invite_en/s25_calendar_invite_en__r002",
+            "s25_calendar_invite_en/s25_calendar_invite_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s25_calendar_invite_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            6
+          ],
+          "kind": "partial",
+          "label": "held confirmations and one-page briefs",
+          "passed": 3,
+          "run_ids": [
+            "s26_meeting_confirm_en/s26_meeting_confirm_en__r001",
+            "s26_meeting_confirm_en/s26_meeting_confirm_en__r002",
+            "s26_meeting_confirm_en/s26_meeting_confirm_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s26_meeting_confirm_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Calendar",
+      "uncovered_duties": [
+        "Book with buffers and travel time",
+        "Confirm every meeting 24h ahead",
+        "Send an agenda and one-page brief",
+        "Capture action items within 24h",
+        "Decline and reschedule politely in the principal's name"
+      ]
+    },
+    {
+      "closes_in": "M0 (real trip), M5 (completion)",
+      "duties": [
+        "Collect constraints once: budget, preferences, loyalty numbers, arrive-by",
+        "Return 2-3 good / better / best options with totals and trade-offs",
+        "Hold at the final submit",
+        "Deliver one post-yes itinerary with every leg and confirmation",
+        "Include check-in times, ground transport, addresses and contingencies",
+        "Track changes and expenses afterwards"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "travel",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "fail"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "travel prep to the final page",
+          "passed": 2,
+          "run_ids": [
+            "s01_seoul_tokyo_en/s01_seoul_tokyo_en__r001",
+            "s01_seoul_tokyo_en/s01_seoul_tokyo_en__r002",
+            "s01_seoul_tokyo_en/s01_seoul_tokyo_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s01_seoul_tokyo_en",
+          "state": "fail"
+        },
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "travel prep to the final page",
+          "passed": 2,
+          "run_ids": [
+            "s02_tokyo_seoul_ko/s02_tokyo_seoul_ko__r001",
+            "s02_tokyo_seoul_ko/s02_tokyo_seoul_ko__r002",
+            "s02_tokyo_seoul_ko/s02_tokyo_seoul_ko__r003"
+          ],
+          "runs": 3,
+          "scenario": "s02_tokyo_seoul_ko",
+          "state": "fail"
+        },
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "travel prep to the final page",
+          "passed": 2,
+          "run_ids": [
+            "s03_sf_tokyo_en/s03_sf_tokyo_en__r001",
+            "s03_sf_tokyo_en/s03_sf_tokyo_en__r002",
+            "s03_sf_tokyo_en/s03_sf_tokyo_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s03_sf_tokyo_en",
+          "state": "fail"
+        },
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "stand-in booking charge and forwarded receipt recorded; per-trip expense export",
+          "passed": 3,
+          "run_ids": [
+            "s30_trip_expenses_en/s30_trip_expenses_en__r001",
+            "s30_trip_expenses_en/s30_trip_expenses_en__r002",
+            "s30_trip_expenses_en/s30_trip_expenses_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s30_trip_expenses_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            2,
+            3
+          ],
+          "kind": "partial",
+          "label": "synthetic cancelled leg: held options, then rebook, moved dinner and retired reminders",
+          "passed": 3,
+          "run_ids": [
+            "s29_changed_leg_en/s29_changed_leg_en__r001",
+            "s29_changed_leg_en/s29_changed_leg_en__r002",
+            "s29_changed_leg_en/s29_changed_leg_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s29_changed_leg_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            3
+          ],
+          "kind": "partial",
+          "label": "stand-in booking after the yes: readback, itinerary, reminders, ICS",
+          "passed": 3,
+          "run_ids": [
+            "s27_booking_after_yes_en/s27_booking_after_yes_en__r001",
+            "s27_booking_after_yes_en/s27_booking_after_yes_en__r002",
+            "s27_booking_after_yes_en/s27_booking_after_yes_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s27_booking_after_yes_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Travel",
+      "uncovered_duties": [
+        "Collect constraints once: budget, preferences, loyalty numbers, arrive-by",
+        "Return 2-3 good / better / best options with totals and trade-offs",
+        "Include check-in times, ground transport, addresses and contingencies",
+        "Track changes and expenses afterwards"
+      ]
+    },
+    {
+      "closes_in": "M5",
+      "duties": [
+        "Find the right vendor",
+        "Check availability and price",
+        "Draft the request",
+        "Stop before commit",
+        "Confirm afterwards",
+        "Calendar the appointment with a reminder and vendor contact"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "errands",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            3,
+            4,
+            5
+          ],
+          "kind": "partial",
+          "label": "stand-in booking after the yes: readback, itinerary, reminders, ICS",
+          "passed": 3,
+          "run_ids": [
+            "s27_booking_after_yes_en/s27_booking_after_yes_en__r001",
+            "s27_booking_after_yes_en/s27_booking_after_yes_en__r002",
+            "s27_booking_after_yes_en/s27_booking_after_yes_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s27_booking_after_yes_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            2,
+            3,
+            4,
+            5
+          ],
+          "kind": "partial",
+          "label": "stand-in appointment and vendor request after the yes: reminder, readbacks, waiting-on-them loop",
+          "passed": 3,
+          "run_ids": [
+            "s28_vendor_request_en/s28_vendor_request_en__r001",
+            "s28_vendor_request_en/s28_vendor_request_en__r002",
+            "s28_vendor_request_en/s28_vendor_request_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s28_vendor_request_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Errands and bookings",
+      "uncovered_duties": [
+        "Find the right vendor",
+        "Check availability and price"
+      ]
+    },
+    {
+      "closes_in": "M5",
+      "duties": [
+        "Make and take calls to confirm, chase, query and cancel on instruction",
+        "Screen unknown callers",
+        "Relay who, outcome, promises, next step and date",
+        "Use the preferred channel per contact",
+        "Never disclose private details or commit the principal"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "phone",
+      "lab": "not_exercised",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "none"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [],
+      "title": "Phone and messages",
+      "uncovered_duties": [
+        "Make and take calls to confirm, chase, query and cancel on instruction",
+        "Screen unknown callers",
+        "Relay who, outcome, promises, next step and date",
+        "Use the preferred channel per contact",
+        "Never disclose private details or commit the principal"
+      ]
+    },
+    {
+      "closes_in": "M2",
+      "duties": [
+        "Restate the question",
+        "Fix comparison criteria first",
+        "Lead with a one-page answer, recommendation and reason, then detail",
+        "Source and date every number",
+        "Declare what could not be found",
+        "No padding"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "research",
+      "lab": "pass",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "none"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "kind": "full",
+          "label": "payroll providers, two countries",
+          "passed": 3,
+          "run_ids": [
+            "s18_research_payroll_en/s18_research_payroll_en__r001",
+            "s18_research_payroll_en/s18_research_payroll_en__r002",
+            "s18_research_payroll_en/s18_research_payroll_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s18_research_payroll_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Research",
+      "uncovered_duties": [
+        "No padding"
+      ]
+    },
+    {
+      "closes_in": "M6",
+      "duties": [
+        "Clean briefs, agendas and minutes with owners and dates on every action",
+        "Prepare proposals and slide skeletons",
+        "Use spreadsheet formulas, not pasted numbers",
+        "Keep the naming convention and folder tree",
+        "Keep CRM and contacts current and deduplicated with a change log"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "documents",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            4
+          ],
+          "kind": "partial",
+          "label": "deduplicated contact import with a change log; no provider write",
+          "passed": 3,
+          "run_ids": [
+            "s32_contacts_cleanup_en/s32_contacts_cleanup_en__r001",
+            "s32_contacts_cleanup_en/s32_contacts_cleanup_en__r002",
+            "s32_contacts_cleanup_en/s32_contacts_cleanup_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s32_contacts_cleanup_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            0
+          ],
+          "kind": "partial",
+          "label": "minutes from a raw transcript: an owner and a date on every action item, open questions kept, nothing sent",
+          "passed": 3,
+          "run_ids": [
+            "s34_meeting_minutes_en/s34_meeting_minutes_en__r001",
+            "s34_meeting_minutes_en/s34_meeting_minutes_en__r002",
+            "s34_meeting_minutes_en/s34_meeting_minutes_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s34_meeting_minutes_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Documents and data",
+      "uncovered_duties": [
+        "Prepare proposals and slide skeletons",
+        "Use spreadsheet formulas, not pasted numbers",
+        "Keep the naming convention and folder tree"
+      ]
+    },
+    {
+      "closes_in": "M6",
+      "duties": [
+        "Send invoices and reminders on schedule",
+        "Chase overdue invoices on a polite escalation ladder",
+        "Categorise expenses and reconcile cards monthly",
+        "Weekly cash position",
+        "Monthly income/expense summary",
+        "Tax-season pack for the accountant",
+        "Never initiate a payment or transfer"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "finance",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "categorised trip expenses from a readback and a receipt; no card reconciliation",
+          "passed": 3,
+          "run_ids": [
+            "s30_trip_expenses_en/s30_trip_expenses_en__r001",
+            "s30_trip_expenses_en/s30_trip_expenses_en__r002",
+            "s30_trip_expenses_en/s30_trip_expenses_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s30_trip_expenses_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            0,
+            1,
+            6
+          ],
+          "kind": "partial",
+          "label": "receivable reminders and the chase ladder held for the yes; payable deadlines; remittance marks paid",
+          "passed": 3,
+          "run_ids": [
+            "s33_invoice_chase_en/s33_invoice_chase_en__r001",
+            "s33_invoice_chase_en/s33_invoice_chase_en__r002",
+            "s33_invoice_chase_en/s33_invoice_chase_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s33_invoice_chase_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Finance admin",
+      "uncovered_duties": [
+        "Categorise expenses and reconcile cards monthly",
+        "Weekly cash position",
+        "Monthly income/expense summary",
+        "Tax-season pack for the accountant"
+      ]
+    },
+    {
+      "closes_in": "M3 (radar), M6 (the rest)",
+      "duties": [
+        "Track passport, visa, insurance, subscription, licence and vehicle renewals",
+        "Track birthdays and gifts",
+        "Handle family logistics, health appointments and household vendors",
+        "Keep a yearly personal calendar",
+        "Remember sizes, allergies, favourite places and important people"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "personal_admin",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            0,
+            1
+          ],
+          "kind": "partial",
+          "label": "personal radar and held proposals",
+          "passed": 3,
+          "run_ids": [
+            "s21_personal_radar_en/s21_personal_radar_en__r001",
+            "s21_personal_radar_en/s21_personal_radar_en__r002",
+            "s21_personal_radar_en/s21_personal_radar_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s21_personal_radar_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "kind": "partial",
+          "label": "held dentist appointment for the right person with the allergy in the packet, held boiler request with the access code only there, a twelve-month year and a three-idea gift shortlist that avoids the allergy; nothing booked or sent",
+          "passed": 3,
+          "run_ids": [
+            "s41_family_admin_en/s41_family_admin_en__r001",
+            "s41_family_admin_en/s41_family_admin_en__r002",
+            "s41_family_admin_en/s41_family_admin_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s41_family_admin_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Personal life admin",
+      "uncovered_duties": []
+    },
+    {
+      "closes_in": "M6",
+      "duties": [
+        "First-line FAQ replies in company voice",
+        "Resolve tier-1 issues under written policy",
+        "Escalate tier-2 with context and recommendation",
+        "Chase vendor timelines and deliverables",
+        "Report volume, response time and recurring complaints weekly",
+        "Never promise refunds or terms outside policy"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "customer_comms",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "kind": "partial",
+          "label": "policy-bound drafts, owner escalations and vendor chase tracking",
+          "passed": 3,
+          "run_ids": [
+            "s31_customer_policy_en/s31_customer_policy_en__r001",
+            "s31_customer_policy_en/s31_customer_policy_en__r002",
+            "s31_customer_policy_en/s31_customer_policy_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s31_customer_policy_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            4
+          ],
+          "kind": "partial",
+          "label": "read-only weekly report: volume, unanswered threads, median first response, recurring complaints with counts, held replies, escalations and open items with owners; no customer names; nothing sent",
+          "passed": 3,
+          "run_ids": [
+            "s40_customer_report_en/s40_customer_report_en__r001",
+            "s40_customer_report_en/s40_customer_report_en__r002",
+            "s40_customer_report_en/s40_customer_report_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s40_customer_report_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Customer and vendor comms",
+      "uncovered_duties": [
+        "First-line FAQ replies in company voice"
+      ]
+    },
+    {
+      "closes_in": "M6",
+      "duties": [
+        "Keep a content calendar",
+        "Turn raw notes into posts in voice",
+        "Schedule into the approval flow",
+        "Answer routine comments and DMs",
+        "Monitor mentions",
+        "Report weekly",
+        "Publish only inside the principal's chosen approval flow"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "social",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "fail"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            0,
+            1,
+            2
+          ],
+          "kind": "partial",
+          "label": "two-week content calendar and three drafts in the owner's voice, each slot a dated item held for the yes; nothing posted",
+          "passed": 1,
+          "run_ids": [
+            "s38_content_calendar_en/s38_content_calendar_en__r001",
+            "s38_content_calendar_en/s38_content_calendar_en__r002",
+            "s38_content_calendar_en/s38_content_calendar_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s38_content_calendar_en",
+          "state": "fail"
+        }
+      ],
+      "title": "Social and content admin",
+      "uncovered_duties": [
+        "Keep a content calendar",
+        "Turn raw notes into posts in voice",
+        "Schedule into the approval flow",
+        "Answer routine comments and DMs",
+        "Monitor mentions",
+        "Report weekly",
+        "Publish only inside the principal's chosen approval flow"
+      ]
+    },
+    {
+      "closes_in": "M2 (check), M3 (daily and weekly), M6 (monthly, quarterly, licences and contracts)",
+      "duties": [
+        "Own daily brief, weekly kickoff, closeout, monthly admin and quarterly review checklists",
+        "Run checklists unprompted",
+        "Notice missed recurring items",
+        "Maintain the SOP library",
+        "Improve one SOP a week",
+        "Track renewals, licences and contracts"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "recurring_ops",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "fail"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "routine runs: daily",
+          "passed": 3,
+          "run_ids": [
+            "s13_cos_daily_en/s13_cos_daily_en__r001",
+            "s13_cos_daily_en/s13_cos_daily_en__r002",
+            "s13_cos_daily_en/s13_cos_daily_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s13_cos_daily_en",
+          "state": "pass"
+        },
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "routine runs: quiet day",
+          "passed": 3,
+          "run_ids": [
+            "s14_cos_daily_silence_en/s14_cos_daily_silence_en__r001",
+            "s14_cos_daily_silence_en/s14_cos_daily_silence_en__r002",
+            "s14_cos_daily_silence_en/s14_cos_daily_silence_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s14_cos_daily_silence_en",
+          "state": "pass"
+        },
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "routine runs: weekly",
+          "passed": 2,
+          "run_ids": [
+            "s16_cos_weekly_en/s16_cos_weekly_en__r001",
+            "s16_cos_weekly_en/s16_cos_weekly_en__r002",
+            "s16_cos_weekly_en/s16_cos_weekly_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s16_cos_weekly_en",
+          "state": "fail"
+        },
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "routine runs: kickoff",
+          "passed": 3,
+          "run_ids": [
+            "s17_cos_kickoff_en/s17_cos_kickoff_en__r001",
+            "s17_cos_kickoff_en/s17_cos_kickoff_en__r002",
+            "s17_cos_kickoff_en/s17_cos_kickoff_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s17_cos_kickoff_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            0,
+            1
+          ],
+          "kind": "partial",
+          "label": "evidence-grounded end-of-day note",
+          "passed": 3,
+          "run_ids": [
+            "s22_eod_note_en/s22_eod_note_en__r001",
+            "s22_eod_note_en/s22_eod_note_en__r002",
+            "s22_eod_note_en/s22_eod_note_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s22_eod_note_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            2
+          ],
+          "kind": "partial",
+          "label": "same-cycle routine health exception",
+          "passed": 3,
+          "run_ids": [
+            "s23_broken_routine_en/s23_broken_routine_en__r001",
+            "s23_broken_routine_en/s23_broken_routine_en__r002",
+            "s23_broken_routine_en/s23_broken_routine_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s23_broken_routine_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Recurring ops",
+      "uncovered_duties": [
+        "Maintain the SOP library",
+        "Improve one SOP a week",
+        "Track renewals, licences and contracts"
+      ]
+    },
+    {
+      "closes_in": "M1",
+      "duties": [
+        "Interview in short bursts across business, principal, communication, rights, preferences, calendar, history and access",
+        "Write a living profile, read back for correction and never re-ask recorded answers",
+        "Capture, correct and own recurring-task SOPs",
+        "Arrange named least-privilege delegated access before day one",
+        "Stage shadowing, process ownership, judgement and independence across the first 30 days",
+        "Review quality, time saved, questions and the month-2 task wave at day 30",
+        "Read granted material before asking; record preference provenance and learn from edits",
+        "Propose repeated patterns, confirm inferences and read style guides on day one"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "onboarding",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [],
+          "kind": "partial",
+          "label": "essentials intake, one review and apply, then the triaged inbox as the first win; no terminal steps",
+          "passed": 3,
+          "run_ids": [
+            "s35_onboarding_first_win_en/s35_onboarding_first_win_en__r001",
+            "s35_onboarding_first_win_en/s35_onboarding_first_win_en__r002",
+            "s35_onboarding_first_win_en/s35_onboarding_first_win_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s35_onboarding_first_win_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Onboarding",
+      "uncovered_duties": [
+        "Interview in short bursts across business, principal, communication, rights, preferences, calendar, history and access",
+        "Write a living profile, read back for correction and never re-ask recorded answers",
+        "Capture, correct and own recurring-task SOPs",
+        "Arrange named least-privilege delegated access before day one",
+        "Stage shadowing, process ownership, judgement and independence across the first 30 days",
+        "Review quality, time saved, questions and the month-2 task wave at day 30",
+        "Read granted material before asking; record preference provenance and learn from edits",
+        "Propose repeated patterns, confirm inferences and read style guides on day one"
+      ]
+    },
+    {
+      "closes_in": "M1 (preferences); norms checked inside scenarios",
+      "duties": [
+        "Anticipate next steps and bring a plan",
+        "Track open-loop owners, next actions and dates; chase to confirmation",
+        "Report daily, weekly and immediately on exceptions",
+        "Escalate early with problem, options, recommendation and deadline",
+        "Act within decision rights; draft-and-hold outward actions and batch non-urgent questions",
+        "Keep confidential details inside the role and agreed systems",
+        "Use explicit correct time zones and plan holidays",
+        "Check outbound facts, totals, links, attachments and placeholders; log errors and fixes",
+        "Keep agreed hours, response SLA, away hand-off and emergency path"
+      ],
+      "facts": {
+        "errors": [],
+        "state": "unproven"
+      },
+      "key": "working_norms",
+      "lab": "unproven",
+      "notes": [],
+      "parity": "unproven",
+      "partial": {
+        "state": "pass"
+      },
+      "real_work": {
+        "days": 0,
+        "owners": 0,
+        "pass_rate": 0,
+        "passed": 0,
+        "state": "unproven",
+        "tasks": 0
+      },
+      "tests": [
+        {
+          "covers": [
+            3,
+            4
+          ],
+          "kind": "partial",
+          "label": "decisions finished with options, a recommendation and a decide-by date, drafts held; a yes in a new chat confirms the prepared booking once",
+          "passed": 3,
+          "run_ids": [
+            "s37_approval_day_en/s37_approval_day_en__r001",
+            "s37_approval_day_en/s37_approval_day_en__r002",
+            "s37_approval_day_en/s37_approval_day_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s37_approval_day_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            1,
+            3,
+            4
+          ],
+          "kind": "partial",
+          "label": "confirmation-only loops and draft chase ladder",
+          "passed": 3,
+          "run_ids": [
+            "s20_follow_through_chase_en/s20_follow_through_chase_en__r001",
+            "s20_follow_through_chase_en/s20_follow_through_chase_en__r002",
+            "s20_follow_through_chase_en/s20_follow_through_chase_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s20_follow_through_chase_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            0
+          ],
+          "kind": "partial",
+          "label": "open items linked to the owner's priorities; the priority each overdue item threatens, the next blocked step and an overloaded holder named; nothing sent",
+          "passed": 3,
+          "run_ids": [
+            "s39_priorities_brief_en/s39_priorities_brief_en__r001",
+            "s39_priorities_brief_en/s39_priorities_brief_en__r002",
+            "s39_priorities_brief_en/s39_priorities_brief_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s39_priorities_brief_en",
+          "state": "pass"
+        },
+        {
+          "covers": [
+            1,
+            2,
+            4
+          ],
+          "kind": "partial",
+          "label": "two synthetic unattended role turns: urgent decision surfaced, day-2 nudge held for the owner's yes, nothing sent; no scheduler proof",
+          "passed": 3,
+          "run_ids": [
+            "s42_role_two_days_en/s42_role_two_days_en__r001",
+            "s42_role_two_days_en/s42_role_two_days_en__r002",
+            "s42_role_two_days_en/s42_role_two_days_en__r003"
+          ],
+          "runs": 3,
+          "scenario": "s42_role_two_days_en",
+          "state": "pass"
+        }
+      ],
+      "title": "Working norms",
+      "uncovered_duties": [
+        "Keep confidential details inside the role and agreed systems",
+        "Use explicit correct time zones and plan holidays",
+        "Check outbound facts, totals, links, attachments and placeholders; log errors and fixes",
+        "Keep agreed hours, response SLA, away hand-off and emergency path"
+      ]
+    }
+  ],
+  "as_of": "2026-11-10",
+  "commit": "101b654ec6e655d86290016a23f4b4d0ca563e29",
+  "counts": {
+    "lab": {
+      "fail": 0,
+      "not_exercised": 1,
+      "pass": 1,
+      "unproven": 12
+    },
+    "parity": {
+      "fail": 0,
+      "pass": 0,
+      "unproven": 14
+    },
+    "partial": {
+      "fail": 3,
+      "incomplete": 0,
+      "none": 2,
+      "pass": 9
+    }
+  },
+  "day30": {
+    "owners": {},
+    "state": "unproven"
+  },
+  "excluded": [],
+  "lab_dirs": [
+    "s01_seoul_tokyo_en",
+    "s02_tokyo_seoul_ko",
+    "s03_sf_tokyo_en",
+    "s13_cos_daily_en",
+    "s14_cos_daily_silence_en",
+    "s16_cos_weekly_en",
+    "s17_cos_kickoff_en",
+    "s18_research_payroll_en",
+    "s19_calendar_conflicts_en",
+    "s20_follow_through_chase_en",
+    "s21_personal_radar_en",
+    "s22_eod_note_en",
+    "s23_broken_routine_en",
+    "s24_inbox_triage_en",
+    "s25_calendar_invite_en",
+    "s26_meeting_confirm_en",
+    "s27_booking_after_yes_en",
+    "s28_vendor_request_en",
+    "s29_changed_leg_en",
+    "s30_trip_expenses_en",
+    "s31_customer_policy_en",
+    "s32_contacts_cleanup_en",
+    "s33_invoice_chase_en",
+    "s34_meeting_minutes_en",
+    "s35_onboarding_first_win_en",
+    "s36_inbox_awaiting_en",
+    "s37_approval_day_en",
+    "s38_content_calendar_en",
+    "s39_priorities_brief_en",
+    "s40_customer_report_en",
+    "s41_family_admin_en",
+    "s42_role_two_days_en"
+  ],
+  "schema": 1,
+  "version": "0.19.0-rc.1"
+}
