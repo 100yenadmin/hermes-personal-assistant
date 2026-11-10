@@ -164,6 +164,10 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     "I couldn't obtain the exact scheduled estimate: Uber's ride planner timed out before showing fares.",
     '料金表示の前にタイムアウトしました。', '요금 표시 전에 시간이 초과되었습니다.', '요금 조회가 타임아웃되었습니다.',
     'The booking page timed-out twice; I stopped there.',
+    'The booking page timed out, then I stopped without seeing fares.',
+    'The planner timed out before the fares loaded, so I stopped.',
+    'The fare search timed out; I stopped and will retry after you approve.',
+    'タイムアウトしましたが、ここで止めました。', '시간이 초과되었지만 더 이상 시도하지 않고 멈췄습니다.',
 ])
 def test_l24_unavailability_is_a_handoff(tmp_path, reply):
     scenario = fixture_run(tmp_path)
@@ -185,7 +189,9 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'The page has not timed out; I am still checking fares.',
                    'The first lookup timed out, but the retry worked. I am still browsing.',
                    'タイムアウトしていません。まだ調査中です。', '시간이 초과되지 않았습니다. 계속 확인 중입니다.',
-                   '一度タイムアウトしましたが、再試行で料金を取得しました。', '시간이 초과되었지만 다시 시도해서 요금을 확인했습니다.']:
+                   '一度タイムアウトしましたが、再試行で料金を取得しました。', '시간이 초과되었지만 다시 시도해서 요금을 확인했습니다.',
+                   'The page had not yet timed out; I am still checking.',
+                   'タイムアウトしませんでした。まだ調査中です。', '타임아웃이 발생하지 않았습니다. 계속 확인 중입니다.']:
         common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': silent}])
         assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'], silent
 
