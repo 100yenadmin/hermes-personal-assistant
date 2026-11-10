@@ -155,7 +155,7 @@ def test_reminder_ids_in_the_summary_fail_only_no_invented(tmp_path):
 
 
 @pytest.mark.parametrize("value", [["id-1", "id-2"], [{"label": "x"}], [{"due_at": "not a time"}],
-                                   [{"due_at": "2026-11-12T20:15:00"}], None, {"due_at": "2026-11-12T20:15:00+09:00"}])
+                                   [{"due_at": "2026-11-12T20:15:00"}], None, {"due_at": "2026-11-12T20:15:00+09:00"}, {}, ""])
 def test_reported_due_rejects_non_records(value):
     assert booking_checks.reported_due(value) is None
 

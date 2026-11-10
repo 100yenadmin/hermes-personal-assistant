@@ -48,6 +48,8 @@ def reported_due(reminders):
 
     A malformed list (reminder IDs, no due_at) then fails no_invented alone instead
     of collapsing the whole step to valid_evidence: False (#147)."""
+    if not isinstance(reminders, list):
+        return None
     try:
         return {stamp(r["due_at"]) for r in reminders}
     except (KeyError, TypeError, ValueError, AttributeError):
