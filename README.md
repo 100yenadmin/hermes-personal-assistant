@@ -4,7 +4,7 @@
 
 Your Hermes agent runs errands on the real sites, fills every field, and stops at the last button until you say yes.
 
-**Watch the demo:** coming with the launch post.
+**Watch the demo on X:** https://x.com/ElectricSheepIO/status/2120185069536973225
 
 [![Latest stable release](https://img.shields.io/github/v/release/100yenadmin/hermes-personal-assistant?label=stable)](https://github.com/100yenadmin/hermes-personal-assistant/releases/latest)
 [![Hermes >= 0.21.1](https://img.shields.io/badge/Hermes-%3E%3D%200.21.1-informational)](https://github.com/NousResearch/hermes-agent)
