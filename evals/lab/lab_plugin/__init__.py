@@ -429,6 +429,9 @@ def mail_search(threads, query, accounts):
 
 def register_standins(ctx, obs):
     """State is local to this disposable run; direct handler calls also enforce approval."""
+    if obs.lab.get("kind") == "role_followthrough":
+        from evals.lab.lab_plugin.role_pulse import register as register_role_pulse
+        register_role_pulse(ctx, obs)
     if isinstance(obs.lab.get("offers"), list):
         register_booking(ctx, obs)
     threads = {t["thread_id"]: {k: v for k, v in t.items() if k not in ORACLE_KEYS} for t in obs.lab.get("threads", [])}

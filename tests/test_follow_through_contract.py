@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from personal_assistant.entry import SCHEMA
@@ -135,6 +136,7 @@ def test_follow_through_role_wakes_and_owner_approved_dates_outside_roles():
         assert "at most 3 per turn" in normalized
         assert "none already armed or pending for the same loop and step" in normalized
         assert "HB2 header `role`" in normalized
+        assert re.search(r"pass the wake's `Local time` as `at` \((?:an )?ISO timestamp with its UTC offset\)", normalized)
         assert "within HB2's limits" in normalized
         assert "Report a refusal; never work around it" in normalized
         assert "On any HB2 wake turn, HB2 delivers the final reply; never also use a message tool" in normalized

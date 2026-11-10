@@ -260,7 +260,7 @@ def one(args):
         spec.loader.exec_module(module)
         from lab_installed_pa.entry import dispatch
         onboarding = s.get("lab", {}).get("kind") == "onboarding"
-        scripted = cos.enabled(s) or ("lab" in s and not onboarding) or any(st.get("type") == "scheduled" for st in s["steps"])
+        scripted = cos.enabled(s) or ("lab" in s and not onboarding) or any(st.get("type") in {"scheduled", "role_turn"} for st in s["steps"])
         if onboarding:
             cos.seed(hh, s, dispatch)
             assert not any(r.get("action_id") == "pa:setup" for r in ledger(hh).get("actions", [])), "onboarding home must have no setup progress"
@@ -319,7 +319,7 @@ def one(args):
             import lab_installed_pa.automation
             import lab_installed_pa.automation_workflow
             transcript = cos.dialogue(hh, root, package, s, module, turn, observer, meta, ledger)
-        step, message = 0, s["steps"][0]["goal"]
+        step, message = 0, s["steps"][0].get("goal", "")
         if calls:
             message = calls.message(s["language"], message)
         step_session_id = default_session_id

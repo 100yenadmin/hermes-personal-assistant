@@ -127,6 +127,9 @@ def _evaluate(root, scenario, index, messages, tools):
                     and (seeded.get(k, {}).get("next_actor") == "them" or k == lab["unconfirmed_id"])}
         due = {k for k, v in expected.items() if v != "none"}  # Extra held texts are harmless; none for a loop with nothing due.
         result["draft_nudges"] = required <= drafted <= due and not calls(local, "action_confirm") and not any(c["name"] == "lab_mail_send" for c in mail)
+    elif kind == "role_followthrough":
+        from . import role_followthrough_checks
+        result.update(role_followthrough_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "invoice":
         from . import invoice_checks
         result.update(invoice_checks.evaluate(root, scenario, index, messages, tools))
