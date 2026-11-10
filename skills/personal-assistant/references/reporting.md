@@ -69,5 +69,8 @@ Build the note from the evidence list, `next_action`, and `automations health`:
 “None evidenced” for an empty section. Every blocked item ends in a question.
 A routine-health finding goes under In progress, or under Blocked with questions
 when it needs the owner, identified by the finding's `occurrence_id` (its `id` when it
-has none); never under Done.
+has none); never under Done. Items are recorded rows (their `action_id`) and these
+findings. A source that returned nothing or could not be read is not an item: name it
+in one line after the three sections (“Not checked: …”), so the owner knows what the
+note could not cover.
 Nothing is invented: a cron hand-off is `unknown`, not verified delivery.

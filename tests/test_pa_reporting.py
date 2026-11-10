@@ -34,6 +34,14 @@ def ledger(tmp_path):
     return result
 
 
+def test_end_of_day_items_are_recorded_rows_and_gaps_are_named_apart():
+    # Review (0.18 wave, s22): an unreadable source was listed under In progress with an invented id.
+    text = (ROOT / 'skills/personal-assistant/references/reporting.md').read_text()
+    eod = ' '.join(text.split('## End-of-day note', 1)[1].split('## ', 1)[0].split())
+    assert 'Items are recorded rows (their `action_id`) and these findings.' in eod
+    assert 'could not be read is not an item' in eod and '(“Not checked: …”)' in eod
+
+
 def test_reporting_contract_and_domain_pointers():
     text = (ROOT / 'skills/personal-assistant/references/reporting.md').read_text()
     for fragment in ('NOT invoked', 'at most one corrected resend', 'never repeat an identical failed call',
