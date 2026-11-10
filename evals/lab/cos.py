@@ -17,6 +17,8 @@ from zoneinfo import ZoneInfo
 import yaml
 from .common import append, lines, write
 
+QUIET_HOURS = {"start": "22:00", "end": "07:00"}  # Seeded into PA's preferences; s42 checks wakes against it.
+
 DESTINATION = "lab:synthetic-owner"
 
 
@@ -105,7 +107,7 @@ def seed(hh, scenario, dispatch, moment=None):
     dispatch(hh, {"operation": "automations", "data": {"action": "preferences", "changes": {
         "timezone": scenario.get("timezone", "UTC"), "cos_daily_time": "09:30", "cos_weekly_time": "10:00",
         "cos_weekly_day": values["weekday"], "cos_kickoff_day": values["weekday"], "cos_kickoff_time": "11:00",
-        "quiet_hours": {"start": "22:00", "end": "07:00"}, **scenario.get("preferences", {})}}})
+        "quiet_hours": dict(QUIET_HOURS), **scenario.get("preferences", {})}}})
     for item in scenario.get("seed", []):
         item = expand(item, values)
         if scenario.get("lab", {}).get("kind") in {"booking", "approvals", "disruption", "expense"} and item["operation"] == "trip_import":

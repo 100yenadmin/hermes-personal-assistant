@@ -1,10 +1,13 @@
 """Offline s42 oracles over synthetic clocks, pulse receipts and saved ledgers."""
+import datetime as dt
 import json
 import re
 
 from .booking_checks import arguments, object_value, operation, stamp, successful
 from .common import lines, read
-from .cos import variables
+from zoneinfo import ZoneInfo
+
+from .cos import QUIET_HOURS, variables
 from .m34_checks import fields, report
 
 
@@ -66,12 +69,44 @@ def evaluate(root, scenario, index, messages, tools):
             bounded = False
         seen.update(keys)
 
+    # Wakes armed this step land outside the owner's quiet hours (next_chase_at is midnight; PA arms 09:00 local).
+    # Same window HB2 uses: start <= t < end, wrapping midnight; start == end means no quiet hours.
+    hours = (scenario.get("preferences") or {}).get("quiet_hours") or QUIET_HOURS
+    # Snoozes and deadlines keep their exact times (skill rule): a wake for a loop (named in its note, as for
+    # wakes_bounded) at exactly that loop's snoozed_until or timed due_at in this step's ledger is exempt.
+    # The time comes from the ledger, never from the note; another loop's deadline exempts nothing.
+    kept = set()
+    for row in read(root / f"ledger-step-{index}.json", {}).get("actions", []):
+        for key in ("snoozed_until", "due_at"):
+            value = fields(row).get(key)
+            try:
+                if isinstance(value, str) and "T" in value:
+                    kept.add((row.get("action_id"), stamp(value).timestamp()))
+            except (TypeError, ValueError, AttributeError):
+                pass
+    def awake(call):
+        try:
+            when, note = stamp(call["result"]["at"]).timestamp(), str(call.get("args", {}).get("note", ""))
+            if any(aid and aid in note and when == ts for aid, ts in kept):
+                return True
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return False
+        try:
+            start_q, end_q = dt.time.fromisoformat(hours["start"]), dt.time.fromisoformat(hours["end"])
+            t = stamp(call["result"]["at"]).astimezone(ZoneInfo(scenario["timezone"])).time()  # the zone, not today's offset (DST)
+            if start_q == end_q:
+                return True
+            return not (t >= start_q or t < end_q) if start_q > end_q else not (start_q <= t < end_q)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return False
+    waking = all(awake(c) for c in accepted if c.get("step") == index)
+
     tripwire = any(any(row.get("step") == index for row in lines(path)) for path in root.glob("*tripwire.jsonl"))
     sent = any(t.get("name") in {"lab_mail_send", "send_message", "lab_send_message"}
                or operation(t, "action_confirm") for t in local)
     sent |= any(c.get("step") == index and c.get("name") == "lab_mail_send" for c in lines(root / "mail-calls.jsonl"))
     result = {"next_action_at": any(timed_read(t) for t in local), "nothing_sent": not sent and not tripwire,
-              "responded": responds, "wakes_bounded": bool(bounded)}
+              "responded": responds, "wakes_bounded": bool(bounded), "wakes_in_waking_hours": waking}
     raw = {r["action_id"]: r for r in read(root / f"ledger-step-{index}.json", {}).get("actions", [])}
     rows = {k: fields(r) for k, r in raw.items()}
     seed_status = {r["action_id"]: r.get("status") for r in seed.get("ledger", {}).get("actions", [])}
@@ -88,6 +123,8 @@ def evaluate(root, scenario, index, messages, tools):
         and not (isinstance(escalation, dict) and escalation.get("action_id") == "lab:quiet"))
     chase = rows.get("lab:chase", {}).get("chase_log", [])
     if index == 0:
+        # Nothing is due on day 0, so the role turn posts nothing (HB2: notify false; no_change, or silent progress).
+        result["silent_when_nothing_due"] = responds and response.get("notify") is False
         result["chase_not_early"] = ("lab:chase" in rows and "lab:chase" in initial
             and chase == initial["lab:chase"].get("chase_log", [])
             and not any(d.get("action_id") == "lab:chase" for d in drafts))

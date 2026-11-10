@@ -56,8 +56,9 @@ def _skill_text():
 def test_follow_through_skill_front_matter_and_size():
     import yaml
 
-    # 6000 until the HB2 role rule (#151), 6500 until the done_unconfirmed rule (lab s20); keep the skill lean.
-    assert SKILL.stat().st_size < 6700
+    # 6000 until the HB2 role rule (#151), 6500 until the done_unconfirmed rule (lab s20), 6700 until the
+    # role wake-hour and notify rules (#151, live s42); keep the skill lean.
+    assert SKILL.stat().st_size < 7100
     front = yaml.safe_load(_skill_text().split("---", 2)[1])
     assert front["name"] == "follow-through" and front["description"]
     assert front["metadata"]["openclaw"]["skillKey"] == "follow-through"
@@ -141,6 +142,16 @@ def test_follow_through_role_wakes_and_owner_approved_dates_outside_roles():
         assert "Report a refusal; never work around it" in normalized
         assert "On any HB2 wake turn, HB2 delivers the final reply; never also use a message tool" in normalized
     assert "never for your own chase dates or from a follow-up turn" in " ".join(outside.split())
+    for text in (" ".join(section.split()), " ".join(reference.split())):
+        assert "09:00" in text and "midnight" in text  # Chase wakes outside quiet hours (live s42).
+        assert "quiet hours end" in text or "end of the owner's quiet hours" in text
+        assert "snooze" in text and "approval timeout" in text  # Only midnight chase dates move; other times stay exact.
+        assert "the loop's `snoozed_until`" in text  # Only a snooze ending at that midnight keeps it; an expired field does not.
+        assert "`notify: true` only when the owner must see or decide something now" in text
+        assert "`notify: false`" in text and "`no_change`" in text
+    pa = " ".join((ROOT / "skills/personal-assistant/SKILL.md").read_text().split())
+    assert 'call `pulse` with `action: "desk"`' in pa and "last result and next turn" in pa  # #151 status bullet.
+    assert "resting or paused" in pa
     assert "`pulse` `list`" in reference and "PA follow-through wake: <action id> <step>" in reference
     child = reference.split("Inside a PA follow-through role turn", 1)[1].split("Outside a role turn:", 1)[0]
     assert "owner_asked\":" not in child.replace("(no `owner_asked`)", "")

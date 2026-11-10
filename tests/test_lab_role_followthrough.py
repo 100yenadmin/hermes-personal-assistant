@@ -235,9 +235,9 @@ def test_refused_respond_is_logged_and_does_not_count(tmp_path, monkeypatch, cha
     assert refused == {"error": error}
     rows = common.lines(tmp_path / "pulse-calls.jsonl")
     refused_row = rows.pop()
-    # Without an accepted response, a refused call cannot satisfy responded.
+    # Without an accepted response, a refused call cannot satisfy responded (nor day 0's silence).
     (tmp_path / "pulse-calls.jsonl").write_text(json.dumps(refused_row) + "\n")
-    assert {k for k, v in score(tmp_path, s, 0).items() if not v} == {"responded"}
+    assert {k for k, v in score(tmp_path, s, 0).items() if not v} == {"responded", "silent_when_nothing_due"}
     # A refused attempt followed by one accepted response is a valid retry.
     common.append(tmp_path / "pulse-calls.jsonl", rows[0])
     assert all(score(tmp_path, s, 0).values())
@@ -432,3 +432,89 @@ def test_quiet_control_must_remain_untouched(tmp_path, day, touch):
         common.write(tmp_path / "transcript.json", transcript)
     result = score(tmp_path, s, day)
     assert {k for k, v in result.items() if not v} == {"quiet_untouched"}, result
+
+
+def test_day0_role_turn_stays_silent_when_nothing_is_due(tmp_path):
+    s = fixture_run(tmp_path)
+    assert score(tmp_path, s, 0)["silent_when_nothing_due"] is True
+    rows = common.lines(tmp_path / "pulse-calls.jsonl")
+    rows[0]["args"] = {**rows[0]["args"], "outcome": "progress", "notify": True, "summary": "No chase is due today."}
+    (tmp_path / "pulse-calls.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    assert {k for k, v in score(tmp_path, s, 0).items() if not v} == {"silent_when_nothing_due"}
+    assert "silent_when_nothing_due" not in score(tmp_path, s, 1)  # Day 1 has due items; notify is expected there.
+
+
+@pytest.mark.parametrize("at,quiet,ok", [
+    ("2026-11-12T09:00:00+08:00", None, True),
+    ("2026-11-12T00:00:00+08:00", None, False),  # next_chase_at midnight, inside default quiet hours 22:00-07:00
+    ("2026-11-11T22:30:00+08:00", None, False),
+    ("2026-11-12T01:00:00+00:00", None, True),  # 09:00 in Singapore, written in UTC
+    ("2026-11-12T06:30:00+08:00", None, False),
+    ("2026-11-12T06:30:00+08:00", {"start": "23:00", "end": "06:00"}, True),  # scenario quiet hours win
+    ("2026-11-12T09:00:00+08:00", {"start": "22:00", "end": "09:15"}, False),  # 09:00 is still quiet for this owner
+    ("2026-11-12T09:15:00+08:00", {"start": "22:00", "end": "09:15"}, True),  # end is waking, as in HB2
+    ("2026-11-12T03:00:00+08:00", {"start": "00:00", "end": "00:00"}, True),  # start == end: no quiet hours
+    ("2026-11-12T23:00:00+08:00", {"start": "22:00+01:00", "end": "07:00"}, False),  # malformed window fails, no crash
+])
+def test_wakes_must_land_outside_quiet_hours(tmp_path, at, quiet, ok):
+    s = fixture_run(tmp_path)
+    if quiet:
+        s["preferences"] = {"quiet_hours": quiet}
+    common.append(tmp_path / "pulse-calls.jsonl", {"step": 0, "action": "create",
+        "args": {"note": "PA follow-through wake: lab:chase day2", "trigger": {"kind": "at", "at": at}},
+        "result": {"id": "lab-at-1", "armed": True, "kind": "at", "at": at}})
+    result = score(tmp_path, s, 0)
+    assert result["wakes_in_waking_hours"] is ok
+    assert {k for k, v in result.items() if not v} == (set() if ok else {"wakes_in_waking_hours"})
+
+
+def test_wake_hours_use_the_scenario_zone_across_dst(tmp_path):
+    s = fixture_run(tmp_path)
+    s["timezone"] = "America/New_York"  # November turns are at -05:00; this April wake is at -04:00.
+    at = "2027-04-01T07:30:00-04:00"  # 07:30 local: awake. Today's fixed offset would read 06:30 (quiet).
+    common.append(tmp_path / "pulse-calls.jsonl", {"step": 0, "action": "create",
+        "args": {"note": "PA follow-through wake: lab:chase day2", "trigger": {"kind": "at", "at": at}},
+        "result": {"id": "lab-at-1", "armed": True, "kind": "at", "at": at}})
+    assert score(tmp_path, s, 0)["wakes_in_waking_hours"] is True
+
+
+@pytest.mark.parametrize("quiet,ok", [({"start": "23:00", "end": "06:00"}, True), ({"start": "24:00", "end": "06:00"}, False),
+                                      ({"end": "09:15"}, False), ("22:00-07:00", False), (None, False)])
+def test_scenario_quiet_hours_preference_is_validated(quiet, ok):
+    s = scenario()
+    s["preferences"] = {"quiet_hours": quiet}
+    if ok:
+        validate(s)
+        assert cos.QUIET_HOURS == {"start": "22:00", "end": "07:00"}
+    else:
+        with pytest.raises(ValueError, match="quiet_hours"):
+            validate(s)
+
+
+@pytest.mark.parametrize("ledger_key,note,ok", [
+    ("snoozed_until", "PA follow-through wake: lab:chase", True),  # a snooze ending in quiet hours keeps its time
+    ("due_at", "PA follow-through wake: lab:chase deadline", True),  # a deadline keeps its time
+    (None, "PA follow-through wake: lab:chase day2; no snooze", False),  # free text never exempts
+    (None, "PA follow-through wake: lab:chase approval timeout", False),
+    ("other_loop_due_at", "PA follow-through wake: lab:chase day2", False),  # another loop's deadline exempts nothing
+])
+def test_only_ledger_snoozes_and_deadlines_keep_quiet_hour_times(tmp_path, ledger_key, note, ok):
+    s = fixture_run(tmp_path)
+    at = "2026-11-12T23:00:00+08:00"  # inside quiet hours
+    if ledger_key:
+        db = common.read(tmp_path / "ledger-step-0.json")
+        row = 1 if ledger_key == "other_loop_due_at" else 0  # rows: 0 lab:chase, 1 lab:urgent
+        db["actions"][row]["fields"]["due_at" if ledger_key == "other_loop_due_at" else ledger_key] = at
+        common.write(tmp_path / "ledger-step-0.json", db)
+    common.append(tmp_path / "pulse-calls.jsonl", {"step": 0, "action": "create",
+        "args": {"note": note, "trigger": {"kind": "at", "at": at}},
+        "result": {"id": "lab-at-1", "armed": True, "kind": "at", "at": at}})
+    assert score(tmp_path, s, 0)["wakes_in_waking_hours"] is ok
+
+
+@pytest.mark.parametrize("value", ["22:0\u0660", "7:00", "24:00"])
+def test_quiet_hours_validation_rejects_non_ascii_and_out_of_range(value):
+    s = scenario()
+    s["preferences"] = {"quiet_hours": {"start": value, "end": "07:00"}}
+    with pytest.raises(ValueError, match="quiet_hours"):
+        validate(s)

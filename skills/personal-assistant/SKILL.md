@@ -51,6 +51,7 @@ needed workflow without repeating setup or loading every recipe.
 Capability rows report `available`, `needs-setup`, `unverified`, or
 `unavailable`, one recovery action, and the existing integration to reuse.
 The `heartbeat` row reports HeartBeat 2.0 availability; `roles` says whether its registered schema supports roles.
+When the owner asks for status or what you are keeping an eye on and HB2 is available, also call `pulse` with `action: "desk"` and relay what it shows for the follow-through role (last result and next turn, or that it is resting or paused) and the next due wake.
 Installation starts no jobs. Missing optional integrations do not block local
 trip import, bounded context, portable ICS/Markdown exports, or recipe discovery.
 In these documents `pa.status` means `pa(operation="status")`; there are no
