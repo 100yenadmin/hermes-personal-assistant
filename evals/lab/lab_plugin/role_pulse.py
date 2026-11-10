@@ -7,7 +7,10 @@ from evals.lab.cos import variables
 
 
 def register(ctx, obs):
-    from hermes_cli.middleware import TOOL_EXECUTION_MIDDLEWARE
+    try:
+        from hermes_cli.middleware import TOOL_EXECUTION_MIDDLEWARE
+    except ImportError:  # Outside Hermes (unit tests and CI without Hermes); the kind name is stable.
+        TOOL_EXECUTION_MIDDLEWARE = "tool_execution"
     wakes, counts = [], {}
 
     def middleware(tool_name, args, next_call, **kw):

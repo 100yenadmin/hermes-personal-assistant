@@ -1,3 +1,4 @@
+import os
 """HB2 role-turn proof using synthetic logs only; no model, scheduler or providers."""
 import copy
 import datetime as dt
@@ -166,9 +167,10 @@ def middleware_context(root, monkeypatch, s=None):
                           register_tool=lambda **kw: None,
                           register_middleware=lambda k, cb: middlewares.update({k: cb}))
     monkeypatch.setenv("PA_LAB_OUT", str(root))
-    # Use the installed Hermes middleware when available. No engine is instantiated.
-    if "hermes_cli.middleware" not in sys.modules:
-        monkeypatch.syspath_prepend("/Users/m1/repos/hermes-pins-r6/v0.22.2-d923a5e")
+    # Use a Hermes checkout's middleware when one is available (PA_E2E_HERMES); otherwise skip. No engine is instantiated.
+    if "hermes_cli.middleware" not in sys.modules and os.environ.get("PA_E2E_HERMES"):
+        monkeypatch.syspath_prepend(os.environ["PA_E2E_HERMES"])
+    pytest.importorskip("hermes_cli.middleware")
     register(ctx)
     return hooks["pre_tool_call"].__self__, middlewares
 
@@ -379,13 +381,14 @@ def test_evidence_invariants(tmp_path, variant, failed):
 
 @pytest.mark.parametrize("summary,reply,notify,outcome,expected", [
     ("The VENUE needs your contract approval.", "A decision awaits.", True, "progress", True),
-    ("A decision awaits.", "Please review the contract for the venue.", False, "blocked", True),
+    ("A decision awaits.", "Please review the contract for the venue.", False, "blocked", False),
     ("A decision awaits.", "Please review the venue contract.", True, "progress", True),
     ("Please review the venue contract.", "A decision awaits.", False, "needs_attention", False),
     ("Approve the venue contract", "Approve the venue contract", False, "progress", False),
     ("A decision awaits.", '{"lab_summary":{"urgent":"lab:urgent; Approve the venue contract"}}', True, "needs_attention", False),
     ("A decision awaits.", '```json\n{"lab_summary":{"urgent":"venue contract"}}\n```', True, "needs_attention", False),
-    ("A decision awaits.", '{"lab_summary":{}}\nPlease review the venue contract.', False, "needs_attention", True),
+    ("A decision awaits.", '{"lab_summary":{}}\nPlease review the venue contract.', False, "needs_attention", False),
+    ("A decision awaits.", '{"lab_summary":{}}\nPlease review the venue contract.', True, "needs_attention", True),
 ])
 def test_urgent_requires_owner_facing_keywords(tmp_path, summary, reply, notify, outcome, expected):
     s = fixture_run(tmp_path)
@@ -397,10 +400,19 @@ def test_urgent_requires_owner_facing_keywords(tmp_path, summary, reply, notify,
 
 
 @pytest.mark.parametrize("day", [0, 1])
-@pytest.mark.parametrize("touch", ["chase", "escalate", "draft", "packet"])
+@pytest.mark.parametrize("touch", ["chase", "escalate", "draft", "packet", "status", "due", "next_step"])
 def test_quiet_control_must_remain_untouched(tmp_path, day, touch):
     s = fixture_run(tmp_path)
-    if touch in {"chase", "escalate"}:
+    if touch in {"status", "due", "next_step"}:
+        db = common.read(tmp_path / f"ledger-step-{day}.json")
+        row = db["actions"][2]
+        assert row["action_id"] == "lab:quiet"
+        if touch == "status":
+            row["status"] = "completed"
+        else:
+            row["fields"]["due_at" if touch == "due" else "next_step"] = "changed"
+        common.write(tmp_path / f"ledger-step-{day}.json", db)
+    elif touch in {"chase", "escalate"}:
         db = common.read(tmp_path / f"ledger-step-{day}.json")
         db["actions"][2]["fields"]["chase_log"].append({"step": "escalate" if touch == "escalate" else "day2",
             "at": cos.variables(s["timezone"], MOMENT, 9, day)["now"], "how": "nudge draft held"})
