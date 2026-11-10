@@ -5,7 +5,7 @@
 This release continues M6 (VA parity) with three more duties from the 9 November gap review.
 - **Priorities.** The owner's top three priorities now drive the brief: PA names what threatens each one, the next blocked step and who is overloaded.
 - **Weekly customer report.** PA gives a read-only report of customer and vendor mail: volume, response time, recurring complaints and the open items.
-- **Family admin.** PA prepares appointments and household vendor requests for the owner's yes, and keeps a year at a glance.
+- **Family admin.** PA prepares appointments and household vendor requests for the owner's yes, and gives a year at a glance.
 
 PA's skills still stop every booking, payment and send for the owner's yes.
 
@@ -17,7 +17,7 @@ It ships `releases/0.16.0-rc.1/scorecard.md`, built from 93 Capability Lab runs 
   - s02: the reply said the restaurant was prepared for 19:00, but its final page showed 13:00.
   - s03: a course price and a cancellation charge had no evidence in the run.
 - **The weekly review (s16) passes 1 of 3.** In two runs the owner said yes to a benchmark slot while no calendar was connected. PA said so, but mentioned setup only passively ("calendar setup is an option"). #187 makes the offer plain after this release.
-- **The end-of-day note (s22) passes 2 of 3.** In the miss PA saved a grounded note, but the model provider rejected the final request (HTTP 400), so the owner's reply held only the error and the checks, which score the reply, failed.
+- **The end-of-day note (s22) passes 2 of 3.** In the miss PA saved a note, but the model provider rejected the final request (HTTP 400), so the owner's reply held only the error and the checks, which score the reply, failed.
 - **Scorecard:** working norms partial checks now pass, and every area that gained a row here passes its partial checks. Travel and recurring ops have partial checks failing; recurring ops passed in 0.15.0-rc.1 and falls back because of s16 and s22.
 
 Priorities tied to delivery (#158, #176):
