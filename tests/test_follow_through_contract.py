@@ -57,8 +57,8 @@ def test_follow_through_skill_front_matter_and_size():
     import yaml
 
     # 6000 until the HB2 role rule (#151), 6500 until the done_unconfirmed rule (lab s20), 6700 until the
-    # role wake-hour and notify rules (#151, live s42); keep the skill lean.
-    assert SKILL.stat().st_size < 7100
+    # role wake-hour and notify rules (#151, live s42), 7100 until the 280-character summary hint; keep the skill lean.
+    assert SKILL.stat().st_size < 7150
     front = yaml.safe_load(_skill_text().split("---", 2)[1])
     assert front["name"] == "follow-through" and front["description"]
     assert front["metadata"]["openclaw"]["skillKey"] == "follow-through"
@@ -152,6 +152,8 @@ def test_follow_through_role_wakes_and_owner_approved_dates_outside_roles():
     pa = " ".join((ROOT / "skills/personal-assistant/SKILL.md").read_text().split())
     assert 'call `pulse` with `action: "desk"`' in pa and "last result and next turn" in pa  # #151 status bullet.
     assert "resting or paused" in pa
+    assert "named plain `pa` (not `personal_assistant:pa`)" in pa  # Hermes 0.23.1 tool_describe smoke
+    assert "Keep the summary under 280 characters." in " ".join(_skill_text().split())
     assert "`pulse` `list`" in reference and "PA follow-through wake: <action id> <step>" in reference
     child = reference.split("Inside a PA follow-through role turn", 1)[1].split("Outside a role turn:", 1)[0]
     assert "owner_asked\":" not in child.replace("(no `owner_asked`)", "")

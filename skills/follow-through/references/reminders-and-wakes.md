@@ -50,7 +50,8 @@ deadline. In `respond`, set
 `notify: true` only when the owner must see or decide something now: a due
 reminder, a held draft or an escalation. When nothing is due, set
 `notify: false`: `no_change`, or `progress` with a one-line summary if you only
-armed wakes (HB2 shows role summaries on its desk).
+armed wakes (HB2 shows role summaries on its desk). HB2 refuses a summary over
+280 characters, so keep it shorter.
 
 Outside a role turn:
 Only when the owner approves a specific follow-up date in a human turn in this
