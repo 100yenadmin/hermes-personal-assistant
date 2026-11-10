@@ -386,12 +386,13 @@ def test_skill_shows_the_flat_paid_call():
 
 
 @pytest.mark.parametrize("key", ["GB82WEST12345698765432", "4111 1111 1111 1111", "card number 4111111111111111 exp 12/29",
-                                 "password=hunter2hunter2", "Smith"])
+                                 "password=hunter2hunter2", "Smith", "correct_horse_battery_staple",
+                                 "sk_live_abcdefghijklmnop"])
 def test_hint_never_echoes_a_key_that_could_carry_data(tmp_path, key):
     with pytest.raises(ValueError) as error:
         dispatch(tmp_path, {"operation": "invoice", "data": {"action": "list", key: "x"}})
     message = str(error.value)
-    assert key not in message and "4111" not in message and "hunter2" not in message
+    assert key not in message and "4111" not in message and "hunter2" not in message and "sk_live" not in message
     assert "plus 1 other key not accepted" in message
 
 
@@ -405,3 +406,14 @@ def test_right_names_wrong_values_point_at_the_values(tmp_path, data):
 def test_missing_fields_are_named(tmp_path):
     with pytest.raises(ValueError, match="missing: evidence, paid_on"):
         dispatch(tmp_path, {"operation": "invoice", "data": {"action": "paid", "invoice_id": "x"}})
+
+
+def test_value_hint_lists_only_the_fields_sent(tmp_path):
+    data = {"action": "record", "direction": "receivable", "counterparty": "Cedar Demo Co", "reference": "INV-1037",
+            "amount": 850, "currency": "GBP", "issue_date": "2026-11-01", "due_date": "2026-11-15",
+            "category": "services", "evidence_ref": "Owner message"}
+    with pytest.raises(ValueError) as error:
+        dispatch(tmp_path, {"operation": "invoice", "data": data})
+    message = str(error.value)
+    assert 'amount as a string like "850.00"' in message and "currency as 3 capital letters" in message
+    assert "status open" not in message and "paid_on" not in message

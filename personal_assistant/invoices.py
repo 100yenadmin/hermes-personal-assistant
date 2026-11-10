@@ -62,7 +62,16 @@ def _iban(value):
     return False
 
 
-SAFE_KEY = re.compile(r"[a-z][a-z_]{0,39}")
+# Key names the hint may echo: PA's own field names and the wrappers models send. Any
+# other key is only counted, since a key can carry an IBAN, card number or secret.
+KNOWN_KEYS = set(FIELDS) | {"fields", "answers", "data", "args", "arguments", "action_id", "id",
+                            "at", "date", "proof", "note", "notes", "payment_evidence"}
+VALUE_HINTS = {"amount": 'amount as a string like "850.00"', "currency": "currency as 3 capital letters like GBP",
+               "direction": "direction receivable or payable", "status": "status open, paid or void",
+               "category": "category services, products or other for a receivable",
+               "remind_days_before": "remind_days_before a whole number from 0 to 60",
+               **{k: f"{k} as YYYY-MM-DD" for k in ("issue_date", "due_date", "paid_on")},
+               **{k: f"{k} as text up to {n} characters" for k, n in TEXT_LIMITS.items()}}
 
 
 def _shape_hint(data):
@@ -73,8 +82,7 @@ def _shape_hint(data):
     required = sorted(RECORD if action == "record" else ALLOWED[action] if action != "list" else ())
     optional = sorted(ALLOWED[action] - set(required))
     extra = [k for k in data if k != "action" and k not in ALLOWED[action]]
-    # Echo only plain lowercase names: a key can carry an IBAN, card number or secret.
-    named = sorted(k for k in extra if isinstance(k, str) and SAFE_KEY.fullmatch(k))[:5]
+    named = sorted(k for k in extra if k in KNOWN_KEYS)[:5]
     others = len(extra) - len(named)
     missing = sorted(set(required) - set(data))
     hint = f"{action} takes " + (", ".join(required) or "no required fields")
@@ -83,8 +91,8 @@ def _shape_hint(data):
     hint += f"; not accepted: {', '.join(named)}" if named else ""
     hint += f"; plus {others} other key{'s' if others != 1 else ''} not accepted" if others else ""
     if not extra and not missing:
-        return hint + ("; the field names are right, so check the values: dates as YYYY-MM-DD, text within its "
-                       "length limit, status open, paid or void, a receivable category services, products or other")
+        sent = [VALUE_HINTS[k] for k in sorted(data) if k in VALUE_HINTS]
+        return hint + "; the field names are right, so check the values: " + ", ".join(sent)
     return hint + "; send them at the top level of data, dates as YYYY-MM-DD"
 
 
