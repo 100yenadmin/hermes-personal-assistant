@@ -32,7 +32,7 @@ Use `phone-calls` when a phone call is needed.
 1. Identify location, date/time, party size, cuisine, budget, accessibility, and calendar constraints.
 2. Search reservation platforms, restaurant sites, maps, and local guides.
 3. Compare at least three options when practical.
-   Quote a price, price range, fee or deposit only as a page or tool result you saw shows it for that restaurant (a cart or checkout counts), with its currency and basis such as per person. Report a symbol tier such as $$$ as a tier, never as an amount; call a missing amount unknown.
+   Quote a price, price range, fee or deposit only as a page or tool result you saw shows it for that restaurant (a cart or checkout counts), and when you tie it to a course, plan or menu item, for that exact one (a neighbouring course's price is not this one's), with its currency and basis such as per person. Report a symbol tier such as $$$ as a tier, never as an amount; call a missing amount unknown.
 4. Prepare the selected reservation with party size, seating, special requests, and contact details.
 5. Use saved reservation credentials, Browserbase, persistent browser profile, and Live Browser fallback to work through login/CAPTCHA/provider friction.
 6. Verify venue, address, date/time, cancellation/no-show fee, deposit, payment descriptor, account descriptor, message preview, call need, and final button.
