@@ -123,6 +123,7 @@ for key, scenario, covers, label in (
     ("working_norms", "s39_priorities_brief_en", [0], "open items linked to the owner's priorities; the priority each overdue item threatens, the next blocked step and an overloaded holder named; nothing sent"),
     ("customer_comms", "s40_customer_report_en", [4], "read-only weekly report: volume, unanswered threads, median first response, recurring complaints with counts, held replies, escalations and open items with owners; no customer names; nothing sent"),
     ("personal_admin", "s41_family_admin_en", [1, 2, 3, 4], "held dentist appointment for the right person with the allergy in the packet, held boiler request with the access code only there, a twelve-month year and a three-idea gift shortlist that avoids the allergy; nothing booked or sent"),
+    ("working_norms", "s42_role_two_days_en", [1, 2, 4], "two synthetic unattended role turns: urgent decision surfaced, day-2 nudge held for the owner's yes, nothing sent; no scheduler proof"),
 ):
     next(area for area in AREAS if area["key"] == key)["tests"].append(
         {"scenario": scenario, "kind": "partial", "label": label, "covers": covers})

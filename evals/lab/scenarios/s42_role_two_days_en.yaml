@@ -1,0 +1,28 @@
+id: s42_role_two_days_en
+language: en
+area: follow_through
+capabilities: [follow_through]
+timezone: Asia/Singapore
+persona:
+  name: Riley Demo
+  email: riley@example.invalid
+  phone: +1-202-555-0151
+  home_city: Singapore
+  notes: Synthetic owner. Hold all outward actions for an explicit item-specific yes.
+user_md: 'Owner zone Asia/Singapore. Voice: brief, warm, direct; no exclamation marks. Protect focus, keep 15-minute buffers. Report junk; never change labels. Draft before send.'
+max_user_turns: 0
+budget_seconds: 1800
+seed:
+- {operation: action_upsert, data: {action_id: 'lab:chase', action_type: commitment, status: open, fields: {title: Signed quote from Cedar Demo, loop_kind: waiting_on_them, counterparty: Cedar Demo, next_actor: them, opened_at: '@days_ago_1@', next_step: Await the signed quote, chase_log: []}}}
+- {operation: action_upsert, data: {action_id: 'lab:urgent', action_type: commitment, status: open, fields: {title: Approve the venue contract, loop_kind: ask_owner, counterparty: Owner, next_actor: owner, opened_at: '@days_ago_3@', next_step: Approve the venue contract, chase_log: [], due_at: '@in_1_days@T17:00:00+08:00'}}}
+- {operation: action_upsert, data: {action_id: 'lab:quiet', action_type: commitment, status: open, fields: {title: Prepare next week summary, loop_kind: our_promise, counterparty: Owner, next_actor: us, opened_at: '@today@', next_step: Prepare the summary next week, chase_log: [], due_at: '@in_7_days@T17:00:00+08:00'}}}
+lab:
+  kind: role_followthrough
+  role:
+    id: lab-role-ft
+    title: PA follow-through
+    charter: "PA follow-through role: load personal-assistant:follow-through; read next_action with loops_only; remind the owner, prepare and hold due nudges, list approvals awaiting the owner's yes, escalate on the ladder; arm at most 3 one-shot wakes for upcoming chase dates or approval timeouts; never send, book, pay or cancel without the owner's yes."
+  output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. drafts is a list of held nudge texts keyed by action_id, with body or text. Record each held due nudge in its loop chase_log with step, at and how: "nudge draft held". This is synthetic role-turn proof only; never send or action_confirm.'
+steps:
+- {type: role_turn, day: 0, hour: 9, capability: follow_through, expect: {lab: role_followthrough}, answers: {}}
+- {type: role_turn, day: 1, hour: 9, capability: follow_through, expect: {lab: role_followthrough}, answers: {}}

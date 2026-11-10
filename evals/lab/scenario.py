@@ -84,16 +84,24 @@ def validate(s):
     if "trip" in s:
         require(str(s["trip"]["return_date"]) >= str(s["trip"]["depart_date"]), "trip.return_date")
         require(type(s["trip"]["travellers"]) is int and s["trip"]["travellers"] > 0, "trip.travellers")
-    for key in ("max_user_turns", "budget_seconds"):
-        require(type(s.get(key)) is int and s[key] > 0, key)
     require(isinstance(s.get("steps"), list) and s["steps"], "steps")
+    role_turns = any(isinstance(st, dict) and st.get("type") == "role_turn" for st in s["steps"])
+    for key in ("max_user_turns", "budget_seconds"):
+        require(type(s.get(key)) is int and s[key] >= (0 if key == "max_user_turns" and role_turns else 1), key)
+    if role_turns or lab and s["lab"].get("kind") == "role_followthrough":
+        role = s.get("lab", {}).get("role")
+        require(isinstance(role, dict) and all(isinstance(role.get(k), str) and role[k].strip()
+                for k in ("id", "title", "charter")), "lab.role")
     for i, step in enumerate(s["steps"]):
         prefix = f"steps[{i}]"
         require(isinstance(step, dict), prefix)
         if "new_session" in step:
             require(type(step["new_session"]) is bool and i > 0 and lab
                     and s["lab"].get("kind") in SESSION_KINDS, prefix + ".new_session")
-        require(step.get("type", "chat") in ("chat", "scheduled"), prefix + ".type")
+        require(step.get("type", "chat") in ("chat", "scheduled", "role_turn"), prefix + ".type")
+        if step.get("type") == "role_turn":
+            require(type(step.get("day")) is int and step["day"] >= 0, prefix + ".day")
+            require(type(step.get("hour")) is int and 0 <= step["hour"] <= 23, prefix + ".hour")
         if step.get("type") == "scheduled":
             require(step.get("job") in (("cos_daily", "cos_kickoff", "cos_weekly") if cos else ("daily_brief", "due_source_check")), prefix + ".job")
         require(type(step.get("hour", 12)) is int and 0 <= step.get("hour", 12) <= 23, prefix + ".hour")
@@ -101,13 +109,16 @@ def validate(s):
         if "scripted_yes" in step:
             from .sim_user import scripted_yes
             require(lab and bool(scripted_yes(step)), prefix + ".scripted_yes")
-        require(isinstance(step.get("goal"), str) and bool(step["goal"].strip()), prefix + ".goal")
+        if step.get("type") != "role_turn":
+            require(isinstance(step.get("goal"), str) and bool(step["goal"].strip()), prefix + ".goal")
         require(step.get("capability") in caps, prefix + ".capability")
         require((step.get("capability") == "research") == research, prefix + ".capability")
         require(not calendar or step.get("capability") == "calendar", prefix + ".capability")
         require(isinstance(step.get("answers"), dict), prefix + ".answers")
         ex = step.get("expect")
         require(isinstance(ex, dict), prefix + ".expect")
+        if lab:
+            require(ex.get("lab") == s["lab"].get("kind"), prefix + ".expect.lab")
         if "research" in ex:
             require(research and ex["research"] is True, prefix + ".expect.research")
         if "calendar" in ex or calendar:
@@ -138,7 +149,7 @@ def validate(s):
         if isinstance(item, dict) and item.get("operation") == "trip_import":
             require(lab and s["lab"].get("kind") in {"booking", "approvals", "disruption", "expense"}, f"seed[{i}].operation")
     if cos or lab:
-        require(len(s["steps"]) <= s["max_user_turns"], "max_user_turns")
+        require(sum(st.get("type") != "role_turn" for st in s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
             if lab and isinstance(item, dict) and item.get("operation") == "profile":
                 data = item.get("data")
@@ -169,7 +180,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "content", "onboarding", "customer_report", "priorities", "family"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough"}, "lab.kind")
         if s["lab"]["kind"] == "onboarding":
             threads = s["lab"].get("threads", [])
             require(isinstance(threads, list) and len(threads) >= 2 and all(isinstance(t, dict) and t.get("thread_id") and t.get("bucket") for t in threads), "lab.threads")
