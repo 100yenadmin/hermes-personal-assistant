@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.15.0-rc.1, 10 November 2026)
+## Where we are (0.16.0-rc.1, 10 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -69,6 +69,13 @@ In the 0.14.0-rc.1 wave (78 runs on real Hermes, 73 passing), minutes (s34), inv
 
 In the 0.15.0-rc.1 wave (84 runs on real Hermes, 81 passing), the approval day (s37) and the content calendar (s38) each passed 3 of 3.
 
+0.16.0-rc.1 adds:
+- priorities that drive the brief: the priority each overdue item threatens, the next blocked step and who is overloaded (#158);
+- a read-only weekly customer and vendor report: volume, response time, recurring complaints and open items (#157);
+- family admin: a held health appointment, a held household vendor request, and a year at a glance with gift ideas (#157).
+
+In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), the customer report (s40) and family admin (s41) each passed 3 of 3.
+
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page);
 - the safe-action gateway and the durable ledger;
@@ -79,7 +86,7 @@ In the 0.15.0-rc.1 wave (84 runs on real Hermes, 81 passing), the approval day (
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
 - attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1), but no live role run has happened yet (#151);
 - a yes that leads to finished work: no live send, invite or booking completed yet (#152);
-- office work in the owner's own systems, statement reconciliation, the tax pack, personal life admin and the weekly customer report (#146, #156, #157);
+- office work in the owner's own systems, statement reconciliation and the tax pack (#146, #156);
 - real phone calls (#4).
 
 **Missing against the Chief of Staff bar:** everything that involves the team.
@@ -95,7 +102,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2 (check), M3 (daily and weekly), M6 (monthly, quarterly, licences and contracts) |
 | Research | partial: adopt-or-build research only | M2 |
 | Travel | partial: prep up to the final page, nothing completed | M0 (real trip), M5 (completion) |
-| Personal life admin | partial: no renewal or birthday radar | M3 (radar), M6 (the rest) |
+| Personal life admin | partial: renewal and birthday radar (lab s21); family appointments, household vendors and a year at a glance with gift ideas, every booking and send held for the yes (0.16.0-rc.1, lab s41 3 of 3) | M3 (radar), M6 (the rest) |
 | Follow-up, reporting, escalation | missing or partial | M3 |
 | Inbox | missing | M4 |
 | Calendar | partial: reads and conflict checks | M4 |
@@ -103,7 +110,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
 | Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3); meeting minutes with owners and dates (lab s34 3 of 3); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
 | Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); no tax pack yet | M6 |
-| Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1, lab s31 2 of 3; vendor-chase fix #137 after the wave) | M6 |
+| Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1; lab s31 3 of 3 since 0.14.0-rc.1); a read-only weekly report of volume, response time, recurring complaints and open items (0.16.0-rc.1, lab s40 3 of 3) | M6 |
 | Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1, lab s38 3 of 3); no comment replies, mention monitoring or weekly report yet | M6 |
 
 ## Gap review (9 November 2026): what changes in the order
@@ -121,7 +128,7 @@ A code inventory, an adversarial cross-model plan review and the live lab result
 - card statements (#146), then a read-only accounting feed and the tax pack;
 - documents in the owner's Drive and CRM (#156);
 - the blind voice test, run during inbox onboarding instead of at the end of M6;
-- personal and family admin and the weekly customer report (#157); social and content admin started in 0.15.0-rc.1.
+- the #157 slices are built: social and content admin (0.15.0-rc.1), then the weekly customer report and family admin (0.16.0-rc.1) (#157).
 
 **How it is measured.**
 - An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption. Built in 0.15.0-rc.1 (lab s37: a yes in a new chat confirms the prepared booking once).
@@ -394,7 +401,7 @@ In the release wave, replies under policy (s31) passed 2 of 3; the miss came fro
 
 Since then, meeting minutes with an owner and a date on every action item (M6-d, #145; lab s34 3 of 3) and card statement import (M6-e, #146; unit tests) have been built.
 
-Still missing: the week-one VA core (#151–#155), agendas and spreadsheets in the owner's systems (#156), the tax pack, personal admin and the weekly customer report (#157), the voice test and the parity evidence.
+Still missing: the week-one VA core (#151–#155), agendas and spreadsheets in the owner's systems (#156), the tax pack, the voice test and the parity evidence.
 
 **Order inside M6.** The week-one VA core comes first; see "Gap review" above.
 
@@ -445,7 +452,7 @@ M7 claims neither full VA parity nor Chief of Staff parity.
 - one team channel and one task board are read;
 - a "who owes what by when" view is kept.
 
-Meeting preparation (agendas and pre-reads ahead of meetings) and basic priority mapping (#158) move here from M8.
+Meeting preparation (agendas and pre-reads ahead of meetings) and basic priority mapping (#158) move here from M8. Priority mapping was built early, in 0.16.0-rc.1 (lab s39 3 of 3).
 
 **Scope.** M7 covers levels L0 and L1 only.
 - **Chief of Staff interview.** The team roster, roles, who reports to whom, time

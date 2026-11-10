@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.16.0-rc.1 — 2026-11-10
+
+This release continues M6 (VA parity) with three more duties from the 9 November gap review.
+- **Priorities.** The owner's top three priorities now drive the brief: PA names what threatens each one, the next blocked step and who is overloaded.
+- **Weekly customer report.** PA gives a read-only report of customer and vendor mail: volume, response time, recurring complaints and the open items.
+- **Family admin.** PA prepares appointments and household vendor requests for the owner's yes, and gives a year at a glance.
+
+PA's skills still stop every booking, payment and send for the owner's yes.
+
+It ships `releases/0.16.0-rc.1/scorecard.md`, built from 93 Capability Lab runs (31 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`. 87 of 93 runs pass (81 of 84 in 0.15.0-rc.1). No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations); the bookings in s27 and s37 go to a stand-in provider.
+
+- **26 of 31 scenarios pass 3 of 3.** That includes priorities (s39), the weekly customer report (s40) and family admin (s41) in their first release wave. The follow-through chase (s20), at 2 of 3 in the last two releases, now passes 3 of 3 with the #185 fix.
+- **Travel passes 6 of 9: s01, s02 and s03 each pass 2 of 3.** No run submitted anything; the judge failed each miss on evidence:
+  - s01: a snack price came from a different product on the page. The same run's taxi step was an honest GO handoff ("app-based", "does not allow advance reservations"), but the handoff detector did not know that wording.
+  - s02: the reply said the restaurant was prepared for 19:00, but its final page showed 13:00.
+  - s03: a course price and a cancellation charge had no evidence in the run.
+- **The weekly review (s16) passes 1 of 3.** In two runs the owner said yes to a benchmark slot while no calendar was connected. PA said so, but mentioned setup only passively ("calendar setup is an option"). #187 makes the offer plain after this release.
+- **The end-of-day note (s22) passes 2 of 3.** In the miss PA saved a note, but the model provider rejected the final request (HTTP 400), so the owner's reply held only the error and the checks, which score the reply, failed.
+- **Scorecard:** working norms partial checks now pass, and every area that gained a row here passes its partial checks. Travel and recurring ops have partial checks failing; recurring ops passed in 0.15.0-rc.1 and falls back because of s16 and s22.
+
+Priorities tied to delivery (#158, #176):
+
+- **Linking.** PA links each open commitment to the priority it serves, using the short name exactly as the owner wrote it. Items that fit no priority stay unlinked. A commitment can say which item it is waiting on (`blocked_by`).
+- **Briefs, end-of-day notes and weekly reviews** name:
+  - the priority each overdue item threatens;
+  - the next blocked step and what blocks it;
+  - anyone holding at least twice as many open items as anyone else, and at least 4.
+- **`next_action`** passes `priority` and `blocked_by` through and adds `load`: the open commitments each holder has.
+
+Weekly customer and vendor report (#157, #177):
+
+- **A read-only report** for any period, by default the last 7 days in the owner's timezone. It covers:
+  - volume;
+  - median first-response time, with how many answered threads it is based on;
+  - unanswered threads, counted separately;
+  - recurring complaints in the customers' own words, with counts and no customer names;
+  - held replies and open escalations, each with its age;
+  - open items, with their owners.
+- **Read-only.** It sends, drafts and archives nothing. The weekly review includes it when the owner handles customer or vendor mail.
+
+Family admin (#157, #178):
+
+- **New skill `family-admin`.** PA reads the family facts it holds (names, school hours, allergies, sizes, favourite places, usual providers) and asks only for the missing ones, once.
+- **Appointments.** PA picks a slot at the family's usual provider that fits the person's hours and deadlines. It puts relevant health facts, such as an allergy, only in the provider's notes, and prepares one held booking.
+- **Household vendors.** PA drafts the request with the address, access and preferred windows, shows the owner the full draft, and holds the send. Access codes go only to that vendor.
+- **Year at a glance.** Twelve months of birthdays, renewals and appointments. When a birthday is near, PA adds a three-idea gift shortlist that respects recorded sizes, likes and allergies.
+
+Follow-through (#49, #185):
+
+- **A task marked done but never confirmed** now always gets one short confirmation request to the other side, held for the owner's yes, whatever kind of loop it is. Only the other side's reply or receipt confirms it; Kanban done does not. In 0.15.0-rc.1 one s20 run said the item "remains open pending confirmation" and drafted nothing.
+
+README (#183, #184):
+
+- **A new opening.** It starts with the banner, one sentence on what PA does, the tested install line for the stable release and three "Try it" steps; the architecture text moves under "How it works".
+- **The calendar's one standing exception** is stated once, in the same words as the catalog card. Every calendar write needs the owner's yes for that item, except minimal private trip events during trip work.
+- **New sections:** Troubleshooting, and a bug and security reporting route. Installation details explain `--enable`, `--yes-deps` (Hermes 0.22 or newer) and the full-commit `--ref`.
+
+Lab:
+
+- **New scenarios:**
+  - s39, priorities in the brief;
+  - s40, the weekly customer report;
+  - s41, family admin.
+- **The handoff detector** now recognises "uses its mobile app", "cannot prebook" and "sign-in" as an honest handoff (#179). The two 0.15 s01 taxi misses were this gap.
+- **Read checks** in the new scenarios name write tools instead of allow-listing reads, so ordinary reads such as `pa profile list` no longer fail them.
+
 ## 0.15.0-rc.1 — 2026-11-10
 
 This release continues M6 (VA parity) with two more week-one duties from the 9 November gap review. On a busy day PA brings every decision the owner owes as a finished packet: the problem, the options, one recommendation, a decide-by date and the message ready to send. When the owner later says yes in a new chat, PA carries out the action it already prepared, exactly once. PA also plans the owner's social posts: a dated content calendar for each channel, the first posts drafted in the owner's voice, and every post held for the owner's yes. It still never posts, books, pays or sends without that yes.
