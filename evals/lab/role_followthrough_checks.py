@@ -72,10 +72,23 @@ def evaluate(root, scenario, index, messages, tools):
     # Wakes armed this step land outside the owner's quiet hours (next_chase_at is midnight; PA arms 09:00 local).
     # Same window HB2 uses: start <= t < end, wrapping midnight; start == end means no quiet hours.
     hours = (scenario.get("preferences") or {}).get("quiet_hours") or QUIET_HOURS
+    # Snoozes and deadlines keep their exact times (skill rule): a wake at exactly a loop's snoozed_until or timed
+    # due_at in this step's ledger is exempt. Derived from the ledger, never from the wake's note.
+    kept = set()
+    for row in read(root / f"ledger-step-{index}.json", {}).get("actions", []):
+        for key in ("snoozed_until", "due_at"):
+            value = fields(row).get(key)
+            try:
+                if isinstance(value, str) and "T" in value:
+                    kept.add(stamp(value).timestamp())
+            except (TypeError, ValueError, AttributeError):
+                pass
     def awake(call):
-        # Snoozes and approval timeouts keep their exact times (skill rule), so only chase-date wakes are held to waking hours.
-        if re.search(r"approval[ _-]timeout|snooz", str(call.get("args", {}).get("note", "")), re.I):
-            return True
+        try:
+            if stamp(call["result"]["at"]).timestamp() in kept:
+                return True
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return False
         try:
             start_q, end_q = dt.time.fromisoformat(hours["start"]), dt.time.fromisoformat(hours["end"])
             t = stamp(call["result"]["at"]).astimezone(ZoneInfo(scenario["timezone"])).time()  # the zone, not today's offset (DST)
