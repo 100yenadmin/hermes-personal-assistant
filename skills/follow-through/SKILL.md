@@ -101,7 +101,7 @@ occurrence.
 
 PA adds no scheduler. Inside a PA follow-through role turn (HB2 header `role`,
 note starts "PA follow-through role"), pass the wake's `Local time` as `at`
-(an ISO timestamp with its UTC offset) to `next_action` with `loops_only`.
+(ISO timestamp with its UTC offset) to `next_action` with `loops_only`.
 Arm plain `at` wakes (no `owner_asked`)
 for a chase date or approval timeout: at most 3 per turn, none already
 armed or pending for the same loop and step; within HB2's limits. Report a refusal;
@@ -111,4 +111,4 @@ Outside a role turn: Arm `at` only for a date the owner approved
 in this chat, with `owner_asked: true`, naming `personal-assistant:follow-through`
 and the action id; never for your own chase dates or from a follow-up turn.
 On any HB2 wake turn, HB2 delivers the final reply; never also use a message tool.
-`references/reminders-and-wakes.md`.
+Shapes: `references/reminders-and-wakes.md`.
