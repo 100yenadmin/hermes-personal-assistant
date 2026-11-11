@@ -207,7 +207,7 @@ def make_legacy_profile(tmp_path):
 
 
 @pytest.mark.parametrize("native_state, has_legacy", [
-    ("malformed", True), ("missing", True), ("missing", False), ("file", True),
+    ("malformed", True), ("missing", True), ("missing", False), ("file", True), ("dangling_link", True),
 ])
 def test_damaged_native_target_is_invalid_not_legacy_migration(tmp_path, native_state, has_legacy):
     if has_legacy:
@@ -218,6 +218,9 @@ def test_damaged_native_target_is_invalid_not_legacy_migration(tmp_path, native_
     if native_state == "file":
         plugin.parent.mkdir(parents=True)
         plugin.write_text("occupied target\n")
+    elif native_state == "dangling_link":  # A link to nowhere still occupies the install target (#210 review).
+        plugin.parent.mkdir(parents=True)
+        plugin.symlink_to(tmp_path / "nowhere")
     else:
         plugin.mkdir(parents=True)
         if native_state == "malformed":

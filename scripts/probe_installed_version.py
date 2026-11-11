@@ -189,7 +189,7 @@ def probe(home, hermes_home):
     manifest = {}
     for kind, root in candidate_roots(home, hermes_home):
         path, data = package_manifest(root)
-        if kind == "native" and root.exists() and not data:
+        if kind == "native" and (root.exists() or root.is_symlink()) and not data:  # A dangling link still occupies the target.
             return {
                 "ok": False,
                 "component_id": COMPONENT_ID,
