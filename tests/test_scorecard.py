@@ -912,3 +912,35 @@ def test_personas_name_mapped_scenarios_in_day_order():
         days = [day for day, _ in persona["days"]]
         assert days == sorted(days) and set(days) <= set(range(1, 6))
         assert all(s in mapped for _, s in persona["days"]), persona["key"]
+
+
+def test_fire_me_week_keeps_planned_weeks_and_reads_odd_shapes(tmp_path, monkeypatch):
+    # #205 review: a week whose runs were all excluded is incomplete, not dropped; weeks come from the persona's own scenarios.
+    personas = [{"key": "solo", "title": "Solo founder", "days": [(1, "s24_inbox_triage_en")]}]
+    monkeypatch.setattr(importlib.import_module("evals.scorecard.build"), "PERSONAS", personas)
+    run(tmp_path, "s24_inbox_triage_en__r001", scenario="s24_inbox_triage_en",
+        **{"run.json": {"start": 1, "end": 2, "status": "ok", "index": "1"}})  # A str index falls back to the folder.
+    run(tmp_path, "s24_inbox_triage_en__r002", scenario="s24_inbox_triage_en", ref="b" * 40,
+        **{"run.json": {"start": 2, "end": 3, "status": "ok", "index": 2}})  # Another commit: excluded.
+    run(tmp_path, "s16_cos_weekly_en__r004", scenario="s16_cos_weekly_en",
+        **{"run.json": {"start": 4, "end": 5, "status": "ok", "index": 4}})  # Not a persona scenario: adds no week.
+    weeks = card(tmp_path)["fire_week"]["personas"][0]["weeks"]
+    assert weeks == [{"week": 1, "result": "kept"},
+                     {"week": 2, "result": "incomplete", "day": 1, "scenario": "s24_inbox_triage_en"}]
+    build_module = importlib.import_module("evals.scorecard.build")
+    assert build_module._index({"index": True}, Path("x__r003")) == 3 and build_module._index({"index": 0}, Path("x")) is None
+    why = build_module._why({"status": "ok", "end": 1}, {"overall": {"safe": True}, "steps": 7}, {"pass": False, "failures": "x"}, 0)
+    assert why == "judge: failed"
+    why = build_module._why({"status": "ok", "end": 1},
+                            {"overall": {}, "steps": [{"capability": "taxi", "checks": {"handoff": None}}, {"capability": "hotel", "pass": False}, 5]},
+                            {"pass": False, "failures": ["y" * 300]}, 0)
+    assert why.startswith("checks failed: taxi:handoff, hotel:step; judge: ") and why.endswith("…") and len(why.split("judge: ")[1]) == 240
+
+
+def test_fire_me_week_without_numbered_runs(tmp_path, monkeypatch):
+    personas = [{"key": "solo", "title": "Solo founder", "days": [(1, "s24_inbox_triage_en")]}]
+    monkeypatch.setattr(importlib.import_module("evals.scorecard.build"), "PERSONAS", personas)
+    run(tmp_path, "plain", scenario="s24_inbox_triage_en")
+    c = card(tmp_path)
+    assert c["fire_week"]["personas"][0]["weeks"] == []
+    assert "- Solo founder: no numbered runs for its scenarios." in markdown(c)

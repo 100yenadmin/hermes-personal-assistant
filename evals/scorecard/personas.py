@@ -3,6 +3,8 @@
 Each release wave runs every scenario three times. Week N strings together run N of each scenario a persona
 meets, in day order, and the simulated owner fires PA at the first failing run. The runs are separate lab
 sessions, so this is a stitched week, not one continuous simulation with state carried between days.
+Weeks differ in length (6 to 10 scenarios) and some personas share scenarios, so a longer week has more chances
+to fire: compare a persona with itself across releases, not personas with each other.
 """
 
 PERSONAS = [
@@ -28,6 +30,6 @@ PERSONAS = [
         (1, "s41_family_admin_en"),
         (2, "s21_personal_radar_en"), (2, "s01_seoul_tokyo_en"),
         (3, "s27_booking_after_yes_en"),
-        (4, "s30_trip_expenses_en"),
-        (5, "s29_changed_leg_en")]},
+        (4, "s29_changed_leg_en"),
+        (5, "s30_trip_expenses_en")]},
 ]

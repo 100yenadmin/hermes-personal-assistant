@@ -41,11 +41,16 @@ def markdown(card):
     if fire:
         lines += ["", "## Fire-me week (stitched)", "",
                   "Week N strings together run N of every scenario a persona meets, in day order, and the simulated "
-                  "owner fires PA at the first failing run. The runs are separate lab sessions, not one continuous week."]
+                  "owner fires PA at the first failing run. The runs are separate lab sessions, not one continuous week. "
+                  "Weeks differ in length and some share scenarios, so compare a persona with itself across releases, "
+                  "not personas with each other."]
         if fire["personas"]:
             lines.append("")
         for persona in fire["personas"]:
             weeks = persona["weeks"]
+            if not weeks:
+                lines.append(f"- {_text(persona['title'])}: no numbered runs for its scenarios.")
+                continue
             lines.append(f"- {_text(persona['title'])} ({len(persona['scenarios'])} scenarios over {persona['days']} days): "
                          f"{persona['kept']} of {len(weeks)} weeks kept.")
             for week in weeks:

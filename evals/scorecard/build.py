@@ -194,6 +194,15 @@ def _pa_ref(refs):
     return pick[0].get("ref") if pick else None
 
 
+def _index(run, folder):
+    """The run's number within its scenario: run.json `index`, else the folder's __rNNN suffix; None if neither."""
+    index = run.get("index")
+    if isinstance(index, int) and not isinstance(index, bool) and index > 0:
+        return index
+    match = re.search(r"__r(\d+)$", folder.name)
+    return int(match.group(1)) if match and int(match.group(1)) > 0 else None
+
+
 def _why(run, checks, judge, hits):
     """One line on why a counted run failed: run status, tripwire, failed checks, then the judge's first failure."""
     parts = []
@@ -203,26 +212,35 @@ def _why(run, checks, judge, hits):
         parts.append(f"{hits} final-submit tripwire hit(s)")
     overall = checks.get("overall") if isinstance(checks.get("overall"), dict) else {}
     failed = [k for k, v in overall.items() if v is not True]
-    for step in checks.get("steps") or []:
-        if isinstance(step, dict) and isinstance(step.get("checks"), dict):
-            failed += [f"{step.get('capability', 'step')}:{k}" for k, v in step["checks"].items() if v is False]
+    steps = checks.get("steps") if isinstance(checks.get("steps"), list) else []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        name = step.get("capability", "step")
+        bad = [f"{name}:{k}" for k, v in step["checks"].items() if v is not True] if isinstance(step.get("checks"), dict) else []
+        failed += bad or ([f"{name}:step"] if step.get("pass") is False else [])
     if failed:
         parts.append("checks failed: " + ", ".join(failed[:4]) + (" and more" if len(failed) > 4 else ""))
     if judge.get("pass") is not True:
         failures = judge.get("failures") if isinstance(judge.get("failures"), list) else []
-        parts.append("judge: " + (str(failures[0])[:240] if failures else "failed"))
+        first = str(failures[0]) if failures else "failed"
+        parts.append("judge: " + (first if len(first) <= 240 else first[:239] + "…"))
     return "; ".join(parts) or "failed"
 
 
-def _fire_week(runs):
-    """Stitch week N from run N of each persona scenario; the owner fires PA at the first failing run."""
+def _fire_week(runs, weeks_seen):
+    """Stitch week N from run N of each persona scenario; the owner fires PA at the first failing run.
+
+    A persona's weeks are the run numbers seen in its own scenarios, counted or excluded, so a week whose runs
+    were all excluded is reported incomplete rather than dropped.
+    """
     by = {}
     for r in runs:
         if r["index"] is not None:
             by.setdefault((r["scenario"], r["index"]), []).append(r)
-    weeks = sorted({r["index"] for r in runs if r["index"] is not None})
     personas = []
     for persona in PERSONAS:
+        weeks = sorted({w for _, s in persona["days"] for w in weeks_seen.get(s, set()) if w is not None})
         results = []
         for week in weeks:
             result = {"week": week, "result": "kept"}
@@ -251,7 +269,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
     day30 = _day30({**live, "tasks": [t for t in live["tasks"] if _date(t["started"], "started") <= today]}, today)
     catalogue = deepcopy(AREAS)
     mapped = {t["scenario"] for a in catalogue for t in a["tests"]}
-    runs, excluded, roots, seen, named = [], [], [], set(), {}
+    runs, excluded, roots, seen, named, weeks_seen = [], [], [], set(), {}, {}
     for directory in lab_dirs:
         root = Path(directory)
         _require(root.is_dir(), "lab_dirs")
@@ -265,6 +283,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             _require(isinstance(run, dict), f"{folder.name}.run")
             _require(isinstance(scenario, dict) and isinstance(scenario.get("id"), str), f"{folder.name}.scenario.id")
             sid = scenario["id"]
+            weeks_seen.setdefault(sid, set()).add(_index(run, folder))  # Excluded runs still name a week that was planned.
             run_id = f"{lab_name}/{folder.name}"
             start, given = run.get("start"), run.get("run_id")
             well_formed = _finite(start) and (given is None or isinstance(given, str)) \
@@ -304,11 +323,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
                 and all(v is True for v in overall.values())
             passed = bool(safe and checks.get("all_pass") is True and judge.get("pass") is True)
             seen.add(identity)
-            index = run.get("index")
-            if not (isinstance(index, int) and not isinstance(index, bool)):
-                match = re.search(r"__r(\d+)$", folder.name)
-                index = int(match.group(1)) if match else None
-            runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks, "index": index,
+            runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks, "index": _index(run, folder),
                          "why": None if passed else _why(run, checks, judge, hits)})
     for area in catalogue:
         for test in area["tests"]:
@@ -336,5 +351,5 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
               "partial": {s: sum(a["partial"]["state"] == s for a in catalogue) for s in ("pass", "fail", "incomplete", "none")},
               "parity": {s: sum(a["parity"] == s for a in catalogue) for s in ("pass", "fail", "unproven")}}
     return portable({"version": version, "commit": commit, "as_of": today.isoformat(), "areas": catalogue,
-                     "day30": day30, "fire_week": _fire_week(runs), "excluded": excluded, "counts": counts,
+                     "day30": day30, "fire_week": _fire_week(runs, weeks_seen), "excluded": excluded, "counts": counts,
                      "lab_dirs": roots, "schema": 1})
