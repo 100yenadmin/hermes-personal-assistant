@@ -170,6 +170,7 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     'The booking page timed out, but the retry never worked, so I stopped without seeing fares.',
     'The page timed out; I tried again but it never loaded, so I stopped.',
     'タイムアウトしましたが、ここで止めました。', '시간이 초과되었지만 더 이상 시도하지 않고 멈췄습니다.',
+    'You therefore cannot schedule this HND pickup for December 4 at 15:00 through GO.',  # 0.19 wave, s01.
 ])
 def test_l24_unavailability_is_a_handoff(tmp_path, reply):
     scenario = fixture_run(tmp_path)
@@ -196,6 +197,20 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'タイムアウトしませんでした。まだ調査中です。', '타임아웃이 발생하지 않았습니다. 계속 확인 중입니다.']:
         common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': silent}])
         assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'], silent
+
+
+def test_handoff_in_an_earlier_reply_of_the_step_counts(tmp_path):
+    # 0.19 wave, s02: the handoff came first; the step's last reply only acknowledged the scripted stop.
+    scenario = fixture_run(tmp_path)
+    (tmp_path / 'final_0.txt').write_text('Calendar')
+    ack = '여기서 마치겠습니다. 실제 택시 호출·예약·결제는 진행하지 않았으며, 추가 작업도 하지 않겠습니다.'
+    common.write(tmp_path / 'transcript.json', [
+        {'role': 'assistant', 'step': 0, 'content': '카카오 T 앱에서 진행해야 합니다. 실제 호출·예약·결제는 하지 않았습니다.'},
+        {'role': 'assistant', 'step': 0, 'content': ack}])
+    assert checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff']
+    common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': ack},
+                                                {'role': 'assistant', 'step': 1, 'content': 'Login required; please sign in.'}])
+    assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff']
 
 
 def test_checks_failures_are_local(tmp_path):
