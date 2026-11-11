@@ -4,10 +4,12 @@ import datetime as dt
 import importlib.util
 import os
 import re
+import shutil
 import socket
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -18,13 +20,25 @@ from evals.lab import clock, cos
 def unpatched_clocks(source, path):
     """Resolve imported clock aliases, including direct time-function imports."""
     tree, imports = ast.parse(source), {}
+    parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+    errors = []
     for node in ast.walk(tree):
+        clock_import = False
         if isinstance(node, ast.Import):
             for item in node.names:
                 imports[item.asname or item.name] = item.name
+                clock_import |= item.name in {"datetime", "time"}
         elif isinstance(node, ast.ImportFrom) and node.module in {"datetime", "time"}:
             for item in node.names:
                 imports[item.asname or item.name] = node.module + "." + item.name
+            clock_import = True
+        if clock_import:
+            parent = parents.get(node)
+            while parent is not None:
+                if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    errors.append(f"{path}:{node.lineno}: function-local clock import")
+                    break
+                parent = parents.get(parent)
 
     def resolve(node):
         if isinstance(node, ast.Name):
@@ -33,7 +47,6 @@ def unpatched_clocks(source, path):
             return resolve(node.value) + "." + node.attr
         return ""
 
-    errors = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -57,7 +70,9 @@ def unpatched_clocks(source, path):
 
 def test_pa_clock_ast_coverage():
     root = Path(personal_assistant.__file__).parent
+    # Embedded test helpers are not runtime modules reached by the lab shim.
     errors = [error for path in root.rglob("*.py")
+              if "tests" not in path.relative_to(root).parts
               for error in unpatched_clocks(path.read_text(), path)]
     assert not errors, "\n".join(errors)
 
@@ -67,6 +82,16 @@ def test_pa_clock_ast_coverage():
                                    "import time; time.time()"])
 def test_clock_lint_positive_controls(source):
     assert unpatched_clocks(source, "personal_assistant/control.py")
+
+
+@pytest.mark.parametrize("statement", ["import datetime", "import datetime as dt",
+                                        "from datetime import datetime", "from datetime import date as day",
+                                        "import time", "from time import time"])
+@pytest.mark.parametrize("definition", ["def", "async def"])
+def test_clock_lint_rejects_function_local_imports(statement, definition):
+    source = f"{definition} read_clock():\n if True:\n  {statement}\n"
+    assert any("function-local clock import" in error
+               for error in unpatched_clocks(source, "personal_assistant/control.py"))
 
 
 @pytest.fixture
@@ -145,6 +170,63 @@ def test_real_constructors_and_shifted_classmethods(prompt_modules):
         assert shim.timezone is dt.timezone and shim.timedelta is dt.timedelta and shim.time is dt.time
 
 
+@pytest.mark.parametrize("moment", [dt.datetime(2026, 3, 8, 6, 30, tzinfo=dt.timezone.utc),
+                                    dt.datetime(2026, 11, 1, 5, 30, tzinfo=dt.timezone.utc)])
+def test_aware_shift_crosses_dst_on_utc_timeline(monkeypatch, moment):
+    class FixedDatetime(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return moment.astimezone(tz) if tz is not None else moment.replace(tzinfo=None)
+
+    monkeypatch.setattr(clock, "dt", SimpleNamespace(datetime=FixedDatetime, date=dt.date, timezone=dt.timezone))
+    zone, offset = ZoneInfo("America/New_York"), dt.timedelta(hours=2)
+    shim = clock._shim(offset)
+    result = shim.datetime.now(zone)
+    assert result == (moment + offset).astimezone(zone)
+    assert result.astimezone(dt.timezone.utc) == moment + offset
+    assert result.utcoffset() != moment.astimezone(zone).utcoffset()
+    assert shim.datetime.now() == moment.replace(tzinfo=None) + offset
+
+
+def test_real_plugin_root_is_not_walked(tmp_path, monkeypatch, prompt_modules):
+    name = "hermes_plugins.personal_assistant"
+    plugin = tmp_path / "plugin"
+    plugin.mkdir()
+    (plugin / "__init__.py").write_text("")
+    inner_path = plugin / "personal_assistant"
+    shutil.copytree(Path(personal_assistant.__file__).parent, inner_path,
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    ledger = Path(personal_assistant.__file__).parent.parent / "skills/travel-ledger/scripts/travel_ledger.py"
+    legacy = plugin / "skills/travel-ledger/scripts"
+    legacy.mkdir(parents=True)
+    shutil.copy2(ledger, legacy / ledger.name)
+    (inner_path / "__main__.py").write_text("raise SystemExit(2)\n")
+    (inner_path / "daily_ops/__main__.py").write_text("raise SystemExit(2)\n")
+    (plugin / "evals").mkdir()
+    (plugin / "evals/__init__.py").write_text("raise AssertionError('walked plugin evals')\n")
+    if "hermes_plugins" not in sys.modules:
+        parent = ModuleType("hermes_plugins")
+        parent.__path__ = []
+        monkeypatch.setitem(sys.modules, parent.__name__, parent)
+    spec = importlib.util.spec_from_file_location(name, plugin / "__init__.py",
+                                                submodule_search_locations=[str(plugin)])
+    root = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, root)
+    spec.loader.exec_module(root)
+    try:
+        inner = importlib.import_module(name + ".personal_assistant")
+        with clock.shifted(personal_assistant, dt.timedelta(days=2)) as names:
+            assert inner.__name__ + ".state" in names
+            assert inner.state.dt is personal_assistant.state.dt
+            assert name + ".evals" not in sys.modules
+            assert not any(key.startswith(name + ".") and key.endswith(".__main__") for key in sys.modules)
+        assert inner.state.dt is dt
+    finally:
+        for key in list(sys.modules):
+            if key.startswith(name + "."):
+                del sys.modules[key]
+
+
 def test_plugin_namespace_copy_and_exception_restore(monkeypatch, prompt_modules):
     name = "hermes_plugins.lab_clock.personal_assistant"
     for parent in ("hermes_plugins", "hermes_plugins.lab_clock"):
@@ -220,11 +302,13 @@ def test_dialogue_clock_opt_in_preserves_legacy_path(tmp_path, monkeypatch, prom
         now = dt.datetime.fromisoformat(state.now())
         if index == 0:
             values = cos.variables(s["timezone"], start, 16, 0)
-            due = (dt.datetime.fromisoformat(values["now"]) + dt.timedelta(days=1)).replace(hour=9)
-            state.Ledger(hh).put("action", "lab:cedar", {"counterparty": "Cedar Demo", "due_at": due.isoformat()},
-                                 action_type="commitment", status="open")
+            opened = dt.datetime.fromisoformat(values["now"]) - dt.timedelta(days=1)
+            state.Ledger(hh).put("action", "lab:cedar", {
+                "counterparty": "Cedar Demo", "loop_kind": "waiting_on_them", "next_actor": "them",
+                "opened_at": opened.isoformat(), "next_step": "Chase the signed contract"},
+                action_type="commitment", status="pending")
         else:
-            assert state.Ledger(hh).get("action", "lab:cedar")["status"] == "open"
+            assert state.Ledger(hh).get("action", "lab:cedar")["status"] == "pending"
         seen.append((now, hist, session_id))
         return {"final_response": "Cedar Demo's contract draft is held for your yes.",
                 "messages": [{"role": "assistant", "content": "prior chat"}]}

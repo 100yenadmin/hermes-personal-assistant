@@ -1,6 +1,7 @@
 """Run-local PA wall clock; never changes stdlib or Hermes expiry/budget clocks."""
 import datetime as dt
 import importlib
+import importlib.util
 import pkgutil
 import sys
 from contextlib import contextmanager
@@ -30,7 +31,9 @@ def _shim(offset):
 
         @classmethod
         def now(cls, tz=None):
-            return dt.datetime.now(tz) + offset
+            if tz is None:
+                return dt.datetime.now() + offset
+            return (dt.datetime.now(dt.timezone.utc) + offset).astimezone(tz)
 
         @classmethod
         def utcnow(cls):
@@ -59,11 +62,11 @@ def _shim(offset):
 def _pa_modules(api):
     packages = {api.__name__: api}
     packages.update({name: module for name, module in list(sys.modules.items())
-                     if name.startswith("hermes_plugins.") and name.endswith(".personal_assistant")
-                     and hasattr(module, "__path__")})
+                     if name.endswith(".personal_assistant") and hasattr(module, "__path__")
+                     and importlib.util.find_spec(name + ".state") is not None})
     for name, package in packages.items():
         for info in pkgutil.walk_packages(package.__path__, name + ".", onerror=lambda _: None):
-            if info.name == name + ".__main__":
+            if info.name.endswith(".__main__"):
                 # This entrypoint unconditionally parses argv and dispatches stdin
                 # on import. It has no wall-clock reads; never run a CLI as setup.
                 continue

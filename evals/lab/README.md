@@ -7,6 +7,9 @@ modules (including installed/plugin namespace copies) and Hermes' prompt date
 helpers; session IDs carry simulated timestamps. Offsets and patched module
 names are kept in `run.json`.
 
+A shifted scenario writes the owner timezone into the run home's `config.yaml`;
+that disposable configuration lasts one run. Hermes' own clock stays real.
+
 The shift does not cover conversation delivery's `time.time()` (delivery is
 disabled in lab homes), other Hermes internals, or HeartBeat 2.0. The process
 clock, token expiry, TLS and run budgets remain real. The pinned Hermes date
