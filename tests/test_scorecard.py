@@ -119,6 +119,28 @@ def test_s24_credit_is_limited_to_verified_inbox_duties(tmp_path):
     assert inbox["lab"] == "unproven"
 
 
+def test_simulated_call_credit_is_limited_to_checked_phone_duties(tmp_path):
+    for i in range(3):
+        run(tmp_path, f"call-{i}", scenario="s05_call_restaurant_ko")
+    phone = area(card(tmp_path), "phone")
+    assert [t["scenario"] for t in phone["tests"]] == ["s04_call_ryokan_ja", "s05_call_restaurant_ko", "s06_call_shop_ja",
+                                                      "s07_inbound_hotel_ja", "s08_inbound_restaurant_ko"]
+    assert all(t["kind"] == "partial" and t["covers"] == [0, 4] and t["label"].startswith("simulated ") for t in phone["tests"])
+    s05 = next(t for t in phone["tests"] if t["scenario"] == "s05_call_restaurant_ko")
+    assert s05["state"] == "pass"
+    # Screening callers, relaying next steps and preferred channels stay unproven; so does the area and parity.
+    assert phone["lab"] == "unproven" and phone["parity"] == "unproven"
+
+
+def test_real_web_stop_runs_credit_only_stopping_before_commit():
+    errands = next(a for a in AREAS if a["key"] == "errands")
+    travel = next(a for a in AREAS if a["key"] == "travel")
+    rows = {t["scenario"]: t for t in errands["tests"] + travel["tests"]}
+    assert rows["s10_change_cancel_en"]["covers"] == rows["s11_failures_en"]["covers"] == [3]  # "Stop before commit".
+    assert errands["duties"][3] == "Stop before commit"
+    assert rows["s12_multi_errand_ja"]["covers"] == [] and rows["s12_multi_errand_ja"] in travel["tests"]
+
+
 def test_s31_credit_is_limited_to_policy_duties(tmp_path):
     for i in range(3):
         run(tmp_path, f"policy-{i}", scenario="s31_customer_policy_en")
@@ -427,7 +449,8 @@ def test_partial_failure_in_headline(tmp_path, single_test):
     run(tmp_path, passed=False)
     c = card(tmp_path)
     assert area(c)["lab"] == "unproven"
-    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 11, "none": 2}  # s38 gives social its first row.
+    # s38 gives social its first row; the simulated calls (s04-s08) give phone its rows.
+    assert c["counts"]["partial"] == {"pass": 0, "fail": 1, "incomplete": 12, "none": 1}
     assert "· 1 areas with partial checks failing" in headline(c)
     empty = tmp_path / "empty"
     empty.mkdir()
