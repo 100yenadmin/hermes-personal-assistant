@@ -48,6 +48,130 @@ class TravelLedgerTests(unittest.TestCase):
         root.mkdir(parents=True, mode=0o700)
         return root
 
+    def seed_action(self, action_id, action_type):
+        with sqlite3.connect(self.ledger.db_path()) as conn:
+            conn.execute(
+                """insert into actions
+                (action_id, trip_id, action_type, provider, status, fields_json, created_at, updated_at)
+                values (?, 'trip-1', ?, 'synthetic-provider', 'original', ?, 'created', 'updated')""",
+                (action_id, action_type, '{"original": true}'),
+            )
+
+    def action_rows(self):
+        with sqlite3.connect(self.ledger.db_path()) as conn:
+            return conn.execute("select * from actions order by action_id").fetchall()
+
+    def test_action_upsert_refuses_reserved_types_and_prefixes_without_changes(self):
+        os.environ["HERMES_HOME"] = str(self.make_root())
+        self.run_command("init")
+        cases = [
+            (action_type, f"type-{action_type}", "profile")
+            for action_type in ("preference", "person", "sop", "trust")
+        ] + [
+            ("restaurant", f"{prefix}:synthetic:detail", "profile")
+            for prefix in ("pref", "person", "sop", "trust")
+        ] + [
+            (action_type, f"type-{action_type}", "evidence")
+            for action_type in ("va_task", "va_baseline", "va_day30")
+        ] + [
+            ("restaurant", f"{prefix}:synthetic", "evidence")
+            for prefix in ("va-task", "va-baseline", "va-day30")
+        ]
+        for action_type, action_id, operation in cases:
+            for seeded in (False, True):
+                with self.subTest(action_type=action_type, action_id=action_id, seeded=seeded):
+                    if seeded:
+                        self.seed_action(action_id, "restaurant")
+                    before = self.action_rows()
+                    with self.assertRaises(SystemExit) as error:
+                        self.run_command(
+                            "action-upsert", "--action-id", action_id,
+                            "--type", action_type, "--provider", "replacement",
+                            "--field", "changed=true",
+                        )
+                    self.assertEqual(
+                        error.exception.code,
+                        f"{operation} records are written with operation {operation}",
+                    )
+                    self.assertEqual(self.action_rows(), before)
+
+    def test_action_upsert_refuses_existing_reserved_types_with_ordinary_ids(self):
+        os.environ["HERMES_HOME"] = str(self.make_root())
+        self.run_command("init")
+        for action_type, operation in (
+            ("preference", "profile"), ("person", "profile"),
+            ("sop", "profile"), ("trust", "profile"),
+            ("va_task", "evidence"), ("va_baseline", "evidence"), ("va_day30", "evidence"),
+        ):
+            with self.subTest(action_type=action_type):
+                action_id = f"existing-{action_type}"
+                self.seed_action(action_id, action_type)
+                before = self.action_rows()
+                with self.assertRaises(SystemExit) as error:
+                    self.run_command(
+                        "action-upsert", "--action-id", action_id,
+                        "--type", "restaurant", "--provider", "replacement",
+                        "--field", "changed=true",
+                    )
+                self.assertEqual(
+                    error.exception.code,
+                    f"{operation} records are written with operation {operation}",
+                )
+                self.assertEqual(self.action_rows(), before)
+
+    def test_profile_refusal_precedes_evidence_refusal(self):
+        os.environ["HERMES_HOME"] = str(self.make_root())
+        self.run_command("init")
+        self.seed_action("existing-profile", "preference")
+        for action_type, action_id in (
+            ("preference", "va-task:synthetic"),
+            ("va_task", "pref:synthetic"),
+            ("va_task", "existing-profile"),
+        ):
+            with self.subTest(action_type=action_type, action_id=action_id):
+                before = self.action_rows()
+                with self.assertRaises(SystemExit) as error:
+                    self.run_command(
+                        "action-upsert", "--action-id", action_id,
+                        "--type", action_type, "--provider", "synthetic-provider",
+                    )
+                self.assertEqual(error.exception.code, "profile records are written with operation profile")
+                self.assertEqual(self.action_rows(), before)
+
+    def test_action_upsert_allows_ordinary_actions_and_personal_ids(self):
+        os.environ["HERMES_HOME"] = str(self.make_root())
+        for action_id in ("restaurant-abc", "personal-x", "personal-x:detail"):
+            for status in ("prepared", "confirmed"):
+                with self.subTest(action_id=action_id, status=status):
+                    result = json.loads(self.run_command(
+                        "action-upsert", "--action-id", action_id,
+                        "--type", "restaurant", "--provider", "synthetic-provider",
+                        "--status", status, "--json",
+                    ))
+                    self.assertEqual(result["action_id"], action_id)
+                    self.assertEqual(result["action_type"], "restaurant")
+                    self.assertEqual(result["status"], status)
+        self.assertEqual(len(self.action_rows()), 3)
+
+    def test_latest_actions_and_summary_exclude_reserved_types_but_keep_null(self):
+        os.environ["HERMES_HOME"] = str(self.make_root())
+        self.run_command("init")
+        for action_type in ("preference", "person", "sop", "trust", "va_task", "va_baseline", "va_day30"):
+            self.seed_action(f"reserved-{action_type}", action_type)
+        self.seed_action("restaurant-abc", "restaurant")
+        self.seed_action("null-type", None)
+        expected = {"restaurant-abc", "null-type"}
+        for filters in ((), ("--provider", "synthetic-provider"), ("--trip-id", "trip-1")):
+            with self.subTest(filters=filters):
+                rows = json.loads(self.run_command("latest", "actions", *filters, "--json"))
+                self.assertEqual({row["action_id"] for row in rows}, expected)
+        summary = json.loads(self.run_command("summary", "--json"))
+        self.assertEqual({row["action_id"] for row in summary["actions"]}, expected)
+        trip = json.loads(self.run_command(
+            "trip-upsert", "--trip-id", "trip-1", "--title", "Synthetic trip", "--json",
+        ))
+        self.assertEqual(json.loads(self.run_command("latest", "trips", "--json")), [trip])
+
     def test_default_is_profile_scoped(self):
         profile = self.make_root()
         os.environ["HERMES_HOME"] = str(profile)
