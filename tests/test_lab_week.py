@@ -103,6 +103,8 @@ def test_unrelated_open_loops_are_allowed(tmp_path):
     unrelated = [{"action_id": "lab:harper", "action_type": "commitment", "status": "open",
                   "fields": {"counterparty": "Harper Demo", "title": "Review the draft",
                              "next_step": "Review the Cedar draft"}},
+                 {"action_id": "lab:owner-review", "action_type": "commitment", "status": "open",
+                  "fields": {"counterparty": "Owner", "loop_kind": "ask_owner", "title": "Review the Cedar chase draft"}},
                  {"action_id": "lab:elm", "action_type": "commitment", "status": "pending",
                   "fields": {"counterparty": "Elm Demo", "title": "Review the contract"}}]
     for index in (0, 1):
@@ -198,3 +200,13 @@ def test_week_configures_only_disposable_prompt_timezone(tmp_path):
     assert path.read_text() == original
     cos.configure(tmp_path, scenario())
     assert "timezone: Asia/Singapore" in path.read_text()
+
+
+def test_a_title_counts_only_without_a_counterparty(tmp_path):
+    s = fixture_run(tmp_path)
+    path = tmp_path / "ledger-step-1.json"
+    snapshot = common.read(path)
+    snapshot["actions"].append({"action_id": "lab:cedar-2", "action_type": "commitment", "status": "pending",
+                                "fields": {"title": "Chase Cedar for the contract"}})
+    common.write(path, snapshot)
+    assert not checks.evaluate(tmp_path, s)["all_pass"]  # No counterparty: the title names Cedar, so it is a duplicate.

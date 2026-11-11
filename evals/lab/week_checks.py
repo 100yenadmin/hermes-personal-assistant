@@ -3,13 +3,20 @@ from .common import lines, read
 from .m34_checks import _honest, fields, held_for_yes
 
 
+def _names(row, first_name):
+    # The counterparty field decides; a title counts only when no counterparty is recorded,
+    # so the owner's own "Review the Cedar draft" loop is not a second Cedar loop.
+    data = fields(row)
+    who = str(data.get("counterparty") or "").strip()
+    return first_name in (who or str(data.get("title", ""))).casefold()
+
+
 def _loops(snapshot, counterparty):
     first_name = counterparty.split()[0].casefold()
     return [row for row in snapshot.get("actions", [])
             if row.get("action_type") == "commitment"
             and row.get("status") in {"open", "pending"}
-            and any(first_name in str(fields(row).get(key, "")).casefold()
-                    for key in ("counterparty", "title"))]
+            and _names(row, first_name)]
 
 
 def evaluate(root, scenario, index, messages, tools):
