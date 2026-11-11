@@ -357,4 +357,26 @@ def test_errors_name_the_shape_never_values(tmp_path, data, expected, absent):
 
 def test_missing_keys_are_listed(tmp_path):
     error = entry.dispatch(tmp_path, {"operation": "contacts", "data": {"action": "dedupe"}})["error"]
-    assert "missing: path, name" in error
+    assert "missing: path, name" in error and "fields" not in error
+
+
+def test_everything_nested_under_fields_is_named(tmp_path):
+    nested = {"fields": {"action": "dedupe", "path": "imports/contacts/input.csv", "name": "demo"}}
+    error = entry.dispatch(tmp_path, {"operation": "contacts", "data": nested})["error"]
+    assert "missing: action, path, name; not accepted: fields; send them at the top level of data" in error
+    assert "imports/contacts" not in error and "demo" not in error
+
+
+def test_country_key_points_to_default_country_code(tmp_path):
+    error = call(tmp_path, country_code="1")["error"]
+    assert "not accepted: country_code; the country code key is default_country_code" in error
+
+
+def test_bad_value_after_schema_names_the_rules(tmp_path):
+    source(tmp_path, 'name\nCasey\n')
+    error = call(tmp_path, name="valid\n")["error"]
+    assert "name is 1 to 41 lowercase letters" in error and "valid\n" not in error
+
+
+def test_non_object_data_gets_a_plain_hint():
+    assert contacts._shape_hint(["x"]) == "data must be an object with action, path and name"

@@ -72,11 +72,14 @@ VALUES = ("name is 1 to 41 lowercase letters, digits or hyphens, starting with a
 
 def _shape_hint(data):
     """Name the keys dedupe takes, so a model can correct its call (key names only, never values)."""
-    if data.get("action") != "dedupe":
+    if not isinstance(data, dict):
+        return "data must be an object with action, path and name"
+    action = data.get("action")
+    if action is not None and action != "dedupe":
         return "action must be dedupe"
     accepted = set(OP_SCHEMA["properties"])
     extra = [k for k in data if k not in accepted]
-    named = sorted(k for k in extra if k in KNOWN_KEYS)[:5]
+    named = sorted(k for k in extra if isinstance(k, str) and k in KNOWN_KEYS)[:5]
     others = len(extra) - len(named)
     missing = [k for k in OP_SCHEMA["required"] if k not in data]
     hint = "dedupe takes action, path, name; optional: default_country_code"
@@ -85,7 +88,11 @@ def _shape_hint(data):
     hint += f"; plus {others} other key{'s' if others != 1 else ''} not accepted" if others else ""
     if not extra and not missing:
         return hint + "; the key names are right, so check the values: " + VALUES
-    return hint + "; send them at the top level of data, with no fields object"
+    if "fields" in named:
+        return hint + "; send them at the top level of data, with no fields object"
+    if {"country", "country_code", "default_country"} & set(named):
+        return hint + "; the country code key is default_country_code"
+    return hint + "; send only these keys, at the top level of data"
 
 
 def _read(root, data):
