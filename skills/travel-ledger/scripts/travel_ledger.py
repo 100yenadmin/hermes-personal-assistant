@@ -17,6 +17,11 @@ HERMES_HOME_ENV = "HERMES_HOME"
 HERMES_WORKSPACE_ROOT_ENV = "HERMES_WORKSPACE_ROOT"
 LEDGER_RELATIVE_PATH = Path("state") / "travel-ledger" / "travel.sqlite"
 
+PROFILE_ACTION_TYPES = ("preference", "person", "sop", "trust")
+PROFILE_ACTION_PREFIXES = ("pref:", "person:", "sop:", "trust:")
+EVIDENCE_ACTION_TYPES = ("va_task", "va_baseline", "va_day30")
+EVIDENCE_ACTION_PREFIXES = ("va-task:", "va-baseline:", "va-day30:")
+
 CONNECTIVITY_SCHEMA_VERSION = 1
 CONNECTIVITY_DEFAULT_STALE_DAYS = 45.0
 CONNECTIVITY_FIELDS = (
@@ -1013,10 +1018,25 @@ def upsert_trip(args):
 
 def upsert_action(args):
     conn = connect()
-    t = now()
     action_id = args.action_id or f"{args.type}-{uuid.uuid4().hex[:10]}"
+    existing = conn.execute(
+        "select action_type, fields_json, created_at from actions where action_id=?", (action_id,),
+    ).fetchone()
+    existing_type = existing["action_type"] if existing else None
+    if (
+        args.type in PROFILE_ACTION_TYPES
+        or action_id.partition(":")[0] + ":" in PROFILE_ACTION_PREFIXES
+        or existing_type in PROFILE_ACTION_TYPES
+    ):
+        raise SystemExit("profile records are written with operation profile")
+    if (
+        args.type in EVIDENCE_ACTION_TYPES
+        or action_id.startswith(EVIDENCE_ACTION_PREFIXES)
+        or existing_type in EVIDENCE_ACTION_TYPES
+    ):
+        raise SystemExit("evidence records are written with operation evidence")
+    t = now()
     fields = parse_fields(args.field)
-    existing = conn.execute("select fields_json, created_at from actions where action_id=?", (action_id,)).fetchone()
     if existing:
         old = json.loads(existing["fields_json"] or "{}")
         old.update(fields)
@@ -1122,10 +1142,18 @@ def payment_readiness(args):
 def latest(table, where=None, value=None):
     conn = connect()
     sql = f"select * from {table}"
+    conditions = []
     args = ()
     if where:
-        sql += f" where {where}=?"
+        conditions.append(f"{where}=?")
         args = (value,)
+    if table == "actions":
+        excluded_types = PROFILE_ACTION_TYPES + EVIDENCE_ACTION_TYPES
+        placeholders = ",".join("?" for _ in excluded_types)
+        conditions.append(f"coalesce(action_type, '') not in ({placeholders})")
+        args += excluded_types
+    if conditions:
+        sql += " where " + " and ".join(conditions)
     sql += " order by updated_at desc limit 20"
     return [row_to_dict(r) for r in conn.execute(sql, args).fetchall()]
 
@@ -1135,7 +1163,7 @@ def summary(args):
     data = {
         "db": db_path(),
         "trips": [row_to_dict(r) for r in conn.execute("select * from trips order by updated_at desc limit 20")],
-        "actions": [row_to_dict(r) for r in conn.execute("select * from actions where coalesce(action_type, '') not in ('preference','person','sop','trust','va_task','va_baseline','va_day30') order by updated_at desc limit 20")],
+        "actions": latest("actions"),
         "browser_checkpoints": [row_to_dict(r) for r in conn.execute("select * from browser_checkpoints order by updated_at desc limit 20")],
         "payment_readiness": [row_to_dict(r) for r in conn.execute("select * from payment_readiness order by updated_at desc limit 20")],
     }
