@@ -10,7 +10,8 @@ waiting. One line per loop; group several due loops into one message.
 A nudge draft is held for the owner's yes. Show the recipient, channel and the
 exact text. Before drafting to or about a person, read their rules with
 `pa(operation="profile", data={"action":"list","name":"<name>"})` and follow
-them. Keep the tone polite and short; quote the original ask's date.
+them: use the row marked `"match":"exact"`, and if none is exact and several people
+come back, ask the owner which one. Keep the tone polite and short; quote the original ask's date.
 Report it as "nudge drafted, awaiting your yes since <date>", never as chased, nudged or sent.
 While `awaiting_approval` is set, offer send, edit or drop, never another draft; list overdue approvals first in the brief.
 

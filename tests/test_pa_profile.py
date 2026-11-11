@@ -219,24 +219,28 @@ def test_people_filing_and_action_readers(tmp_path, monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("action", ["list", "pending_files"])
-@pytest.mark.parametrize("query,first,names", [
-    ("Ann", "Ann", {"Ann", "Joanne", "Annette"}), ("ann", "Ann", {"Ann", "Joanne", "Annette"}),
-    (" ANN ", "Ann", {"Ann", "Joanne", "Annette"}), ("Ａｎｎ", "Ann", {"Ann", "Joanne", "Annette"}),
-    ("nett", "Annette", {"Annette"}),
+@pytest.mark.parametrize("query,expected", [
+    ("Ann", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    ("ann", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    (" ANN ", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    ("Ａｎｎ", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    ("nett", [("Annette", "partial")]),
 ])
-def test_person_name_puts_normalized_exact_match_first(tmp_path, action, query, first, names):
-    for name in ("Ann", "Joanne", "Annette"):
+def test_person_name_puts_normalized_exact_match_first(tmp_path, action, query, expected):
+    for name in ("Ann", "Joanne", "Annette"):  # Newest first by default, so "Ann" would come last.
         call(tmp_path, kind="person", name=name)
-    rows = call(tmp_path, action, name=query)
-    assert rows[0]["name"] == first and {r["name"] for r in rows} == names
+    assert [(r["name"], r["match"]) for r in call(tmp_path, action, name=query)] == expected
 
 
 @pytest.mark.parametrize("action", ["list", "pending_files"])
 def test_exact_match_does_not_hide_a_longer_name(tmp_path, action):
-    # Asked for "Ann" when the draft is for Ann Smith, the agent still sees Ann Smith.
-    call(tmp_path, kind="person", name="Ann Smith")
-    call(tmp_path, kind="person", name="Ann")
-    assert [r["name"] for r in call(tmp_path, action, name="Ann")] == ["Ann", "Ann Smith"]
+    # Asked for "Ann" when the draft is for Ann Smith, the agent still sees Ann Smith, marked partial.
+    work = call(tmp_path, kind="person", name="Ann", slug="ann-work")["action_id"]
+    home = call(tmp_path, kind="person", name="Ann", slug="ann-home")["action_id"]
+    smith = call(tmp_path, kind="person", name="Ann Smith")["action_id"]
+    rows = call(tmp_path, action, name="Ann", kind="person")
+    assert [(r["identity"], r["match"]) for r in rows] == [(home, "exact"), (work, "exact"), (smith, "partial")]
+    assert all("match" not in r for r in call(tmp_path, action, kind="person"))  # Only a name lookup is marked.
 
 
 @pytest.mark.parametrize("action", ["list", "pending_files"])
@@ -267,7 +271,7 @@ def test_person_exact_selection_follows_filters_and_precedes_limit(tmp_path, act
     assert [r["identity"] for r in rows] == [r["identity"] for r in call(tmp_path, action, state="active")]
 
 
-@pytest.mark.parametrize("query", ["   ", ""])  # The tool schema rejects a null name before dispatch.
+@pytest.mark.parametrize("query", ["   ", ""])
 def test_blank_name_filters_nothing(tmp_path, query):
     call(tmp_path, kind="person", name="Ann")
     call(tmp_path, kind="person", name="None")

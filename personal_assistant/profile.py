@@ -217,11 +217,14 @@ def dispatch(ledger, data):
                 if all(not data.get(k) or (name in _normal_name(r["fields"].get(k, ""))
                     if k == "name" else data[k] == (r["action_type"] if k == "kind" else r["fields"].get(k)))
                        for k in ("kind", "category", "state", "name"))]
+        first = set()
         if name:  # Exact names first, then partial matches, so "Ann" leads but "Ann Smith" stays visible (#60).
             exact = [r for r in rows if _normal_name(r["fields"].get("name", "")) == name]
             first = {r["action_id"] for r in exact}
             rows = exact + [r for r in rows if r["action_id"] not in first]
-        return [{"identity": r["action_id"], "kind": r["action_type"], **r["fields"]} for r in rows[:50]]
+        # A name lookup says which rows matched exactly, so the agent never takes a partial match for the person.
+        return [{"identity": r["action_id"], "kind": r["action_type"], **r["fields"],
+                 **({"match": "exact" if r["action_id"] in first else "partial"} if name else {})} for r in rows[:50]]
     if action not in {"confirm", "forget", "mark_filed"}:
         raise ValueError("unknown profile action")
     identities = data.get("identities") if action == "mark_filed" else [data.get("identity")]
