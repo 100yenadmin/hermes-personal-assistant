@@ -37,6 +37,27 @@ def markdown(card):
         detail = (f"; saving {result['saving']:.3f}; first-pass task types {result['types']}"
                   if "saving" in result else "")
         lines.append(f"- {_text(owner)}: {result['state']}{detail}")
+    fire = card.get("fire_week")
+    if fire:
+        lines += ["", "## Fire-me week (stitched)", "",
+                  "Week N strings together run N of every scenario a persona meets, in day order, and the simulated "
+                  "owner fires PA at the first failing run. The runs are separate lab sessions, not one continuous week. "
+                  "Weeks differ in length and some share scenarios, so compare a persona with itself across releases, "
+                  "not personas with each other."]
+        if fire["personas"]:
+            lines.append("")
+        for persona in fire["personas"]:
+            weeks = persona["weeks"]
+            if not weeks:
+                lines.append(f"- {_text(persona['title'])}: no numbered runs for its scenarios.")
+                continue
+            lines.append(f"- {_text(persona['title'])} ({len(persona['scenarios'])} scenarios over {persona['days']} days): "
+                         f"{persona['kept']} of {len(weeks)} weeks kept.")
+            for week in weeks:
+                if week["result"] == "fired":
+                    lines.append(f"  - Week {week['week']}: fired on day {week['day']} at {_text(week['scenario'])}: {_text(week['reason'])}")
+                elif week["result"] != "kept":
+                    lines.append(f"  - Week {week['week']}: {week['result']} at day {week['day']} ({_text(week['scenario'])})")
     lines += ["", "## Excluded runs", "", f"Count: {len(card['excluded'])}"]
     for run in card["excluded"]:
         lines.append(f"- {_text(run['run'])} ({_text(run['scenario'])}): {_text(run['reason'])}")
