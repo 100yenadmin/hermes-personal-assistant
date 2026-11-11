@@ -59,6 +59,10 @@ def _rows(ledger):
     return [r for r in ledger.list("action") if _is_profile(r)]
 
 
+def _normal_name(value):
+    return " ".join(unicodedata.normalize("NFKC", str(value)).casefold().split())
+
+
 def _get(ledger, identity):
     row = ledger.get("action", identity)
     if not _is_profile(row):
@@ -156,9 +160,14 @@ def remember(ledger, data):
             raise ValueError("SOP needs title, trigger, steps, tools, done_when and escalation")
         changed = old and any(fields[k] != old["fields"].get(k) for k in content)
         fields["version"] = old["fields"]["version"] + bool(changed) if old else 1
-        fields["changelog"] = (old["fields"]["changelog"] if old else []) + ([{
-            "version": fields["version"], "change": data.get("change", "Owner correction" if old else "Initial draft"), "at": now()
-        }] if changed or not old else [])
+        fields["changelog"] = old["fields"]["changelog"] if old else []
+        if changed or not old:
+            change = data.get("change", "Owner correction" if old else "Initial draft")
+            if isinstance(change, str) and len(change) > 200:
+                change = change[:199] + "…"
+            fields["changelog"] = (fields["changelog"] + [{
+                "version": fields["version"], "change": change, "at": now()
+            }])[-10:]
         if changed:
             fields["state"] = "draft"
     from jsonschema import validate, FormatChecker, ValidationError
@@ -203,10 +212,15 @@ def dispatch(ledger, data):
         if action == "pending_files":
             rows = [r for r in rows if r["action_type"] in {"preference", "person"}
                     and (r["fields"]["state"] == "active" or r["fields"].get("remove_from_files"))]
-        return [{"identity": r["action_id"], "kind": r["action_type"], **r["fields"]} for r in rows
-                if all(not data.get(k) or (str(data[k]).casefold() in str(r["fields"].get(k, "")).casefold()
+        name = _normal_name(data.get("name", ""))
+        rows = [r for r in rows
+                if all(not data.get(k) or (name in _normal_name(r["fields"].get(k, ""))
                     if k == "name" else data[k] == (r["action_type"] if k == "kind" else r["fields"].get(k)))
-                       for k in ("kind", "category", "state", "name"))][:50]
+                       for k in ("kind", "category", "state", "name"))]
+        if name:  # A blank or whitespace-only name filters nothing; it must not select nameless records.
+            exact = [r for r in rows if _normal_name(r["fields"].get("name", "")) == name]
+            rows = exact or rows
+        return [{"identity": r["action_id"], "kind": r["action_type"], **r["fields"]} for r in rows[:50]]
     if action not in {"confirm", "forget", "mark_filed"}:
         raise ValueError("unknown profile action")
     identities = data.get("identities") if action == "mark_filed" else [data.get("identity")]

@@ -218,6 +218,50 @@ def test_people_filing_and_action_readers(tmp_path, monkeypatch, capsys):
     assert call(tmp_path, "pending_files")[0]["rules"] == ["Use a short greeting"]
 
 
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+@pytest.mark.parametrize("query,expected", [
+    ("Ann", ["Ann"]), ("ann", ["Ann"]), (" ANN ", ["Ann"]),
+    ("Ａｎｎ", ["Ann"]), ("nett", ["Annette"]),
+])
+def test_person_name_prefers_normalized_exact_match(tmp_path, action, query, expected):
+    for name in ("Ann", "Joanne", "Annette"):
+        call(tmp_path, kind="person", name=name)
+    assert [r["name"] for r in call(tmp_path, action, name=query)] == expected
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_person_name_falls_back_to_normalized_substring(tmp_path, action):
+    for name in ("Joanne", "Annette"):
+        call(tmp_path, kind="person", name=name)
+    assert {r["name"] for r in call(tmp_path, action, name=" Ａｎｎ ")} == {"Joanne", "Annette"}
+    assert {r["name"] for r in call(tmp_path, action, name="Ann")} == {"Joanne", "Annette"}
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_person_name_normalizes_stored_names_and_internal_whitespace(tmp_path, action):
+    call(tmp_path, kind="person", name="Ａｎｎ\t  Smith")
+    call(tmp_path, kind="person", name="Ann Smithson")
+    assert [r["name"] for r in call(tmp_path, action, name=" ann  smith ")] == ["Ａｎｎ\t  Smith"]
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_person_exact_selection_follows_filters_and_precedes_limit(tmp_path, action):
+    ann = call(tmp_path, kind="person", name="Ann")["action_id"]
+    for n in range(55):
+        call(tmp_path, kind="person", name=f"Annette {n}")
+    assert [r["identity"] for r in call(tmp_path, action, name="Ann")] == [ann]
+    call(tmp_path, "mark_filed", identities=[ann])
+    rows = call(tmp_path, action, name="Ann", state="active")
+    assert len(rows) == 50 and all(r["name"].startswith("Annette ") for r in rows)
+    assert [r["identity"] for r in rows] == [r["identity"] for r in call(tmp_path, action, state="active")]
+
+
+def test_whitespace_name_does_not_select_nameless_records(tmp_path):
+    call(tmp_path, kind="person", name="Ann")
+    pref(tmp_path, "Use a short greeting")
+    assert {r["kind"] for r in call(tmp_path, "list", name="   ")} == {"person", "preference"}
+
+
 def test_sop_versions_and_default_trust(tmp_path):
     data = dict(kind="sop", title="Weekly prep", trigger="Friday", steps=["Read calendar"], tools=["calendar"], done_when="Draft ready", escalation="Ask owner")
     first = call(tmp_path, **data)
@@ -228,6 +272,27 @@ def test_sop_versions_and_default_trust(tmp_path):
     assert second["fields"]["changelog"][-1]["change"] == "Add agenda"
     assert call(tmp_path, **{**data, "steps": second["fields"]["steps"], "state": "owned"})["fields"]["state"] == "owned"
     assert call(tmp_path, kind="trust", task_type="meeting prep")["fields"]["level"] == "shadow"
+
+
+def test_sop_changelog_keeps_latest_ten_entries_and_version(tmp_path):
+    data = dict(kind="sop", title="Weekly prep", trigger="Friday", steps=["Read calendar"], tools=["calendar"], done_when="Draft ready", escalation="Ask owner")
+    call(tmp_path, **data)
+    for n in range(1, 13):
+        latest = call(tmp_path, **{**data, "steps": [f"Read calendar revision {n}"]}, change=f"Correction {n}")
+    fields = latest["fields"]
+    assert fields["version"] == 13 and len(fields["changelog"]) == 10
+    assert [entry["version"] for entry in fields["changelog"]] == list(range(4, 14))
+    assert [entry["change"] for entry in fields["changelog"]] == [f"Correction {n}" for n in range(3, 13)]
+
+
+@pytest.mark.parametrize("length", [200, 300])
+def test_sop_changelog_bounds_change_text(tmp_path, length):
+    data = dict(kind="sop", title="Weekly prep", trigger="Friday", steps=["Read calendar"], tools=["calendar"], done_when="Draft ready", escalation="Ask owner")
+    call(tmp_path, **data)
+    fields = call(tmp_path, **{**data, "steps": ["Draft agenda"]}, change="x" * length)["fields"]
+    change = fields["changelog"][-1]["change"]
+    assert len(change) == 200
+    assert change == ("x" * 199 + "…" if length > 200 else "x" * 200)
 
 
 @pytest.fixture
