@@ -28,7 +28,7 @@ LOCAL_CONFIG_NAMES = {
     "clients.json", "daily_ops.config.json", "daily_ops.state.json", "location.json",
 }
 ROOT_FILES = {
-    "AGENTS.md", "CHANGELOG.md", "CONTRIBUTING.md", "README.md", "VERSION", "__init__.py",
+    "AGENTS.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE", "README.md", "VERSION", "__init__.py",
     "after-install.md", "codex-plugin.json", "openclaw.plugin.json", "plugin.yaml", "requirements.txt",
 }
 RELEASE_CONFIG_FILES = {"config/pa-action-gateway-policy.example.json"}
