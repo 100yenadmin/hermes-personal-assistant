@@ -123,5 +123,5 @@ def test_radar_offers_calendar_setup_in_plain_words():
     # 0.19.0-rc.1 rerun, s16: "Calendar setup requires a separate authorized step" stood in for the offer.
     text = " ".join((ROOT / "skills/cos-radar/SKILL.md").read_text().split())
     assert 'offer to set one up in plain words ("I can set up calendar access now if you want")' in text
-    assert "Saying that setup needs a separate step is not an offer." in text
+    assert "Saying that setup needs a separate step does not replace the offer." in text
     assert "Never start a login silently." in text

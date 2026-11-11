@@ -50,7 +50,7 @@ Never install software or treat discovery as approval to adopt or activate it.
    PA holds no Google token and writes no calendar itself. If no calendar tool
    is available, say so and, in the same reply, offer to set one up in plain
    words ("I can set up calendar access now if you want"). Saying that setup
-   needs a separate step is not an offer. Never start a login silently. Never guess the destination calendar or account.
+   needs a separate step does not replace the offer. Never start a login silently. Never guess the destination calendar or account.
 3. Use the existing calendar contract described in
    `../travel-email-calendar/SKILL.md`. For this owner-approved benchmark, save
    a non-trip note action with the same stable ID on every retry:
