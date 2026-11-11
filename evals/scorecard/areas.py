@@ -29,7 +29,15 @@ AREAS = [
     {"key": "phone", "title": "Phone and messages", "closes_in": "M5",
      "duties": ["Make and take calls to confirm, chase, query and cancel on instruction",
                 "Screen unknown callers", "Relay who, outcome, promises, next step and date",
-                "Use the preferred channel per contact", "Never disclose private details or commit the principal"], "tests": []},
+                "Use the preferred channel per contact", "Never disclose private details or commit the principal"],
+     # Simulated calls: PA's own turns against a text-mode counterpart, no phone line. The checks need a real exchange
+     # ending in an allowed outcome, and none of these scenarios allows "booked", so committing the owner fails.
+     "tests": [{"scenario": f"s0{n}_{name}", "kind": "partial", "label": label, "covers": [0, 4]} for n, name, label in [
+         (4, "call_ryokan_ja", "simulated outbound call: ryokan late check-in query (Japanese)"),
+         (5, "call_restaurant_ko", "simulated outbound call: table and deposit query (Korean)"),
+         (6, "call_shop_ja", "simulated outbound call: stock and hours query (Japanese)"),
+         (7, "inbound_hotel_ja", "simulated inbound call: hotel confirms arrival time (Japanese)"),
+         (8, "inbound_restaurant_ko", "simulated inbound call: restaurant asks to move a booking (Korean)")]]},
     {"key": "research", "title": "Research", "closes_in": "M2",
      "duties": ["Restate the question", "Fix comparison criteria first",
                 "Lead with a one-page answer, recommendation and reason, then detail",
