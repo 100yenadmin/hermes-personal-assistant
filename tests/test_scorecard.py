@@ -861,3 +861,12 @@ def test_s34_credit_is_minutes_duty_only():
     assert row == {"scenario": "s34_meeting_minutes_en", "kind": "partial", "covers": [0],
                    "label": "minutes from a raw transcript: an owner and a date on every action item, open questions kept, nothing sent"}
     assert area["duties"][0] == "Clean briefs, agendas and minutes with owners and dates on every action"
+
+
+def test_partial_rows_credit_only_what_they_exercise():
+    # #202 review: an archive offer that moves nothing is not spam filtering; two synthetic days prove no weekly report.
+    def covered(key, duty):
+        area = next(a for a in AREAS if a["key"] == key)
+        return any(area["duties"].index(duty) in t["covers"] for t in area["tests"])
+    assert not covered("inbox", "Filter newsletters and spam without being asked")
+    assert not covered("working_norms", "Report daily, weekly and immediately on exceptions")

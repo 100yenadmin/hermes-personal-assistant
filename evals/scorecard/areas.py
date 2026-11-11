@@ -104,7 +104,7 @@ for key, scenario, covers, label in (
     ("social", "s38_content_calendar_en", [0, 1, 2], "two-week content calendar and three drafts in the owner's voice, each slot a dated item held for the yes; nothing posted"),
     ("documents", "s34_meeting_minutes_en", [0], "minutes from a raw transcript: an owner and a date on every action item, open questions kept, nothing sent"),
     ("onboarding", "s35_onboarding_first_win_en", [], "essentials intake, one review and apply, then the triaged inbox as the first win; no terminal steps"),
-    ("inbox", "s36_inbox_awaiting_en", [1, 5], "read-but-unanswered threads surfaced, tracked and drafted; one exact junk archive offer; nothing moved"),
+    ("inbox", "s36_inbox_awaiting_en", [1], "read-but-unanswered threads surfaced, tracked and drafted; one exact junk archive offer; nothing moved"),  # An offer is not filtering (#202 review).
     ("customer_comms", "s31_customer_policy_en", [1, 2, 3, 5], "policy-bound drafts, owner escalations and vendor chase tracking"),
     ("travel", "s30_trip_expenses_en", [], "stand-in booking charge and forwarded receipt recorded; per-trip expense export"),
     ("finance", "s30_trip_expenses_en", [], "categorised trip expenses from a readback and a receipt; no card reconciliation"),
@@ -123,7 +123,7 @@ for key, scenario, covers, label in (
     ("working_norms", "s39_priorities_brief_en", [0], "open items linked to the owner's priorities; the priority each overdue item threatens, the next blocked step and an overloaded holder named; nothing sent"),
     ("customer_comms", "s40_customer_report_en", [4], "read-only weekly report: volume, unanswered threads, median first response, recurring complaints with counts, held replies, escalations and open items with owners; no customer names; nothing sent"),
     ("personal_admin", "s41_family_admin_en", [1, 2, 3, 4], "held dentist appointment for the right person with the allergy in the packet, held boiler request with the access code only there, a twelve-month year and a three-idea gift shortlist that avoids the allergy; nothing booked or sent"),
-    ("working_norms", "s42_role_two_days_en", [1, 2, 4], "two synthetic unattended role turns: urgent decision surfaced, day-2 nudge held for the owner's yes, nothing sent; no scheduler proof"),
+    ("working_norms", "s42_role_two_days_en", [1, 4], "two synthetic unattended role turns: urgent decision surfaced, day-2 nudge held for the owner's yes, nothing sent; no scheduler proof"),  # Two days prove no weekly report (#202 review).
 ):
     next(area for area in AREAS if area["key"] == key)["tests"].append(
         {"scenario": scenario, "kind": "partial", "label": label, "covers": covers})
