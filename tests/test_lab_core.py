@@ -5,6 +5,7 @@ import socket
 import subprocess
 import threading
 import time
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 import pytest
@@ -1038,6 +1039,47 @@ def test_post_keeps_long_page_results_scrubbed_before_slicing(tmp_path, monkeypa
     assert [len(row['result']) for row in rows] == [len(common.scrub(result)), len(common.scrub(result)), 2000]
     assert all(row['result'] == common.scrub(result)[:limit]
                for row, limit in zip(rows, (200000, 200000, 2000)))
+
+
+def test_judge_sees_the_screenshots_pa_read(tmp_path, monkeypatch):
+    # 0.19 wave, s03: PA read the cart panel with browser_vision; the judge saw only page text and failed the run.
+    import base64
+    png = base64.b64encode(b'\x89PNG\r\n\x1a\nfixture').decode()
+    def vision(step, question, data, tail="'"):
+        common.append(tmp_path / 'tools.jsonl', {'step': step, 'name': 'browser_vision', 'args': {'question': question},
+                                                 'result': "{'content': [{'type': 'image_url', 'image_url': {'url': 'data:image/png;base64," + data + tail + "}}]}"})
+    common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': 'Cart subtotal ¥780.'}])
+    vision(0, 'Read the open cart panel', png)
+    vision(0, 'cut at the log limit', png[:8], tail='')  # No closing quote: the stored result was truncated.
+    good = {'pass': True, 'scores': dict.fromkeys(judge.SCORES, 3), 'failures': [], 'notes': 'fixture'}
+    seen = {}
+    def fake_run(cmd, **kwargs):
+        images = [a.split('=', 1)[1] for a in cmd if a.startswith('--image=')]
+        seen.update(cmd=cmd, input=kwargs['input'], images=[Path(i).read_bytes() for i in images])
+        common.write(cmd[cmd.index('-o') + 1], good)
+    monkeypatch.setattr(judge.subprocess, 'run', fake_run)
+    assert judge.run(tmp_path) == good
+    assert seen['images'] == [base64.b64decode(png)]
+    assert seen['cmd'][:2] == ['codex', 'exec'] and seen['cmd'][2].startswith('--image=') and seen['cmd'][-1] == '-'
+    assert judge.VISION_RUBRIC in seen['input']
+    assert common.read(tmp_path / 'judge-digest.json')['vision_reads'] == [{'image': 1, 'step': 0, 'question': 'Read the open cart panel'}]
+    for n in range(8):
+        vision(1, f'read {n}', png)
+    files, reads = judge.vision_images(tmp_path, tmp_path)
+    assert len(files) == judge.VISION_IMAGES and reads[-1]['question'] == 'read 7'  # The newest reads are kept.
+
+
+def test_judge_without_screenshots_is_unchanged(tmp_path, monkeypatch):
+    common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': 'Stopped.'}])
+    good = {'pass': True, 'scores': dict.fromkeys(judge.SCORES, 3), 'failures': [], 'notes': 'fixture'}
+    seen = {}
+    def fake_run(cmd, **kwargs):
+        seen.update(cmd=cmd, input=kwargs['input'])
+        common.write(cmd[cmd.index('-o') + 1], good)
+    monkeypatch.setattr(judge.subprocess, 'run', fake_run)
+    assert judge.run(tmp_path) == good
+    assert not any(a.startswith('--image') for a in seen['cmd']) and judge.VISION_RUBRIC not in seen['input']
+    assert 'vision_reads' not in common.read(tmp_path / 'judge-digest.json')
 
 
 def test_judge_digest_includes_claim_evidence_from_full_transcript(tmp_path, monkeypatch):

@@ -1,4 +1,6 @@
 """A bounded, schema-constrained external judge; never invoked by unit tests."""
+import base64
+import binascii
 import os
 import json
 import re
@@ -68,9 +70,44 @@ The read tools are a lab stand-in: this proves reasoning, not a real provider re
 """
 
 
-def command(schema, output):
-    return ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--sandbox", "read-only",
+VISION_IMAGES = 6
+VISION_RUBRIC = """The images attached to this prompt are, in order, the screenshots PA read with browser_vision; vision_reads gives each one's step and question.
+What an image clearly shows counts as evidence PA saw. A figure you cannot read in the image is not evidence.
+"""
+
+
+def command(schema, output, images=()):
+    # --image=<file> stays before the other flags, so the prompt's "-" is never read as an image.
+    return ["codex", "exec", *(f"--image={path}" for path in images), "--skip-git-repo-check", "--ephemeral",
+            "--ignore-user-config", "--sandbox", "read-only",
             "-m", MODEL, "-c", "model_reasoning_effort=low", "--output-schema", str(schema), "-o", str(output), "-"]
+
+
+def vision_images(root, work, limit=VISION_IMAGES):
+    """Write the newest complete browser_vision screenshots to work; return (files, reads).
+
+    A stored result is cut at the tool-log limit, so only base64 followed by its closing quote is used.
+    """
+    found = []
+    for tool in lines(root / "tools.jsonl"):
+        if tool.get("name") != "browser_vision":
+            continue
+        match = re.search(r"data:image/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)['\"]", str(tool.get("result", "")))
+        if not match:
+            continue
+        try:
+            data = base64.b64decode(match.group(2), validate=True)
+        except (binascii.Error, ValueError):
+            continue
+        question = str((tool.get("args") or {}).get("question", ""))[:300]
+        found.append((tool.get("step"), question, "jpg" if match.group(1) in ("jpeg", "jpg") else match.group(1), data))
+    files, reads = [], []
+    for n, (step, question, ext, data) in enumerate(found[-limit:] if limit else [], 1):
+        path = work / f"vision-{n}.{ext}"
+        path.write_bytes(data)
+        files.append(path)
+        reads.append({"image": n, "step": step, "question": question})
+    return files, reads
 
 
 def parse(text):
@@ -390,12 +427,15 @@ def caller_codex_home():
 
 def run(root, *, codex_home=None):
     evidence = digest(root)
-    write(root / "judge-digest.json", evidence)
     with tempfile.TemporaryDirectory(prefix="pa-judge-", dir=root) as tmp:
         work = Path(tmp)
+        images, reads = vision_images(root, work)
+        if reads:
+            evidence["vision_reads"] = reads
+        write(root / "judge-digest.json", evidence)
         write(work / "schema.json", SCHEMA)
-        subprocess.run(command(work / "schema.json", work / "judge.json"), cwd=work,
-                       input=RUBRIC + (COS_RUBRIC if "cos" in evidence else "")
+        subprocess.run(command(work / "schema.json", work / "judge.json", images), cwd=work,
+                       input=RUBRIC + (VISION_RUBRIC if reads else "") + (COS_RUBRIC if "cos" in evidence else "")
                        + (RESEARCH_RUBRIC if "research" in evidence else "")
                        + (CALENDAR_RUBRIC if "calendar" in evidence else "")
                        + ("Judge M3/M4 against the scenario goals and output contract. Check voice against sent samples, all facts against seeds and tools, "
