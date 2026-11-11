@@ -209,4 +209,5 @@ def test_a_title_counts_only_without_a_counterparty(tmp_path):
     snapshot["actions"].append({"action_id": "lab:cedar-2", "action_type": "commitment", "status": "pending",
                                 "fields": {"title": "Chase Cedar for the contract"}})
     common.write(path, snapshot)
-    assert not checks.evaluate(tmp_path, s)["all_pass"]  # No counterparty: the title names Cedar, so it is a duplicate.
+    # No counterparty: the title names Cedar, so it is a duplicate.
+    assert checks.evaluate(tmp_path, s)["steps"][1]["checks"]["same_single_open_loop"] is False
