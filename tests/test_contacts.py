@@ -334,3 +334,27 @@ def test_same_display_name_with_different_structured_names_is_a_conflict(tmp_pat
     result = call(tmp_path)
     assert [r["source_rows"] for r in table(result["paths"]["clean"])] == ["1", "2", "3; 4"]
     assert result["counts"]["name_conflicts"] == 1 and result["counts"]["merged_clusters"] == 1
+
+
+# 0.20 wave, s32 r002: PA sent an empty "fields" object, then nested every parameter under fields, and the old
+# error ("invalid contacts action, name or country code") said nothing about either.
+@pytest.mark.parametrize("data, expected, absent", [
+    ({"fields": {}}, "not accepted: fields; send them at the top level of data", ()),
+    ({"path": None, "name": None, "fields": {"path": "imports/contacts/input.csv", "name": "demo"}},
+     "not accepted: fields", ("imports/contacts", "demo")),
+    ({"secret_token": "abc123"}, "plus 1 other key not accepted", ("secret_token", "abc123")),
+    ({"action": "merge"}, "action must be dedupe", ("merge",)),
+    ({"name": "Bad Name"}, "the key names are right, so check the values: name is 1 to 41", ("Bad Name",)),
+])
+def test_errors_name_the_shape_never_values(tmp_path, data, expected, absent):
+    source(tmp_path, 'name\nCasey\n')
+    payload = {"action": "dedupe", "path": "imports/contacts/input.csv", "name": "demo", **data}
+    payload = {k: v for k, v in payload.items() if v is not None}
+    error = entry.dispatch(tmp_path, {"operation": "contacts", "data": payload})["error"]
+    assert expected in error
+    assert all(a not in error for a in absent)
+
+
+def test_missing_keys_are_listed(tmp_path):
+    error = entry.dispatch(tmp_path, {"operation": "contacts", "data": {"action": "dedupe"}})["error"]
+    assert "missing: path, name" in error
