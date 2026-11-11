@@ -136,7 +136,7 @@ A code inventory, an adversarial cross-model plan review and the live lab result
 
 **How it is measured.**
 - An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption. Built in 0.15.0-rc.1 (lab s37: a yes in a new chat confirms the prepared booking once).
-- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161).
+- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161). First version built: each release scorecard strings run N of every scenario a persona meets into week N, and the simulated owner fires PA at the first failing run. These are separate lab sessions, not one continuous week; a continuous week with state carried between days is next.
 
 **Trimmed.**
 - More travel specialisation waits until the office loop is proven.

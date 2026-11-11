@@ -8,6 +8,7 @@ from pathlib import Path
 
 from evals.lab.checks import submit_events
 from ._portable import portable
+from .personas import PERSONAS
 from .areas import AREAS, PARITY
 
 
@@ -193,6 +194,54 @@ def _pa_ref(refs):
     return pick[0].get("ref") if pick else None
 
 
+def _why(run, checks, judge, hits):
+    """One line on why a counted run failed: run status, tripwire, failed checks, then the judge's first failure."""
+    parts = []
+    if run.get("status") != "ok" or "end" not in run:
+        parts.append(f"run {run.get('status', 'incomplete')}")
+    if hits:
+        parts.append(f"{hits} final-submit tripwire hit(s)")
+    overall = checks.get("overall") if isinstance(checks.get("overall"), dict) else {}
+    failed = [k for k, v in overall.items() if v is not True]
+    for step in checks.get("steps") or []:
+        if isinstance(step, dict) and isinstance(step.get("checks"), dict):
+            failed += [f"{step.get('capability', 'step')}:{k}" for k, v in step["checks"].items() if v is False]
+    if failed:
+        parts.append("checks failed: " + ", ".join(failed[:4]) + (" and more" if len(failed) > 4 else ""))
+    if judge.get("pass") is not True:
+        failures = judge.get("failures") if isinstance(judge.get("failures"), list) else []
+        parts.append("judge: " + (str(failures[0])[:240] if failures else "failed"))
+    return "; ".join(parts) or "failed"
+
+
+def _fire_week(runs):
+    """Stitch week N from run N of each persona scenario; the owner fires PA at the first failing run."""
+    by = {}
+    for r in runs:
+        if r["index"] is not None:
+            by.setdefault((r["scenario"], r["index"]), []).append(r)
+    weeks = sorted({r["index"] for r in runs if r["index"] is not None})
+    personas = []
+    for persona in PERSONAS:
+        results = []
+        for week in weeks:
+            result = {"week": week, "result": "kept"}
+            for day, scenario in persona["days"]:
+                found = by.get((scenario, week), [])
+                if len(found) != 1:
+                    result = {"week": week, "result": "incomplete" if not found else "ambiguous", "day": day, "scenario": scenario}
+                    break
+                if not found[0]["passed"]:
+                    result = {"week": week, "result": "fired", "day": day, "scenario": scenario,
+                              "run": found[0]["run"], "reason": found[0]["why"]}
+                    break
+            results.append(result)
+        personas.append({"key": persona["key"], "title": persona["title"],
+                         "days": max(day for day, _ in persona["days"]), "scenarios": [s for _, s in persona["days"]],
+                         "weeks": results, "kept": sum(r["result"] == "kept" for r in results)})
+    return {"kind": "stitched", "personas": personas}
+
+
 def build(version, commit, lab_dirs, live=None, as_of=None):
     """Count only full-SHA-matching completed runs; retain an exclusion for all others."""
     _require(isinstance(version, str) and bool(version.strip()), "version")
@@ -255,7 +304,12 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
                 and all(v is True for v in overall.values())
             passed = bool(safe and checks.get("all_pass") is True and judge.get("pass") is True)
             seen.add(identity)
-            runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks})
+            index = run.get("index")
+            if not (isinstance(index, int) and not isinstance(index, bool)):
+                match = re.search(r"__r(\d+)$", folder.name)
+                index = int(match.group(1)) if match else None
+            runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks, "index": index,
+                         "why": None if passed else _why(run, checks, judge, hits)})
     for area in catalogue:
         for test in area["tests"]:
             test.setdefault("covers", [])
@@ -282,4 +336,5 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
               "partial": {s: sum(a["partial"]["state"] == s for a in catalogue) for s in ("pass", "fail", "incomplete", "none")},
               "parity": {s: sum(a["parity"] == s for a in catalogue) for s in ("pass", "fail", "unproven")}}
     return portable({"version": version, "commit": commit, "as_of": today.isoformat(), "areas": catalogue,
-                     "day30": day30, "excluded": excluded, "counts": counts, "lab_dirs": roots, "schema": 1})
+                     "day30": day30, "fire_week": _fire_week(runs), "excluded": excluded, "counts": counts,
+                     "lab_dirs": roots, "schema": 1})

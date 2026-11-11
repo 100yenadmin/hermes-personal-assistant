@@ -861,3 +861,54 @@ def test_s34_credit_is_minutes_duty_only():
     assert row == {"scenario": "s34_meeting_minutes_en", "kind": "partial", "covers": [0],
                    "label": "minutes from a raw transcript: an owner and a date on every action item, open questions kept, nothing sent"}
     assert area["duties"][0] == "Clean briefs, agendas and minutes with owners and dates on every action"
+
+
+def test_fire_me_week_fires_at_the_first_failing_run(tmp_path, monkeypatch):
+    # #161: week N strings together run N of each persona scenario in day order.
+    personas = [{"key": "solo", "title": "Solo founder", "days": [(1, "s24_inbox_triage_en"), (2, "s38_content_calendar_en"), (3, "s16_cos_weekly_en")]}]
+    monkeypatch.setattr(importlib.import_module("evals.scorecard.build"), "PERSONAS", personas)
+    for sid in ("s24_inbox_triage_en", "s38_content_calendar_en", "s16_cos_weekly_en"):
+        for i in (1, 2):
+            failing = sid == "s38_content_calendar_en" and i == 2
+            run(tmp_path, f"{sid}__r00{i}", scenario=sid, **{
+                "run.json": {"start": i, "end": i + 1, "status": "ok", "index": i, "run_id": f"{sid}__r00{i}"},
+                "checks.json": {"overall": {"safe": True}, "all_pass": not failing,
+                                "steps": [{"capability": "content", "checks": {"calendar_valid": not failing}}]},
+                "judge.json": {"pass": not failing, "failures": ["Three posts in week one, one in week two."] if failing else []}})
+    fire = card(tmp_path)["fire_week"]
+    assert fire["kind"] == "stitched"
+    [solo] = fire["personas"]
+    assert solo["kept"] == 1 and solo["days"] == 3 and len(solo["scenarios"]) == 3
+    assert solo["weeks"][0] == {"week": 1, "result": "kept"}
+    fired = solo["weeks"][1]
+    assert (fired["result"], fired["day"], fired["scenario"]) == ("fired", 2, "s38_content_calendar_en")
+    assert fired["reason"] == "checks failed: content:calendar_valid; judge: Three posts in week one, one in week two."
+    text = markdown(card(tmp_path))
+    assert "## Fire-me week (stitched)" in text and "not one continuous week" in text
+    assert "- Solo founder (3 scenarios over 3 days): 1 of 2 weeks kept." in text
+    assert "  - Week 2: fired on day 2 at s38_content_calendar_en: checks failed: content:calendar_valid; judge: Three posts" in text
+
+
+def test_fire_me_week_marks_missing_and_doubled_runs(tmp_path, monkeypatch):
+    personas = [{"key": "solo", "title": "Solo founder", "days": [(1, "s24_inbox_triage_en"), (2, "s16_cos_weekly_en")]}]
+    monkeypatch.setattr(importlib.import_module("evals.scorecard.build"), "PERSONAS", personas)
+    one, two = tmp_path / "one", tmp_path / "two"
+    run(one, "s24_inbox_triage_en__r001", scenario="s24_inbox_triage_en",
+        **{"run.json": {"start": 1, "end": 2, "status": "ok", "index": 1}})
+    run(one, "s24_inbox_triage_en__r002", scenario="s24_inbox_triage_en",
+        **{"run.json": {"start": 2, "end": 3, "status": "ok"}})  # No index: read from the folder name.
+    run(two, "s24_inbox_triage_en__r002", scenario="s24_inbox_triage_en",
+        **{"run.json": {"start": 9, "end": 10, "status": "ok", "index": 2}})
+    weeks = build("V", SHA, [one, two], as_of="2026-10-21")["fire_week"]["personas"][0]["weeks"]
+    assert weeks == [{"week": 1, "result": "incomplete", "day": 2, "scenario": "s16_cos_weekly_en"},
+                     {"week": 2, "result": "ambiguous", "day": 1, "scenario": "s24_inbox_triage_en"}]
+
+
+def test_personas_name_mapped_scenarios_in_day_order():
+    from evals.scorecard.personas import PERSONAS
+    mapped = {t["scenario"] for a in AREAS for t in a["tests"]}
+    assert {p["key"] for p in PERSONAS} == {"solo_founder", "executive", "agency_owner", "family_user"}
+    for persona in PERSONAS:
+        days = [day for day, _ in persona["days"]]
+        assert days == sorted(days) and set(days) <= set(range(1, 6))
+        assert all(s in mapped for _, s in persona["days"]), persona["key"]
