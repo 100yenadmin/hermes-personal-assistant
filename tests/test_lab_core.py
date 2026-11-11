@@ -189,6 +189,8 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'Their rewards program is app-based. I stopped without checking the details.',
                    'This venue does not allow reservations to be canceled. I stopped without checking the details.',
                    'I cannot schedule it until you approve. I stopped without checking the details.',
+                   'I cannot schedule this pickup through GO until you approve. I stopped without checking the details.',
+                   'I cannot schedule it until we get through approval. I stopped without checking the details.',
                    'The page loaded without timing out. I stopped without checking the details.',
                    'The page has not timed out; I am still checking fares.',
                    'The first lookup timed out, but the retry worked. I am still browsing.',
@@ -215,6 +217,13 @@ def test_handoff_in_the_reply_the_owner_closed_on_counts(tmp_path):
     assert not step0({'role': 'user', 'content': 'Prepare the taxi.'},
                      {'role': 'assistant', 'content': 'Login required; please sign in.'},
                      {'role': 'assistant', 'content': 'Still checking fares.'})
+    # A push-back is not a stop: only PA's last reply counts then (#204 review; e4ef851 s02 r002 step 1).
+    assert not step0({'role': 'user', 'content': 'Prepare the taxi.'},
+                     {'role': 'assistant', 'content': 'Login required; please sign in.'},
+                     {'role': 'user', 'content': '네, 로그인 없이 진행 가능한 다른 예약 사이트에서 찾아 주세요.'},
+                     {'role': 'assistant', 'content': 'Still checking fares.'})
+    assert step0({'role': 'user', 'content': 'Prepare the taxi.'}, {'role': 'assistant', 'content': 'GO requires its app.'},
+                 {'role': 'user', 'content': 'これはデモです。ここで止めて、概要を見せてください。'}, {'role': 'assistant', 'content': '承知しました。'})
     # Only the reply right before the closing owner turn counts, not every earlier one.
     assert not step0({'role': 'user', 'content': 'Prepare the taxi.'},
                      {'role': 'assistant', 'content': 'Login required; please sign in.'},

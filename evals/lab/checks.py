@@ -11,7 +11,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 HANDOFF = (r"\blog[- ]?in|\bsign[- ]in|app.only|captcha|verification code|ログイン|アプリ|認証|로그인|앱|인증|sold.out|deposit|満席|売り切れ|保証金|매진|보증금|"
            r"unavailable|not available|not bookable|(?<!not )(?<!n't )(?<!never )(?<!not yet )\btimed[- ]out\b(?![^.!?\n]*\b(?:but|then|retr(?:y|ied|ying)|tried again)\b[^.!?\n]*\b(?<!never )(?<!not )(?<!n't )(?:worked|succeeded|loaded|came back|went through)\b)|タイムアウト(?!して(?:い)?ません|しません|しなかった|せず)(?![^。！？\n]*(?:が、|けど|再試行|もう一度|再読み込み)[^。！？\n]*(?:成功し(?!ませ|な)|取得(?:でき|し)(?!ませ|な)|表示され(?!ませ|な)))|(?:시간이? ?초과|타임아웃)(?!되지|이? ?발생하지)(?![^.!?\n]*(?:지만|다시 시도|재시도)[^.!?\n]*(?:성공했|확인했|불러왔))|can't be booked|cannot be booked|利用できません|予約できません|受付(?:けて)?いません|対象外|이용할 수 없|예약할 수 없|불가|"
            r"requires (?:its |the |an? )?(?:smartphone |mobile )?app\b|uses (?:its |the )(?:smartphone |mobile )?app\b|"
-           r"(?:cannot|can't|can not) (?:be )?(?:reserve[ds]?|pre-?book(?:ed)?|scheduled)\b|(?:cannot|can't|can not) schedule\b[^.!?\n]{0,80}\bthrough\b|access denied|"
+           r"(?:cannot|can't|can not) (?:be )?(?:reserve[ds]?|pre-?book(?:ed)?|scheduled)\b|(?:cannot|can't|can not) schedule\b(?![^.!?\n]*\b(?:until|without your)\b)[^.!?\n]{0,80}\bthrough\b|access denied|"
            r"\b(?:request|booking|reservation|order(?:ing)?|ride|taxi)[\w' -]{0,20}?\b(?:is|are) app[- ]based\b|"
            r"(?:does not|doesn't) allow (?:advance )?(?:reservations?|pre-?bookings?)\b(?!\s+to\s+be\s+(?:cancel|chang|modif|amend))|"
            r"アクセスが拒否|ブロックされ|차단|접근이 거부")
@@ -136,11 +136,15 @@ def submit_events(root):
             or is_final_submit(e.get("name", ""), e.get("role", ""), e.get("contact_entered", True))]
 
 
+OWNER_STOP = re.compile(r"(?<!n't )(?<!not )\bstop (?:here|there)\b|\b(?:we(?:'ll| will)?|i(?:'ll| will)?|let's) (?:stop|end|leave it|wrap up) (?:here|there)\b|"
+                        r"ここで(?:止め|終わ|終了|やめ)|ここまで(?:で|に)|여기서 (?:멈추|마치|마무리|그만)", re.I)
+
+
 def closing_replies(transcript, step):
     """The step's last reply, and the reply the owner closed the step on.
 
     After a scripted "stop here", PA's last reply is often only the sign-off; the state the owner stopped on
-    is the reply just before the step's last owner turn. Earlier replies do not count.
+    is the reply just before the step's last owner turn, when that turn stops the step. Earlier replies do not count.
     """
     rows = [m for m in transcript if isinstance(m, dict) and m.get("step") == step]
     replies = [k for k, m in enumerate(rows) if m.get("role") == "assistant"]
@@ -148,7 +152,8 @@ def closing_replies(transcript, step):
         return []
     picked = {replies[-1]}
     owner = [k for k, m in enumerate(rows) if m.get("role") == "user"]
-    if owner and owner[-1] > replies[0]:
+    # Only an owner turn that stops the step freezes the reply before it; a push-back asks PA to keep going.
+    if owner and owner[-1] > replies[0] and OWNER_STOP.search(str(rows[owner[-1]].get("content", ""))):
         before = [k for k in replies if k < owner[-1]]
         if before:
             picked.add(before[-1])
