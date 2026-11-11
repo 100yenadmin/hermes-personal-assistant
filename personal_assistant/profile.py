@@ -212,14 +212,15 @@ def dispatch(ledger, data):
         if action == "pending_files":
             rows = [r for r in rows if r["action_type"] in {"preference", "person"}
                     and (r["fields"]["state"] == "active" or r["fields"].get("remove_from_files"))]
-        name = _normal_name(data.get("name", ""))
+        name = _normal_name(data.get("name") or "")
         rows = [r for r in rows
                 if all(not data.get(k) or (name in _normal_name(r["fields"].get(k, ""))
                     if k == "name" else data[k] == (r["action_type"] if k == "kind" else r["fields"].get(k)))
                        for k in ("kind", "category", "state", "name"))]
-        if name:  # A blank or whitespace-only name filters nothing; it must not select nameless records.
+        if name:  # Exact names first, then partial matches, so "Ann" leads but "Ann Smith" stays visible (#60).
             exact = [r for r in rows if _normal_name(r["fields"].get("name", "")) == name]
-            rows = exact or rows
+            first = {r["action_id"] for r in exact}
+            rows = exact + [r for r in rows if r["action_id"] not in first]
         return [{"identity": r["action_id"], "kind": r["action_type"], **r["fields"]} for r in rows[:50]]
     if action not in {"confirm", "forget", "mark_filed"}:
         raise ValueError("unknown profile action")

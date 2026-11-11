@@ -219,14 +219,24 @@ def test_people_filing_and_action_readers(tmp_path, monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("action", ["list", "pending_files"])
-@pytest.mark.parametrize("query,expected", [
-    ("Ann", ["Ann"]), ("ann", ["Ann"]), (" ANN ", ["Ann"]),
-    ("Ａｎｎ", ["Ann"]), ("nett", ["Annette"]),
+@pytest.mark.parametrize("query,first,names", [
+    ("Ann", "Ann", {"Ann", "Joanne", "Annette"}), ("ann", "Ann", {"Ann", "Joanne", "Annette"}),
+    (" ANN ", "Ann", {"Ann", "Joanne", "Annette"}), ("Ａｎｎ", "Ann", {"Ann", "Joanne", "Annette"}),
+    ("nett", "Annette", {"Annette"}),
 ])
-def test_person_name_prefers_normalized_exact_match(tmp_path, action, query, expected):
+def test_person_name_puts_normalized_exact_match_first(tmp_path, action, query, first, names):
     for name in ("Ann", "Joanne", "Annette"):
         call(tmp_path, kind="person", name=name)
-    assert [r["name"] for r in call(tmp_path, action, name=query)] == expected
+    rows = call(tmp_path, action, name=query)
+    assert rows[0]["name"] == first and {r["name"] for r in rows} == names
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_exact_match_does_not_hide_a_longer_name(tmp_path, action):
+    # Asked for "Ann" when the draft is for Ann Smith, the agent still sees Ann Smith.
+    call(tmp_path, kind="person", name="Ann Smith")
+    call(tmp_path, kind="person", name="Ann")
+    assert [r["name"] for r in call(tmp_path, action, name="Ann")] == ["Ann", "Ann Smith"]
 
 
 @pytest.mark.parametrize("action", ["list", "pending_files"])
@@ -241,7 +251,7 @@ def test_person_name_falls_back_to_normalized_substring(tmp_path, action):
 def test_person_name_normalizes_stored_names_and_internal_whitespace(tmp_path, action):
     call(tmp_path, kind="person", name="Ａｎｎ\t  Smith")
     call(tmp_path, kind="person", name="Ann Smithson")
-    assert [r["name"] for r in call(tmp_path, action, name=" ann  smith ")] == ["Ａｎｎ\t  Smith"]
+    assert [r["name"] for r in call(tmp_path, action, name=" ann  smith ")] == ["Ａｎｎ\t  Smith", "Ann Smithson"]
 
 
 @pytest.mark.parametrize("action", ["list", "pending_files"])
@@ -249,17 +259,21 @@ def test_person_exact_selection_follows_filters_and_precedes_limit(tmp_path, act
     ann = call(tmp_path, kind="person", name="Ann")["action_id"]
     for n in range(55):
         call(tmp_path, kind="person", name=f"Annette {n}")
-    assert [r["identity"] for r in call(tmp_path, action, name="Ann")] == [ann]
+    found = call(tmp_path, action, name="Ann")
+    assert found[0]["identity"] == ann and len(found) == 50  # "Ann" is the oldest row; the cap would cut it last.
     call(tmp_path, "mark_filed", identities=[ann])
     rows = call(tmp_path, action, name="Ann", state="active")
     assert len(rows) == 50 and all(r["name"].startswith("Annette ") for r in rows)
     assert [r["identity"] for r in rows] == [r["identity"] for r in call(tmp_path, action, state="active")]
 
 
-def test_whitespace_name_does_not_select_nameless_records(tmp_path):
+@pytest.mark.parametrize("query", ["   ", ""])  # The tool schema rejects a null name before dispatch.
+def test_blank_name_filters_nothing(tmp_path, query):
     call(tmp_path, kind="person", name="Ann")
+    call(tmp_path, kind="person", name="None")
     pref(tmp_path, "Use a short greeting")
-    assert {r["kind"] for r in call(tmp_path, "list", name="   ")} == {"person", "preference"}
+    unfiltered = [r["identity"] for r in call(tmp_path, "list")]
+    assert [r["identity"] for r in call(tmp_path, "list", name=query)] == unfiltered
 
 
 def test_sop_versions_and_default_trust(tmp_path):
