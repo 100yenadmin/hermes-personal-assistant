@@ -380,3 +380,7 @@ def test_bad_value_after_schema_names_the_rules(tmp_path):
 
 def test_non_object_data_gets_a_plain_hint():
     assert contacts._shape_hint(["x"]) == "data must be an object with action, path and name"
+
+
+def test_null_action_is_named(tmp_path):
+    assert "action must be dedupe" in call(tmp_path, action=None)["error"]

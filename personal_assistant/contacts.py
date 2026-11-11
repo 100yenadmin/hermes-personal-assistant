@@ -75,7 +75,7 @@ def _shape_hint(data):
     if not isinstance(data, dict):
         return "data must be an object with action, path and name"
     action = data.get("action")
-    if action is not None and action != "dedupe":
+    if "action" in data and action != "dedupe":
         return "action must be dedupe"
     accepted = set(OP_SCHEMA["properties"])
     extra = [k for k in data if k not in accepted]
