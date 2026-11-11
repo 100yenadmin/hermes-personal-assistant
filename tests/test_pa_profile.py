@@ -271,13 +271,20 @@ def test_person_exact_selection_follows_filters_and_precedes_limit(tmp_path, act
     assert [r["identity"] for r in rows] == [r["identity"] for r in call(tmp_path, action, state="active")]
 
 
+@pytest.mark.parametrize("action", ["list", "pending_files"])
 @pytest.mark.parametrize("query", ["   ", ""])
-def test_blank_name_filters_nothing(tmp_path, query):
+def test_blank_name_filters_nothing(tmp_path, action, query):
     call(tmp_path, kind="person", name="Ann")
     call(tmp_path, kind="person", name="None")
     pref(tmp_path, "Use a short greeting")
-    unfiltered = [r["identity"] for r in call(tmp_path, "list")]
-    assert [r["identity"] for r in call(tmp_path, "list", name=query)] == unfiltered
+    assert call(tmp_path, action, name=query) == call(tmp_path, action)  # Whole rows: no match field either.
+
+
+def test_skills_treat_a_partial_name_match_as_someone_else():
+    for path in ("skills/personal-assistant/r6-inbox-replies/references/drafts-and-sends.md",
+                 "skills/follow-through/references/reminders-and-wakes.md"):
+        text = " ".join((Path(__file__).resolve().parents[1] / path).read_text().split())
+        assert 'use the row marked `"match":"exact"`. A partial row is someone else: if no row is exact, or more than one is, ask the owner which person they mean.' in text.replace("Use the row", "use the row")
 
 
 def test_sop_versions_and_default_trust(tmp_path):

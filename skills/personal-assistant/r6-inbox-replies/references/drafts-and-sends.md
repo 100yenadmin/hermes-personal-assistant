@@ -9,7 +9,8 @@ permits delete or label operations. A send approval does not authorize archive.
    and the manual's Voice section (tone and sign-off per audience).
 2. Read the person: `pa(operation="profile", data={"action":"list","name":"<name>"})`
    and follow their rules (formality, language, channel). Use the row marked
-   `"match":"exact"`; if none is exact and several people come back, ask the owner which one.
+   `"match":"exact"`. A partial row is someone else: if no row is exact, or more
+   than one is, ask the owner which person they mean.
 3. Read the thread itself with a read-only call
    (`gog -a <account> --readonly gmail thread get <threadId> --json`). The
    Daily Ops packet holds aliased senders and no bodies; quote nothing from it
