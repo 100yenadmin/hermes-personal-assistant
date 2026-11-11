@@ -1,3 +1,6 @@
+import json
+
+import pytest
 from pathlib import Path
 from unittest import mock
 
@@ -107,6 +110,30 @@ def test_invalid_install_and_missing_dependencies_are_not_actionable(tmp_path):
         assert result["ok"] is False
         assert result["status"] == status
         assert result["proposed_command"] is None
+
+
+@pytest.mark.parametrize("selected", [True, False])  # With and without a release on the channel (#210 review).
+def test_damaged_native_with_legacy_is_invalid_without_install_proposal(tmp_path, selected):
+    home = tmp_path / "home"
+    hermes = tmp_path / "hermes"
+    plugin = hermes / "plugins" / "personal-assistant"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.yaml").write_text("name: [unterminated\n")
+    legacy = home / ".openclaw" / "workspace" / "packages" / "travel-agent-skills"
+    legacy.mkdir(parents=True)
+    (legacy / "openclaw.plugin.json").write_text(json.dumps({
+        "id": "travel-agent-skills", "version": "0.3.0",
+    }))
+    with mock.patch.object(check_release, "select_release", return_value=release() if selected else None), \
+         mock.patch.object(check_release, "resolve_tag_commit", return_value="b" * 40):
+        result = check_release.check_release(
+            gh="unused", repository="owner/repo", channel="pilot",
+            system_home=home, hermes_home=hermes,
+        )
+    assert result["ok"] is False
+    assert result["status"] == "installed_invalid"
+    assert result["installed"]["migration_required"] is False
+    assert result["proposed_command"] is None
 
 
 def test_unknown_source_identity_is_not_reported_ready_or_actionable(tmp_path):

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from evals.lab.checks import submit_events
 from ._portable import portable
+from .personas import PERSONAS
 from .areas import AREAS, PARITY
 
 
@@ -193,6 +194,72 @@ def _pa_ref(refs):
     return pick[0].get("ref") if pick else None
 
 
+def _index(run, folder):
+    """The run's number within its scenario: run.json `index`, else the folder's __rNNN suffix; None if neither."""
+    index = run.get("index")
+    if isinstance(index, int) and not isinstance(index, bool) and index > 0:
+        return index
+    match = re.search(r"__r(\d+)$", folder.name)
+    return int(match.group(1)) if match and int(match.group(1)) > 0 else None
+
+
+def _why(run, checks, judge, hits):
+    """One line on why a counted run failed: run status, tripwire, failed checks, then the judge's first failure."""
+    parts = []
+    if run.get("status") != "ok" or "end" not in run:
+        parts.append(f"run {run.get('status', 'incomplete')}")
+    if hits:
+        parts.append(f"{hits} final-submit tripwire hit(s)")
+    overall = checks.get("overall") if isinstance(checks.get("overall"), dict) else {}
+    failed = [k for k, v in overall.items() if v is not True]
+    steps = checks.get("steps") if isinstance(checks.get("steps"), list) else []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        name = step.get("capability", "step")
+        bad = [f"{name}:{k}" for k, v in step["checks"].items() if v is not True] if isinstance(step.get("checks"), dict) else []
+        failed += bad or ([f"{name}:step"] if step.get("pass") is False else [])
+    if failed:
+        parts.append("checks failed: " + ", ".join(failed[:4]) + (" and more" if len(failed) > 4 else ""))
+    if judge.get("pass") is not True:
+        failures = judge.get("failures") if isinstance(judge.get("failures"), list) else []
+        first = str(failures[0]) if failures else "failed"
+        parts.append("judge: " + (first if len(first) <= 240 else first[:239] + "…"))
+    return "; ".join(parts) or "failed"
+
+
+def _fire_week(runs, weeks_seen):
+    """Stitch week N from run N of each persona scenario; the owner fires PA at the first failing run.
+
+    A persona's weeks are the run numbers seen in its own scenarios, counted or excluded, so a week whose runs
+    were all excluded is reported incomplete rather than dropped.
+    """
+    by = {}
+    for r in runs:
+        if r["index"] is not None:
+            by.setdefault((r["scenario"], r["index"]), []).append(r)
+    personas = []
+    for persona in PERSONAS:
+        weeks = sorted({w for _, s in persona["days"] for w in weeks_seen.get(s, set()) if w is not None})
+        results = []
+        for week in weeks:
+            result = {"week": week, "result": "kept"}
+            for day, scenario in persona["days"]:
+                found = by.get((scenario, week), [])
+                if len(found) != 1:
+                    result = {"week": week, "result": "incomplete" if not found else "ambiguous", "day": day, "scenario": scenario}
+                    break
+                if not found[0]["passed"]:
+                    result = {"week": week, "result": "fired", "day": day, "scenario": scenario,
+                              "run": found[0]["run"], "reason": found[0]["why"]}
+                    break
+            results.append(result)
+        personas.append({"key": persona["key"], "title": persona["title"],
+                         "days": max(day for day, _ in persona["days"]), "scenarios": [s for _, s in persona["days"]],
+                         "weeks": results, "kept": sum(r["result"] == "kept" for r in results)})
+    return {"kind": "stitched", "personas": personas}
+
+
 def build(version, commit, lab_dirs, live=None, as_of=None):
     """Count only full-SHA-matching completed runs; retain an exclusion for all others."""
     _require(isinstance(version, str) and bool(version.strip()), "version")
@@ -202,7 +269,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
     day30 = _day30({**live, "tasks": [t for t in live["tasks"] if _date(t["started"], "started") <= today]}, today)
     catalogue = deepcopy(AREAS)
     mapped = {t["scenario"] for a in catalogue for t in a["tests"]}
-    runs, excluded, roots, seen, named = [], [], [], set(), {}
+    runs, excluded, roots, seen, named, weeks_seen = [], [], [], set(), {}, {}
     for directory in lab_dirs:
         root = Path(directory)
         _require(root.is_dir(), "lab_dirs")
@@ -216,6 +283,7 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
             _require(isinstance(run, dict), f"{folder.name}.run")
             _require(isinstance(scenario, dict) and isinstance(scenario.get("id"), str), f"{folder.name}.scenario.id")
             sid = scenario["id"]
+            weeks_seen.setdefault(sid, set()).add(_index(run, folder))  # Excluded runs still name a week that was planned.
             run_id = f"{lab_name}/{folder.name}"
             start, given = run.get("start"), run.get("run_id")
             well_formed = _finite(start) and (given is None or isinstance(given, str)) \
@@ -255,7 +323,8 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
                 and all(v is True for v in overall.values())
             passed = bool(safe and checks.get("all_pass") is True and judge.get("pass") is True)
             seen.add(identity)
-            runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks})
+            runs.append({"run": run_id, "scenario": sid, "passed": passed, "checks": checks, "index": _index(run, folder),
+                         "why": None if passed else _why(run, checks, judge, hits)})
     for area in catalogue:
         for test in area["tests"]:
             test.setdefault("covers", [])
@@ -282,4 +351,5 @@ def build(version, commit, lab_dirs, live=None, as_of=None):
               "partial": {s: sum(a["partial"]["state"] == s for a in catalogue) for s in ("pass", "fail", "incomplete", "none")},
               "parity": {s: sum(a["parity"] == s for a in catalogue) for s in ("pass", "fail", "unproven")}}
     return portable({"version": version, "commit": commit, "as_of": today.isoformat(), "areas": catalogue,
-                     "day30": day30, "excluded": excluded, "counts": counts, "lab_dirs": roots, "schema": 1})
+                     "day30": day30, "fire_week": _fire_week(runs, weeks_seen), "excluded": excluded, "counts": counts,
+                     "lab_dirs": roots, "schema": 1})

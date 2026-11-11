@@ -5,7 +5,7 @@
   "author": {
     "name": "ElectricSheep"
   },
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "skills": "./skills/",
   "interface": {
     "displayName": "Personal Assistant Plugin",

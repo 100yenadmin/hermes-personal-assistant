@@ -2,6 +2,7 @@
   "name": "travel-agent-skills",
   "version": "0.19.0-rc.1",
   "description": "Personal assistant travel skills with trip/action ledgers, Browserbase checkout continuity, payment readiness, food/rideshare/check-in/provider-message flows, final-state confirmation, and proof capture.",
+  "license": "Apache-2.0",
   "skills": "../",
   "interface": {
     "displayName": "Personal Assistant Plugin",

@@ -63,7 +63,9 @@ def evaluate(root, scenario, index, messages, tools):
     db = read(root / f"ledger-step-{index}.json", read(root / "ledger.json", {}))
     # Stable identity components live in the call, not the ledger schema; bind them through its returned action_id.
     ids = {r.get("action_id") for a, r in saved if a.get("source_id") == "content-calendar"}
-    rows = [r for r in db.get("actions", []) if r.get("action_id") in ids or fields(r).get("publish_on")]
+    # A slot PA cancelled while fixing the plan is honest bookkeeping, not an extra post (0.19 wave, s38 r002).
+    rows = [r for r in db.get("actions", []) if (r.get("action_id") in ids or fields(r).get("publish_on"))
+            and r.get("status") != "cancelled"]
     def recorded(key, slot):
         channel, day = key
         matches = [(a, r) for a, r in saved if a.get("source_id") == "content-calendar" and a.get("action_kind") == "content"

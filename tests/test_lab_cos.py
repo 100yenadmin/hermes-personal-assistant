@@ -465,7 +465,11 @@ def test_outcome_and_setup_wording_variants(tmp_path):
                            (original.replace("Ignored:", "Ignored / explicitly used:"), False),
                            (original.replace("Ignored: prior export benchmark, explicit skip.\n", ""), False),
                            (original.replace("Ignored:", "Ignored/used:"), False),
-                           (original.replace("Declined:", "Used/declined:"), False)):
+                           (original.replace("Declined:", "Used/declined:"), False),
+                           # The 0.19.0-rc.1 wave's table (s16 r001): one row per outcome.
+                           ("| Outcome | Evidence |\n|---|---|\n| **Used** | a |\n| **Declined** | b |\n| **Ignored / skipped** | c |\n| **Unknown** | d |", True),
+                           ("| Outcome | Evidence |\n|---|---|\n| **Used** | a |\n| **Declined** | b |\n| **Unknown** | d |", False),
+                           ("| Outcome | Evidence |\n|---|---|\n| **Used / declined** | a |\n| **Ignored** | c |\n| **Unknown** | d |", False)):
         path.write_text(json.dumps({**message, "message": text}) + "\n")
         assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["separate_outcomes"] is expected
     path.write_text(json.dumps(message) + "\n")
