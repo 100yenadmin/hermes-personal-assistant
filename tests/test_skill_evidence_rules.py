@@ -33,3 +33,13 @@ def test_content_cadence_is_counted_per_week():
     # A new slot at an hour that has gone is not a plan; an event today gets a question, not a move (#207 review).
     assert "a slot in quiet hours, a new slot at a time already past, or a slot past the window" in body
     assert "ask once if it is unknown, conflicts with quiet hours, or has passed on the day of an event you must cover" in body
+
+
+def test_content_slots_never_make_up_an_action_id():
+    body = text("content-admin")
+    # 0.20 preview wave, s38 r003: source, kind and occurrence went inside fields with a hand-made
+    # action_id, so the ledger bound no slot and a re-plan would have duplicated every post.
+    assert "keeping source, kind and occurrence outside `fields` and never making up an `action_id`" in body
+    # Cancelling by the listed id avoids rebuilding the occurrence by hand (#207 follow-up review).
+    assert 'Send only `"status":"cancelled"`, with its listed `action_id`, for each open slot' in body
+    assert '"source_id":"content-calendar", "action_kind":"content", "occurrence":"<channel>-<YYYY-MM-DD>"' in body
