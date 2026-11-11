@@ -36,6 +36,7 @@ Count: 0
 - Triage at least twice a day: urgent / needs-you / handled / FYI / junk
 - Track every open thread to a reply or decision
 - Meet the agreed SLA
+- Filter newsletters and spam without being asked
 
 ### Calendar
 
@@ -118,6 +119,7 @@ Count: 0
 
 ### Working norms
 
+- Report daily, weekly and immediately on exceptions
 - Keep confidential details inside the role and agreed systems
 - Use explicit correct time zones and plan holidays
 - Check outbound facts, totals, links, attachments and placeholders; log errors and fixes

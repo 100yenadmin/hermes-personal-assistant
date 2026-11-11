@@ -32,8 +32,7 @@
       "tests": [
         {
           "covers": [
-            1,
-            5
+            1
           ],
           "kind": "partial",
           "label": "read-but-unanswered threads surfaced, tracked and drafted; one exact junk archive offer; nothing moved",
@@ -69,7 +68,8 @@
       "uncovered_duties": [
         "Triage at least twice a day: urgent / needs-you / handled / FYI / junk",
         "Track every open thread to a reply or decision",
-        "Meet the agreed SLA"
+        "Meet the agreed SLA",
+        "Filter newsletters and spam without being asked"
       ]
     },
     {
@@ -1076,7 +1076,6 @@
         {
           "covers": [
             1,
-            2,
             4
           ],
           "kind": "partial",
@@ -1094,6 +1093,7 @@
       ],
       "title": "Working norms",
       "uncovered_duties": [
+        "Report daily, weekly and immediately on exceptions",
         "Keep confidential details inside the role and agreed systems",
         "Use explicit correct time zones and plan holidays",
         "Check outbound facts, totals, links, attachments and placeholders; log errors and fixes",
