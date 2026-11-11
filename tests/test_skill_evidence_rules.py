@@ -30,3 +30,5 @@ def test_content_cadence_is_counted_per_week():
     assert "Reply with the calendar grouped by those weeks: each week's dates, its slots in date order, and each channel's count for that week" in body
     assert "move or add slots until every week fits the cadence, and if these rules make that impossible, say so" in body
     assert "State a cadence only after that count" in body
+    # Today's slot at an hour that has gone is not a plan (0.19 cadence rerun, judge note).
+    assert "a slot in quiet hours or at a time already past, or a slot past the window" in body
