@@ -9,6 +9,7 @@ Your Hermes agent runs errands on the real sites, fills every field, and stops a
 https://github.com/user-attachments/assets/d6ebc14a-2532-4791-ac11-2998da7e3896
 
 [![Latest stable release](https://img.shields.io/github/v/release/100yenadmin/hermes-personal-assistant?label=stable)](https://github.com/100yenadmin/hermes-personal-assistant/releases/latest)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Hermes >= 0.21.1](https://img.shields.io/badge/Hermes-%3E%3D%200.21.1-informational)](https://github.com/NousResearch/hermes-agent)
 
 ## Install
@@ -333,3 +334,7 @@ name `travel-agent-skills`, existing travel-qualified skill names, and profile
 ledger path `state/travel-ledger/travel.sqlite` are retained compatibility
 identities. Installation, upgrades, and rollback may depend on them; changing
 them requires a separate migration rather than a documentation rename.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
