@@ -148,7 +148,9 @@ def evaluate_step(root, scenario, index, messages, tools):
             result["scout_decision"] = f.get("disposition") in ("adopt", "trial", "watch", "ignore")
             result["follow_up"] = aware(f.get("follow_up_at"))
         else:
+            # A labelled line ("Used: …") or a table row ("| Used | …") per outcome (0.19 wave, s16 r001).
             result["separate_outcomes"] = all(re.search(r"(?im)^\s*(?:[-#]+\s*)?" + word + r"\s*[:—-]", label_text)
+                                               or re.search(r"(?im)^\s*\|\s*" + word + r"\s*\|", label_text)
                                                for word in OUTCOME_LABELS)
             labels = {k: len(re.findall(r"(?im)^\s*(?:[-#]+\s*)?" + k + r"\s*:", label_text)) for k in ("Old", "New", "Evidence", "Rollback")}
             result["one_proposal_format"] = (all(n == 0 for n in labels.values()) or
