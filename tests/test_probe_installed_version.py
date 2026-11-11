@@ -45,6 +45,8 @@ def test_native_profile_precedes_legacy_and_separates_runtime_evidence(tmp_path)
     assert result["observed_commit"] == "a" * 40
     assert result["installed"] is True and result["enabled"] is True
     assert result["loaded"] is None and result["exercised"] is None
+    assert result["migration_required"] is False
+    assert result["package_path"] == str(hermes / "plugins" / "personal-assistant")
 
 
 def test_missing_declared_dependency_is_truthful_failure(tmp_path):
@@ -202,6 +204,38 @@ def make_legacy_profile(tmp_path):
         path.mkdir(parents=True)
         (path / "SKILL.md").write_text(f"# {skill}\n")
     return home, hermes
+
+
+@pytest.mark.parametrize("native_state, has_legacy", [
+    ("malformed", True), ("missing", True), ("missing", False), ("file", True),
+])
+def test_damaged_native_target_is_invalid_not_legacy_migration(tmp_path, native_state, has_legacy):
+    if has_legacy:
+        home, hermes = make_legacy_profile(tmp_path)
+    else:
+        home, hermes = tmp_path / "home", tmp_path / "hermes"
+    plugin = hermes / "plugins" / "personal-assistant"
+    if native_state == "file":
+        plugin.parent.mkdir(parents=True)
+        plugin.write_text("occupied target\n")
+    else:
+        plugin.mkdir(parents=True)
+        if native_state == "malformed":
+            (plugin / "plugin.yaml").write_text("name: [unterminated\n")
+
+    result = probe_installed_version.probe(home, hermes)
+
+    assert result == {
+        "ok": False,
+        "component_id": probe_installed_version.COMPONENT_ID,
+        "native_id": probe_installed_version.NATIVE_ID,
+        "installed": True,
+        "install_ok": False,
+        "invalid_reason": f"native plugin manifest is missing or unreadable: {plugin / 'plugin.yaml'}",
+        "package_path": str(plugin),
+        "migration_required": False,
+        "source_kind": "native_invalid",
+    }
 
 
 def test_legacy_only_requires_native_migration(tmp_path):
