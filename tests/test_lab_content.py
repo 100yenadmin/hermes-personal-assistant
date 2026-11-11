@@ -273,3 +273,17 @@ def test_replan_listing_shows_posted_and_dropped_slots(tmp_path):
     assert row["fields"]["dropped_by"] == "owner"
     text = (ROOT / "skills/content-admin/SKILL.md").read_text()
     assert '"kind":"action"' in text and "dropped_by" in text and "Never upsert a `completed` slot" in text
+
+
+def test_a_slot_cancelled_while_fixing_the_plan_is_not_an_extra_post(tmp_path):
+    """0.19 wave, s38 r002: PA cancelled a slot and added another to fix the cadence; the cancelled row is bookkeeping."""
+    s, summary, prose, tools, ledger = synthetic(tmp_path, lambda summary: None)
+    extra = {**ledger["actions"][0], "action_id": "cancelled-slot", "status": "cancelled",
+             "fields": {**ledger["actions"][0]["fields"], "publish_on": "2026-11-30"}}
+    ledger["actions"].append(extra)
+    assert evaluated(tmp_path, (s, summary, prose, tools, ledger))["steps"][0]["checks"]["recorded"]
+    ledger["actions"][-1] = {**extra, "status": "open"}  # An open row beyond the calendar still fails.
+    assert not evaluated(tmp_path, (s, summary, prose, tools, ledger))["steps"][0]["checks"]["recorded"]
+    ledger["actions"].pop()
+    ledger["actions"][0] = {**ledger["actions"][0], "status": "cancelled"}  # A calendar slot cancelled still fails.
+    assert not evaluated(tmp_path, (s, summary, prose, tools, ledger))["steps"][0]["checks"]["recorded"]
