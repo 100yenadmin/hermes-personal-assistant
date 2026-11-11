@@ -944,3 +944,12 @@ def test_fire_me_week_without_numbered_runs(tmp_path, monkeypatch):
     c = card(tmp_path)
     assert c["fire_week"]["personas"][0]["weeks"] == []
     assert "- Solo founder: no numbered runs for its scenarios." in markdown(c)
+
+
+def test_partial_rows_credit_only_what_they_exercise():
+    # #202 review: an archive offer that moves nothing is not spam filtering; two synthetic days prove no weekly report.
+    def covered(key, duty):
+        area = next(a for a in AREAS if a["key"] == key)
+        return any(area["duties"].index(duty) in t["covers"] for t in area["tests"])
+    assert not covered("inbox", "Filter newsletters and spam without being asked")
+    assert not covered("working_norms", "Report daily, weekly and immediately on exceptions")
