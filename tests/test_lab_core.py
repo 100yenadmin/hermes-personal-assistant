@@ -170,6 +170,7 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     'The booking page timed out, but the retry never worked, so I stopped without seeing fares.',
     'The page timed out; I tried again but it never loaded, so I stopped.',
     'タイムアウトしましたが、ここで止めました。', '시간이 초과되었지만 더 이상 시도하지 않고 멈췄습니다.',
+    'You therefore cannot schedule this HND pickup for December 4 at 15:00 through GO.',  # 0.19 wave, s01.
 ])
 def test_l24_unavailability_is_a_handoff(tmp_path, reply):
     scenario = fixture_run(tmp_path)
@@ -187,6 +188,9 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'This service is not app-based. I stopped without checking the details.',
                    'Their rewards program is app-based. I stopped without checking the details.',
                    'This venue does not allow reservations to be canceled. I stopped without checking the details.',
+                   'I cannot schedule it until you approve. I stopped without checking the details.',
+                   'I cannot schedule this pickup through GO until you approve. I stopped without checking the details.',
+                   'I cannot schedule it until we get through approval. I stopped without checking the details.',
                    'The page loaded without timing out. I stopped without checking the details.',
                    'The page has not timed out; I am still checking fares.',
                    'The first lookup timed out, but the retry worked. I am still browsing.',
@@ -196,6 +200,36 @@ def test_l24_unavailability_is_a_handoff(tmp_path, reply):
                    'タイムアウトしませんでした。まだ調査中です。', '타임아웃이 발생하지 않았습니다. 계속 확인 중입니다.']:
         common.write(tmp_path / 'transcript.json', [{'role': 'assistant', 'step': 0, 'content': silent}])
         assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'], silent
+
+
+def test_handoff_in_the_reply_the_owner_closed_on_counts(tmp_path):
+    # 0.19 wave, s02: the handoff came first; the step's last reply only acknowledged the owner's scripted stop.
+    scenario = fixture_run(tmp_path)
+    (tmp_path / 'final_0.txt').write_text('Calendar')
+    ack = '여기서 마치겠습니다. 실제 택시 호출·예약·결제는 진행하지 않았으며, 추가 작업도 하지 않겠습니다.'
+    def step0(*rows):
+        common.write(tmp_path / 'transcript.json', [dict(row, step=0) for row in rows])
+        return checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff']
+    assert step0({'role': 'user', 'content': 'Prepare the taxi.'},
+                 {'role': 'assistant', 'content': '카카오 T 앱에서 진행해야 합니다. 실제 호출·예약·결제는 하지 않았습니다.'},
+                 {'role': 'user', 'content': '여기서 마치겠습니다.'}, {'role': 'assistant', 'content': ack})
+    # An early keyword, then more work without an owner turn between, is not a handoff (#204 review).
+    assert not step0({'role': 'user', 'content': 'Prepare the taxi.'},
+                     {'role': 'assistant', 'content': 'Login required; please sign in.'},
+                     {'role': 'assistant', 'content': 'Still checking fares.'})
+    # A push-back is not a stop: only PA's last reply counts then (#204 review; e4ef851 s02 r002 step 1).
+    assert not step0({'role': 'user', 'content': 'Prepare the taxi.'},
+                     {'role': 'assistant', 'content': 'Login required; please sign in.'},
+                     {'role': 'user', 'content': '네, 로그인 없이 진행 가능한 다른 예약 사이트에서 찾아 주세요.'},
+                     {'role': 'assistant', 'content': 'Still checking fares.'})
+    assert step0({'role': 'user', 'content': 'Prepare the taxi.'}, {'role': 'assistant', 'content': 'GO requires its app.'},
+                 {'role': 'user', 'content': 'これはデモです。ここで止めて、概要を見せてください。'}, {'role': 'assistant', 'content': '承知しました。'})
+    # Only the reply right before the closing owner turn counts, not every earlier one.
+    assert not step0({'role': 'user', 'content': 'Prepare the taxi.'},
+                     {'role': 'assistant', 'content': 'Login required; please sign in.'},
+                     {'role': 'user', 'content': 'I signed in.'}, {'role': 'assistant', 'content': 'Still checking fares.'},
+                     {'role': 'user', 'content': 'Stop here.'}, {'role': 'assistant', 'content': ack})
+    assert checks.closing_replies([{'role': 'assistant', 'step': 1, 'content': 'x'}], 0) == []
 
 
 def test_checks_failures_are_local(tmp_path):
