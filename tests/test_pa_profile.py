@@ -218,6 +218,75 @@ def test_people_filing_and_action_readers(tmp_path, monkeypatch, capsys):
     assert call(tmp_path, "pending_files")[0]["rules"] == ["Use a short greeting"]
 
 
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+@pytest.mark.parametrize("query,expected", [
+    ("Ann", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    ("ann", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    (" ANN ", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    ("Ａｎｎ", [("Ann", "exact"), ("Annette", "partial"), ("Joanne", "partial")]),
+    ("nett", [("Annette", "partial")]),
+])
+def test_person_name_puts_normalized_exact_match_first(tmp_path, action, query, expected):
+    for name in ("Ann", "Joanne", "Annette"):  # Newest first by default, so "Ann" would come last.
+        call(tmp_path, kind="person", name=name)
+    assert [(r["name"], r["match"]) for r in call(tmp_path, action, name=query)] == expected
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_exact_match_does_not_hide_a_longer_name(tmp_path, action):
+    # Asked for "Ann" when the draft is for Ann Smith, the agent still sees Ann Smith, marked partial.
+    work = call(tmp_path, kind="person", name="Ann", slug="ann-work")["action_id"]
+    home = call(tmp_path, kind="person", name="Ann", slug="ann-home")["action_id"]
+    smith = call(tmp_path, kind="person", name="Ann Smith")["action_id"]
+    rows = call(tmp_path, action, name="Ann", kind="person")
+    assert [(r["identity"], r["match"]) for r in rows] == [(home, "exact"), (work, "exact"), (smith, "partial")]
+    assert all("match" not in r for r in call(tmp_path, action, kind="person"))  # Only a name lookup is marked.
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_person_name_falls_back_to_normalized_substring(tmp_path, action):
+    for name in ("Joanne", "Annette"):
+        call(tmp_path, kind="person", name=name)
+    assert {r["name"] for r in call(tmp_path, action, name=" Ａｎｎ ")} == {"Joanne", "Annette"}
+    assert {r["name"] for r in call(tmp_path, action, name="Ann")} == {"Joanne", "Annette"}
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_person_name_normalizes_stored_names_and_internal_whitespace(tmp_path, action):
+    call(tmp_path, kind="person", name="Ａｎｎ\t  Smith")
+    call(tmp_path, kind="person", name="Ann Smithson")
+    assert [r["name"] for r in call(tmp_path, action, name=" ann  smith ")] == ["Ａｎｎ\t  Smith", "Ann Smithson"]
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+def test_person_exact_selection_follows_filters_and_precedes_limit(tmp_path, action):
+    ann = call(tmp_path, kind="person", name="Ann")["action_id"]
+    for n in range(55):
+        call(tmp_path, kind="person", name=f"Annette {n}")
+    found = call(tmp_path, action, name="Ann")
+    assert found[0]["identity"] == ann and len(found) == 50  # "Ann" is the oldest row; the cap would cut it last.
+    call(tmp_path, "mark_filed", identities=[ann])
+    rows = call(tmp_path, action, name="Ann", state="active")
+    assert len(rows) == 50 and all(r["name"].startswith("Annette ") for r in rows)
+    assert [r["identity"] for r in rows] == [r["identity"] for r in call(tmp_path, action, state="active")]
+
+
+@pytest.mark.parametrize("action", ["list", "pending_files"])
+@pytest.mark.parametrize("query", ["   ", ""])
+def test_blank_name_filters_nothing(tmp_path, action, query):
+    call(tmp_path, kind="person", name="Ann")
+    call(tmp_path, kind="person", name="None")
+    pref(tmp_path, "Use a short greeting")
+    assert call(tmp_path, action, name=query) == call(tmp_path, action)  # Whole rows: no match field either.
+
+
+def test_skills_treat_a_partial_name_match_as_someone_else():
+    for path in ("skills/personal-assistant/r6-inbox-replies/references/drafts-and-sends.md",
+                 "skills/follow-through/references/reminders-and-wakes.md"):
+        text = " ".join((Path(__file__).resolve().parents[1] / path).read_text().split())
+        assert 'use the row marked `"match":"exact"`. A partial row is someone else: if no row is exact, or more than one is, ask the owner which person they mean.' in text.replace("Use the row", "use the row")
+
+
 def test_sop_versions_and_default_trust(tmp_path):
     data = dict(kind="sop", title="Weekly prep", trigger="Friday", steps=["Read calendar"], tools=["calendar"], done_when="Draft ready", escalation="Ask owner")
     first = call(tmp_path, **data)
@@ -228,6 +297,27 @@ def test_sop_versions_and_default_trust(tmp_path):
     assert second["fields"]["changelog"][-1]["change"] == "Add agenda"
     assert call(tmp_path, **{**data, "steps": second["fields"]["steps"], "state": "owned"})["fields"]["state"] == "owned"
     assert call(tmp_path, kind="trust", task_type="meeting prep")["fields"]["level"] == "shadow"
+
+
+def test_sop_changelog_keeps_latest_ten_entries_and_version(tmp_path):
+    data = dict(kind="sop", title="Weekly prep", trigger="Friday", steps=["Read calendar"], tools=["calendar"], done_when="Draft ready", escalation="Ask owner")
+    call(tmp_path, **data)
+    for n in range(1, 13):
+        latest = call(tmp_path, **{**data, "steps": [f"Read calendar revision {n}"]}, change=f"Correction {n}")
+    fields = latest["fields"]
+    assert fields["version"] == 13 and len(fields["changelog"]) == 10
+    assert [entry["version"] for entry in fields["changelog"]] == list(range(4, 14))
+    assert [entry["change"] for entry in fields["changelog"]] == [f"Correction {n}" for n in range(3, 13)]
+
+
+@pytest.mark.parametrize("length", [200, 300])
+def test_sop_changelog_bounds_change_text(tmp_path, length):
+    data = dict(kind="sop", title="Weekly prep", trigger="Friday", steps=["Read calendar"], tools=["calendar"], done_when="Draft ready", escalation="Ask owner")
+    call(tmp_path, **data)
+    fields = call(tmp_path, **{**data, "steps": ["Draft agenda"]}, change="x" * length)["fields"]
+    change = fields["changelog"][-1]["change"]
+    assert len(change) == 200
+    assert change == ("x" * 199 + "…" if length > 200 else "x" * 200)
 
 
 @pytest.fixture
