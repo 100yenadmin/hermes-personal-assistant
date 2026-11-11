@@ -43,6 +43,11 @@ def enabled(scenario):
 
 def configure(hh, scenario):
     """Must happen before PluginManager discovery, including on-demand scout."""
+    if scenario.get("lab", {}).get("clock") == "shifted":
+        path = hh / "config.yaml"
+        config = yaml.safe_load(path.read_text())
+        config["timezone"] = scenario["timezone"]  # Hermes' prompt date uses the owner zone too.
+        path.write_text(yaml.safe_dump(config))
     if not enabled(scenario):
         return
     path = hh / "config.yaml"
@@ -220,9 +225,14 @@ def pa_context_copies(api):
     return list({id(m): m for m in copies if hasattr(m, "read_kanban_task")}.values())
 
 
-def session_id(root, start, step=None):
+def session_id(root, start, step=None, *, local=False):
     suffix = str(root) + (":step" + str(step) if step is not None else "")
-    return (dt.datetime.fromtimestamp(start, dt.timezone.utc).strftime("%Y%m%d_%H%M%S_")
+    stamp = dt.datetime.fromtimestamp(start, dt.timezone.utc)
+    # Hermes interprets the embedded stamp in the host zone, then converts it to
+    # the configured owner zone. Preserve the historical UTC path for other labs.
+    if local:
+        stamp = stamp.astimezone()
+    return (stamp.strftime("%Y%m%d_%H%M%S_")
             + hashlib.sha256(suffix.encode()).hexdigest()[:6])
 
 
@@ -239,6 +249,9 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
     before = protected_files(hh)
     history, transcript, scratch = [], [], ""
     meta["scheduled_turns"] = []
+    shifted_clock = scenario.get("lab", {}).get("clock") == "shifted"
+    if shifted_clock:
+        meta["clock_offsets"], meta["clock_modules"] = {}, {}
     from .scenario import SESSION_KINDS
     session = session_id(root, meta.get("start", 0)) if scenario.get("lab", {}).get("kind") in SESSION_KINDS else None
     if session:
@@ -249,9 +262,11 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
             if step.get("new_session"):
                 history = []
                 session = session_id(root, meta.get("start", 0), index)
+            values = variables(scenario["timezone"], moment, step.get("hour", 12), step.get("day", 0))
+            if shifted_clock and (index == 0 or step.get("new_session")):
+                session = session_id(root, dt.datetime.fromisoformat(values["now"]).timestamp(), index, local=True)
             if session:
                 meta["sessions"][str(index)] = session
-            values = variables(scenario["timezone"], moment, step.get("hour", 12), step.get("day", 0))
             scheduled = step.get("type") == "scheduled"
             role_turn = step.get("type") == "role_turn"
             if scheduled:
@@ -290,7 +305,15 @@ def dialogue(hh, root, package, scenario, api, turn, observer, meta, ledger):
                 from .runner import system_prompt
                 system = system_prompt(scenario) + "\nSynthetic clock: " + values["now"]
                 write(root / "transcript.json", transcript)  # Tripwire sees only earlier simulated-user turns.
-            with (nullcontext() if role_turn else cron_scope(scheduled)):
+            clock_scope = nullcontext()
+            if shifted_clock:
+                from .clock import shifted
+                offset = dt.datetime.fromisoformat(values["now"]) - dt.datetime.now(dt.timezone.utc)
+                meta["clock_offsets"][str(index)] = offset.total_seconds()
+                clock_scope = shifted(api, offset)
+            with clock_scope as patched, (nullcontext() if role_turn else cron_scope(scheduled)):
+                if shifted_clock:
+                    meta["clock_modules"][str(index)] = patched
                 result = turn(message, system=system, hist=history, platform="cron" if scheduled else None,
                               **({"session_id": session} if session else {}))
             history = result.get("messages") or []
