@@ -117,3 +117,11 @@ def test_closeout_records_carry_over_for_the_kickoff():
     state = " ".join(STATE_REFERENCE.read_text().split())
     assert "all five CoS skills" in state and "kickoff `cos:kickoff:<week of the next closeout>`" in state
     assert "cos-kickoff" in state and "`carry_over`" in state
+
+
+def test_radar_offers_calendar_setup_in_plain_words():
+    # 0.19.0-rc.1 rerun, s16: "Calendar setup requires a separate authorized step" stood in for the offer.
+    text = " ".join((ROOT / "skills/cos-radar/SKILL.md").read_text().split())
+    assert 'offer to set one up in plain words ("I can set up calendar access now if you want")' in text
+    assert "Saying that setup needs a separate step does not replace the offer." in text
+    assert "Never start a login silently." in text
