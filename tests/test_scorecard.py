@@ -125,10 +125,11 @@ def test_simulated_call_credit_is_limited_to_checked_phone_duties(tmp_path):
     phone = area(card(tmp_path), "phone")
     assert [t["scenario"] for t in phone["tests"]] == ["s04_call_ryokan_ja", "s05_call_restaurant_ko", "s06_call_shop_ja",
                                                       "s07_inbound_hotel_ja", "s08_inbound_restaurant_ko"]
-    assert all(t["kind"] == "partial" and t["covers"] == [0, 4] and t["label"].startswith("simulated ") for t in phone["tests"])
+    assert all(t["kind"] == "partial" and t["covers"] == [0] and t["label"].startswith("simulated ") for t in phone["tests"])
     s05 = next(t for t in phone["tests"] if t["scenario"] == "s05_call_restaurant_ko")
     assert s05["state"] == "pass"
-    # Screening callers, relaying next steps and preferred channels stay unproven; so does the area and parity.
+    # Screening, relaying, preferred channels and the no-disclosure duty stay uncovered; so do the area and parity.
+    assert phone["uncovered_duties"] == phone["duties"][1:]
     assert phone["lab"] == "unproven" and phone["parity"] == "unproven"
 
 

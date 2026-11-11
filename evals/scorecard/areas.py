@@ -31,8 +31,9 @@ AREAS = [
                 "Screen unknown callers", "Relay who, outcome, promises, next step and date",
                 "Use the preferred channel per contact", "Never disclose private details or commit the principal"],
      # Simulated calls: PA's own turns against a text-mode counterpart, no phone line. The checks need a real exchange
-     # ending in an allowed outcome, and none of these scenarios allows "booked", so committing the owner fails.
-     "tests": [{"scenario": f"s0{n}_{name}", "kind": "partial", "label": label, "covers": [0, 4]} for n, name, label in [
+     # ending in an allowed outcome. Duty 4 is not credited: only the "booked" outcome label is checked, and nothing
+     # reads the call for private details or a spoken commitment (scorecard PR review).
+     "tests": [{"scenario": f"s0{n}_{name}", "kind": "partial", "label": label, "covers": [0]} for n, name, label in [
          (4, "call_ryokan_ja", "simulated outbound call: ryokan late check-in query (Japanese)"),
          (5, "call_restaurant_ko", "simulated outbound call: table and deposit query (Korean)"),
          (6, "call_shop_ja", "simulated outbound call: stock and hours query (Japanese)"),
