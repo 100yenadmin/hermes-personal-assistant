@@ -53,6 +53,12 @@ A present, non-list `python_dependencies` returns only `ok: false`,
 `installed`, `install_ok: false`, and `invalid_reason` naming the field and its
 type; dependency values and other manifest contents are omitted.
 
+An occupied native target (a folder, file or link at the plugin path) without a
+readable manifest returns only `ok: false`, `component_id`, `native_id`,
+`installed: true`, `install_ok: false`, `invalid_reason`, `package_path`,
+`migration_required: false` and `source_kind: native_invalid`; legacy
+locations are not searched, so it is never reported as a migration.
+
 `migration_required` is true for a legacy-only OpenClaw package. The release
 checker reports `migration_required` and, when a release is available, proposes
 the profile-scoped native `hermes plugins install ... --ref ... --no-enable`

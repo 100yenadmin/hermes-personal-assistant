@@ -189,6 +189,18 @@ def probe(home, hermes_home):
     manifest = {}
     for kind, root in candidate_roots(home, hermes_home):
         path, data = package_manifest(root)
+        if kind == "native" and (root.exists() or root.is_symlink()) and not data:  # A dangling link still occupies the target.
+            return {
+                "ok": False,
+                "component_id": COMPONENT_ID,
+                "native_id": NATIVE_ID,
+                "installed": True,
+                "install_ok": False,
+                "invalid_reason": f"native plugin manifest is missing or unreadable: {root / 'plugin.yaml'}",
+                "package_path": str(root),
+                "migration_required": False,
+                "source_kind": "native_invalid",
+            }
         if data:
             chosen_kind, chosen_root, manifest_path, manifest = kind, root, path, data
             break
