@@ -132,6 +132,15 @@ def test_simulated_call_credit_is_limited_to_checked_phone_duties(tmp_path):
     assert phone["lab"] == "unproven" and phone["parity"] == "unproven"
 
 
+def test_real_web_stop_runs_credit_only_stopping_before_commit():
+    errands = next(a for a in AREAS if a["key"] == "errands")
+    travel = next(a for a in AREAS if a["key"] == "travel")
+    rows = {t["scenario"]: t for t in errands["tests"] + travel["tests"]}
+    assert rows["s10_change_cancel_en"]["covers"] == rows["s11_failures_en"]["covers"] == [3]  # "Stop before commit".
+    assert errands["duties"][3] == "Stop before commit"
+    assert rows["s12_multi_errand_ja"]["covers"] == [] and rows["s12_multi_errand_ja"] in travel["tests"]
+
+
 def test_s31_credit_is_limited_to_policy_duties(tmp_path):
     for i in range(3):
         run(tmp_path, f"policy-{i}", scenario="s31_customer_policy_en")

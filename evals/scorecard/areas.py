@@ -121,6 +121,10 @@ for key, scenario, covers, label in (
     ("travel", "s27_booking_after_yes_en", [3], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
     ("errands", "s27_booking_after_yes_en", [3, 4, 5], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
     ("errands", "s28_vendor_request_en", [2, 3, 4, 5], "stand-in appointment and vendor request after the yes: reminder, readbacks, waiting-on-them loop"),
+    # Real-web runs held back by the no-submit tripwire: stopping before the commit is checked, not the rest of the duty.
+    ("errands", "s10_change_cancel_en", [3], "change and cancellation of a booked dinner and hotel prepared from the ledger, never executed"),
+    ("errands", "s11_failures_en", [3], "sold-out date, deposit over the limit, login or OTP wall and CAPTCHA handed off honestly; nothing submitted"),
+    ("travel", "s12_multi_errand_ja", [], "four errands in one Japanese chat (flight, hotel, dinner, snacks), each stopped at its final page or handed off"),
     ("working_norms", "s20_follow_through_chase_en", [1, 3, 4], "confirmation-only loops and draft chase ladder"),
     ("personal_admin", "s21_personal_radar_en", [0, 1], "personal radar and held proposals"),
     ("recurring_ops", "s22_eod_note_en", [0, 1], "evidence-grounded end-of-day note"),
