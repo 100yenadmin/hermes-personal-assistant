@@ -384,3 +384,16 @@ class OpenLoopTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_chase_receipt_key_keeps_legacy_loops_and_times_owner_chases():
+    # Claude review of #217: an owner's extra chase reuses a step label, so its receipt carries the time.
+    from personal_assistant import automation as auto
+    from personal_assistant.automation_workflow import _chase_marker
+    ladder = {"action_id": "loop", "chase": {"step": "day10", "next_chase_at": "2026-11-29T00:00:00+09:00"}}
+    assert _chase_marker(ladder) == auto.notification_occurrence_id("chase-step", "loop", "day10")
+    owner = {**ladder, "chase_at": "2026-12-07T09:00:00+09:00",
+             "chase": {"step": "day10", "next_chase_at": "2026-12-07T09:00:00+09:00"}}
+    again = {**owner, "chase": {"step": "day10", "next_chase_at": "2026-12-14T09:00:00+09:00"}}
+    assert len({_chase_marker(ladder), _chase_marker(owner), _chase_marker(again)}) == 3
+    assert _chase_marker(owner) == _chase_marker(dict(owner))
