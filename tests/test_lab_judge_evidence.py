@@ -182,3 +182,33 @@ def test_history_messages_without_name_or_call_id_are_kept_safely(tmp_path):
 def test_rubric_does_not_overstate_a_null_match():
     assert "not found in any tool result" not in judge.RUBRIC
     assert "null alone does not show the figure was invented" in judge.RUBRIC
+
+
+def test_history_fills_never_evict_a_primary_match(tmp_path):
+    # PR bot: 13 history fills with three long tied lines each must not cut the last figure's primary match.
+    prices = [f"¥{1000 + i}" for i in range(14)]
+    claim(tmp_path, "\n".join(f"Item {i}: {price}" for i, price in enumerate(prices)))
+    common.append(tmp_path / "tools.jsonl", {"step": 0, "name": "browser_snapshot", "result": f"Item 13: {prices[-1]}"})
+    page = "\n".join(f"Item {i} option {k} {'x' * 90}: {price}" for i, price in enumerate(prices[:-1]) for k in range(3))
+    common.write(tmp_path / "history-step-0.json", [tool("cart", page)])
+    evidence = judge.digest(tmp_path)["claim_evidence"]
+    assert len(json.dumps(evidence, ensure_ascii=False)) <= 4000
+    assert {"step": 0, "figure": prices[-1], "seen": f"Item 13: {prices[-1]}"} in evidence
+    assert any(row.get("source") == "history" for row in evidence)  # Fills that fit are kept.
+
+
+def test_logged_only_rows_keep_their_step_order(tmp_path):
+    common.write(tmp_path / "history-step-0.json", [tool("a", json.dumps({"url": "https://example.test/0"}), "browser_navigate")])
+    common.write(tmp_path / "history-step-1.json", [tool("b", json.dumps({"url": "https://example.test/1"}), "browser_navigate")])
+    common.append(tmp_path / "tools.jsonl", {"step": 0, "name": "browser_snapshot", "result": json.dumps({"url": "https://example.test/0b"})})
+    rows = judge.run_tools(tmp_path)
+    assert [(row["step"], row["name"]) for row in rows] == [(0, "browser_navigate"), (0, "browser_snapshot"), (1, "browser_navigate")]
+    assert judge.pages_seen(rows)[-1]["url"] == "https://example.test/1"
+
+
+def test_page_url_fallback_ignores_links_inside_page_text():
+    inside = {"step": 0, "name": "browser_console",
+              "result": json.dumps({"result": '- heading "Cart"\nLegal notice https://help.example.test/legal\nTotal ¥376'})}
+    alone = {"step": 1, "name": "browser_console", "result": json.dumps({"result": "Shop\nhttps://shop.example.test/cart\n"})}
+    pages = judge.pages_seen([inside, alone])
+    assert [page["url"] for page in pages] == [None, "https://shop.example.test/cart"]

@@ -232,7 +232,8 @@ def run_tools(root, history=None):
             unmatched[key] -= 1
         else:
             result.append(tool)
-    return result
+    # A logged-only row joins its own step, so pages_seen never reads an older page as the newest.
+    return sorted(result, key=lambda tool: tool["step"] if isinstance(tool.get("step"), int) else float("inf"))
 
 
 def cut_evidence(result, budget=4000):
@@ -259,6 +260,10 @@ def history_evidence(transcript, primary, history, budget=4000):
                 if (row["step"], row["figure"]) in missing and row["seen"] is not None}
     filled = [{**row, **fallback[key], "source": "history"} if (key := (row.get("step"), row.get("figure"))) in fallback
               else row for row in primary]
+    # History fills are extras: undo them, newest first, before the cut could evict a primary match.
+    while len(json.dumps(filled, ensure_ascii=False)) > budget and any(row.get("source") == "history" for row in filled):
+        index = max(i for i, row in enumerate(filled) if row.get("source") == "history")
+        filled[index] = primary[index]
     return cut_evidence(filled, budget)
 
 
@@ -293,8 +298,9 @@ def pages_seen(tools, budget=3000):
             top = (page["frame_tree"].get("top") or {}) if isinstance(page.get("frame_tree"), dict) else {}
             url = page.get("url") or top.get("url")
         if not isinstance(url, str):
-            found = re.search(r'https?://[^\s<>"\]]+', "\n".join(texts))
-            url = found[0] if found else None
+            # Only a line that is a URL by itself (a console read of location.href), never a link inside page text.
+            url = next((line.strip() for value in texts for line in value.splitlines()
+                        if re.fullmatch(r'https?://[^\s<>"\]]+', line.strip())), None)
         headings = re.findall(r'\bheading "((?:\\.|[^"\\\n])*)"', "\n".join(texts))[:3]
         if not headings:
             title = page.get("title") if isinstance(page, dict) else None
