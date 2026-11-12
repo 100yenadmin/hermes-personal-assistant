@@ -275,6 +275,21 @@ class OpenLoopTests(unittest.TestCase):
                                last_chased_at="2026-12-05T09:10:00+09:00"), ("none", "2026-12-06T09:00:00+09:00"))
         self.assertEqual(chase(tokyo, "2026-12-06T10:00:00+09:00", 1, chase_at=far,
                                last_chased_at="2026-12-05T09:10:00+09:00")[0], "escalate")
+        # After day 10 or an escalation, the owner's "chase them once more" is still a chase (Claude round 3).
+        late = [{"at": "2026-11-29T09:05:00+09:00", "step": "day10", "how": "nudge sent"}]
+        self.assertEqual(chase(tokyo, "2026-12-07T09:01:00+09:00", 1, chase_at="2026-12-07T09:00:00+09:00",
+                               last_chased_at="2026-11-30T09:00:00+09:00",
+                               chase_log=late + [{"at": "2026-11-30T09:00:00+09:00", "step": "escalate",
+                                                  "how": "packet in brief"}]),
+                         ("day10", "2026-12-07T09:00:00+09:00"))
+        thursday = "2026-12-04T09:00:00+09:00"
+        self.assertEqual(chase(tokyo, "2026-12-02T10:00:00+09:00", 1, chase_at=thursday,
+                               last_chased_at="2026-11-29T09:05:00+09:00", chase_log=late), ("none", thursday))
+        self.assertEqual(chase(tokyo, "2026-12-04T09:01:00+09:00", 1, chase_at=thursday,
+                               last_chased_at="2026-11-29T09:05:00+09:00", chase_log=late)[0], "day10")
+        self.assertEqual(chase(tokyo, "2026-12-04T10:00:00+09:00", 1, chase_at=thursday,
+                               last_chased_at="2026-12-04T09:10:00+09:00", chase_log=late),
+                         ("none", "2026-12-05T09:00:00+09:00"))
         # A chase_log entry naming day2 completes it even before day 2's date.
         early = (dt.datetime.fromisoformat(AT) - dt.timedelta(hours=1)).isoformat()
         self.assertEqual(chase(tokyo, "2026-11-21T10:00:00+09:00", 1, last_chased_at=early,

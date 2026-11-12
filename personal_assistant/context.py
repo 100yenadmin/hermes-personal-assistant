@@ -252,8 +252,9 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
         # The owner put the chase off past escalation: escalate a day after their chase instead.
         pending = [(step, asked + dt.timedelta(days=1) if step == "escalate" and due.timestamp() <= stamp else due)
                    for step, due in pending if step not in names]
-        if folded and not answered:
-            pending.append((folded[-1][0], asked))
+        if not answered:
+            # With day 10 done or the loop escalated, the owner's time is still one more chase.
+            pending.append((folded[-1][0] if folded else "day10", asked))
         pending.sort(key=lambda entry: entry[1].timestamp())
     due_now = [entry for entry in pending if entry[1].timestamp() <= moment.timestamp()]
     target = due_now[-1] if due_now else (pending[0] if pending else None)
