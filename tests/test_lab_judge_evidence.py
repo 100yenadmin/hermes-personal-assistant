@@ -157,3 +157,28 @@ def test_no_history_preserves_the_original_digest_shape_and_values(tmp_path):
 def test_tools_name_list_stays_at_last_120(tmp_path):
     common.write(tmp_path / "history-step-0.json", [tool(str(i), "no page", name=f"tool_{i}") for i in range(130)])
     assert judge.digest(tmp_path)["tools"] == [f"tool_{i}" for i in range(10, 130)]
+
+
+def test_cut_logged_results_count_once_against_history(tmp_path):
+    full = "x" * 5000
+    common.write(tmp_path / "history-step-0.json", [tool("skill", full, "skill_view"), tool("pa", "{}", "pa")])
+    common.append(tmp_path / "tools.jsonl", {"step": 0, "name": "skill_view", "result": full[:2000]})
+    common.append(tmp_path / "tools.jsonl", {"step": 0, "name": "pa", "result": "{} [scrubbed]"})
+    extra = {"step": 0, "name": "skill_view", "result": "second call"}
+    common.append(tmp_path / "tools.jsonl", extra)
+    rows = judge.run_tools(tmp_path)
+    assert [(row["step"], row["name"]) for row in rows] == [(0, "skill_view"), (0, "pa"), (0, "skill_view")]
+    assert rows[0]["result"] == full and rows[-1] == extra
+    assert judge.digest(tmp_path)["tools"] == ["skill_view", "pa", "skill_view"]
+
+
+def test_history_messages_without_name_or_call_id_are_kept_safely(tmp_path):
+    claim(tmp_path)
+    common.write(tmp_path / "history-step-0.json", [{"role": "tool", "content": "Subtotal ¥376"}])
+    assert judge.history_tools(tmp_path) == [{"step": 0, "name": "", "result": "Subtotal ¥376"}]
+    assert judge.digest(tmp_path)["claim_evidence"] == [{"step": 0, "figure": "¥376", "seen": None}]
+
+
+def test_rubric_does_not_overstate_a_null_match():
+    assert "not found in any tool result" not in judge.RUBRIC
+    assert "null alone does not show the figure was invented" in judge.RUBRIC
