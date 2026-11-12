@@ -9,7 +9,7 @@ from personal_assistant.calls import OUTCOMES as CALL_OUTCOMES
 CATALOG = Path(__file__).parent / "scenarios"
 READ_ONLY_AREAS = {"research", "calendar"}
 LAB_AREAS = {"inbox", "calendar", "follow_through", "reporting", "personal_admin", "travel", "errands", "customer_comms", "documents", "finance"}
-SESSION_KINDS = {"booking", "approvals", "family", "vendor_request", "disruption", "expense", "onboarding"}
+SESSION_KINDS = {"booking", "approvals", "family", "vendor_request", "disruption", "expense", "onboarding", "week"}
 
 
 def fixture_path(name):
@@ -27,7 +27,8 @@ def validate(s):
         if not ok:
             raise ValueError(f"{field}: invalid or missing")
     require(isinstance(s, dict), "scenario")
-    require(isinstance(s.get("id"), str) and re.fullmatch(r"s\d\d_[a-z0-9_]+", s["id"]), "id")
+    week = isinstance(s.get("lab"), dict) and s["lab"].get("kind") == "week"
+    require(isinstance(s.get("id"), str) and re.fullmatch(r"[sw]\d\d_[a-z0-9_]+" if week else r"s\d\d_[a-z0-9_]+", s["id"]), "id")
     require(s.get("language") in ("en", "ja", "ko"), "language")
     caps = s.get("capabilities")
     require(isinstance(caps, list) and caps and all(isinstance(c, str) for c in caps), "capabilities")
@@ -35,6 +36,15 @@ def validate(s):
         require(isinstance(s["modes"], dict) and s["modes"] == {"chief_of_staff": True}, "modes")
     cos = s.get("modes", {}).get("chief_of_staff") is True
     lab = isinstance(s.get("lab"), dict)
+    if lab and "clock" in s["lab"]:
+        require(week and s["lab"]["clock"] == "shifted", "lab.clock")
+    if week:
+        settings = s["lab"].get("week")
+        require(isinstance(settings, dict), "lab.week")
+        require(isinstance(settings.get("counterparty"), str) and bool(settings["counterparty"].strip()), "lab.week.counterparty")
+        topics = settings.get("topic_any")
+        require(isinstance(topics, list) and bool(topics)
+                and all(isinstance(t, str) and bool(t.strip()) for t in topics), "lab.week.topic_any")
     require(s.get("area") in (None, *READ_ONLY_AREAS, *LAB_AREAS), "area")
     research = s.get("area") == "research"
     calendar = s.get("area") == "calendar" and not lab
@@ -105,7 +115,7 @@ def validate(s):
             require(type(step["new_session"]) is bool and i > 0 and lab
                     and s["lab"].get("kind") in SESSION_KINDS, prefix + ".new_session")
         require(step.get("type", "chat") in ("chat", "scheduled", "role_turn"), prefix + ".type")
-        if step.get("type") == "role_turn":
+        if step.get("type") == "role_turn" or week:
             require(type(step.get("day")) is int and step["day"] >= 0, prefix + ".day")
             require(type(step.get("hour")) is int and 0 <= step["hour"] <= 23, prefix + ".hour")
         if step.get("type") == "scheduled":
@@ -125,6 +135,8 @@ def validate(s):
         require(isinstance(ex, dict), prefix + ".expect")
         if lab:
             require(ex.get("lab") == s["lab"].get("kind"), prefix + ".expect.lab")
+        if week:
+            require(ex.get("week") in {"record_loop", "raise_due"}, prefix + ".expect.week")
         if "research" in ex:
             require(research and ex["research"] is True, prefix + ".expect.research")
         if "calendar" in ex or calendar:
@@ -155,7 +167,8 @@ def validate(s):
         if isinstance(item, dict) and item.get("operation") == "trip_import":
             require(lab and s["lab"].get("kind") in {"booking", "approvals", "disruption", "expense"}, f"seed[{i}].operation")
     if cos or lab:
-        require(sum(st.get("type") != "role_turn" for st in s["steps"]) <= s["max_user_turns"], "max_user_turns")
+        # Week is fully scripted: max_user_turns bounds each step, not days in the run.
+        require(week or sum(st.get("type") != "role_turn" for st in s["steps"]) <= s["max_user_turns"], "max_user_turns")
         for i, item in enumerate(s.get("seed", [])):
             if lab and isinstance(item, dict) and item.get("operation") == "profile":
                 data = item.get("data")
@@ -186,7 +199,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "documents", "invoice", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
         if s["lab"]["kind"] == "onboarding":
             threads = s["lab"].get("threads", [])
             require(isinstance(threads, list) and len(threads) >= 2 and all(isinstance(t, dict) and t.get("thread_id") and t.get("bucket") for t in threads), "lab.threads")

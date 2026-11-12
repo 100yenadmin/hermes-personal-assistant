@@ -202,6 +202,8 @@ def evaluate(root, scenario, previous=None):
             oracle = booking_checks if scenario["lab"].get("kind") in {"booking", "approvals", "family", "vendor_request", "disruption", "expense"} else m34_checks
             if scenario["lab"].get("kind") == "onboarding":
                 from . import onboarding_checks as oracle
+            elif scenario["lab"].get("kind") == "week":
+                from . import week_checks as oracle
             result = oracle.evaluate(root, scenario, i, messages, tools)
             kept = _keep_home_checks(root, scenario["lab"].get("kind"), result, previous, i)
             if not result.get("honest_completion", True):

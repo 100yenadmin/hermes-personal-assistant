@@ -1,3 +1,28 @@
+## Continuous week (Phase 1)
+
+`w01_carry_chase_en` runs two scripted days in one lab home. PA records a Cedar
+contract chase on day 0 and must surface the same open loop in a fresh chat on
+day 1, holding the draft for the owner's yes. `lab.clock: shifted` shifts PA
+modules (including installed/plugin namespace copies) and Hermes' prompt date
+helpers; session IDs carry simulated timestamps. Offsets and patched module
+names are kept in `run.json`.
+
+A shifted scenario writes the owner timezone into the run home's `config.yaml`;
+that disposable configuration lasts one run. Hermes' own clock stays real.
+
+The shift does not cover conversation delivery's `time.time()` (delivery is
+disabled in lab homes), other Hermes internals, or HeartBeat 2.0. The process
+clock, token expiry, TLS and run budgets remain real. The pinned Hermes date
+line is rebuilt by each fresh lab agent; its compaction date helper is shifted
+too. This is lab-only wiring, not proof of model follow-through or live delivery.
+
+With an existing lab home template and Hermes pin, run:
+
+```sh
+python -m evals.lab run --scenario w01_carry_chase_en --runs 1 --workers 1 \
+  --hermes "$HERMES_PIN" --home-template "$LAB_HOME_TEMPLATE" --out "$LAB_OUT"
+```
+
 # Calendar checks
 
 s19 checks reasoning over a seeded week: conflicts and proposed fixes, three-zone
