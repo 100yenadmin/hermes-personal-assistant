@@ -11,7 +11,7 @@ from evals.concierge_e2e.follow_checks import score_chase_at
 ASKED = dt.datetime(2026, 11, 12, 12, 11, tzinfo=dt.timezone.utc)
 CHECKS = {
     "one_cedar_loop", "chase_at_is_owner_time", "owner_wake_armed", "quiet_until_due",
-    "wake_fired_once", "wake_reply_raises_cedar", "wake_reply_holds_draft", "no_sent_claim",
+    "wake_fired_once", "wake_reply_raises_cedar", "wake_reply_holds_draft", "no_send_recorded",
     "chase_recorded", "loop_still_open", "nothing_after",
 }
 
@@ -71,9 +71,10 @@ def test_all_checks_pass(json_fields):
     ("unfinished_occurrence", "wake_fired_once"),
     ("no_cedar", "wake_reply_raises_cedar"),
     ("no_contract", "wake_reply_raises_cedar"),
-    ("sent_chase", "no_sent_claim"),
-    ("sent_then_asks_again", "no_sent_claim"),
-    ("gate_only_in_quoted_draft", "wake_reply_holds_draft"),
+    ("sent_chase", "wake_reply_holds_draft"),
+    ("nudge_row_completed", "no_send_recorded"),
+    ("sent_log_entry", "no_send_recorded"),
+    ("pending_other_wake_ignored", None),
     ("undelivered_occurrence", "wake_fired_once"),
     ("other_wake_in_window", "wake_fired_once"),
     ("child_wake", "owner_wake_armed"),
@@ -127,10 +128,14 @@ def test_targeted_failure(change, key):
         snapshot["wake_texts"][0] = snapshot["wake_texts"][0].replace(word, "item")
     elif change == "sent_chase":
         snapshot["wake_texts"] = ["Cedar's contract: I've sent the chase."]
-    elif change == "sent_then_asks_again":
-        snapshot["wake_texts"] = ["Cedar Demo contract: I chased them and sent the nudge. Want me to send another?"]
-    elif change == "gate_only_in_quoted_draft":
-        snapshot["wake_texts"] = ['Cedar contract still missing. Draft: "Hi Cedar, please send the signed contract. Should I send this again?"']
+    elif change == "nudge_row_completed":
+        snapshot["loops"].append({"action_id": "cedar-contract:nudge:day2", "status": "completed", "action_type": "transaction", "fields": {}})
+    elif change == "sent_log_entry":
+        data["chase_log"].append({"at": (ASKED + dt.timedelta(seconds=15)).isoformat(), "how": "nudge sent", "step": "day2"})
+    elif change == "pending_other_wake_ignored":
+        pending = {"wake_id": "other-agent-wake", "dedupe_key": "t:pending", "state": "pending", "started_at": None}
+        occurrences.append(pending)
+        snapshot["hb2"]["tail"]["occurrences"].append(dict(pending))  # Present before and after the tail: not new.
     elif change == "undelivered_occurrence":
         occurrences[0]["delivered"] = 0
     elif change == "other_wake_in_window":
@@ -164,6 +169,9 @@ def test_targeted_failure(change, key):
     elif change == "tail_occurrence":
         snapshot["hb2"]["tail"]["occurrences"].append({**occurrences[0], "dedupe_key": "t:tail", "state": "pending"})
     result = score_chase_at(snapshot)
+    if key is None:  # A control: this change must not fail any check.
+        assert all(result.values()), result
+        return
     assert result[key] is False, result
     assert not all(result.values())
 
