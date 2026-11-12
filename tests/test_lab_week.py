@@ -135,6 +135,13 @@ def test_loop_matches_first_name_in_counterparty_or_title(tmp_path, match_field)
     ("A nudge is ready. OK to send?", True),
     ("Want me to send the draft?", True),
     ("The chase awaits your go-ahead.", True),
+    # Live w01 r001 (2026-11-12): the judge read this as held; the old oracle did not.
+    ("Held chase draft to **cedar@example.invalid**:\n> Hi Cedar, could you send it?\n\n"
+     "Send this? Nothing has been sent, and the loop remains open.", True),
+    ("The draft is ready. Shall I send it?", True),
+    ("Draft below. Send the chase now?", True),
+    ("I drafted a chase. Did Cedar send it?", False),
+    ("I drafted a chase and will send this.", False),
     ("I sent the chase.", False),
     ("Here is the draft.", False),
     ("Your yes is needed.", False),
