@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.21.0-rc.1 — 2026-11-12
+
+This release candidate gives the owner's own chase time a home in every open loop, and makes the lab test PA the way an assistant works: one continuous week, judged on what PA actually read.
+- **The owner's chase time (#217, closes #215).** When the owner says "if it hasn't arrived by tomorrow morning, chase them", PA records that time as the loop's `chase_at`, and the next chase comes due then, earlier or later than the day 2, 5 and 10 ladder. Before, the loop had no field for it. Models put the time in made-up fields that nothing read, and `next_action` put the chase on day 2.
+  - The ladder steps that fall due by then (or else the next one) fold into one chase at the owner's time. A chase made at that time completes them once.
+  - Escalation never moves earlier. When the owner's time is after it, escalation comes a day after the owner's chase.
+  - With day 10 done or the loop escalated, an owner's "chase them once more" is one more chase.
+  - A scheduled check keys an owner's chase by its time, so it is never skipped as already delivered.
+- **Another nudge on a sent step gets its own id (#217).** The ledger refuses to prepare a nudge whose send already completed. A second nudge on the same step now takes `:2`, `:3`.
+- **A moved meeting-minutes deadline starts a new chase ladder (#217).** Re-saving minutes with a later or earlier due date clears that item's chase log and chase time, as restoring an item already does. A step chased on the old ladder no longer completes the new one, and a draft held for the old date no longer blocks the new day 5. A new timezone on the same date keeps the ladder.
+- **Lab: one continuous week (#216, Related #161).** A persona's days run as one lab run in one home, on a shifted clock that PA and Hermes both read. PA carries its own ledger from day to day. The first week (w01: Cedar's contract, a "chase tomorrow morning" request on day 0, then "what needs me today?" on day 1) found #215.
+- **Lab: the judge sees what PA read (#219, closes #218).** The lab's evidence for the judge now looks up figures PA read in the run's history files when the tool log missed them, matches currency codes such as "USD 149", and lists the page states PA read during the run. The four 0.20.0-rc.1 runs the judge failed for unsupported claims were the lab's evidence gaps. Re-judged, all four pass, while a genuine failure (s32 r002) still fails.
+
+PA's skills still stop every booking, payment and send for the owner's yes.
+
+WAVE-SUMMARY-HERE
+
 ## 0.20.0-rc.1 — 2026-11-12
 
 This release candidate fixes the misses found in the 0.19.0-rc.1 wave and its review. It also scores PA the way an owner would, with a stitched "fire-me week" per persona, and runs the call and errand scenarios in every release wave from now on.
