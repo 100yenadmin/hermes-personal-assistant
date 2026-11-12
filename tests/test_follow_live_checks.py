@@ -76,6 +76,9 @@ def test_all_checks_pass(json_fields):
     ("sent_log_entry", "no_send_recorded"),
     ("pending_other_wake_ignored", None),
     ("not_sent_log_ignored", None),
+    ("tail_starts_pending_other", "nothing_after"),
+    ("early_message_carries_reply", "wake_reply_holds_draft"),
+    ("draft_prepared_log", "chase_recorded"),
     ("undelivered_occurrence", "wake_fired_once"),
     ("other_wake_in_window", "wake_fired_once"),
     ("child_wake", "owner_wake_armed"),
@@ -135,6 +138,17 @@ def test_targeted_failure(change, key):
         data["chase_log"].append({"at": (ASKED + dt.timedelta(seconds=15)).isoformat(), "how": "nudge sent", "step": "day2"})
     elif change == "not_sent_log_ignored":
         data["chase_log"][0]["how"] = "nudge draft held, not sent"
+    elif change == "tail_starts_pending_other":
+        pending = {"wake_id": "other-agent-wake", "dedupe_key": "t:pending", "state": "pending", "started_at": None}
+        occurrences.append(pending)
+        snapshot["hb2"]["tail"]["occurrences"].append({**pending, "state": "done",
+                                                        "started_at": (ASKED + dt.timedelta(minutes=4)).timestamp()})
+    elif change == "early_message_carries_reply":
+        snapshot["wake_texts"] = ["Cedar contract: the chase draft is held for your yes.", "Checked in."]
+        snapshot["wake_text_times"] = [(ASKED - dt.timedelta(seconds=10)).isoformat(),
+                                       (ASKED + dt.timedelta(seconds=20)).isoformat()]
+    elif change == "draft_prepared_log":
+        data["chase_log"][0]["how"] = "draft prepared"
     elif change == "pending_other_wake_ignored":
         pending = {"wake_id": "other-agent-wake", "dedupe_key": "t:pending", "state": "pending", "started_at": None}
         occurrences.append(pending)

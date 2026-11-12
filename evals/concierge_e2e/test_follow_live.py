@@ -49,7 +49,7 @@ def run_scenario(auth, pin, scenario, dest):
         sent = dt.datetime.now(dt.timezone.utc)
         snapshot["dm_sent_at"] = sent.isoformat()
         rig.owner("Cedar Demo still owes us the signed services contract; I checked and no signed copy has arrived. "
-                  "If it hasn't arrived by " + asked.strftime("%H:%M") + " UTC today, chase them, but show me the draft first. "
+                  "If it hasn't arrived by " + asked.strftime("%H:%M") + " UTC on " + asked.strftime("%Y-%m-%d") + ", chase them, but show me the draft first. "
                   "No inbox is connected in this test, so take my word as the source. "
                   "Words only: no web, bookings, real messages or provider actions.", timeout=300)
         snapshot["day0_texts"] = rig.texts()

@@ -26,6 +26,7 @@ def instant(value):
 
 # The rig has no send tool, so a send can only show in the ledger: a nudge action past approval,
 # or a chase_log entry that says sent. Reply wording is read by a person, not matched here.
+HELD = re.compile(r"\bdraft held\b", re.I)  # approval_wait's reading of a held draft (personal_assistant/context.py).
 SENT = re.compile(r"(?<!not )\bsent\b", re.I)  # The product's own reading (personal_assistant/context.py).
 NUDGE_SENT = {"submitting", "unknown", "claimed_once", "provider_result", "completed", "confirmed", "verified", "reconciled"}
 
@@ -79,10 +80,13 @@ def score_chase_at(snapshot) -> dict[str, bool]:
     settled = instant(snapshot.get("day0_settled_at"))
     times = [instant(value) for value in snapshot.get("wake_text_times", [])]
     texts = snapshot.get("wake_texts", [])
-    text = "\n".join(texts)
+    # The reply is only what was seen once the owner wake's own occurrence started.
+    text = "\n".join(body for body, at in zip(texts, times) if fired is not None and at is not None and at >= fired)
     log = data.get("chase_log") or []
     # Compare occurrence identities across ALL wakes, including pending tail work.
-    identities = lambda rows: {(row["wake_id"], row["dedupe_key"]) for row in rows}
+    # Identity and execution state: an occurrence that appears, starts or finishes during the tail is "after".
+    identities = lambda rows: {(row["wake_id"], row["dedupe_key"], row.get("state"), row.get("started_at"),
+                                row.get("ended_at")) for row in rows}
     return {
         "one_cedar_loop": len(loops) == 1 and state in {"open", "done_unconfirmed"},
         "chase_at_is_owner_time": bool(asked and chase and abs((chase - asked).total_seconds()) <= 120),
@@ -103,7 +107,7 @@ def score_chase_at(snapshot) -> dict[str, bool]:
         "chase_recorded": bool(asked and any(
             instant(entry.get("at")) is not None
             and instant(entry["at"]) >= asked - dt.timedelta(seconds=60)
-            and any(word in str(entry.get("how", "")).casefold() for word in ("held", "draft")) for entry in log)),
+            and HELD.search(str(entry.get("how", ""))) and not SENT.search(str(entry.get("how", ""))) for entry in log)),
         "loop_still_open": bool(loop) and state == "open",
         "nothing_after": not snapshot.get("late_texts") and "tail" in hb2
                          and identities(hb2["tail"].get("occurrences", [])) == identities(after),
