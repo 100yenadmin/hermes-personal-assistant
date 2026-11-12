@@ -16,6 +16,7 @@ After a verified vendor request or any sent message awaiting a reply, pass `foll
 | `next_actor` | `owner`, `us`, `them` | Who moves next. |
 | `opened_at` | timestamp with offset | When the loop opened. The chase ladder counts days from here. |
 | `next_step` | text | The next concrete step. |
+| `chase_at` | timestamp with offset | The owner's own time for the next chase, set only from the owner's words. |
 | `last_chased_at` | timestamp with offset | Latest completed ladder step, including a held draft. |
 | `chase_log` | list of `{at, step, how}` | Short log of chases; PA keeps the latest 10. |
 | `awaiting_approval` | `{step, since, days, overdue}` | Computed `next_action` item field, present only when the last log entry's `how` contains `held` (case-insensitive). |
@@ -60,7 +61,7 @@ third party, `delegated` for work the owner handed to someone else, and
   its own action, `<loop action id>:<purpose>`, never on the loop's own action.
   If one was prepared on the loop's own action, that row is now a transaction:
   `action_upsert` there accepts only `confirmation`, `loop_cancelled`,
-  `last_chased_at`, `chase_log`, `snoozed_until` and `next_step`. Record the
+  `last_chased_at`, `chase_log`, `snoozed_until`, `chase_at` and `next_step`. Record the
   owner's withdrawal as `loop_cancelled: {"by": "owner", "at": "<timestamp>"}`.
   A step that is not approval-governed and was never attempted (prepared,
   authorized or paused) can be withdrawn directly; PA then refuses to confirm or
@@ -74,7 +75,10 @@ third party, `delegated` for work the owner handed to someone else, and
 loop. Steps fall on owner-local calendar days counted from `opened_at` (the
 profile timezone in `pa:preferences`): `day2`, `day5`, `day10`, then `escalate`
 from day 11. When several steps are overdue, only the latest one is due.
-Recording `last_chased_at` completes every chase step due by that local date.
+Recording `last_chased_at` completes every chase step due by that local date,
+and a `chase_log` entry completes the step it names. A `chase_at` moves the next
+chase to the owner's exact time, earlier or later than the ladder; a chase at or
+after it completes the steps it replaced. Escalation never moves.
 An escalation is recorded as a `chase_log` entry with `step: "escalate"`;
 after it, the loop waits for the owner's decision with no further chase.
 A future `snoozed_until` holds the ladder. Use

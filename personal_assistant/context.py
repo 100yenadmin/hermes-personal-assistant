@@ -211,10 +211,11 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
                zone: dt.tzinfo) -> dict[str, Any]:
     """Chase ladder on owner-local calendar days from opened_at: day 2, 5, 10, then escalate.
 
-    A chase recorded in ``last_chased_at`` completes every chase step due by its local date.
-    Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
-    ``chase_at`` is the owner's own time for a chase: it pulls the first step due after it
-    earlier (never later) to that exact time, and a chase recorded at or after it completes that step.
+    A step is done when ``last_chased_at`` falls on or after its local date or a ``chase_log``
+    entry names it. Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
+    ``chase_at`` is the owner's own time for the next chase, earlier or later than the ladder: the
+    steps still pending before it that fall due by then (or else the next one) fold into one chase
+    at that exact time, and a chase at or after it completes them. Escalation never moves.
     """
 
     today = moment.astimezone(zone).date()
@@ -222,20 +223,36 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     if opened is None:
         return {"step": "none", "next_chase_at": None, "age_days": None, "escalated": False}
     chased = local_time(fields.get("last_chased_at"), zone)
-    log = fields.get("chase_log") if isinstance(fields.get("chase_log"), list) else []
-    escalated = any(isinstance(entry, dict) and entry.get("step") == "escalate" for entry in log)
+    log = [entry for entry in fields.get("chase_log") or [] if isinstance(entry, dict)] \
+        if isinstance(fields.get("chase_log"), list) else []
+    escalated = any(entry.get("step") == "escalate" for entry in log)
+    ladder = [(step, dt.datetime.combine(opened.date() + dt.timedelta(days=days), dt.time(), zone))
+              for step, days in CHASE_LADDER]
+
+    def pending_after(last, steps):
+        return [(step, due) for step, due in ladder if not escalated and not (
+            step != "escalate" and (step in steps or (last is not None and last.date() >= due.date())))]
+
+    pending = pending_after(chased, {entry.get("step") for entry in log})
     asked = local_time(fields.get("chase_at"), zone) if fields.get("chase_at") else None
-    pending = []
-    for step, days in CHASE_LADDER:
-        due = dt.datetime.combine(opened.date() + dt.timedelta(days=days), dt.time(), zone)
-        pulled = asked is not None and step != "escalate" and asked < due
-        if pulled:
-            due, asked = asked, None  # Only the first pending step moves.
-        done = escalated or (step != "escalate" and chased is not None
-                             and (chased >= due if pulled else chased.date() >= due.date()))
-        if not done:
-            pending.append((step, due))
-    due_now = [entry for entry in pending if entry[1] <= moment]
+    if asked is not None and asked.date() >= opened.date():
+        # Fold on the evidence from before the owner's time, so the chase made at it counts once.
+        stamp = asked.timestamp()
+        times = [(entry, local_time(entry.get("at"), zone)) for entry in log]
+        earlier = [at for _, at in times if at is not None and at.timestamp() < stamp]
+        earlier += [chased] if chased is not None and chased.timestamp() < stamp else []
+        base = [entry for entry in pending_after(max(earlier, key=lambda at: at.timestamp(), default=None),
+                                                 {e.get("step") for e, at in times if at and at.timestamp() < stamp})
+                if entry[0] != "escalate"]
+        folded = [entry for entry in base if entry[1].timestamp() <= stamp] or base[:1]
+        answered = (chased is not None and chased.timestamp() >= stamp) or any(
+            at is not None and at.timestamp() >= stamp for _, at in times)
+        names = {step for step, _ in folded}
+        pending = [entry for entry in pending if entry[0] not in names]
+        if folded and not answered:
+            pending.append((folded[-1][0], asked))
+        pending.sort(key=lambda entry: entry[1].timestamp())
+    due_now = [entry for entry in pending if entry[1].timestamp() <= moment.timestamp()]
     target = due_now[-1] if due_now else (pending[0] if pending else None)
     step = due_now[-1][0] if due_now else "none"
     next_at = target[1] if target else None
