@@ -91,8 +91,15 @@ def _prompt_clocks(offset, originals, names):
         def __getattr__(self, name):
             return getattr(real_time, name)
 
+    def prompt_now():
+        # Shift on the UTC timeline: wall-time arithmetic is an hour off across a DST change.
+        current = real_time.now()
+        if current.tzinfo is None:
+            return current + offset
+        return (current.astimezone(dt.timezone.utc) + offset).astimezone(current.tzinfo)
+
     prompt_time = PromptTime("hermes_time")
-    prompt_time.now = lambda: real_time.now() + offset
+    prompt_time.now = prompt_now
     for module_name, helper in (("agent.system_prompt", "_timestamp_line"),
                                 ("agent.context_compressor", "_today_for_prompt")):
         module = importlib.import_module(module_name)

@@ -253,6 +253,14 @@ def test_plugin_namespace_copy_and_exception_restore(monkeypatch, prompt_modules
                 del sys.modules[key]
 
 
+def test_prompt_clock_shifts_on_the_utc_timeline(prompt_modules):
+    # 23:30 EST on 7 Mar plus 24 h is 00:30 EDT on 9 Mar; wall arithmetic says 23:30 on 8 Mar (Codex review).
+    timer, prompt, compressor = prompt_modules
+    timer.now = lambda: dt.datetime(2026, 3, 7, 23, 30, tzinfo=ZoneInfo("America/New_York"))
+    with clock.shifted(personal_assistant, dt.timedelta(hours=24)):
+        assert compressor._today_for_prompt() == "2026-03-09"
+
+
 def test_prompt_only_clock_and_session_date(prompt_modules):
     timer, prompt, compressor = prompt_modules
     original = prompt._timestamp_line, compressor._today_for_prompt, timer.now

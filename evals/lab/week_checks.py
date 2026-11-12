@@ -11,12 +11,16 @@ def _names(row, first_name):
     return first_name in (who or str(data.get("title", ""))).casefold()
 
 
+def _open_loop(row):
+    # PA's loop contract: a commitment with loop_kind, closed by confirmation or loop_cancelled.
+    data = fields(row)
+    return (row.get("action_type") == "commitment" and row.get("status") in {"open", "pending"}
+            and bool(data.get("loop_kind")) and not data.get("confirmation") and not data.get("loop_cancelled"))
+
+
 def _loops(snapshot, counterparty):
     first_name = counterparty.split()[0].casefold()
-    return [row for row in snapshot.get("actions", [])
-            if row.get("action_type") == "commitment"
-            and row.get("status") in {"open", "pending"}
-            and _names(row, first_name)]
+    return [row for row in snapshot.get("actions", []) if _open_loop(row) and _names(row, first_name)]
 
 
 def evaluate(root, scenario, index, messages, tools):

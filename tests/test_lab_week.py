@@ -142,12 +142,47 @@ def test_loop_matches_first_name_in_counterparty_or_title(tmp_path, match_field)
     ("Draft below. Send the chase now?", True),
     ("I drafted a chase. Did Cedar send it?", False),
     ("I drafted a chase and will send this.", False),
+    # A send question inside the quoted draft is Cedar's, not the owner's gate (Claude review).
+    ("Chase draft:\n> Hi Cedar,\n>\n> Send the signed copy back?\n\nI'll send it at 5pm.", False),
+    ("Draft:\n> Can I send the signed copy?", False),
+    ("Drafted a chase: Send it back signed?", False),
+    # Negated approval and other hold wording (Codex review).
+    ("Cedar contract chase draft is ready. I'll send it tomorrow without your approval.", False),
+    ("I won't send the draft without your approval.", True),
+    ("I'm not sending the chase without your yes.", True),
+    ("Cedar contract draft: I will wait until you give me the go-ahead.", True),
     ("I sent the chase.", False),
     ("Here is the draft.", False),
     ("Your yes is needed.", False),
 ])
 def test_held_for_yes_uses_whole_final_reply(text, expected):
     assert m34_checks.held_for_yes(text) is expected
+
+
+@pytest.mark.parametrize("change", ["no_loop_kind", "confirmation", "loop_cancelled"])
+def test_only_open_loops_by_pa_contract_count(tmp_path, change):
+    # PA treats a row as a loop only with loop_kind, and as closed with a confirmation or cancel (Codex review).
+    s = fixture_run(tmp_path)
+    for index in (0, 1):
+        path = tmp_path / f"ledger-step-{index}.json"
+        snapshot = common.read(path)
+        values = snapshot["actions"][0]["fields"]
+        if change == "no_loop_kind":
+            values.pop("loop_kind")
+        else:
+            values[change] = {"by": "Cedar Demo", "at": "2026-11-12T09:00:00+08:00", "evidence": "signed copy"}
+        common.write(path, snapshot)
+    result = checks.evaluate(tmp_path, s)
+    assert result["steps"][0]["checks"]["one_new_open_loop"] is False
+    assert result["steps"][1]["checks"]["same_single_open_loop"] is False
+
+
+def test_hold_oracle_is_linear_on_many_newlines():
+    import time
+    start = time.perf_counter()
+    for text in ("draft" + "\n" * 50000 + "x", "draft " + "\n> " * 20000 + "x", "draft " + "\n " * 20000 + "x"):
+        assert m34_checks.held_for_yes(text) is False
+    assert time.perf_counter() - start < 5  # Was 45 s for the first input (Claude review).
 
 
 def test_approval_gate_must_be_in_final_reply(tmp_path):
@@ -214,7 +249,7 @@ def test_a_title_counts_only_without_a_counterparty(tmp_path):
     path = tmp_path / "ledger-step-1.json"
     snapshot = common.read(path)
     snapshot["actions"].append({"action_id": "lab:cedar-2", "action_type": "commitment", "status": "pending",
-                                "fields": {"title": "Chase Cedar for the contract"}})
+                                "fields": {"title": "Chase Cedar for the contract", "loop_kind": "waiting_on_them"}})
     common.write(path, snapshot)
     # No counterparty: the title names Cedar, so it is a duplicate.
     assert checks.evaluate(tmp_path, s)["steps"][1]["checks"]["same_single_open_loop"] is False
