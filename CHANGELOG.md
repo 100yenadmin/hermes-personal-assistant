@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.20.0-rc.1 — 2026-11-12
+
+This release candidate fixes the misses found in the 0.19.0-rc.1 wave and its review. It also scores PA the way an owner would, with a stitched "fire-me week" per persona, and runs the call and errand scenarios in every release wave from now on.
+- **A plain calendar-setup offer (#204).** When no calendar is connected, the weekly review offers setup outright. In the 0.19 rerun misses, PA said "Calendar setup requires a separate authorized step" where #187 asks for an offer.
+- **Content calendar by week (#207, #211).**
+  - PA splits the window into seven-day weeks before recording any slot, counts each channel's slots per week, and replies with the calendar grouped by week, showing each week's count. In 0.19, s38 r003 planned three LinkedIn posts in one week and one in the next, then said every channel had two a week.
+  - No new slot goes at an hour that has already passed.
+  - Each slot keeps its source, kind and occurrence outside `fields`, and PA never makes up an `action_id`. In the 0.20 preview wave, one run did both, so its posts were not tied to the plan and a re-plan would have duplicated them.
+  - PA cancels a slot by its listed `action_id`.
+- **People matched by exact name first (#209, Fixes #60).** A name lookup marks each row `exact` or `partial` and lists exact rows first. The two drafting skills use only the exact row and ask the owner when none, or more than one, is exact. Each SOP changelog note is capped at 200 characters, and only the last 10 notes are kept.
+- **The ledger CLI refuses profile and evidence writes (#208, Fixes #65).** The operator CLI could rewrite owner-memory and evidence rows that the `pa` tool already protects. It now refuses, and `latest actions` hides those rows.
+- **A damaged install is reported as damaged (#210, Fixes #17).** If the native plugin folder exists but its `plugin.yaml` is missing or unreadable, the install probe reports it as invalid and proposes nothing. Before, it could fall back to a legacy manifest and propose a migration.
+- **Lab checks (#204, #206).**
+  - The app-only taxi handoff check reads the reply the owner closed on, and it accepts "cannot schedule … through".
+  - A slot PA cancelled is not counted as an extra post.
+  - An outcome table counts as separate outcomes.
+  - Each of these failed a run the judge had passed in the 0.19 wave.
+- **Fire-me week, stitched (#205, Related #161).** Four personas (solo founder, executive, agency owner, family user) each get a five-day week of the lab scenarios they would meet. Week N strings together run N of each scenario. PA is kept if every run passes, or fired at the first failure, with the reason. These are separate lab sessions, not one continuous week; a continuous week comes next.
+- **Scorecard (#212).**
+  - The simulated calls (s04–s08) count toward the phone area for making and taking calls only.
+  - The real-web change, cancel and failure runs (s10, s11) count toward errands for stopping before the commit.
+  - The multi-errand run (s12) counts toward travel, crediting no duty.
+
+PA's skills still stop every booking, payment and send for the owner's yes.
+
+It ships `releases/0.20.0-rc.1/scorecard.md`, built from 120 Capability Lab runs (40 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. 115 of 120 runs pass. On the 32 scenarios both waves ran, 92 of 96 pass (90 of 96 in 0.19.0-rc.1). The 8 scenarios new to release waves (simulated calls s04 to s08, real-web errands s10 to s12) pass 23 of 24. No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations).
+
+- **36 of 40 scenarios pass 3 of 3** (27 of 32 in 0.19.0-rc.1). The content calendar (s38, 1 of 3 in 0.19.0-rc.1), the weekly review (s16, 2 of 3) and Tokyo to Seoul (s02, 2 of 3) now pass 3 of 3.
+- **Fire-me week (stitched):** 8 of 12 persona weeks kept (4 of 12 on the 0.19.0-rc.1 wave, scored before this release's lab-check fixes). The solo founder keeps 3 of 3 weeks (0 of 3), the agency owner 2 of 3 (0 of 3), the family user 2 of 3 (2 of 3) and the executive 1 of 3 (2 of 3).
+- **San Francisco to Tokyo (s03) passes 1 of 3** (2 of 3 in 0.19.0-rc.1). One miss said it had reached OpenTable's final diner-details page; the page PA kept shows the restaurant overview, so the judge failed it. The other gave a hotel-to-airport fare as an official Uber average with no source on any page it read, and the taxi step's handoff check failed. Nothing was submitted.
+- **Seoul to Tokyo (s01) passes 2 of 3**, as in 0.19.0-rc.1. The miss described a verified two-item cart and a ¥376 subtotal, while the page PA kept shows one item; the judge failed it (every check passed).
+- **Real-web failures (s11) pass 2 of 3** in their first release wave. PA handed off the login and deposit walls honestly, but the miss quoted a ¥10,000 deposit and "only 2 left" from pages the judge could not see; the judge failed it for unsupported claims, not false ones.
+- **Contact cleanup (s32) passes 2 of 3** (3 of 3 in 0.19.0-rc.1). The miss first sent an empty `fields` object, then nested every parameter under `fields`; the error named neither mistake, so the cleanup never ran. PA said so honestly. A follow-up makes that error name the call's shape.
+- **Scorecard:** the phone area has partial checks passing for the first time (simulated calls), so no area is unexercised. Social and content admin and recurring ops move to partial checks passing. Errands (s11) and documents (s32) move to partial checks failing; travel still has partial checks failing.
+- Four of the five misses are claims the judge could not check against the pages PA kept (a final page, a cart total, a fare, a deposit). None was found false, and none submitted anything.
+
 ## 0.19.0-rc.1 — 2026-11-11
 
 This release candidate finishes PA's follow-through role (#151). In a two-day lab scenario with no owner message, the HeartBeat 2.0 role surfaces an urgent decision and a due chase at waking hours, holds the chase for the owner's yes, and stays silent on a day with nothing due.
