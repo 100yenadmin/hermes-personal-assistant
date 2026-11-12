@@ -129,6 +129,17 @@ def run_scenario(auth, pin, scenario, dest):
     return result
 
 
+def bind_paths(pin):
+    """Put the Hermes pin first on sys.path, after binding PA's own `evals` package.
+
+    The pin ships its own top-level `evals` package, which would shadow PA's once the pin is first.
+    """
+    repo = str(Path(__file__).resolve().parents[2])
+    sys.path.insert(0, repo)
+    import evals.concierge_e2e.follow_checks  # noqa: F401  Binds PA's evals in sys.modules.
+    sys.path.insert(0, str(pin))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results", type=Path, required=True)
@@ -141,7 +152,7 @@ def main():
     parent = tempfile.mkdtemp(prefix="pa-p5-parent-")
     os.environ.update(HOME=parent, HERMES_HOME=parent + "/.hermes", PYTHONDONTWRITEBYTECODE="1")
     pin = Path(os.environ["PA_E2E_HERMES"]).resolve()
-    sys.path[:0] = [str(pin), str(Path(__file__).resolve().parents[2])]
+    bind_paths(pin)
     results = []
     for round_number in ([args.round] if args.round else (1, 2)):
         scenario = args.scenario

@@ -2,6 +2,9 @@
 import copy
 import datetime as dt
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -209,3 +212,35 @@ def test_done_unconfirmed_is_not_closed_but_is_not_open():
     result = score_chase_at(snapshot)
     assert result["one_cedar_loop"] is True
     assert result["loop_still_open"] is False
+
+
+RUNNER_DIR = Path(__file__).resolve().parents[1] / "evals" / "concierge_e2e"
+REPO = Path(__file__).resolve().parents[1]
+
+
+def _with_fake_pin(tmp_path, body):
+    """Run body in a fresh interpreter, with a stand-in pin that ships its own top-level evals package."""
+    pin = tmp_path / "pin"
+    (pin / "evals").mkdir(parents=True)
+    (pin / "evals" / "__init__.py").write_text("PIN = True\n")
+    code = "\n".join(["import sys", "from pathlib import Path", f"sys.path.insert(0, {str(RUNNER_DIR)!r})",
+                      f"pin = Path({str(pin)!r})", body])
+    return subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, cwd=tmp_path)
+
+
+def test_the_runner_binds_pa_evals_before_the_pin_goes_first(tmp_path):
+    done = _with_fake_pin(tmp_path, "\n".join([
+        "import test_follow_live as runner", "runner.bind_paths(pin)",
+        "assert sys.path[0] == str(pin), sys.path[:3]",
+        "from evals.concierge_e2e.follow_checks import score_chase_at, owner_wakes",
+        "import evals", "print(Path(evals.__file__).resolve())"]))
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == str(REPO / "evals" / "__init__.py")
+
+
+def test_without_binding_the_pin_shadows_pa_evals(tmp_path):  # Positive control: the stand-in pin really shadows.
+    done = _with_fake_pin(tmp_path, "\n".join([
+        f"sys.path[:0] = [str(pin), {str(REPO)!r}]",
+        "from evals.concierge_e2e.follow_checks import score_chase_at"]))
+    assert done.returncode != 0
+    assert "No module named 'evals.concierge_e2e'" in done.stderr
