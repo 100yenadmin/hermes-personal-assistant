@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.19.0-rc.1, 11 November 2026)
+## Where we are (0.20.0-rc.1, 12 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -82,12 +82,14 @@ In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), 
 
 0.19.0-rc.1 finishes the follow-through role (#151): in a two-day lab scenario (s42), the HeartBeat 2.0 role surfaces an urgent decision and a due chase at waking hours and stays silent on a day with nothing due (#196, #198). PA also relays status from HB2's desk (#198; skill text, not yet exercised). In its wave (96 runs on real Hermes, 90 passing), s42 and the end-of-day note (s22) passed 3 of 3; the three travel scenarios (s01 to s03) and the weekly review (s16) passed 2 of 3, and the content calendar (s38) 1 of 3. Reruns on the same commit gave s16 1 of 3 and s38 3 of 3.
 
+0.20.0-rc.1 fixes the 0.19.0-rc.1 misses: a plain calendar-setup offer (#204), the content calendar planned and shown week by week (#207, #211), people matched by exact name first (#209), the ledger CLI refusing owner-memory writes (#208) and a damaged install reported as damaged (#210). It adds a stitched fire-me week per persona to the scorecard (#205; 8 of 12 weeks kept) and runs the simulated calls and real-web errands in every release wave (#212). In its wave (120 runs on real Hermes, one at a time, 115 passing), 36 of 40 scenarios passed 3 of 3, including the content calendar (s38), the weekly review (s16) and Tokyo to Seoul (s02); San Francisco to Tokyo (s03) passed 1 of 3, and Seoul to Tokyo (s01), the real-web failures (s11) and contact cleanup (s32) 2 of 3. Three of the five misses failed on the judge alone, over claims the pages PA kept did not back.
+
 **Strong:**
-- travel prep (hotels and restaurants on real sites up to the final review page; the three travel scenarios (s01 to s03) passed 2 of 3 each in 0.19.0-rc.1);
+- travel prep (hotels and restaurants on real sites up to the final review page; in 0.20.0-rc.1 Tokyo to Seoul (s02) passed 3 of 3, Seoul to Tokyo (s01) 2 of 3 and San Francisco to Tokyo (s03) 1 of 3, mostly over claims the pages PA kept did not back);
 - the safe-action gateway and the durable ledger;
 - quiet-by-default reporting;
 - Japan and Korea provider routing;
-- simulated phone calls in Korean and Japanese.
+- simulated phone calls in Korean and Japanese (s04 to s08, 15 of 15 in the 0.20.0-rc.1 wave).
 
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
 - attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1) and passes a two-day lab scenario (s42, 0.19.0-rc.1, with a stand-in for HB2's `pulse`), but it has not yet run on a live HeartBeat 2.0 install;
@@ -114,10 +116,10 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Calendar | partial: reads and conflict checks | M4 |
 | Errands and bookings | partial: stops correctly before booking, nothing completed | M5 |
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
-| Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3); meeting minutes with owners and dates (lab s34 3 of 3); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
+| Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3 in 0.19.0-rc.1, 2 of 3 in 0.20.0-rc.1: an unhelpful error; a fix follows); meeting minutes with owners and dates (lab s34 3 of 3); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
 | Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); no tax pack yet | M6 |
 | Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1; lab s31 3 of 3 since 0.14.0-rc.1); a read-only weekly report of volume, response time, recurring complaints and open items (0.16.0-rc.1, lab s40 3 of 3) | M6 |
-| Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1; lab s38 3 of 3 in 0.15.0-rc.1 and 0.16.0-rc.1, 2 of 3 in 0.17.0-rc.1, 3 of 3 in 0.18.0-rc.1, 1 of 3 in 0.19.0-rc.1 and 3 of 3 in a rerun); no comment replies, mention monitoring or weekly report yet | M6 |
+| Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1; lab s38 3 of 3 in 0.15.0-rc.1 and 0.16.0-rc.1, 2 of 3 in 0.17.0-rc.1, 3 of 3 in 0.18.0-rc.1, 1 of 3 in 0.19.0-rc.1 and 3 of 3 in a rerun, 3 of 3 in 0.20.0-rc.1 with the calendar shown week by week); no comment replies, mention monitoring or weekly report yet | M6 |
 
 ## Gap review (9 November 2026): what changes in the order
 
@@ -138,7 +140,7 @@ A code inventory, an adversarial cross-model plan review and the live lab result
 
 **How it is measured.**
 - An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption. Built in 0.15.0-rc.1 (lab s37: a yes in a new chat confirms the prepared booking once).
-- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161). First version built: each release scorecard strings run N of every scenario a persona meets into week N, and the simulated owner fires PA at the first failing run. These are separate lab sessions, not one continuous week; a continuous week with state carried between days is next.
+- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161). First version built: each release scorecard strings run N of every scenario a persona meets into week N, and the simulated owner fires PA at the first failing run. These are separate lab sessions, not one continuous week (8 of 12 weeks kept in 0.20.0-rc.1). Next: one continuous week in one lab home, with PA's clock shifted to each simulated day; the design is on #161.
 
 **Trimmed.**
 - More travel specialisation waits until the office loop is proven.
