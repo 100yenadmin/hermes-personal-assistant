@@ -63,11 +63,43 @@ def _unique(values):
     return list(dict.fromkeys(values))
 
 
+# Keys a model plausibly sends by mistake; only these are named back, never a value or another key.
+KNOWN_KEYS = {"fields", "data", "args", "arguments", "file", "filename", "csv", "input", "output",
+              "country", "country_code", "default_country", "dry_run", "mode"}
+VALUES = ("name is 1 to 41 lowercase letters, digits or hyphens, starting with a letter or digit; "
+          "default_country_code is 1 to 3 digits as a string, like \"1\"; path is a file under imports/")
+
+
+def _shape_hint(data):
+    """Name the keys dedupe takes, so a model can correct its call (key names only, never values)."""
+    if not isinstance(data, dict):
+        return "data must be an object with action, path and name"
+    action = data.get("action")
+    if "action" in data and action != "dedupe":
+        return "action must be dedupe"
+    accepted = set(OP_SCHEMA["properties"])
+    extra = [k for k in data if k not in accepted]
+    named = sorted(k for k in extra if isinstance(k, str) and k in KNOWN_KEYS)[:5]
+    others = len(extra) - len(named)
+    missing = [k for k in OP_SCHEMA["required"] if k not in data]
+    hint = "dedupe takes action, path, name; optional: default_country_code"
+    hint += f"; missing: {', '.join(missing)}" if missing else ""
+    hint += f"; not accepted: {', '.join(named)}" if named else ""
+    hint += f"; plus {others} other key{'s' if others != 1 else ''} not accepted" if others else ""
+    if not extra and not missing:
+        return hint + "; the key names are right, so check the values: " + VALUES
+    if "fields" in named:
+        return hint + "; send them at the top level of data, with no fields object"
+    if {"country", "country_code", "default_country"} & set(named):
+        return hint + "; the country code key is default_country_code"
+    return hint + "; send only these keys, at the top level of data"
+
+
 def _read(root, data):
     if not Draft7Validator(OP_SCHEMA).is_valid(data):
-        raise ValueError("invalid contacts action, name or country code")
+        raise ValueError("invalid contacts call: " + _shape_hint(data))
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", data["name"]) or ("default_country_code" in data and not re.fullmatch(r"[0-9]{1,3}", data["default_country_code"])):
-        raise ValueError("invalid contacts name or country code")
+        raise ValueError("invalid contacts name or country code: " + VALUES)
     relative = Path(data["path"])
     if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 2 or relative.parts[0] != "imports":
         raise ValueError("contacts path must be relative under imports/")

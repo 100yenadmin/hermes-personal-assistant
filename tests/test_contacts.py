@@ -334,3 +334,53 @@ def test_same_display_name_with_different_structured_names_is_a_conflict(tmp_pat
     result = call(tmp_path)
     assert [r["source_rows"] for r in table(result["paths"]["clean"])] == ["1", "2", "3; 4"]
     assert result["counts"]["name_conflicts"] == 1 and result["counts"]["merged_clusters"] == 1
+
+
+# 0.20 wave, s32 r002: PA sent an empty "fields" object, then nested every parameter under fields, and the old
+# error ("invalid contacts action, name or country code") said nothing about either.
+@pytest.mark.parametrize("data, expected, absent", [
+    ({"fields": {}}, "not accepted: fields; send them at the top level of data", ()),
+    ({"path": None, "name": None, "fields": {"path": "imports/contacts/input.csv", "name": "demo"}},
+     "not accepted: fields", ("imports/contacts", "demo")),
+    ({"secret_token": "abc123"}, "plus 1 other key not accepted", ("secret_token", "abc123")),
+    ({"action": "merge"}, "action must be dedupe", ("merge",)),
+    ({"name": "Bad Name"}, "the key names are right, so check the values: name is 1 to 41", ("Bad Name",)),
+])
+def test_errors_name_the_shape_never_values(tmp_path, data, expected, absent):
+    source(tmp_path, 'name\nCasey\n')
+    payload = {"action": "dedupe", "path": "imports/contacts/input.csv", "name": "demo", **data}
+    payload = {k: v for k, v in payload.items() if v is not None}
+    error = entry.dispatch(tmp_path, {"operation": "contacts", "data": payload})["error"]
+    assert expected in error
+    assert all(a not in error for a in absent)
+
+
+def test_missing_keys_are_listed(tmp_path):
+    error = entry.dispatch(tmp_path, {"operation": "contacts", "data": {"action": "dedupe"}})["error"]
+    assert "missing: path, name" in error and "fields" not in error
+
+
+def test_everything_nested_under_fields_is_named(tmp_path):
+    nested = {"fields": {"action": "dedupe", "path": "imports/contacts/input.csv", "name": "demo"}}
+    error = entry.dispatch(tmp_path, {"operation": "contacts", "data": nested})["error"]
+    assert "missing: action, path, name; not accepted: fields; send them at the top level of data" in error
+    assert "imports/contacts" not in error and "demo" not in error
+
+
+def test_country_key_points_to_default_country_code(tmp_path):
+    error = call(tmp_path, country_code="1")["error"]
+    assert "not accepted: country_code; the country code key is default_country_code" in error
+
+
+def test_bad_value_after_schema_names_the_rules(tmp_path):
+    source(tmp_path, 'name\nCasey\n')
+    error = call(tmp_path, name="valid\n")["error"]
+    assert "name is 1 to 41 lowercase letters" in error and "valid\n" not in error
+
+
+def test_non_object_data_gets_a_plain_hint():
+    assert contacts._shape_hint(["x"]) == "data must be an object with action, path and name"
+
+
+def test_null_action_is_named(tmp_path):
+    assert "action must be dedupe" in call(tmp_path, action=None)["error"]
