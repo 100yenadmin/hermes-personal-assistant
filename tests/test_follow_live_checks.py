@@ -75,6 +75,7 @@ def test_all_checks_pass(json_fields):
     ("nudge_row_completed", "no_send_recorded"),
     ("sent_log_entry", "no_send_recorded"),
     ("pending_other_wake_ignored", None),
+    ("not_sent_log_ignored", None),
     ("undelivered_occurrence", "wake_fired_once"),
     ("other_wake_in_window", "wake_fired_once"),
     ("child_wake", "owner_wake_armed"),
@@ -132,6 +133,8 @@ def test_targeted_failure(change, key):
         snapshot["loops"].append({"action_id": "cedar-contract:nudge:day2", "status": "completed", "action_type": "transaction", "fields": {}})
     elif change == "sent_log_entry":
         data["chase_log"].append({"at": (ASKED + dt.timedelta(seconds=15)).isoformat(), "how": "nudge sent", "step": "day2"})
+    elif change == "not_sent_log_ignored":
+        data["chase_log"][0]["how"] = "nudge draft held, not sent"
     elif change == "pending_other_wake_ignored":
         pending = {"wake_id": "other-agent-wake", "dedupe_key": "t:pending", "state": "pending", "started_at": None}
         occurrences.append(pending)
