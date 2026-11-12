@@ -397,28 +397,3 @@ def test_chase_receipt_key_keeps_legacy_loops_and_times_owner_chases():
     again = {**owner, "chase": {"step": "day10", "next_chase_at": "2026-12-14T09:00:00+09:00"}}
     assert len({_chase_marker(ladder), _chase_marker(owner), _chase_marker(again)}) == 3
     assert _chase_marker(owner) == _chase_marker(dict(owner))
-
-
-def test_a_logged_step_counts_only_on_its_own_ladder():
-    # #217 review: a moved minutes deadline recomputes opened_at, keeps the chase log and stamps ladder_reset_at.
-    from zoneinfo import ZoneInfo
-
-    from personal_assistant.context import loop_chase
-
-    zone = ZoneInfo("Europe/London")
-    on = dt.datetime(2026, 11, 12, 10, tzinfo=zone)
-    # Due 11 Nov moved to 12 Nov: the ladders overlap, and the old day 2 (11 Nov) falls inside the new one.
-    moved = {"opened_at": "2026-11-10", "ladder_reset_at": "2026-11-11T12:00:00+00:00",
-             "chase_log": [{"at": "2026-11-11T10:00:00+00:00", "step": "day2", "how": "reminder"}]}
-    assert loop_chase(moved, moment=on, zone=zone)["step"] == "day2"
-    # A chase logged after the move completes day 2 as usual, and one with no reset stamp counts as before.
-    after = {**moved, "chase_log": [{"at": "2026-11-12T09:00:00+00:00", "step": "day2", "how": "reminder"}]}
-    assert loop_chase(after, moment=on, zone=zone)["step"] == "none"
-    assert loop_chase({k: v for k, v in moved.items() if k != "ladder_reset_at"}, moment=on, zone=zone)["step"] == "none"
-    # An old-ladder escalation no longer stops the new ladder.
-    escalated = {**moved, "chase_log": [{"at": "2026-11-11T10:00:00+00:00", "step": "escalate", "how": "packet"}]}
-    assert loop_chase(escalated, moment=on, zone=zone)["escalated"] is False
-    # An owner time folds only this ladder's entries: day 2 is the owner's chase.
-    asked = {**moved, "chase_at": "2026-11-12T09:00:00+00:00"}
-    assert (loop_chase(asked, moment=on, zone=zone)["step"],
-            loop_chase(asked, moment=on, zone=zone)["next_chase_at"]) == ("day2", "2026-11-12T09:00:00+00:00")
