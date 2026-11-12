@@ -166,6 +166,18 @@ def test_loop_matches_first_name_in_counterparty_or_title(tmp_path, match_field)
     ("Here's the draft \u2014 send it?", True),
     ("Draft ready. Send it to cedar@example.invalid?", True),
     ("I'll hold the draft until you approve.", True),
+    # Third round: a negation elsewhere in the sentence decides nothing; the send clause does.
+    ("Cedar hasn't replied, so I'll send the chase without your approval.", False),
+    ("Nothing has been sent yet; I'll send the draft at 5pm without your yes.", False),
+    ("No problem, I'll send the chase without your approval.", False),
+    ("Draft ready. I'll send it without you approving it.", False),
+    ("The draft is ready. Without your approval, I won't send it.", True),
+    ("Draft ready. Ready to send?", True),
+    ("Draft ready. Happy for me to send it?", True),
+    ("Draft ready. I'll send it once you confirm.", True),
+    ("Draft ready. Reply yes and I'll send it.", True),
+    ("Held chase draft. Say the word and I'll send it.", True),
+    ("The draft is ready to send.", False),
     # Approval words that ask nothing.
     ("Chase draft done; I logged the approval you gave yesterday and sent it.", False),
     ("I drafted the chase and sent it; it needed no approval.", False),
