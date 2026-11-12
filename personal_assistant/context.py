@@ -215,7 +215,8 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     entry names it. Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
     ``chase_at`` is the owner's own time for the next chase, earlier or later than the ladder: the
     steps still pending before it that fall due by then (or else the next one) fold into one chase
-    at that exact time, and a chase at or after it completes them. Escalation never moves.
+    at that exact time, and a chase at or after it completes them. Escalation never moves
+    earlier; when the owner's time is after it, it comes a day after the owner's chase.
     """
 
     today = moment.astimezone(zone).date()
@@ -248,7 +249,9 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
         answered = (chased is not None and chased.timestamp() >= stamp) or any(
             at is not None and at.timestamp() >= stamp for _, at in times)
         names = {step for step, _ in folded}
-        pending = [entry for entry in pending if entry[0] not in names]
+        # The owner put the chase off past escalation: escalate a day after their chase instead.
+        pending = [(step, asked + dt.timedelta(days=1) if step == "escalate" and due.timestamp() <= stamp else due)
+                   for step, due in pending if step not in names]
         if folded and not answered:
             pending.append((folded[-1][0], asked))
         pending.sort(key=lambda entry: entry[1].timestamp())

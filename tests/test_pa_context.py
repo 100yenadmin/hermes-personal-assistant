@@ -266,9 +266,15 @@ class OpenLoopTests(unittest.TestCase):
         # A time from before the loop opened is ignored.
         self.assertEqual(chase(tokyo, AT, 1, chase_at="2026-11-02T09:00:00+09:00",
                                last_chased_at="2026-11-02T09:30:00+09:00")[1], "2026-11-21T00:00:00+09:00")
-        # A far time folds day 2, 5 and 10; escalation (a question for the owner) never moves.
-        self.assertEqual(chase(tokyo, AT, 1, chase_at="2026-12-05T09:00:00+09:00"),
-                         ("none", "2026-11-30T00:00:00+09:00"))
+        # A far time folds day 2, 5 and 10; escalation waits until a day after the owner's chase.
+        far = "2026-12-05T09:00:00+09:00"
+        self.assertEqual(chase(tokyo, AT, 1, chase_at=far), ("none", far))
+        self.assertEqual(chase(tokyo, "2026-11-30T10:00:00+09:00", 1, chase_at=far), ("none", far))
+        self.assertEqual(chase(tokyo, "2026-12-05T10:00:00+09:00", 1, chase_at=far)[0], "day10")
+        self.assertEqual(chase(tokyo, "2026-12-05T10:00:00+09:00", 1, chase_at=far,
+                               last_chased_at="2026-12-05T09:10:00+09:00"), ("none", "2026-12-06T09:00:00+09:00"))
+        self.assertEqual(chase(tokyo, "2026-12-06T10:00:00+09:00", 1, chase_at=far,
+                               last_chased_at="2026-12-05T09:10:00+09:00")[0], "escalate")
         # A chase_log entry naming day2 completes it even before day 2's date.
         early = (dt.datetime.fromisoformat(AT) - dt.timedelta(hours=1)).isoformat()
         self.assertEqual(chase(tokyo, "2026-11-21T10:00:00+09:00", 1, last_chased_at=early,

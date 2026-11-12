@@ -78,7 +78,8 @@ from day 11. When several steps are overdue, only the latest one is due.
 Recording `last_chased_at` completes every chase step due by that local date,
 and a `chase_log` entry completes the step it names. A `chase_at` moves the next
 chase to the owner's exact time, earlier or later than the ladder; a chase at or
-after it completes the steps it replaced. Escalation never moves.
+after it completes the steps it replaced. Escalation never comes earlier; when
+the owner's time is after it, it comes a day after the owner's chase.
 An escalation is recorded as a `chase_log` entry with `step: "escalate"`;
 after it, the loop waits for the owner's decision with no further chase.
 A future `snoozed_until` holds the ladder. Use
