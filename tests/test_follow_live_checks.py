@@ -1,0 +1,150 @@
+"""Synthetic P5 snapshots only: importing the oracle never loads the rig."""
+import copy
+import datetime as dt
+import json
+
+import pytest
+
+from evals.concierge_e2e.follow_checks import score_chase_at
+
+
+ASKED = dt.datetime(2026, 11, 12, 12, 11, tzinfo=dt.timezone.utc)
+CHECKS = {
+    "one_cedar_loop", "chase_at_is_owner_time", "owner_wake_armed", "quiet_until_due",
+    "wake_fired_once", "wake_reply_raises_cedar", "wake_reply_holds_draft",
+    "chase_recorded", "loop_still_open", "nothing_after",
+}
+
+
+def passing_snapshot():
+    wake = {"id": "pa-chase", "kind": "at", "owner_requested": 1, "creator": "agent",
+            "parent_wake_id": None, "babysit": 0, "status": "active", "trigger_json": "{}",
+            "created_at": (ASKED - dt.timedelta(minutes=10)).timestamp(),
+            "next_due_at": ASKED.timestamp()}
+    occurrence = {"wake_id": "pa-chase", "dedupe_key": "t:synthetic", "state": "done",
+                  "started_at": (ASKED + dt.timedelta(seconds=2)).timestamp(),
+                  "ended_at": (ASKED + dt.timedelta(seconds=20)).timestamp()}
+    before = {"wakes": [wake], "occurrences": []}
+    after = {"wakes": [{**wake, "status": "completed", "next_due_at": None}],
+             "occurrences": [occurrence]}
+    return {
+        "asked": ASKED.isoformat(), "dm_sent_at": (ASKED - dt.timedelta(minutes=11)).isoformat(),
+        "loops": [{"action_id": "cedar-contract", "status": "pending", "action_type": "commitment",
+                   "fields": {"loop_kind": "waiting_on_them", "counterparty": "Cedar Demo",
+                              "title": "Signed services contract", "chase_at": ASKED.isoformat(),
+                              "chase_log": [{"at": (ASKED + dt.timedelta(seconds=10)).isoformat(),
+                                             "how": "nudge draft held", "step": "day2"}]}}],
+        "hb2": {"before": before, "after": after, "tail": copy.deepcopy(after)},
+        "day0_texts": ["I'll track the contract and show you a draft at the time you asked."],
+        "day0_settled_at": (ASKED - dt.timedelta(minutes=9)).isoformat(),
+        "wake_texts": ["Cedar Demo's contract is still outstanding. The chase draft is held for your yes."],
+        "wake_text_times": [(ASKED + dt.timedelta(seconds=20)).isoformat()], "late_texts": [],
+    }
+
+
+@pytest.mark.parametrize("json_fields", [False, True])
+def test_all_checks_pass(json_fields):
+    snapshot = passing_snapshot()
+    if json_fields:
+        row = snapshot["loops"][0]
+        row["fields_json"] = json.dumps(row.pop("fields"))
+    original = copy.deepcopy(snapshot)
+    result = score_chase_at(snapshot)
+    assert set(result) == CHECKS
+    assert all(type(value) is bool and value for value in result.values()), result
+    assert snapshot == original  # The oracle is pure.
+
+
+@pytest.mark.parametrize("change,key", [
+    ("no_loop", "one_cedar_loop"),
+    ("two_loops", "one_cedar_loop"),
+    ("wrong_chase_time", "chase_at_is_owner_time"),
+    ("no_wake", "owner_wake_armed"),
+    ("midnight_wake", "owner_wake_armed"),
+    ("role_wake", "owner_wake_armed"),
+    ("old_wake", "owner_wake_armed"),
+    ("early_message", "quiet_until_due"),
+    ("two_occurrences", "wake_fired_once"),
+    ("early_occurrence", "wake_fired_once"),
+    ("late_occurrence", "wake_fired_once"),
+    ("wrong_wake_occurrence", "wake_fired_once"),
+    ("unfinished_occurrence", "wake_fired_once"),
+    ("no_cedar", "wake_reply_raises_cedar"),
+    ("no_contract", "wake_reply_raises_cedar"),
+    ("sent_chase", "wake_reply_holds_draft"),
+    ("no_log", "chase_recorded"),
+    ("early_log", "chase_recorded"),
+    ("sent_log", "chase_recorded"),
+    ("closed_loop", "loop_still_open"),
+    ("late_message", "nothing_after"),
+    ("tail_occurrence", "nothing_after"),
+])
+def test_targeted_failure(change, key):
+    snapshot = passing_snapshot()
+    data = snapshot["loops"][0]["fields"]
+    wake = snapshot["hb2"]["before"]["wakes"][0]
+    occurrences = snapshot["hb2"]["after"]["occurrences"]
+    if change == "no_loop":
+        snapshot["loops"] = []
+    elif change == "two_loops":
+        snapshot["loops"].append({**copy.deepcopy(snapshot["loops"][0]), "action_id": "cedar-duplicate"})
+    elif change == "wrong_chase_time":
+        data["chase_at"] = (ASKED + dt.timedelta(minutes=20)).isoformat()
+    elif change == "no_wake":
+        snapshot["hb2"]["before"]["wakes"] = []
+    elif change == "midnight_wake":
+        wake["next_due_at"] = ASKED.replace(hour=0, minute=0).timestamp()
+    elif change == "role_wake":
+        wake["owner_requested"] = 0
+    elif change == "old_wake":
+        wake["created_at"] = (ASKED - dt.timedelta(days=1)).timestamp()
+    elif change == "early_message":
+        snapshot["wake_text_times"][0] = (ASKED - dt.timedelta(minutes=1)).isoformat()
+    elif change == "two_occurrences":
+        occurrences.append({**occurrences[0], "dedupe_key": "t:duplicate"})
+    elif change == "early_occurrence":
+        occurrences[0]["started_at"] = (ASKED - dt.timedelta(minutes=1)).timestamp()
+    elif change == "late_occurrence":
+        occurrences[0]["ended_at"] = (ASKED + dt.timedelta(minutes=6)).timestamp()
+    elif change == "wrong_wake_occurrence":
+        occurrences[0]["wake_id"] = "role-wake"
+    elif change == "unfinished_occurrence":
+        occurrences[0]["state"] = "started"
+    elif change in {"no_cedar", "no_contract"}:
+        word = "Cedar" if change == "no_cedar" else "contract"
+        snapshot["wake_texts"][0] = snapshot["wake_texts"][0].replace(word, "item")
+    elif change == "sent_chase":
+        snapshot["wake_texts"] = ["Cedar's contract: I've sent the chase."]
+    elif change == "no_log":
+        data.pop("chase_log")
+    elif change == "early_log":
+        data["chase_log"][0]["at"] = (ASKED - dt.timedelta(minutes=2)).isoformat()
+    elif change == "sent_log":
+        data["chase_log"][0]["how"] = "nudge sent"
+    elif change == "closed_loop":
+        data["confirmation"] = {"by": "Cedar Demo", "at": ASKED.isoformat(), "evidence": "signed copy"}
+    elif change == "late_message":
+        snapshot["late_texts"] = ["Another nudge."]
+    elif change == "tail_occurrence":
+        snapshot["hb2"]["tail"]["occurrences"].append({**occurrences[0], "dedupe_key": "t:tail", "state": "pending"})
+    result = score_chase_at(snapshot)
+    assert result[key] is False, result
+    assert not all(result.values())
+
+
+@pytest.mark.parametrize("name_field", ["counterparty", "title", "text"])
+def test_cedar_name_fields_and_case(name_field):
+    snapshot = passing_snapshot()
+    data = snapshot["loops"][0]["fields"]
+    data.pop("counterparty")
+    data["title"] = "Signed contract"
+    data[name_field] = "cEdAr Demo"
+    assert all(score_chase_at(snapshot).values())
+
+
+def test_done_unconfirmed_is_not_closed_but_is_not_open():
+    snapshot = passing_snapshot()
+    snapshot["loops"][0]["status"] = "done"
+    result = score_chase_at(snapshot)
+    assert result["one_cedar_loop"] is True
+    assert result["loop_still_open"] is False
