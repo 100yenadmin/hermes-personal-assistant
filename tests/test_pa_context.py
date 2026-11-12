@@ -397,3 +397,24 @@ def test_chase_receipt_key_keeps_legacy_loops_and_times_owner_chases():
     again = {**owner, "chase": {"step": "day10", "next_chase_at": "2026-12-14T09:00:00+09:00"}}
     assert len({_chase_marker(ladder), _chase_marker(owner), _chase_marker(again)}) == 3
     assert _chase_marker(owner) == _chase_marker(dict(owner))
+
+
+def test_a_logged_step_counts_only_on_its_own_ladder():
+    # #217 review: a moved minutes deadline recomputes opened_at and keeps the old chase_log.
+    from zoneinfo import ZoneInfo
+
+    from personal_assistant.context import loop_chase
+
+    zone = ZoneInfo("Asia/Tokyo")
+    on = dt.datetime(2026, 11, 20, 10, tzinfo=zone)
+    old_ladder = {"opened_at": "2026-11-18T00:00:00+09:00",
+                  "chase_log": [{"at": "2026-11-13T09:00:00+09:00", "step": "day2", "how": "reminder"}]}
+    assert (loop_chase(old_ladder, moment=on, zone=zone)["step"],
+            loop_chase(old_ladder, moment=on, zone=zone)["next_chase_at"]) == ("day2", "2026-11-20T00:00:00+09:00")
+    # The same entry dated on this ladder (an early held draft) still completes day 2.
+    this_ladder = {**old_ladder, "chase_log": [{"at": "2026-11-19T09:00:00+09:00", "step": "day2", "how": "reminder"}]}
+    assert loop_chase(this_ladder, moment=on, zone=zone)["step"] == "none"
+    # With an owner time, only this ladder's entries fold too: day 2 is still the owner's chase.
+    asked = {**old_ladder, "chase_at": "2026-11-20T09:00:00+09:00"}
+    assert (loop_chase(asked, moment=on, zone=zone)["step"],
+            loop_chase(asked, moment=on, zone=zone)["next_chase_at"]) == ("day2", "2026-11-20T09:00:00+09:00")
