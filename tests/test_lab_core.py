@@ -1027,9 +1027,10 @@ def test_claim_evidence_deduplicates_and_caps_each_step():
                   {'role': 'assistant', 'step': 0, 'content': '¥12345 10:00'},
                   {'role': 'assistant', 'step': 1, 'content': '¥12345 10:00'}]
     rows = judge.claim_evidence(transcript, [])
+    # 14 per step since #218, so prefix-code figures never push out a figure the judge already had.
     assert [row['figure'] for row in rows if row['step'] == 0] == [
         '¥１２,３４５', '12345円', '500원', '20 KRW', '30 JPY', '40 USD', '50 EUR',
-        '60 yen', '70 won', '$80', '€90', '£100']
+        '60 yen', '70 won', '$80', '€90', '£100', '10:00']
     assert [row['figure'] for row in rows if row['step'] == 1] == ['¥12345', '10:00']
     assert len(judge.claim_evidence(transcript, [], per_step=1)) == 2
 
