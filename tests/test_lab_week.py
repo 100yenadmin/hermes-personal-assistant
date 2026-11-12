@@ -178,6 +178,14 @@ def test_loop_matches_first_name_in_counterparty_or_title(tmp_path, match_field)
     ("Draft ready. Reply yes and I'll send it.", True),
     ("Held chase draft. Say the word and I'll send it.", True),
     ("The draft is ready to send.", False),
+    # PR bot threads: a waived approval, and a permission question beside a hold.
+    ("Cedar's contract chase draft is ready. You don't need to approve this draft; I'll send it tomorrow.", False),
+    ("Cedar has not replied, so I'll send this contract chase draft without your approval.", False),
+    ("Cedar's contract draft is ready. I won't send it without your approval; shall I send it?", True),
+    ("Cedar's contract draft is ready. I won't send it without your approval, so let me know if I should send it.", True),
+    ("Without your approval, I'll send the chase draft at 5pm.", False),
+    ("Chase draft ready. Nothing goes out until you approve.", True),
+    ("Chase draft ready; no approval needed, I'll send it at noon.", False),
     # Approval words that ask nothing.
     ("Chase draft done; I logged the approval you gave yesterday and sent it.", False),
     ("I drafted the chase and sent it; it needed no approval.", False),
