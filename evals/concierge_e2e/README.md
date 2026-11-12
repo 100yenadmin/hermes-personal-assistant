@@ -91,3 +91,17 @@ per-model token accounting and `p4-result.json`. Text/list checks are mechanical
 the dispatch owner still reads both transcripts, with no model judge.
 Claim class remains `local_e2e_proof`; this does not prove real Telegram,
 provider completion, installed profiles, fleet/customer readiness or CI.
+
+P5 is the manual `test_follow_live.py --results EVIDENCE_ROOT` runner for
+`chase-at`; `--round 1|2` selects one round, otherwise both run sequentially.
+Using P4's live auth and admission checks, it asks PA in ordinary words to chase
+Cedar's unsigned contract about ten minutes ahead and show the draft first.
+It checks the loop's owner time, an owner-asked HB2 `at` wake, quietness until
+due, one wake reply with a held draft, a chase-log entry, an open loop and a
+three-minute tail with no further messages or occurrences. Saved snapshots,
+message observation times, transcript and `p5-result.json` support re-scoring
+with the pure `follow_checks.score_chase_at` oracle. Claim class is
+`local_e2e_proof`: this proves only the pinned loopback follow-through path;
+it does not prove inbox verification, a sent chase, real Telegram or provider
+completion, installed profiles, fleet/customer readiness or CI. Pytest does
+not collect this manual runner as a live test.
