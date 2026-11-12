@@ -22,7 +22,8 @@ NEXT_ACTORS = {"owner", "us", "them"}
 CHASE_LADDER = (("day2", 2), ("day5", 5), ("day10", 10), ("escalate", 11))
 APPROVAL_OVERDUE_DAYS = 2
 MAX_CHASE_LOG = 10
-_LOOP_SUMMARY = ("loop_kind", "counterparty", "next_actor", "opened_at", "next_step", "last_chased_at", "confirmation")
+_LOOP_SUMMARY = ("loop_kind", "counterparty", "next_actor", "opened_at", "next_step", "chase_at", "last_chased_at",
+                 "confirmation")
 
 
 def _paging(data: dict[str, Any]) -> tuple[int, int]:
@@ -133,9 +134,9 @@ def loop_fields(fields: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("loop_kind must be ask_owner, delegated, our_promise or waiting_on_them")
     if "next_actor" in fields and (not isinstance(fields["next_actor"], str) or fields["next_actor"] not in NEXT_ACTORS):
         raise ValueError("next_actor must be owner, us or them")
-    for name in ("opened_at", "last_chased_at", "snoozed_until"):
-        if name == "snoozed_until" and fields.get(name) in (None, ""):
-            continue  # Clearing a snooze is allowed.
+    for name in ("opened_at", "last_chased_at", "snoozed_until", "chase_at"):
+        if name in ("snoozed_until", "chase_at") and fields.get(name) in (None, ""):
+            continue  # Clearing a snooze or the owner's chase time is allowed.
         if name in fields and not _iso_time(fields[name]):
             raise ValueError(f"{name} must be an ISO date or timestamp")
     if "confirmation" in fields and not _confirmed(fields):
@@ -210,8 +211,12 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
                zone: dt.tzinfo) -> dict[str, Any]:
     """Chase ladder on owner-local calendar days from opened_at: day 2, 5, 10, then escalate.
 
-    A chase recorded in ``last_chased_at`` completes every chase step due by its local date.
-    Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
+    A step is done when ``last_chased_at`` falls on or after its local date or a ``chase_log``
+    entry names it. Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
+    ``chase_at`` is the owner's own time for the next chase, earlier or later than the ladder: the
+    steps still pending before it that fall due by then (or else the next one) fold into one chase
+    at that exact time, and a chase at or after it completes them. Escalation never moves
+    earlier; when the owner's time is after it, it comes a day after the owner's chase.
     """
 
     today = moment.astimezone(zone).date()
@@ -219,18 +224,42 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     if opened is None:
         return {"step": "none", "next_chase_at": None, "age_days": None, "escalated": False}
     chased = local_time(fields.get("last_chased_at"), zone)
-    log = fields.get("chase_log") if isinstance(fields.get("chase_log"), list) else []
-    escalated = any(isinstance(entry, dict) and entry.get("step") == "escalate" for entry in log)
-    pending = []
-    for step, days in CHASE_LADDER:
-        due = opened.date() + dt.timedelta(days=days)
-        done = escalated or (step != "escalate" and chased is not None and chased.date() >= due)
-        if not done:
-            pending.append((step, due))
-    due_now = [entry for entry in pending if entry[1] <= today]
+    log = [entry for entry in fields.get("chase_log") or [] if isinstance(entry, dict)] \
+        if isinstance(fields.get("chase_log"), list) else []
+    escalated = any(entry.get("step") == "escalate" for entry in log)
+    ladder = [(step, dt.datetime.combine(opened.date() + dt.timedelta(days=days), dt.time(), zone))
+              for step, days in CHASE_LADDER]
+
+    def pending_after(last, steps):
+        return [(step, due) for step, due in ladder if not escalated and not (
+            step != "escalate" and (step in steps or (last is not None and last.date() >= due.date())))]
+
+    pending = pending_after(chased, {entry.get("step") for entry in log})
+    asked = local_time(fields.get("chase_at"), zone) if fields.get("chase_at") else None
+    if asked is not None and asked.date() >= opened.date():
+        # Fold on the evidence from before the owner's time, so the chase made at it counts once.
+        stamp = asked.timestamp()
+        times = [(entry, local_time(entry.get("at"), zone)) for entry in log]
+        earlier = [at for _, at in times if at is not None and at.timestamp() < stamp]
+        earlier += [chased] if chased is not None and chased.timestamp() < stamp else []
+        base = [entry for entry in pending_after(max(earlier, key=lambda at: at.timestamp(), default=None),
+                                                 {e.get("step") for e, at in times if at and at.timestamp() < stamp})
+                if entry[0] != "escalate"]
+        folded = [entry for entry in base if entry[1].timestamp() <= stamp] or base[:1]
+        answered = (chased is not None and chased.timestamp() >= stamp) or any(
+            at is not None and at.timestamp() >= stamp for _, at in times)
+        names = {step for step, _ in folded}
+        # The owner put the chase off past escalation: escalate a day after their chase instead.
+        pending = [(step, asked + dt.timedelta(days=1) if step == "escalate" and due.timestamp() <= stamp else due)
+                   for step, due in pending if step not in names]
+        if not answered:
+            # With day 10 done or the loop escalated, the owner's time is still one more chase.
+            pending.append((folded[-1][0] if folded else "day10", asked))
+        pending.sort(key=lambda entry: entry[1].timestamp())
+    due_now = [entry for entry in pending if entry[1].timestamp() <= moment.timestamp()]
     target = due_now[-1] if due_now else (pending[0] if pending else None)
     step = due_now[-1][0] if due_now else "none"
-    next_at = dt.datetime.combine(target[1], dt.time(), zone) if target else None
+    next_at = target[1] if target else None
     snoozed = local_time(fields.get("snoozed_until"), zone) if fields.get("snoozed_until") else None
     if snoozed and snoozed > moment:
         step, next_at = "none", max(next_at, snoozed) if next_at else None

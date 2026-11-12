@@ -268,6 +268,14 @@ def _health_failure(ledger, kind, reason, current):
     return {"wakeAgent": False, "reason": reason}
 
 
+
+def _chase_marker(item):
+    """A chase step's receipt. A loop with an owner's chase_at keys it by time too, since an
+    owner's extra chase can reuse a step label (#215); other loops keep their existing receipts."""
+    step = item["chase"]["step"]
+    revision = f"{step}@{item['chase'].get('next_chase_at')}" if item.get("chase_at") else step
+    return auto.notification_occurrence_id("chase-step", item["action_id"], revision)
+
 def cron_precheck(ledger, kind, *, enabled, moment=None):
     """Return Hermes wakeAgent JSON; no network or LLM on an empty tick."""
     prefs = preferences(ledger)
@@ -327,7 +335,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
             chases.extend(item for item in page["candidates"] if item["chase"]["step"] not in {"none", "escalate"}
                           and item["next_step"].startswith(("Chase", "Kanban or status shows done"))
                           and item["action_id"] not in snoozed
-                          and not auto.notification_receipt(ledger, auto.notification_occurrence_id("chase-step", item["action_id"], item["chase"]["step"])))
+                          and not auto.notification_receipt(ledger, _chase_marker(item)))
             offset = page["next_offset"]
             if offset is None: break
     trips = ledger.list("trip")
@@ -433,7 +441,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     if claim["claimed"]:
         ledger.put("action", claim["action_id"], {"routine_kind": kind, "logical": logical})
         for chase in chases:
-            marker = auto.notification_occurrence_id("chase-step", chase["action_id"], chase["chase"]["step"])
+            marker = _chase_marker(chase)
             if auto.claim_notification(ledger, marker, rule_id="chase-step", now=current)["claimed"]:
                 auto.record_notification(ledger, marker, "unknown", now=current)
         if chases and auto.script_precheck({**state, "actions": due}, now=current, kind=kind)["run"]:

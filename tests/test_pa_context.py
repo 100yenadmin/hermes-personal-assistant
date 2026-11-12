@@ -194,6 +194,124 @@ class OpenLoopTests(unittest.TestCase):
             chase = self._read(ledger)["candidates"][0]["chase"]
             self.assertEqual((chase["step"], chase["next_chase_at"]), ("none", "2026-11-22T09:00:00+00:00"))
 
+    def test_owner_chase_time_pulls_the_next_chase_earlier(self):
+        # #215: "chase them tomorrow morning" on a loop opened yesterday; the ladder alone says day 2.
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"}, action_type="preferences")
+            _loop(ledger, "asked-due", 1, chase_at="2026-11-20T09:00:00+09:00")
+            _loop(ledger, "asked-later-today", 1, chase_at="2026-11-20T11:00:00+09:00")
+            _loop(ledger, "asked-after-day2", 1, chase_at="2026-11-23T09:00:00+09:00")
+            _loop(ledger, "asked-date-only", 1, chase_at="2026-11-20")
+            result = self._read(ledger, loops_only=True)
+            by_id = {item["action_id"]: item for item in result["candidates"]}
+            chase = {key: (item["chase"]["step"], item["chase"]["next_chase_at"]) for key, item in by_id.items()}
+            self.assertEqual(chase["asked-due"], ("day2", "2026-11-20T09:00:00+09:00"))
+            self.assertEqual(chase["asked-later-today"], ("none", "2026-11-20T11:00:00+09:00"))
+            self.assertEqual(chase["asked-after-day2"], ("none", "2026-11-23T09:00:00+09:00"))  # Later too.
+            self.assertEqual(chase["asked-date-only"], ("day2", "2026-11-20T00:00:00+09:00"))
+            self.assertEqual(by_id["asked-due"]["chase_at"], "2026-11-20T09:00:00+09:00")
+
+    def test_a_chase_at_the_owner_time_completes_that_step_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"}, action_type="preferences")
+            _loop(ledger, "chased-then", 1, chase_at="2026-11-20T09:00:00+09:00",
+                  last_chased_at="2026-11-20T09:30:00+09:00",
+                  chase_log=[{"at": "2026-11-20T09:30:00+09:00", "step": "day2", "how": "nudge draft held"}])
+            _loop(ledger, "chased-before", 1, chase_at="2026-11-20T09:00:00+09:00",
+                  last_chased_at="2026-11-20T08:00:00+09:00")
+            by_id = {item["action_id"]: item["chase"] for item in self._read(ledger)["candidates"]}
+            # Day 2 is done; the next chase is day 5 from opened_at, not day 2 again tomorrow.
+            self.assertEqual((by_id["chased-then"]["step"], by_id["chased-then"]["next_chase_at"]),
+                             ("none", "2026-11-24T00:00:00+09:00"))
+            # A chase before the owner's time leaves the asked chase due.
+            self.assertEqual((by_id["chased-before"]["step"], by_id["chased-before"]["next_chase_at"]),
+                             ("day2", "2026-11-20T09:00:00+09:00"))
+            day2 = next_actions(ledger, {"at": "2026-11-21T10:00:00+09:00", "limit": 20},
+                                kanban_reader=lambda task_id, board: UNKNOWN)
+            self.assertEqual({i["action_id"]: i["chase"]["step"] for i in day2["candidates"]}["chased-then"], "none")
+
+    def test_owner_chase_time_review_cases(self):
+        # Reviews of #217: same-day reschedule, a replaced time after a chase, a chase with no log,
+        # a DST fold, a stale time from before the loop, a far time, and a log entry naming its step.
+        def chase(zone, at, age_or_opened, **fields):
+            with tempfile.TemporaryDirectory() as root:
+                ledger = Ledger(root)
+                ledger.put("action", "pa:preferences", {"timezone": zone}, action_type="preferences")
+                if isinstance(age_or_opened, str):
+                    _loop(ledger, "loop", 0, opened_at=age_or_opened, **fields)
+                else:
+                    _loop(ledger, "loop", age_or_opened, **fields)
+                item = next_actions(ledger, {"at": at, "limit": 20},
+                                    kanban_reader=lambda task_id, board: UNKNOWN)["candidates"][0]["chase"]
+                return item["step"], item["next_chase_at"]
+
+        tokyo = "Asia/Tokyo"
+        # Day 2 is due today; "chase them at 15:00 today" holds it until 15:00, then it is one chase.
+        self.assertEqual(chase(tokyo, AT, 2, chase_at="2026-11-20T15:00:00+09:00"),
+                         ("none", "2026-11-20T15:00:00+09:00"))
+        self.assertEqual(chase(tokyo, "2026-11-20T16:00:00+09:00", 2, chase_at="2026-11-20T15:00:00+09:00",
+                               last_chased_at="2026-11-20T15:05:00+09:00"), ("none", "2026-11-23T00:00:00+09:00"))
+        # A pulled chase made with no log entry still completes day 2; a new time later replaces day 2's date.
+        self.assertEqual(chase(tokyo, "2026-11-21T10:00:00+09:00", 1, chase_at="2026-11-20T09:00:00+09:00",
+                               last_chased_at="2026-11-20T09:30:00+09:00"), ("none", "2026-11-24T00:00:00+09:00"))
+        self.assertEqual(chase(tokyo, "2026-11-21T10:00:00+09:00", 1, chase_at="2026-11-22T09:00:00+09:00",
+                               last_chased_at="2026-11-20T09:30:00+09:00"), ("none", "2026-11-22T09:00:00+09:00"))
+        # DST fold: 01:45 EDT is 45 minutes before 01:30 EST. That chase was day 2's; the owner's
+        # 01:30 EST chase is still due as the next one, not answered by it.
+        self.assertEqual(chase("America/New_York", "2026-11-01T02:00:00-05:00", "2026-10-30T09:00:00-04:00",
+                               chase_at="2026-11-01T01:30:00-05:00", last_chased_at="2026-11-01T01:45:00-04:00"),
+                         ("day5", "2026-11-01T01:30:00-05:00"))
+        # A time from before the loop opened is ignored.
+        self.assertEqual(chase(tokyo, AT, 1, chase_at="2026-11-02T09:00:00+09:00",
+                               last_chased_at="2026-11-02T09:30:00+09:00")[1], "2026-11-21T00:00:00+09:00")
+        # A far time folds day 2, 5 and 10; escalation waits until a day after the owner's chase.
+        far = "2026-12-05T09:00:00+09:00"
+        self.assertEqual(chase(tokyo, AT, 1, chase_at=far), ("none", far))
+        self.assertEqual(chase(tokyo, "2026-11-30T10:00:00+09:00", 1, chase_at=far), ("none", far))
+        self.assertEqual(chase(tokyo, "2026-12-05T10:00:00+09:00", 1, chase_at=far)[0], "day10")
+        self.assertEqual(chase(tokyo, "2026-12-05T10:00:00+09:00", 1, chase_at=far,
+                               last_chased_at="2026-12-05T09:10:00+09:00"), ("none", "2026-12-06T09:00:00+09:00"))
+        self.assertEqual(chase(tokyo, "2026-12-06T10:00:00+09:00", 1, chase_at=far,
+                               last_chased_at="2026-12-05T09:10:00+09:00")[0], "escalate")
+        # After day 10 or an escalation, the owner's "chase them once more" is still a chase (Claude round 3).
+        late = [{"at": "2026-11-29T09:05:00+09:00", "step": "day10", "how": "nudge sent"}]
+        self.assertEqual(chase(tokyo, "2026-12-07T09:01:00+09:00", 1, chase_at="2026-12-07T09:00:00+09:00",
+                               last_chased_at="2026-11-30T09:00:00+09:00",
+                               chase_log=late + [{"at": "2026-11-30T09:00:00+09:00", "step": "escalate",
+                                                  "how": "packet in brief"}]),
+                         ("day10", "2026-12-07T09:00:00+09:00"))
+        thursday = "2026-12-04T09:00:00+09:00"
+        self.assertEqual(chase(tokyo, "2026-12-02T10:00:00+09:00", 1, chase_at=thursday,
+                               last_chased_at="2026-11-29T09:05:00+09:00", chase_log=late), ("none", thursday))
+        self.assertEqual(chase(tokyo, "2026-12-04T09:01:00+09:00", 1, chase_at=thursday,
+                               last_chased_at="2026-11-29T09:05:00+09:00", chase_log=late)[0], "day10")
+        self.assertEqual(chase(tokyo, "2026-12-04T10:00:00+09:00", 1, chase_at=thursday,
+                               last_chased_at="2026-12-04T09:10:00+09:00", chase_log=late),
+                         ("none", "2026-12-05T09:00:00+09:00"))
+        # A chase_log entry naming day2 completes it even before day 2's date.
+        early = (dt.datetime.fromisoformat(AT) - dt.timedelta(hours=1)).isoformat()
+        self.assertEqual(chase(tokyo, "2026-11-21T10:00:00+09:00", 1, last_chased_at=early,
+                               chase_log=[{"at": early, "step": "day2", "how": "nudge draft held"}]),
+                         ("none", "2026-11-24T00:00:00+09:00"))
+
+    def test_chase_at_is_validated_and_clearable(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = {"loop_kind": "waiting_on_them", "counterparty": "Cedar", "next_actor": "them",
+                    "opened_at": "2026-11-19T10:00:00+09:00", "next_step": "Chase the contract"}
+            for bad in ("tomorrow morning", 20261120, {"at": "2026-11-20"}):
+                with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "chase_at"):
+                    dispatch(root, {"operation": "action_upsert", "data": {
+                        "action_id": "cedar", "action_type": "commitment", "fields": {**base, "chase_at": bad}}})
+            saved = dispatch(root, {"operation": "action_upsert", "data": {
+                "action_id": "cedar", "action_type": "commitment",
+                "fields": {**base, "chase_at": "2026-11-20T09:00:00+09:00"}}})
+            self.assertEqual(saved["fields"]["chase_at"], "2026-11-20T09:00:00+09:00")
+            cleared = dispatch(root, {"operation": "action_upsert", "data": {
+                "action_id": "cedar", "fields": {"chase_at": ""}}})
+            self.assertEqual(cleared["fields"]["chase_at"], "")
+
     def test_only_confirmation_closes_a_loop(self):
         with tempfile.TemporaryDirectory() as root:
             ledger = Ledger(root)
@@ -266,3 +384,16 @@ class OpenLoopTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_chase_receipt_key_keeps_legacy_loops_and_times_owner_chases():
+    # Claude review of #217: an owner's extra chase reuses a step label, so its receipt carries the time.
+    from personal_assistant import automation as auto
+    from personal_assistant.automation_workflow import _chase_marker
+    ladder = {"action_id": "loop", "chase": {"step": "day10", "next_chase_at": "2026-11-29T00:00:00+09:00"}}
+    assert _chase_marker(ladder) == auto.notification_occurrence_id("chase-step", "loop", "day10")
+    owner = {**ladder, "chase_at": "2026-12-07T09:00:00+09:00",
+             "chase": {"step": "day10", "next_chase_at": "2026-12-07T09:00:00+09:00"}}
+    again = {**owner, "chase": {"step": "day10", "next_chase_at": "2026-12-14T09:00:00+09:00"}}
+    assert len({_chase_marker(ladder), _chase_marker(owner), _chase_marker(again)}) == 3
+    assert _chase_marker(owner) == _chase_marker(dict(owner))

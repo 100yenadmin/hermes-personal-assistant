@@ -12,7 +12,8 @@ from .privacy import clean
 
 TRANSACTION_FIELDS = {"material_summary", "summary_digest", "confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest"}
 # The only fields an open loop may still write after a provider step was prepared on its own row.
-LOOP_BOOKKEEPING = frozenset({"confirmation", "loop_cancelled", "last_chased_at", "chase_log", "snoozed_until", "next_step"})
+LOOP_BOOKKEEPING = frozenset({"confirmation", "loop_cancelled", "last_chased_at", "chase_log", "snoozed_until", "chase_at",
+                              "next_step"})
 
 _path = Path(__file__).resolve().parents[1] / "skills/travel-ledger/scripts/travel_ledger.py"
 _spec = importlib.util.spec_from_file_location("pa_legacy_ledger", _path)

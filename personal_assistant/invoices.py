@@ -175,7 +175,7 @@ def _record(conn, data, zone):
         if not loop or revive:
             loop_fields["chase_log"] = []
         _put(conn, loop_id, loop_fields, "open" if not loop or revive else loop["status"], trip,
-             remove=("confirmation", "loop_cancelled", "last_chased_at", "snoozed_until") if revive else ())
+             remove=("confirmation", "loop_cancelled", "last_chased_at", "snoozed_until", "chase_at") if revive else ())
     return identity
 
 

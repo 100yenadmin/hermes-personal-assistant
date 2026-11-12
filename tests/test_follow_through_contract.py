@@ -57,8 +57,10 @@ def test_follow_through_skill_front_matter_and_size():
     import yaml
 
     # 6000 until the HB2 role rule (#151), 6500 until the done_unconfirmed rule (lab s20), 6700 until the
-    # role wake-hour and notify rules (#151, live s42), 7100 until the 280-character summary hint; keep the skill lean.
-    assert SKILL.stat().st_size < 7150
+    # role wake-hour and notify rules (#151, live s42), 7100 until the 280-character summary hint, 7150 until the
+    # owner's chase_at rule (#215, live w01), 7300 until the id for another nudge on a sent step (#217 review);
+    # keep the skill lean.
+    assert SKILL.stat().st_size < 7400
     front = yaml.safe_load(_skill_text().split("---", 2)[1])
     assert front["name"] == "follow-through" and front["description"]
     assert front["metadata"]["openclaw"]["skillKey"] == "follow-through"
@@ -163,3 +165,5 @@ def test_nudges_are_prepared_as_their_own_action():
     text = SKILL.read_text(encoding="utf-8")
     assert "`<loop action id>:nudge:<step>`" in text
     assert "never on the loop's own action" in text
+    # The ledger refuses to prepare an id whose send already completed, so the owner's extra chase needs its own.
+    assert "another nudge on a step already sent adds `:2`, `:3`" in " ".join(text.split())

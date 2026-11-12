@@ -364,15 +364,19 @@ def _commit(ledger, prefix, loops, staged, paths):
         for identity, fields in loops.items():
             old = _get(conn, identity)
             reopen = not old or old["status"] == "cancelled"
-            if reopen:
+            kept = {} if reopen else (old.get("fields") or {})
+            # A moved due date (not just a new zone on the same date) starts a new chase ladder. The old
+            # ladder's log and the owner's chase time would complete or fold its steps, so they go.
+            moved = bool(kept.get("due_at")) and str(kept["due_at"])[:10] != fields["due_at"][:10]
+            if reopen or moved:
                 fields = {**fields, "chase_log": []}
-            elif ((old.get("fields") or {}).get("opened_at")
-                  and (old.get("fields") or {}).get("due_at") == fields["due_at"]):
-                # A re-save with the same due date keeps the loop's chase ladder; a moved date recomputes it.
-                fields = {**fields, "opened_at": old["fields"]["opened_at"]}
+            elif kept.get("opened_at") and kept.get("due_at") == fields["due_at"]:
+                # A re-save with the same due date keeps the loop's chase ladder.
+                fields = {**fields, "opened_at": kept["opened_at"]}
             # A restored item starts its chase afresh: no cancellation, chase timestamp or snooze carries over.
             _put(conn, identity, fields, "open" if reopen else old["status"],
-                 remove=("loop_cancelled", "last_chased_at", "snoozed_until") if reopen else ())
+                 remove=("loop_cancelled", "last_chased_at", "snoozed_until", "chase_at") if reopen
+                 else ("chase_at",) if moved else ())
         for identity in set(existing) - set(loops):  # An item dropped on re-save stops being chased.
             old = _get(conn, identity)
             if (old and old.get("action_type") == "commitment" and old["status"] != "cancelled"
