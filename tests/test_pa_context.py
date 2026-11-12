@@ -194,6 +194,60 @@ class OpenLoopTests(unittest.TestCase):
             chase = self._read(ledger)["candidates"][0]["chase"]
             self.assertEqual((chase["step"], chase["next_chase_at"]), ("none", "2026-11-22T09:00:00+00:00"))
 
+    def test_owner_chase_time_pulls_the_next_chase_earlier(self):
+        # #215: "chase them tomorrow morning" on a loop opened yesterday; the ladder alone says day 2.
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"}, action_type="preferences")
+            _loop(ledger, "asked-due", 1, chase_at="2026-11-20T09:00:00+09:00")
+            _loop(ledger, "asked-later-today", 1, chase_at="2026-11-20T11:00:00+09:00")
+            _loop(ledger, "asked-after-day2", 1, chase_at="2026-11-23T09:00:00+09:00")
+            _loop(ledger, "asked-date-only", 1, chase_at="2026-11-20")
+            result = self._read(ledger, loops_only=True)
+            by_id = {item["action_id"]: item for item in result["candidates"]}
+            chase = {key: (item["chase"]["step"], item["chase"]["next_chase_at"]) for key, item in by_id.items()}
+            self.assertEqual(chase["asked-due"], ("day2", "2026-11-20T09:00:00+09:00"))
+            self.assertEqual(chase["asked-later-today"], ("none", "2026-11-20T11:00:00+09:00"))
+            self.assertEqual(chase["asked-after-day2"], ("none", "2026-11-21T00:00:00+09:00"))  # Never later.
+            self.assertEqual(chase["asked-date-only"], ("day2", "2026-11-20T00:00:00+09:00"))
+            self.assertEqual(by_id["asked-due"]["chase_at"], "2026-11-20T09:00:00+09:00")
+
+    def test_a_chase_at_the_owner_time_completes_that_step_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(root)
+            ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"}, action_type="preferences")
+            _loop(ledger, "chased-then", 1, chase_at="2026-11-20T09:00:00+09:00",
+                  last_chased_at="2026-11-20T09:30:00+09:00",
+                  chase_log=[{"at": "2026-11-20T09:30:00+09:00", "step": "day2", "how": "nudge draft held"}])
+            _loop(ledger, "chased-before", 1, chase_at="2026-11-20T09:00:00+09:00",
+                  last_chased_at="2026-11-20T08:00:00+09:00")
+            by_id = {item["action_id"]: item["chase"] for item in self._read(ledger)["candidates"]}
+            # Day 2 is done; the next chase is day 5 from opened_at, not day 2 again tomorrow.
+            self.assertEqual((by_id["chased-then"]["step"], by_id["chased-then"]["next_chase_at"]),
+                             ("none", "2026-11-24T00:00:00+09:00"))
+            # A chase before the owner's time leaves the asked chase due.
+            self.assertEqual((by_id["chased-before"]["step"], by_id["chased-before"]["next_chase_at"]),
+                             ("day2", "2026-11-20T09:00:00+09:00"))
+            day2 = next_actions(ledger, {"at": "2026-11-21T10:00:00+09:00", "limit": 20},
+                                kanban_reader=lambda task_id, board: UNKNOWN)
+            self.assertEqual({i["action_id"]: i["chase"]["step"] for i in day2["candidates"]}["chased-then"], "none")
+
+    def test_chase_at_is_validated_and_clearable(self):
+        with tempfile.TemporaryDirectory() as root:
+            base = {"loop_kind": "waiting_on_them", "counterparty": "Cedar", "next_actor": "them",
+                    "opened_at": "2026-11-19T10:00:00+09:00", "next_step": "Chase the contract"}
+            for bad in ("tomorrow morning", 20261120, {"at": "2026-11-20"}):
+                with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "chase_at"):
+                    dispatch(root, {"operation": "action_upsert", "data": {
+                        "action_id": "cedar", "action_type": "commitment", "fields": {**base, "chase_at": bad}}})
+            saved = dispatch(root, {"operation": "action_upsert", "data": {
+                "action_id": "cedar", "action_type": "commitment",
+                "fields": {**base, "chase_at": "2026-11-20T09:00:00+09:00"}}})
+            self.assertEqual(saved["fields"]["chase_at"], "2026-11-20T09:00:00+09:00")
+            cleared = dispatch(root, {"operation": "action_upsert", "data": {
+                "action_id": "cedar", "fields": {"chase_at": ""}}})
+            self.assertEqual(cleared["fields"]["chase_at"], "")
+
     def test_only_confirmation_closes_a_loop(self):
         with tempfile.TemporaryDirectory() as root:
             ledger = Ledger(root)

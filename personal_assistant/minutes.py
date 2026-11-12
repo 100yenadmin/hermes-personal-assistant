@@ -372,7 +372,7 @@ def _commit(ledger, prefix, loops, staged, paths):
                 fields = {**fields, "opened_at": old["fields"]["opened_at"]}
             # A restored item starts its chase afresh: no cancellation, chase timestamp or snooze carries over.
             _put(conn, identity, fields, "open" if reopen else old["status"],
-                 remove=("loop_cancelled", "last_chased_at", "snoozed_until") if reopen else ())
+                 remove=("loop_cancelled", "last_chased_at", "snoozed_until", "chase_at") if reopen else ())
         for identity in set(existing) - set(loops):  # An item dropped on re-save stops being chased.
             old = _get(conn, identity)
             if (old and old.get("action_type") == "commitment" and old["status"] != "cancelled"

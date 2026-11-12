@@ -22,7 +22,8 @@ NEXT_ACTORS = {"owner", "us", "them"}
 CHASE_LADDER = (("day2", 2), ("day5", 5), ("day10", 10), ("escalate", 11))
 APPROVAL_OVERDUE_DAYS = 2
 MAX_CHASE_LOG = 10
-_LOOP_SUMMARY = ("loop_kind", "counterparty", "next_actor", "opened_at", "next_step", "last_chased_at", "confirmation")
+_LOOP_SUMMARY = ("loop_kind", "counterparty", "next_actor", "opened_at", "next_step", "chase_at", "last_chased_at",
+                 "confirmation")
 
 
 def _paging(data: dict[str, Any]) -> tuple[int, int]:
@@ -133,9 +134,9 @@ def loop_fields(fields: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("loop_kind must be ask_owner, delegated, our_promise or waiting_on_them")
     if "next_actor" in fields and (not isinstance(fields["next_actor"], str) or fields["next_actor"] not in NEXT_ACTORS):
         raise ValueError("next_actor must be owner, us or them")
-    for name in ("opened_at", "last_chased_at", "snoozed_until"):
-        if name == "snoozed_until" and fields.get(name) in (None, ""):
-            continue  # Clearing a snooze is allowed.
+    for name in ("opened_at", "last_chased_at", "snoozed_until", "chase_at"):
+        if name in ("snoozed_until", "chase_at") and fields.get(name) in (None, ""):
+            continue  # Clearing a snooze or the owner's chase time is allowed.
         if name in fields and not _iso_time(fields[name]):
             raise ValueError(f"{name} must be an ISO date or timestamp")
     if "confirmation" in fields and not _confirmed(fields):
@@ -212,6 +213,8 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
 
     A chase recorded in ``last_chased_at`` completes every chase step due by its local date.
     Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
+    ``chase_at`` is the owner's own time for a chase: it pulls the first step due after it
+    earlier (never later) to that exact time, and a chase recorded at or after it completes that step.
     """
 
     today = moment.astimezone(zone).date()
@@ -221,16 +224,21 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     chased = local_time(fields.get("last_chased_at"), zone)
     log = fields.get("chase_log") if isinstance(fields.get("chase_log"), list) else []
     escalated = any(isinstance(entry, dict) and entry.get("step") == "escalate" for entry in log)
+    asked = local_time(fields.get("chase_at"), zone) if fields.get("chase_at") else None
     pending = []
     for step, days in CHASE_LADDER:
-        due = opened.date() + dt.timedelta(days=days)
-        done = escalated or (step != "escalate" and chased is not None and chased.date() >= due)
+        due = dt.datetime.combine(opened.date() + dt.timedelta(days=days), dt.time(), zone)
+        pulled = asked is not None and step != "escalate" and asked < due
+        if pulled:
+            due, asked = asked, None  # Only the first pending step moves.
+        done = escalated or (step != "escalate" and chased is not None
+                             and (chased >= due if pulled else chased.date() >= due.date()))
         if not done:
             pending.append((step, due))
-    due_now = [entry for entry in pending if entry[1] <= today]
+    due_now = [entry for entry in pending if entry[1] <= moment]
     target = due_now[-1] if due_now else (pending[0] if pending else None)
     step = due_now[-1][0] if due_now else "none"
-    next_at = dt.datetime.combine(target[1], dt.time(), zone) if target else None
+    next_at = target[1] if target else None
     snoozed = local_time(fields.get("snoozed_until"), zone) if fields.get("snoozed_until") else None
     if snoozed and snoozed > moment:
         step, next_at = "none", max(next_at, snoozed) if next_at else None
