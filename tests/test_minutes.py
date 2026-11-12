@@ -462,7 +462,29 @@ def test_resave_with_a_moved_due_date_recomputes_opened_at(home):
     items[0]["quote"] = "I'll send Birch the revised logo files by Friday."
     result = save(home, action_items=items)
     assert "error" not in result, result
-    assert Ledger(home).get("action", loop["action_id"])["fields"]["opened_at"] == "2026-11-18"
+    fields = Ledger(home).get("action", loop["action_id"])["fields"]
+    assert fields["opened_at"] == "2026-11-18"
+    # #217 review: chases logged before the move belong to the old ladder, even where the two overlap.
+    assert fields["ladder_reset_at"]
+    assert "ladder_reset_at" not in Ledger(home).get("action", next(
+        r["action_id"] for r in ledger.list("action") if r["action_id"].startswith("minutes:") and r["action_id"] != loop["action_id"]
+        and ":" not in r["action_id"][len("minutes:"):].split(":", 1)[1]))["fields"]
+
+
+def test_a_chase_logged_before_a_one_day_move_does_not_complete_the_new_ladder(home):
+    items = copy.deepcopy(MINUTES["action_items"])[1:]  # Avery, "by November 12": the 11th and the 12th both fit.
+    items[0]["due_date"] = "2026-11-11"
+    assert "error" not in save(home, action_items=items)
+    ledger = Ledger(home)
+    loop = next(r for r in ledger.list("action") if r["action_id"].startswith("minutes:"))
+    ledger.put("action", loop["action_id"], {"chase_log": [{"step": "day2", "at": "2026-11-11T10:00:00+00:00", "how": "reminder"}]})
+    items[0]["due_date"] = "2026-11-12"
+    assert "error" not in save(home, action_items=items)
+    chase = next(c for c in entry.dispatch(home, {"operation": "next_action", "data": {
+        "loops_only": True, "at": "2026-11-12T10:00:00+00:00"}})["candidates"] if c["action_id"] == loop["action_id"])["chase"]
+    assert (chase["step"], chase["next_chase_at"]) == ("day2", "2026-11-12T00:00:00+00:00")
+
+
 def read(home, **data):
     return entry.dispatch(home, {"operation": "minutes", "data": {"action": "read", "path": "imports/meetings/sync.txt", **data}})
 

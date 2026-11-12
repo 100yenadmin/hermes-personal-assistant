@@ -364,15 +364,18 @@ def _commit(ledger, prefix, loops, staged, paths):
         for identity, fields in loops.items():
             old = _get(conn, identity)
             reopen = not old or old["status"] == "cancelled"
+            kept = {} if reopen else (old.get("fields") or {})
             if reopen:
                 fields = {**fields, "chase_log": []}
-            elif ((old.get("fields") or {}).get("opened_at")
-                  and (old.get("fields") or {}).get("due_at") == fields["due_at"]):
-                # A re-save with the same due date keeps the loop's chase ladder; a moved date recomputes it.
-                fields = {**fields, "opened_at": old["fields"]["opened_at"]}
+            elif kept.get("due_at") != fields["due_at"]:
+                # A moved date recomputes the ladder; chases logged before now belong to the old one.
+                fields = {**fields, "ladder_reset_at": now()}
+            elif kept.get("opened_at"):
+                # A re-save with the same due date keeps the loop's chase ladder.
+                fields = {**fields, "opened_at": kept["opened_at"]}
             # A restored item starts its chase afresh: no cancellation, chase timestamp or snooze carries over.
             _put(conn, identity, fields, "open" if reopen else old["status"],
-                 remove=("loop_cancelled", "last_chased_at", "snoozed_until", "chase_at") if reopen else ())
+                 remove=("loop_cancelled", "last_chased_at", "snoozed_until", "chase_at", "ladder_reset_at") if reopen else ())
         for identity in set(existing) - set(loops):  # An item dropped on re-save stops being chased.
             old = _get(conn, identity)
             if (old and old.get("action_type") == "commitment" and old["status"] != "cancelled"

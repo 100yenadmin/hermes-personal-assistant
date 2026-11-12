@@ -212,7 +212,7 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     """Chase ladder on owner-local calendar days from opened_at: day 2, 5, 10, then escalate.
 
     A step is done when ``last_chased_at`` falls on or after its local date or a ``chase_log``
-    entry from this ladder (dated on or after ``opened_at``) names it. Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
+    entry names it; entries before ``ladder_reset_at`` (a moved minutes deadline) count for nothing. Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
     ``chase_at`` is the owner's own time for the next chase, earlier or later than the ladder: the
     steps still pending before it that fall due by then (or else the next one) fold into one chase
     at that exact time, and a chase at or after it completes them. Escalation never moves
@@ -226,7 +226,12 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     chased = local_time(fields.get("last_chased_at"), zone)
     log = [entry for entry in fields.get("chase_log") or [] if isinstance(entry, dict)] \
         if isinstance(fields.get("chase_log"), list) else []
-    escalated = any(entry.get("step") == "escalate" for entry in log)
+    times = [(entry, local_time(entry.get("at"), zone)) for entry in log]
+    # Minutes stamps ladder_reset_at when a moved deadline recomputes opened_at: entries logged before it
+    # belong to the old ladder and complete nothing on this one (the ladders can overlap by days).
+    reset = local_time(fields.get("ladder_reset_at"), zone) if fields.get("ladder_reset_at") else None
+    current = [(entry, at) for entry, at in times if reset is None or at is None or at.timestamp() >= reset.timestamp()]
+    escalated = any(entry.get("step") == "escalate" for entry, _ in current)
     ladder = [(step, dt.datetime.combine(opened.date() + dt.timedelta(days=days), dt.time(), zone))
               for step, days in CHASE_LADDER]
 
@@ -234,9 +239,6 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
         return [(step, due) for step, due in ladder if not escalated and not (
             step != "escalate" and (step in steps or (last is not None and last.date() >= due.date())))]
 
-    times = [(entry, local_time(entry.get("at"), zone)) for entry in log]
-    # A logged step counts only on this ladder: a moved minutes deadline recomputes opened_at and keeps older entries.
-    current = [(entry, at) for entry, at in times if at is None or at.date() >= opened.date()]
     pending = pending_after(chased, {entry.get("step") for entry, _ in current})
     asked = local_time(fields.get("chase_at"), zone) if fields.get("chase_at") else None
     if asked is not None and asked.date() >= opened.date():
