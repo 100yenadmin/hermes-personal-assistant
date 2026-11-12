@@ -11,7 +11,7 @@ from evals.concierge_e2e.follow_checks import score_chase_at
 ASKED = dt.datetime(2026, 11, 12, 12, 11, tzinfo=dt.timezone.utc)
 CHECKS = {
     "one_cedar_loop", "chase_at_is_owner_time", "owner_wake_armed", "quiet_until_due",
-    "wake_fired_once", "wake_reply_raises_cedar", "wake_reply_holds_draft",
+    "wake_fired_once", "wake_reply_raises_cedar", "wake_reply_holds_draft", "no_sent_claim",
     "chase_recorded", "loop_still_open", "nothing_after",
 }
 
@@ -23,7 +23,7 @@ def passing_snapshot():
             "next_due_at": ASKED.timestamp()}
     occurrence = {"wake_id": "pa-chase", "dedupe_key": "t:synthetic", "state": "done",
                   "started_at": (ASKED + dt.timedelta(seconds=2)).timestamp(),
-                  "ended_at": (ASKED + dt.timedelta(seconds=20)).timestamp()}
+                  "ended_at": (ASKED + dt.timedelta(seconds=20)).timestamp(), "delivered": 1}
     before = {"wakes": [wake], "occurrences": []}
     after = {"wakes": [{**wake, "status": "completed", "next_due_at": None}],
              "occurrences": [occurrence]}
@@ -71,7 +71,19 @@ def test_all_checks_pass(json_fields):
     ("unfinished_occurrence", "wake_fired_once"),
     ("no_cedar", "wake_reply_raises_cedar"),
     ("no_contract", "wake_reply_raises_cedar"),
-    ("sent_chase", "wake_reply_holds_draft"),
+    ("sent_chase", "no_sent_claim"),
+    ("sent_then_asks_again", "no_sent_claim"),
+    ("gate_only_in_quoted_draft", "wake_reply_holds_draft"),
+    ("undelivered_occurrence", "wake_fired_once"),
+    ("other_wake_in_window", "wake_fired_once"),
+    ("child_wake", "owner_wake_armed"),
+    ("babysit_wake", "owner_wake_armed"),
+    ("system_wake", "owner_wake_armed"),
+    ("every_wake", "owner_wake_armed"),
+    ("inactive_wake", "owner_wake_armed"),
+    ("builtin_wake", "owner_wake_armed"),
+    ("late_settle", "quiet_until_due"),
+    ("missing_time", "quiet_until_due"),
     ("no_log", "chase_recorded"),
     ("early_log", "chase_recorded"),
     ("sent_log", "chase_recorded"),
@@ -115,6 +127,30 @@ def test_targeted_failure(change, key):
         snapshot["wake_texts"][0] = snapshot["wake_texts"][0].replace(word, "item")
     elif change == "sent_chase":
         snapshot["wake_texts"] = ["Cedar's contract: I've sent the chase."]
+    elif change == "sent_then_asks_again":
+        snapshot["wake_texts"] = ["Cedar Demo contract: I chased them and sent the nudge. Want me to send another?"]
+    elif change == "gate_only_in_quoted_draft":
+        snapshot["wake_texts"] = ['Cedar contract still missing. Draft: "Hi Cedar, please send the signed contract. Should I send this again?"']
+    elif change == "undelivered_occurrence":
+        occurrences[0]["delivered"] = 0
+    elif change == "other_wake_in_window":
+        occurrences.append({**occurrences[0], "wake_id": "other-agent-wake", "dedupe_key": "t:other"})
+    elif change == "child_wake":
+        wake["parent_wake_id"] = "parent"
+    elif change == "babysit_wake":
+        wake["babysit"] = 1
+    elif change == "system_wake":
+        wake["creator"] = "system"
+    elif change == "every_wake":
+        wake["kind"] = "every"
+    elif change == "inactive_wake":
+        wake["status"] = "cancelled"
+    elif change == "builtin_wake":
+        wake["trigger_json"] = '{"builtin": true}'
+    elif change == "late_settle":
+        snapshot["day0_settled_at"] = ASKED.isoformat()
+    elif change == "missing_time":
+        snapshot["wake_text_times"] = []
     elif change == "no_log":
         data.pop("chase_log")
     elif change == "early_log":

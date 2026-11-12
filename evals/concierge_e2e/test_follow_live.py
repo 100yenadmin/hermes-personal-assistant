@@ -63,7 +63,7 @@ def run_scenario(auth, pin, scenario, dest):
         def woke():
             texts, rows = observe(), rig.hb2()
             return bool(texts) and any(row["state"] == "done" and row["wake_id"] in wake_ids
-                                       for row in rows.get("occurrences", []))
+                                       and row.get("delivered") in (1, True) for row in rows.get("occurrences", []))
 
         deadline = min(asked + dt.timedelta(minutes=6), sent + dt.timedelta(minutes=18))
         rig.wait(woke, "owner-asked chase wake and visible DM", max(0, (deadline - dt.datetime.now(dt.timezone.utc)).total_seconds()))
@@ -99,7 +99,8 @@ def run_scenario(auth, pin, scenario, dest):
             if not failures and not result["reason"]:
                 result["status"] = "PASS"
             result["reason"] = result["reason"] or "; ".join(failures) or "all deterministic checks passed"
-            save(dest / "p5-result.json", result)
+            # A PASS is written only after the admission checks below; a crash before them leaves INCOMPLETE, which reruns.
+            save(dest / "p5-result.json", {**result, "status": "INCOMPLETE"} if result["status"] == "PASS" else result)
         finally:
             rig.close()
         usage = json.loads((rig.root / "usage.json").read_text())
