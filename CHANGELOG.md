@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.21.0-rc.1 — 2026-11-12
+
+This release candidate gives the owner's own chase time a home in every open loop, and makes the lab test PA the way an assistant works: one continuous week, judged on what PA actually read.
+- **The owner's chase time (#217, closes #215).** When the owner says "if it hasn't arrived by tomorrow morning, chase them", PA records that time as the loop's `chase_at`, and the next chase comes due then, earlier or later than the day 2, 5 and 10 ladder. Before, the loop had no field for it. Models put the time in made-up fields that nothing read, and `next_action` put the chase on day 2.
+  - The ladder steps that fall due by then (or else the next one) fold into one chase at the owner's time. A chase made at that time completes them once.
+  - Escalation never moves earlier. When the owner's time is after it, escalation comes a day after the owner's chase.
+  - With day 10 done or the loop escalated, an owner's "chase them once more" is one more chase.
+  - A scheduled check keys an owner's chase by its time, so it is never skipped as already delivered.
+- **Another nudge on a sent step gets its own id (#217).** The ledger refuses to prepare a nudge whose send already completed. A second nudge on the same step now takes `:2`, `:3`.
+- **A moved meeting-minutes deadline starts a new chase ladder (#217).** Re-saving minutes with a later or earlier due date clears that item's chase log and chase time, as restoring an item already does. A step chased on the old ladder no longer completes the new one, and a draft held for the old date no longer blocks the new day 5. A new timezone on the same date keeps the ladder.
+- **A wrong contacts call says what was wrong (#214).** In the 0.20.0-rc.1 wave, s32 r002 sent an empty `fields` object, then nested every parameter under `fields`. Both times the error said only "invalid contacts action, name or country code", so the cleanup never ran. The error now names the keys dedupe takes, which are missing, and which known-mistake keys (such as `fields` or `country_code`) were not accepted. When `fields` was sent, it says to put the keys at the top level. It never repeats a value, or a key name outside that known list.
+- **Lab: one continuous week (#216, Related #161).** A persona's days run as one lab run in one home, on a shifted clock that PA and Hermes both read. PA carries its own ledger from day to day. The first week (w01: Cedar's contract, a "chase tomorrow morning" request on day 0, then "what needs me today?" on day 1) found #215.
+- **Lab: the judge sees what PA read (#219, closes #218).** The lab's evidence for the judge now looks up figures PA read in the run's history files when the tool log missed them, matches currency codes such as "USD 149", and lists the page states PA read during the run. The four 0.20.0-rc.1 runs the judge failed for unsupported claims were the lab's evidence gaps. Re-judged, all four pass, while a genuine failure (s32 r002) still fails.
+
+PA's skills still stop every booking, payment and send for the owner's yes.
+
+It ships `releases/0.21.0-rc.1/scorecard.md`, built from 120 Capability Lab runs (40 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. 119 of 120 runs pass (115 of 120 in 0.20.0-rc.1). The continuous week (w01) passes 3 of 3 at the same commit; the scorecard does not map it to an area yet. No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations).
+
+- **39 of 40 scenarios pass 3 of 3** (36 of 40 in 0.20.0-rc.1). Seoul to Tokyo (s01), the real-web failures (s11) and contact cleanup (s32) now pass 3 of 3.
+- **No run failed on the judge alone.** In 0.20.0-rc.1, three of the five misses did, over claims the lab's evidence did not show PA had read (#219).
+- **San Francisco to Tokyo (s03) passes 2 of 3** (1 of 3 in 0.20.0-rc.1). In the miss, PA set the Uber route from Haneda to the hotel, but the date and time step did not complete and no fare showed. PA said so and requested nothing. It also pointed out that the flight it had found lands at 17:20, after the 16:00 pickup the owner asked for. The taxi step's handoff check failed because the reply named no blocker, such as a login or an app-only route; the judge passed the run.
+- **Fire-me week (stitched):** 11 of 12 persona weeks kept (8 of 12 in 0.20.0-rc.1). The solo founder, the agency owner and the family user keep 3 of 3 weeks; the executive keeps 2 of 3, fired on day 4 at that s03 run.
+- **Scorecard:** errands (s11) and documents (s32) move back to partial checks passing, so 12 areas have partial checks passing. Travel still has partial checks failing (s03).
+
 ## 0.20.0-rc.1 — 2026-11-12
 
 This release candidate fixes the misses found in the 0.19.0-rc.1 wave and its review. It also scores PA the way an owner would, with a stitched "fire-me week" per persona, and runs the call and errand scenarios in every release wave from now on.
