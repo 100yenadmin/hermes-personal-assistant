@@ -21,7 +21,8 @@ this section with the exact user-facing notes.
 ## Validation
 
 List focused evidence. The required `validate` check aggregates package, archive,
-release-contract, and both exact Hermes native lifecycle jobs.
+release-contract, both exact Hermes native lifecycle jobs, and a scan-on install
+with Hermes v0.22.2.
 
 ## Proof boundary
 
