@@ -110,7 +110,9 @@ def _cash_position(rows, expenses, as_of):
     # issued by as_of and paid after it. Void rows carry no date and stay out.
     invoices = [r for r in rows if r["action_type"] == "invoice" and (r["status"] == "open" or (
         r["status"] == "paid" and r["fields"]["issue_date"] <= as_of < r["fields"]["paid_on"]))]
-    recent = [r for r in expenses if start <= r["fields"]["date"] <= as_of]
+    # A receipt matched to a card line is that purchase, counted once on the line's date, as in the tax pack.
+    suppressed = set(_receipt_matches(expenses).values())
+    recent = [r for r in expenses if start <= r["fields"]["date"] <= as_of and r["action_id"] not in suppressed]
     currencies = sorted({r["fields"]["currency"] for r in balances + invoices + recent})
     result = {"as_of": as_of, "currencies": {}, "gaps": []}
     for currency in currencies:
@@ -155,7 +157,12 @@ def _monthly(rows, expenses, month):
     paid = [r for r in rows if r["action_type"] == "invoice" and r["status"] == "paid"
             and r["fields"]["paid_on"].startswith(month + "-")]
     candidates = expenses  # A duplicate may straddle the month boundary; it is listed in the bill's month.
-    expenses = [r for r in expenses if r["fields"]["date"].startswith(month + "-")]
+    # A receipt matched to a card line is that purchase: it counts once, on the line's date, and the pair is
+    # not a possible duplicate. The tax pack matches the same way, so twelve months add up to its year.
+    matches = _receipt_matches(candidates)
+    suppressed = set(matches.values())
+    matched_pairs = {frozenset(pair) for pair in matches.items()}
+    expenses = [r for r in expenses if r["fields"]["date"].startswith(month + "-") and r["action_id"] not in suppressed]
     result = {"month": month, "currencies": {}, "possible_duplicates": []}
     for currency in sorted({r["fields"]["currency"] for r in paid + expenses}):
         incoming = [r for r in paid if r["fields"]["currency"] == currency and r["fields"]["direction"] == "receivable"]
@@ -165,8 +172,9 @@ def _monthly(rows, expenses, month):
                                            "expenses": _categories(spent, signed=True),
                                            "net": _number(_total(incoming) - _total(bills) - _total(spent, signed=True))}
         result["possible_duplicates"].extend(_bill_duplicates(bills, candidates))
-    result["possible_duplicates"].extend(p for p in card_duplicates(candidates) if p["dates"][-1].startswith(month + "-"))
-    return result, paid, expenses
+    result["possible_duplicates"].extend(p for p in card_duplicates(candidates) if p["dates"][-1].startswith(month + "-")
+                                         and frozenset(p["expense_ids"]) not in matched_pairs)
+    return result, paid, expenses, sum(r["action_id"] in matches for r in expenses)
 
 
 def _bill_duplicates(bills, expenses):
@@ -298,7 +306,7 @@ def _tax_pack(rows, expenses, start, end):
     return result, paid, spent, opened, matches, by_id
 
 
-def _export(ledger, summary, paid, expenses):
+def _export(ledger, summary, paid, expenses, matched=0):
     columns = "date kind category amount currency counterparty evidence_ref record_id".split()
     table = []
     for row in sorted(paid + expenses, key=lambda r: r["action_id"]):
@@ -327,6 +335,10 @@ def _export(ledger, summary, paid, expenses):
         else:
             lines.append("- " + md(f"{pair['merchant']}: {pair['amount']} {pair['currency']}; "
                                   f"{', '.join(pair['dates'])}; {', '.join(pair['expense_ids'])}"))
+    if matched:
+        lines += ["", f"Receipts matched to card lines: {matched}. A receipt within 3 days of a card line for the same "
+                  "merchant and amount is taken as that purchase's receipt and counted once, on the card line's date. "
+                  "If one was a separate cash purchase, tell the owner."]
     return _write_export(ledger, "monthly-" + summary["month"], columns, table, lines)
 
 
@@ -451,7 +463,7 @@ def dispatch(ledger, data):
             if data.get("export", False):
                 result["export"] = _export_tax_pack(ledger, result, *details)
             return result
-        result, paid, spent = _monthly(rows, expenses, data["month"])
+        result, paid, spent, matched = _monthly(rows, expenses, data["month"])
     if data.get("export", False):
-        result["export"] = _export(ledger, result, paid, spent)
+        result["export"] = _export(ledger, result, paid, spent, matched)
     return result

@@ -1,5 +1,6 @@
 """Synthetic offline finance views through the public PA interface."""
 import csv
+from decimal import Decimal
 import datetime as dt
 import json
 import stat
@@ -236,7 +237,7 @@ def test_monthly_export_paths_modes_formula_safety_and_markdown(ledger):
     assert any(r["kind"] == "net" and r["amount"] == "40" for r in table)
     markdown = paths["markdown"].read_text()
     assert "Synthetic\\|&lt;Vendor&gt;\\\\name" in markdown and " Synthetic Vendor" in markdown
-    assert "Possible duplicates" in markdown
+    assert "Possible duplicates" in markdown and "Receipts matched" not in markdown
     # Existing exports are brought back to the same private mode on rewrite.
     paths["csv"].chmod(0o644)
     call(ledger, "monthly", month="2026-11", export=True)
@@ -358,3 +359,53 @@ def test_open_bill_issued_after_as_of_still_counts(ledger):
     view = call(ledger, "cash_position")["currencies"]["USD"]
     assert view["payables"]["due_7d"]["total"] == "300"
     assert view["projected_7d"]["amount"] == "700"
+
+
+def card_line(ledger, ref, **changes):
+    return expense(ledger, "statement imports/statements/synthetic.csv line " + ref, **changes)
+
+
+def test_monthly_counts_a_matched_receipt_once_and_not_as_a_duplicate(ledger):
+    # The issue's example: a card line on 2 April and the forwarded receipt on 3 April are one purchase.
+    line = card_line(ledger, "3", amount="420.00", date="2026-04-02", merchant="Pine Demo Air", category="transport")
+    receipt = expense(ledger, "Receipt PDA-1", amount="420.00", date="2026-04-03", merchant="Pine Demo Air",
+                      category="transport")
+    result = call(ledger, "monthly", month="2026-04")
+    assert result["currencies"]["USD"]["expenses"] == {"by_category": {"transport": "420"}, "total": "420"}
+    assert result["possible_duplicates"] == []
+    # A second card line for the same amount is still a possible duplicate, of the line and of the receipt.
+    second = card_line(ledger, "4", amount="420.00", date="2026-04-04", merchant="Pine Demo Air", category="transport")
+    result = call(ledger, "monthly", month="2026-04")
+    assert result["currencies"]["USD"]["expenses"]["total"] == "840"
+    pairs = [p["expense_ids"] for p in result["possible_duplicates"]]
+    assert sorted(map(sorted, pairs)) == sorted([sorted([line["action_id"], second["action_id"]]),
+                                                 sorted([receipt["action_id"], second["action_id"]])])
+
+
+def test_monthly_totals_add_up_to_the_tax_pack_across_a_month_end(ledger):
+    card_line(ledger, "7", amount="18.50", date="2026-04-30", merchant="Spruce Demo Cafe", category="food")
+    expense(ledger, "Receipt SDC-1", amount="18.50", date="2026-05-01", merchant="Spruce Demo Cafe", category="food")
+    expense(ledger, "Receipt ADB-1", amount="35.00", date="2026-05-02", merchant="Aspen Demo Books", category="other")
+    april, may = (call(ledger, "monthly", month=m)["currencies"]["USD"]["expenses"]["total"] for m in ("2026-04", "2026-05"))
+    pack = call(ledger, "tax_pack", period_start="2026-04-01", period_end="2026-05-31")
+    assert (april, may) == ("18.5", "35")
+    assert str(Decimal(april) + Decimal(may)) == pack["currencies"]["USD"]["expenses"]["total"] == "53.5"
+
+
+def test_cash_position_counts_a_matched_receipt_once(ledger):
+    card_line(ledger, "9", amount="420.00", date="2026-11-05", merchant="Pine Demo Air")
+    expense(ledger, "Receipt PDA-2", amount="420.00", date="2026-11-06", merchant="Pine Demo Air")
+    expense(ledger, "Receipt cash", amount="12.00", date="2026-11-07", merchant="Rowan Demo Kiosk")
+    spent = call(ledger, "cash_position")["currencies"]["USD"]["spent_7d"]
+    assert spent == {"charges": "432", "refunds": "0", "net": "432"}
+
+
+def test_monthly_export_lists_a_matched_purchase_once_with_a_note(ledger):
+    line = card_line(ledger, "3", amount="420.00", date="2026-11-02", merchant="Pine Demo Air", category="transport")
+    receipt = expense(ledger, "Receipt PDA-3", amount="420.00", date="2026-11-03", merchant="Pine Demo Air",
+                      category="transport")
+    paths = {k: Path(v) for k, v in call(ledger, "monthly", month="2026-11", export=True)["export"].items()}
+    with paths["csv"].open(newline="") as handle:
+        ids = [r["record_id"] for r in csv.DictReader(handle) if r["record_id"]]
+    assert ids == [line["action_id"]] and receipt["action_id"] not in paths["markdown"].read_text()
+    assert "Receipts matched to card lines: 1." in paths["markdown"].read_text()
