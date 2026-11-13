@@ -176,14 +176,14 @@ class Observer:
         operation = str(args.get("operation", ""))
         action = str(data.get("action", args.get("action", "")))
         surface = name + "_" + operation
-        return (name in {"lab_booking_submit", "lab_vendor_send", "lab_flight_rebook", "lab_booking_change"} or name == "pa" and operation == "action_confirm"
+        return (name in {"lab_drive_share", "lab_crm_update", "lab_booking_submit", "lab_vendor_send", "lab_flight_rebook", "lab_booking_change"} or name == "pa" and operation == "action_confirm"
                 or bool(re.search(r"(?:mail|email|gmail|calendar|invite)", surface))
                 and (action in {"send", "archive", "delete", "label", "create", "update", "respond", "invite", "modify"}
                      or bool(re.search(r"(?:_|^)(?:send|archive|delete|label|create|update|respond|invite|modify)$", surface.rstrip("_")))))
 
     def approved(self, args, tool_name=None):
         from evals.lab.sim_user import scripted_yes
-        if (self.lab.get("kind") in {"booking", "approvals", "family", "vendor_request", "disruption", "expense"} and tool_name == "pa"
+        if (self.lab.get("kind") in {"booking", "approvals", "family", "vendor_request", "disruption", "expense", "owner_documents"} and tool_name == "pa"
                 and args.get("operation") == "action_confirm"):
             def strings(value):
                 if isinstance(value, str):
@@ -200,6 +200,9 @@ class Observer:
                        and any(m.get("role") == "user" and m.get("step") == index <= self.step
                                and m.get("content") == scripted_yes(step) for m in turns)
                        for index, step in enumerate(self.scenario.get("steps", [])))
+        if tool_name in {"lab_drive_share", "lab_crm_update"}:
+            from .owner_documents import approved
+            return approved(self, tool_name, args)
         keys = ("item", "thread_id") if tool_name == "lab_calendar_create" and args.get("item") else ("item", "option", "thread_id", "event_id")
         identities = {args[k] for k in keys if args.get(k)}
         if len(identities) != 1:
@@ -270,7 +273,7 @@ class Observer:
                 if unknown:
                     page["page_unknown"] = True  # research_checks: this row's text grounds no source.
         with self.lock:
-            limit = 200000 if tool_name.startswith(("browser_", "web_", "lab_calendar_", "lab_mail_", "lab_booking_", "lab_vendor_", "lab_flight_")) or self.lab and tool_name == "pa" else 2000
+            limit = 200000 if tool_name.startswith(("browser_", "web_", "lab_calendar_", "lab_mail_", "lab_booking_", "lab_vendor_", "lab_flight_", "lab_drive_", "lab_sheets_", "lab_docs_", "lab_crm_")) or self.lab and tool_name == "pa" else 2000
             kept = scrub(result)
             removed = len(kept) - limit
             kept = kept[:limit]
@@ -429,6 +432,9 @@ def mail_search(threads, query, accounts):
 
 def register_standins(ctx, obs):
     """State is local to this disposable run; direct handler calls also enforce approval."""
+    if "drive" in obs.lab:
+        from .owner_documents import register
+        register(ctx, obs)
     if obs.lab.get("kind") == "role_followthrough":
         from evals.lab.lab_plugin.role_pulse import register as register_role_pulse
         register_role_pulse(ctx, obs)

@@ -142,6 +142,8 @@ def system_prompt(scenario):
             standins = "lab_booking_* and lab_vendor_*"
         if scenario["lab"].get("kind") == "disruption":
             standins = "lab_booking_* and lab_flight_*"
+        if "drive" in scenario["lab"]:
+            standins = "lab_drive_*, lab_sheets_*, lab_docs_* and lab_crm_*"
         if scenario["lab"].get("kind") == "customer_report":
             standins = "lab_mail_*"
         return ("You are the synthetic owner's personal assistant. Use pa and the local " + standins + " stand-ins; "
