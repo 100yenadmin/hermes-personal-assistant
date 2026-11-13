@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.22.0-rc.1 — 2026-11-13
+
+This release candidate makes PA easier to report problems against and safer to install, holds a chase draft for an explicit yes, and keeps an owner's early chase time. Its HeartBeat 2.0 chase now passes a live wake in the lab.
+- **Community kit (#225, Fixes #224).**
+  - The shared bug form, which matches the other catalog plugins field for field, and a security policy (`SECURITY.md`) with private reporting.
+  - A `report-problem` skill. When the owner reports a problem, PA routes anything security-related to the private form. Otherwise it gathers read-only diagnostics, searches existing issues, and drafts a report under the form's headings with no personal data. It files the report with `gh` only after an explicit yes to that exact draft.
+- **The install scan passes again, and CI checks it (#227, #230, Fixes #228).** One line of the new skill made Hermes v0.22.2's install-time security scan rate the plugin high-risk, so installing main needed `--force`. The line is reworded. Every PR now installs its commit with that scan on and no `--force`, as a user would. Catalog v0.11.0 and v0.21.0-rc.1 were never affected.
+- **A held chase draft asks for the yes (#226).** At the owner's chase time, the follow-through skill shows the exact text and recipient and asks whether to send it. Before, it showed the draft and said nothing was sent, but never asked. Nothing is sent without a yes to that exact text.
+- **An owner's early chase time counts on minutes and invoice loops (#232, Fixes #220).** These loops start their ladder from a synthetic date: an action item's due date minus 2 days, or an invoice's payment due date. An owner's earlier "check with Avery on the 20th" was recorded but ignored. Now a time is ignored only if it falls before both the loop's opening and its recording. An early time folds into day 2, as other loops do; making it an extra chase is #233.
+- **Rideshare: a future pickup on the web (#234).** For a later pickup, PA sets the date and time with the site's schedule control before looking for a fare. If no fare shows, it names what stopped it in the site's own words. A ride-now price is labelled as not for the requested time. In 0.21.0-rc.1, the one miss was an Uber route whose time step never completed, with no blocker named.
+- **Lab: the owner's chase time on a live HeartBeat 2.0 wake (#221, #223; #161 phase 2).** A new live runner (P5) on real Hermes v0.22.2, HeartBeat 2.0 v0.2.0 and `gpt-6.1-sol`, with loopback Telegram. The owner says "If Cedar Demo's signed contract hasn't arrived by HH:MM UTC, chase them, but show me the draft first". PA arms one wake for that minute, stays quiet until then, shows the held draft, asks for the yes, and sends nothing. 11 of 11 checks pass in both rounds. Claim class `local_e2e_proof`: not a live profile or real Telegram.
+
+PA's skills still stop every booking, payment and send for the owner's yes.
+
+It ships `releases/0.22.0-rc.1/scorecard.md`, built from 120 Capability Lab runs (40 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. 118 of 120 runs pass (119 of 120 in 0.21.0-rc.1). The continuous week (w01) passes 3 of 3 in the same wave; the scorecard does not map it to an area yet. No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations).
+
+- **38 of 40 scenarios pass 3 of 3** (39 of 40 in 0.21.0-rc.1), including Seoul to Tokyo (s01), the real-web failures (s11), the Japanese multi-errand day (s12) and every simulated call (s04 to s08).
+- **Tokyo to Seoul (s02) passes 2 of 3.** The miss failed on the judge alone. PA said Catch Table's deposit screen showed 20,000원, or 0원 with CatchPay, and the page it read shows exactly that, but as two text nodes, "20,000" and "원". The judge's evidence read them apart and showed it an unrelated room-fee notice instead. The lab fix is #240 (for #239), which merges after this release; the scorecard keeps the wave's result.
+- **San Francisco to Tokyo (s03) passes 2 of 3** (2 of 3 in 0.21.0-rc.1). The miss ran past its 30-minute budget (1850 seconds; the other two runs took 1260 and 1089). It reached the Uber step, where the schedule control timed out. Its reply was honest: no fare shown, the 17:20 arrival is after the 16:00 pickup, nothing requested; the judge passed it. Uber's web flow still shows no fare for a future pickup from a fresh lab browser. Next: a labelled typical fare from Uber's public route pages.
+- **Fire-me week (stitched):** 11 of 12 persona weeks kept (11 of 12 in 0.21.0-rc.1). The executive keeps 2 of 3, fired on day 4 at that s03 run.
+- **Scorecard:** unchanged from 0.21.0-rc.1: 1 area passing, 12 with partial checks passing, travel with partial checks failing (s02 and s03), 13 unproven.
+
 ## 0.21.0-rc.1 — 2026-11-12
 
 This release candidate gives the owner's own chase time a home in every open loop, and makes the lab test PA the way an assistant works: one continuous week, judged on what PA actually read.
