@@ -17,10 +17,10 @@ PA's skills still stop every booking, payment and send for the owner's yes.
 It ships `releases/0.22.0-rc.1/scorecard.md`, built from 120 Capability Lab runs (40 scenarios, 3 runs each) pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. 118 of 120 runs pass (119 of 120 in 0.21.0-rc.1). The continuous week (w01) passes 3 of 3 in the same wave; the scorecard does not map it to an area yet. No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations).
 
 - **38 of 40 scenarios pass 3 of 3** (39 of 40 in 0.21.0-rc.1), including Seoul to Tokyo (s01), the real-web failures (s11), the Japanese multi-errand day (s12) and every simulated call (s04 to s08).
-- **Tokyo to Seoul (s02) passes 2 of 3.** The miss failed on the judge alone. PA said Catch Table's deposit screen showed 20,000원, or 0원 with CatchPay, and the page it read shows exactly that, but as two text nodes, "20,000" and "원". The judge's evidence read them apart and showed it an unrelated room-fee notice instead. The lab fix is #240 (Fixes #239); the scorecard keeps the wave's result.
+- **Tokyo to Seoul (s02) passes 2 of 3.** The miss failed on the judge alone. PA said Catch Table's deposit screen showed 20,000원, or 0원 with CatchPay, and the page it read shows exactly that, but as two text nodes, "20,000" and "원". The judge's evidence read them apart and showed it an unrelated room-fee notice instead. The lab fix is #240 (for #239), which merges after this release; the scorecard keeps the wave's result.
 - **San Francisco to Tokyo (s03) passes 2 of 3** (2 of 3 in 0.21.0-rc.1). The miss ran past its 30-minute budget (1850 seconds; the other two runs took 1260 and 1089). It reached the Uber step, where the schedule control timed out. Its reply was honest: no fare shown, the 17:20 arrival is after the 16:00 pickup, nothing requested; the judge passed it. Uber's web flow still shows no fare for a future pickup from a fresh lab browser. Next: a labelled typical fare from Uber's public route pages.
 - **Fire-me week (stitched):** 11 of 12 persona weeks kept (11 of 12 in 0.21.0-rc.1). The executive keeps 2 of 3, fired on day 4 at that s03 run.
-- **Scorecard:** unchanged from 0.21.0-rc.1: 1 area passing, 12 with partial checks passing, travel with partial checks failing (s03), 13 unproven.
+- **Scorecard:** unchanged from 0.21.0-rc.1: 1 area passing, 12 with partial checks passing, travel with partial checks failing (s02 and s03), 13 unproven.
 
 ## 0.21.0-rc.1 — 2026-11-12
 
