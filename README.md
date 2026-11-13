@@ -298,6 +298,8 @@ Pinned installs do not update on their own. To move to another release, run `her
 
 ## Report a bug
 
+Use the [bug form](https://github.com/100yenadmin/hermes-personal-assistant/issues/new?template=bug_report.yml), or ask your agent to "report a problem with Personal Assistant" with the [`report-problem` skill](skills/report-problem/SKILL.md).
+
 Open an issue with the [issue tracker](https://github.com/100yenadmin/hermes-personal-assistant/issues/new/choose). For a security problem, use a [private security advisory](https://github.com/100yenadmin/hermes-personal-assistant/security/advisories/new) instead of a public issue.
 
 [Releases](https://github.com/100yenadmin/hermes-personal-assistant/releases) · [CHANGELOG](CHANGELOG.md) · [CONTRIBUTING](CONTRIBUTING.md)

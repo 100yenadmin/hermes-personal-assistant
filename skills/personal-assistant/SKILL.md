@@ -16,6 +16,8 @@ Ordinary unscoped calls remain under normal Hermes policy; exact-action
 authorization applies only when a PA workflow explicitly prepares a matching
 scope. A capability row or credential never grants provider-action authority.
 
+For bugs or unexpected behavior, load `personal-assistant:report-problem` to draft a report for the owner to review before filing.
+
 ## Language
 
 - Reply in the language the user writes in, regardless of destination.

@@ -1,0 +1,89 @@
+# Shared plugin bug form. Field ids and labels are FROZEN across our plugin repos: the
+# report-a-problem skill drafts issues with these same headings, so do not rename them.
+# Per repo: description, the security line, the diagnostics hint, and the surface options.
+name: Bug report
+description: Something in Personal Assistant is broken or behaves unexpectedly.
+labels: ["bug", "triage-pending"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Your Hermes agent can draft it for you: ask it to "report a problem with Personal Assistant".
+        **Never include personal data here**: no owner or other people's names, contact details (emails, phone numbers, addresses), booking references or confirmation numbers, itineraries or travel dates, calendar or inbox content, message text, payment details, or the ledger itself (`state/travel-ledger/travel.sqlite`). Describe the shape of the problem instead, for example "a hotel step stopped at the login page" or "a chase came due a day early".
+        **Security and privacy problems** (sends, bookings, payments, reservations or cancellations without your explicit yes; data leaving your machine other than as the README discloses; another profile reading your ledger; exposed credentials; or a web page, email or message causing an action you did not ask for) go to a [private advisory](https://github.com/100yenadmin/hermes-personal-assistant/security/advisories/new), not here.
+        **Problems in Hermes itself** belong in [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent/issues).
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: input
+    id: plugin_version
+    attributes:
+      label: Plugin version
+      description: The personal-assistant entry from `hermes plugins list --json` (version and source).
+    validations:
+      required: true
+  - type: input
+    id: hermes_version
+    attributes:
+      label: Hermes version
+      description: Output of `hermes --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where it happened
+      options:
+        - Hermes Desktop
+        - CLI
+        - Telegram
+        - Other messaging platform
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 26, Ubuntu 24.04, Windows 11 ...
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Output of `/pa mode`; if already available, redacted `pa(operation="capabilities")` output (integration availability, not authentication proof). Do not invoke `pa` just for diagnosis; its native wrapper initializes the ledger. Read-only diagnostics only; do not re-run bookings, sends, setup or ledger writes, or patch the installed plugin. Replace personal details, private paths and identifiers with `<data>`. Never attach the ledger.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: Short excerpts only, for example from `hermes logs --since 1h -n 2000 | grep -i personal`. Leave out personal data, tokens, keys, credentials and private message text.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: This report contains no health data, secrets, tokens or private messages.
+          required: true
+        - label: An AI agent helped draft this report, and I reviewed it.

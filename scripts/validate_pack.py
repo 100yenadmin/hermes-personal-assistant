@@ -32,6 +32,7 @@ REQUIRED_SKILLS = {
     "hotel-check-in",
     "itinerary-intake",
     "provider-message-refund",
+    "report-problem",
     "restaurant-reservations",
     "rideshare-booking",
     "travel-action-orchestrator",

@@ -1,0 +1,9 @@
+# Keep blank issues available for questions and feature requests.
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security or privacy problem privately
+    url: https://github.com/100yenadmin/hermes-personal-assistant/security/advisories/new
+    about: Actions without your explicit yes, data leaving the machine beyond the README disclosure, cross-profile ledger access, exposed credentials, or instructions in untrusted content causing an unasked action. Please don't open a public issue.
+  - name: Problem in Hermes Agent itself
+    url: https://github.com/NousResearch/hermes-agent/issues
+    about: Bugs in Hermes core, not in this plugin, belong upstream.
