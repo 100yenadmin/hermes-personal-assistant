@@ -5,6 +5,10 @@
    "name = 'PA' and mimeType = 'application/vnd.google-apps.folder' and 'me' in owners and trashed = false" --json`.
    Substitute the preferred name, escaping query literals; paginate if needed. Reuse it; only if absent, `gog drive mkdir`. Never create a second
    folder; if matches are ambiguous, ask which existing folder to use.
+   Files inherit the folder's sharing, so before creating anything in it, read
+   `gog drive permissions <folder-id> --json`. If anyone besides the owner has
+   access, say who and ask before creating files there; never remove a grant
+   without the owner's yes.
 2. Follow the owner's naming convention, else `<yyyy-mm-dd> <topic>` in their zone. Create with `gog sheets create <title> --parent <folder-id>` or
    `gog docs create <title> --parent <folder-id>`. Read back parent and title
    through Drive search. Keep files private.
