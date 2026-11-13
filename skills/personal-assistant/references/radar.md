@@ -51,7 +51,7 @@ If the owner chooses cancel or renegotiate, draft the notice to the counterparty
 Hold it for the owner's yes to the exact recipient and text through the governed
 exact-action send path in `personal-assistant:follow-through`. A draft is not a send.
 
-Say a missed notice (`notice: "missed ..."`) plainly and give the next possible
+Say a missed notice (`notice: "missed ..."`) or a notice `gap` plainly and give the next possible
 exit from the source terms; ask for those terms if unknown. Yearly records keep
 the current renewal date until it passes, even if its notice deadline was missed.
 

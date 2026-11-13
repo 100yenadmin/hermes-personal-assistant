@@ -87,12 +87,17 @@ def radar_item(action: dict[str, Any], today: dt.date) -> dict[str, Any] | None:
     date = _occurrence(base, item["recurs"] == "yearly", today)
     surface_at = date - dt.timedelta(days=lead)
     notice = fields.get("notice_days")
-    if kind == "renewal" and type(notice) is int and 0 <= notice <= 730:
+    limit = 364 if item["recurs"] == "yearly" else 730  # A yearly notice of a year or more could never be met.
+    if kind == "renewal" and type(notice) is int and 0 <= notice <= limit:
         decide_by = date - dt.timedelta(days=notice)
         item.update(decide_by=decide_by.isoformat(), days_until_decide_by=(decide_by - today).days)
         surface_at = decide_by - dt.timedelta(days=lead)
-        if item["recurs"] == "yearly" and decide_by < today:
+        if decide_by < today <= date:
             item["notice"] = f"missed: the last day to give notice was {decide_by.isoformat()}"
+    elif kind == "renewal" and "notice_days" in fields:
+        # Never fall back silently to the renewal date: the real deadline may already be past.
+        gap = f"notice_days must be an integer from 0 to {limit}; surface_at uses the renewal date"
+        item["gap"] = item["gap"] + "; " + gap if "gap" in item else gap
     return {**item, "date": date.isoformat(), "surface_at": surface_at.isoformat(),
             "days_until": (date - today).days, "surfaced": surface_at <= today}
 
@@ -101,6 +106,8 @@ def _contracts(items: list[dict[str, Any]]) -> dict[str, Any]:
     currencies, renewing = {}, {"30": [], "60": [], "90": []}
     missing_cost = 0
     for item in sorted(items, key=lambda row: (row.get("date") or "", row["action_id"])):
+        if item["days_until"] is not None and item["days_until"] < 0:
+            continue  # Ended and not yearly: no longer an active cost.
         annual = item.get("annual_cost")
         currency = item["cost"]["currency"] if annual is not None else None
         if annual is None:
@@ -108,10 +115,10 @@ def _contracts(items: list[dict[str, Any]]) -> dict[str, Any]:
         else:
             bucket = currencies.setdefault(currency, {"annual_cost": "0", "active": 0})
             with localcontext() as ctx:
-                ctx.prec = max(ctx.prec, len(annual), len(bucket["annual_cost"])) + 2
+                ctx.prec = max(ctx.prec, len(annual) + len(bucket["annual_cost"]) + 2)
                 bucket["annual_cost"] = _number(Decimal(bucket["annual_cost"]) + Decimal(annual))
             bucket["active"] += 1
-        if item["days_until"] is None or item["days_until"] < 0:
+        if item["days_until"] is None:
             continue
         row = {key: item.get(key) for key in ("action_id", "title", "date", "decide_by", "auto_renews", "annual_cost")}
         row["currency"] = currency

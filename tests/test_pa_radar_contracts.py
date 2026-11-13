@@ -49,8 +49,11 @@ def test_notice_math(expires, notice, lead, deadline, surface):
 
 
 @pytest.mark.parametrize("invalid", [None, True, False, -1, 731, 1.0, "30", [], {}])
-def test_invalid_notice_is_identical_to_absent(invalid):
-    assert radar_item(_action(notice_days=invalid), TODAY) == radar_item(_action(), TODAY)
+def test_invalid_notice_surfaces_on_the_date_and_names_a_gap(invalid):
+    # Review: never fall back silently, since the real notice deadline may already be past.
+    item = radar_item(_action(notice_days=invalid), TODAY)
+    assert item.pop("gap") == "notice_days must be an integer from 0 to 730; surface_at uses the renewal date"
+    assert item == radar_item(_action(), TODAY)
 
 
 @pytest.mark.parametrize("today,date,deadline,surface,missed", [
@@ -151,7 +154,7 @@ def test_contract_summary_is_cumulative_unpaged_and_read_only(ledger):
     summary = result["contracts"]
     assert summary["currencies"] == {"USD": {"annual_cost": "123", "active": 3},
                                       "EUR": {"annual_cost": "120", "active": 1}}
-    assert summary["missing_cost"] == 5
+    assert summary["missing_cost"] == 4  # "past" ended and is no longer active
     for window, expected in [("30", ["today", "a30", "b30"]),
                              ("60", ["today", "a30", "b30", "d60"]),
                              ("90", ["today", "a30", "b30", "d60", "d90"])]:
@@ -213,3 +216,37 @@ def test_legacy_items_and_scans_are_byte_identical_to_origin_main(ledger, tmp_pa
     with_summary = _read(ledger, contracts=True)
     with_summary.pop("contracts")
     assert json.dumps(ordinary) == json.dumps(with_summary)
+
+
+
+def test_yearly_notice_of_a_year_or_more_is_a_gap():
+    item = radar_item(_action(expires_on="2020-12-31", recurs="yearly", notice_days=365), TODAY)
+    assert "decide_by" not in item and "notice" not in item
+    assert item["gap"] == "notice_days must be an integer from 0 to 364; surface_at uses the renewal date"
+    assert radar_item(_action(expires_on="2020-12-31", recurs="yearly", notice_days=364), TODAY)["decide_by"] == "2026-01-01"
+
+
+@pytest.mark.parametrize("today,missed", [("2026-12-01", False), ("2026-12-02", True), ("2026-12-31", True),
+                                          ("2027-01-01", False)])
+def test_one_off_contract_also_names_a_missed_notice(today, missed):
+    item = radar_item(_action(notice_days=30), dt.date.fromisoformat(today))
+    assert ("notice" in item) is missed
+    if missed:
+        assert item["notice"] == "missed: the last day to give notice was 2026-12-01"
+
+
+def test_ended_one_off_contract_leaves_the_totals(ledger):
+    for identity, expires, recurs in (("ended", "2026-01-01", "none"), ("yearly", "2020-01-01", "yearly"),
+                                      ("live", "2027-03-01", "none")):
+        ledger.put("action", identity, _action(expires_on=expires, recurs=recurs,
+                   cost={"amount": "5", "currency": "USD", "per": "year"})["fields"], action_type="commitment")
+    summary = _read(ledger, contracts=True)["contracts"]
+    assert summary["currencies"] == {"USD": {"annual_cost": "10", "active": 2}} and summary["missing_cost"] == 0
+
+
+def test_contract_totals_keep_every_digit(ledger):
+    for identity, amount in (("big", "99999999999999999999999999999999.5"), ("tiny", "0.0000000000000000000000000000000001")):
+        ledger.put("action", identity, _action(cost={"amount": amount, "currency": "USD", "per": "year"})["fields"],
+                   action_type="commitment")
+    total = _read(ledger, contracts=True)["contracts"]["currencies"]["USD"]["annual_cost"]
+    assert total == "99999999999999999999999999999999.5000000000000000000000000000000001"
