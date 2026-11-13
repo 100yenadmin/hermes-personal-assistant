@@ -151,13 +151,41 @@ def compact_row(row):
     return ' | '.join(re.sub(r'\s*\[ref=[^]]*\]|,?\s*ref=[^,\]]+', '', line) for line in row)
 
 
+SPLIT_NUMBER = re.compile(r'^(\s*- StaticText ")(\d[\d.,]*)"(?:\s*\[[^\]\n]*\])*\s*$')
+SPLIT_MARKER = re.compile(r'^(\s*- StaticText ")(원|円|¥|₩|\$|€|£|KRW|JPY|USD|EUR|GBP)"(?:\s*\[[^\]\n]*\])*\s*$')
+
+
+def join_split_prices(page):
+    """A number and its currency marker shown as two adjacent text nodes are one price.
+
+    Catch Table shows a deposit as StaticText "20,000" then StaticText "원"; read apart, the number
+    never touches its marker and only an unrelated "20,000원" elsewhere on the page matches.
+    """
+    result, i = [], 0
+    while i < len(page):
+        following = page[i + 1] if i + 1 < len(page) else ""
+        number, marker = SPLIT_NUMBER.match(page[i]), SPLIT_MARKER.match(following)
+        if number and marker:
+            result.append(f'{number[1]}{number[2]}{marker[2]}"')
+            i += 2
+            continue
+        marker, number = SPLIT_MARKER.match(page[i]), SPLIT_NUMBER.match(following)
+        if marker and number and marker[2] in "¥₩$€£":
+            result.append(f'{marker[1]}{marker[2]}{number[2]}"')
+            i += 2
+            continue
+        result.append(page[i])
+        i += 1
+    return result
+
+
 def page_rows(texts):
     """Keep tree rows together and split long text/HTML at known item boundaries."""
     names = {match[1] for text in texts for line in text.splitlines()
              if (match := NAME_LINE.match(line)) and not PRICE_LINE.match(line) and len(match[1]) >= 3}
     boundary = re.compile('|'.join(re.escape(name) for name in sorted(names, key=len, reverse=True))) if names else None
     for text in texts:
-        page = text.splitlines()
+        page = join_split_prices(text.splitlines())
         for i, line in enumerate(page):
             if NAME_LINE.match(line):
                 yield compact_row(snapshot_row(page, i))
