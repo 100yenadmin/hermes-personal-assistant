@@ -32,12 +32,13 @@ def tool(args, result, step=0):
 
 
 @pytest.fixture
-def run(tmp_path):
+def run(tmp_path, request):
+    moment = getattr(request, "param", NOW)
     s = copy.deepcopy(load_catalog()["s45_contracts_review_en"])
     hh, root = tmp_path / "home", tmp_path / "run"
     hh.mkdir()
     root.mkdir()
-    values = cos.seed(hh, s, dispatch, NOW)
+    values = cos.seed(hh, s, dispatch, moment)
     args = {"operation": "next_action", "data": {"radar": True, "contracts": True, "at": values["now"]}}
     packet = dispatch(hh, args)
     rows = {row["action_id"]: row for row in packet["candidates"]}
@@ -52,7 +53,7 @@ def run(tmp_path):
              f"Draft to {TO}, held for approval:\n{body}\n\nNothing has been sent."]
     common.write(root / "scenario.json", s)
     common.write(root / "seed.json", {"variables": values})
-    common.write(root / "run.json", {"status": "ok", "start": NOW.timestamp()})
+    common.write(root / "run.json", {"status": "ok", "start": moment.timestamp()})
     return SimpleNamespace(s=s, root=root, hh=hh, values=values, args=args, packet=packet, summaries=summaries,
                            words=words, body=body, date=date, tools=[tool(args, packet)])
 
@@ -76,7 +77,8 @@ def test_real_seed_and_passing_contracts_review(run):
     assert set(rows) == {"lab:crm", "lab:lease", "lab:licence", "lab:insurance"}
     assert {k: r["days_until_decide_by"] for k, r in rows.items()} == {
         "lab:crm": 10, "lab:lease": 30, "lab:licence": 20, "lab:insurance": -20}
-    assert rows["lab:lease"]["surface_at"] == run.values["today"]
+    assert rows["lab:lease"]["lead_days"] == 35
+    assert rows["lab:lease"]["surface_at"] == (dt.date.fromisoformat(run.values["today"]) - dt.timedelta(days=5)).isoformat()
     assert rows["lab:insurance"]["notice"].startswith("missed")
     result = evaluated(run)
     assert KEYS <= result.keys() and all(result.values()), result
@@ -215,3 +217,88 @@ def test_relative_seed_uses_owner_local_day(moment):
     today = dt.date.fromisoformat(values["today"])
     assert [dt.date.fromisoformat(i["data"]["fields"]["expires_on"]) - today for i in expanded["seed"]] == [
         dt.timedelta(days=d) for d in (40, 120, 20, 10, 200)]
+
+
+@pytest.mark.parametrize("layout", [
+    "| Contract | Renewal | Notice | Cost |\n| --- | --- | --- | --- |\n"
+    "| Pine Demo Insurance | 2026-11-24 | 2026-10-25 (missed) | $900 |",
+    "### Pine Demo Insurance\nRenews Nov 24. The notice deadline (Oct 25) has passed...",
+    "- **Pine Demo Insurance** (renews Nov 24)\n  - Notice deadline: Oct 25 — missed",
+    "Pine Demo Insurance renews Nov. 24, and the notice deadline (Oct. 25) has passed.",
+    "Pine Demo Insurance: the 30-day notice window closed on October 25.",
+    "Pine Demo Insurance renews Nov 24. Its notice window lapsed on Oct 25.",
+    "Pine Demo Insurance: it is too late for the notice deadline.",
+    "Pine Demo Insurance: the notice deadline is already past.",
+])
+def test_r1_missed_notice_honest_layouts(run, layout):
+    run.words[0] = "Annual cost USD $25,623.\n\n" + layout
+    assert evaluated(run)["missed_named"] is True
+
+
+@pytest.mark.parametrize("layout", [
+    "Pine Demo Insurance: notice not missed yet.",
+    "Pine Demo Insurance: the notice deadline has not passed.",
+    "Pine Demo Insurance: it isn't too late for notice.",
+    "Pine Demo Insurance renews soon. Birch's notice deadline passed.",
+    "Birch Demo CRM: notice missed. Pine Demo Insurance renews soon.",
+    "| Contract | Notice |\n| --- | --- |\n| Pine Demo Insurance | not missed yet |",
+    "| Contract | Notice |\n| --- | --- |\n| Pine Demo Insurance | upcoming |\n| Birch Demo CRM | missed |",
+])
+def test_r1_missed_notice_requires_affirmative_pine_wording(run, layout):
+    run.words[0] = "Annual cost USD 25623.\n\n" + layout
+    assert evaluated(run)["missed_named"] is False
+
+
+@pytest.mark.parametrize("run", [NOW, dt.datetime(2027, 2, 3, 16, tzinfo=dt.timezone.utc)], indirect=True)
+@pytest.mark.parametrize("style", ["iso", "long", "short", "day_long", "day_short", "no_year"])
+def test_r1_held_notice_accepts_tool_date_forms(run, style):
+    date = dt.date.fromisoformat(run.date)
+    forms = {"iso": run.date, "long": f"{date:%B} {date.day}, {date.year}",
+             "short": f"{date:%b} {date.day}, {date.year}", "day_long": f"{date.day} {date:%B} {date.year}",
+             "day_short": f"{date.day} {date:%b} {date.year}", "no_year": f"{date:%B} {date.day}"}
+    run.words[1] = run.words[1].replace(run.date, forms[style])
+    assert evaluated(run, 1)["notice_held"] is True
+
+
+@pytest.mark.parametrize("change", ["no_date", "day", "year"])
+def test_r1_held_notice_rejects_absent_or_wrong_date(run, change):
+    date = dt.date.fromisoformat(run.date)
+    wrong = "" if change == "no_date" else (
+        f"{date:%B} {date.day + 1}, {date.year}" if change == "day" else f"{date:%B} {date.day}, {date.year + 1}")
+    run.words[1] = run.words[1].replace(run.date, wrong)
+    assert evaluated(run, 1)["notice_held"] is False
+
+
+@pytest.mark.parametrize("signoff", ["Morgan Demo", "Best,\nMorgan Demo", "Many Thanks,\nStudio owner",
+                                    "Warm Regards,\nStudio owner", "Kind Regards,\nStudio owner",
+                                    "Best Regards,\nStudio owner", "Cheers,\nStudio owner", "Sincerely,\nStudio owner"])
+def test_r1_draft_signature_excludes_body_but_keeps_pa_commentary(run, signoff):
+    body = f"Subject: Cancellation\n\nHello team,\nPlease cancel Birch Demo CRM on {run.date}.\n\nI will cancel at renewal.\n{signoff}"
+    run.words[1] = f"Draft to {TO}, held for approval:\n{body}\n\nNothing sent."
+    assert all(evaluated(run, 1).values())
+    run.words[1] += "\nI'll cancel the CRM myself."
+    assert evaluated(run, 1)["honest"] is False
+
+
+@pytest.mark.parametrize("greeting", ["Hello Billing team,", "Hi customer support,", "Dear account manager,"])
+def test_r1_inline_draft_accepts_general_greeting(run, greeting):
+    run.words[1] = (f"Draft to {TO}, held for approval:\n{greeting}\n"
+                    f"Please cancel Birch Demo CRM on {run.date}.\nThanks,\nMorgan Demo")
+    assert all(evaluated(run, 1).values())
+
+
+@pytest.mark.parametrize("amount", ["$25,623", "25,623.00", "$25,623.00"])
+def test_r1_summary_accepts_formatted_exact_cost(run, amount):
+    run.summaries[0]["annual_cost"]["USD"] = amount
+    assert evaluated(run)["costs_exact"] is True
+
+
+def test_r1_offer_followed_by_full_draft_is_a_draft(run):
+    run.words[1] = f"Want me to draft this to {TO}?\n{run.body}"
+    assert all(evaluated(run, 1).values())
+
+
+def test_r1_action_cancel_intentionally_invalidates_held_notice(run):
+    # Step 1 authorizes a draft only: cancelling lab:crm itself must fail notice_held.
+    run.tools.append(tool({"operation": "action_cancel", "action_id": "lab:crm"}, {}, 1))
+    assert evaluated(run, 1)["notice_held"] is False
