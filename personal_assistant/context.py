@@ -488,6 +488,8 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         item = _action_summary(action)
         if radar:
             item["radar"] = {key: radar[key] for key in ("radar_kind", "date", "surface_at", "days_until")}
+            if "decide_by" in radar:
+                item["radar"]["decide_by"] = radar["decide_by"]
         item["commitment_status"] = kanban.get("status", "unknown")
         item["commitment_evidence"] = kanban.get("evidence", "native Kanban evidence unavailable")
         waiting_for = fields.get("waiting_for")

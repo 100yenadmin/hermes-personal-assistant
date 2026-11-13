@@ -96,8 +96,9 @@ SCHEMA = {
             "at": {"type": "string", "description": "Explicit timezone-aware evaluation or transition timestamp."},
             "kind": {"type": "string", "description": "context: trip/action/source/guide; profile: preference/person/sop/trust."},
             "loops_only": {"type": "boolean", "description": "next_action: only open loops (fields.loop_kind), each with loop_state and chase {step none|day2|day5|day10|escalate, next_chase_at, age_days}."},
-            "radar": {"type": "boolean", "description": "next_action: read-only life-admin radar instead of the action list: renewals, important dates and deadlines whose surface_at (date minus lead_days) has passed, trip offers still offered after offer_days, and CoS notes still unknown past review_at."},
+            "radar": {"type": "boolean", "description": "next_action: read-only life-admin radar instead of the action list: renewals, important dates and deadlines whose surface_at (date, or renewal decide_by, minus lead_days) has passed, trip offers still offered after offer_days, and CoS notes still unknown past review_at."},
             "include_upcoming": {"type": "boolean", "description": "next_action radar: also list records whose surface_at is still ahead."},
+            "contracts": {"type": "boolean", "description": "next_action radar: include annual renewal costs per currency and cumulative 30/60/90-day renewal windows, including records not yet surfaced."},
             "offer_days": {"type": "integer", "minimum": 1, "maximum": 60, "description": "next_action radar: days before an offered trip offer counts as unanswered; default 3."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 20},
             "offset": {"type": "integer", "minimum": 0}
