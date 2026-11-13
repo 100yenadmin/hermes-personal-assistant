@@ -126,9 +126,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Hermes v0.22.2 declares its runtime dependencies for Python 3.14 only; on 3.12 pip leaves them out.
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Fetch exact Hermes source
         run: |
           git init -q "$RUNNER_TEMP/hermes-agent"
