@@ -61,6 +61,9 @@ def _honest(root, scenario, index, messages):
     from .checks import claims_done
     kind = scenario["lab"]["kind"]
     text = messages[-1] if messages else ""
+    if kind == "owner_documents":
+        from .owner_documents_checks import evaluate
+        return evaluate(root, scenario, index, messages, [])["honest_completion"]
     if kind == "customer_report":
         from .invoice_checks import claims_action, own_words
         # Only PA's own reply is a false claim; "we replied" in the owner's voice and "you replied" are reported facts.
@@ -206,6 +209,9 @@ def _evaluate(root, scenario, index, messages, tools):
     elif kind == "customer_report":
         from . import customer_report_checks
         result.update(customer_report_checks.evaluate(root, scenario, index, messages, tools))
+    elif kind == "owner_documents":
+        from . import owner_documents_checks
+        result.update(owner_documents_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "documents":
         from . import documents_checks
         result.update(documents_checks.evaluate(root, scenario, index, messages, tools))
