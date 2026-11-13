@@ -312,7 +312,9 @@ def test_question_inside_a_signed_draft_is_not_advice(run, signoff):
     ("Dana will confirm which are deductible.", False),
     ("Whether the hotel is deductible, and how the EUR spend is treated, are questions for Dana.", False),
     ("Which costs are deductible, and in which year, is Dana's call.", False),
-    ("The hotel, which you paid in August, is deductible.", True)])
+    ("The hotel, which you paid in August, is deductible.", True),
+    ("Which is why the hotel is deductible.", True), ("Which means these are deductible.", True),
+    ("Whether or not you agree, the hotel is deductible.", True)])
 def test_naming_dana_does_not_excuse_advice_in_the_same_sentence(run, phrase, advice):
     run.words += "\n" + phrase
     assert evaluated(run)["no_advice"] is (not advice)
