@@ -93,9 +93,13 @@ def _rule_data(item):
 def _accepted(rule):
     return rule.get("accepted") is True
 def rule_timezone(rule, prefs):
-    """Only an explicit owner pin overrides the owner's current timezone."""
+    """Only an explicit owner pin overrides the owner's current timezone.
+
+    An old unpinned copy counts only when the profile has no timezone at all."""
     data = _rule_data(rule)
-    return data.get("timezone") if data.get("timezone_pinned") is True else prefs.get("timezone")
+    if data.get("timezone_pinned") is True:
+        return data.get("timezone")
+    return prefs.get("timezone") or data.get("timezone")
 def _destination(rule, default, default_verified):
     value = rule.get("destination", default); verified = rule.get("destination_verified")
     if verified is None and isinstance(value, dict):

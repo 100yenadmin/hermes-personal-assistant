@@ -511,7 +511,7 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
     if weather_included_minutes > airport_lead_minutes:
         raise ValueError("weather_included_minutes must not exceed airport_lead_minutes")
     prefs = preferences(ledger)
-    origin_name = (segments[0]["origin_timezone"] if facts_mode else saved.get("origin_timezone") if saved.get("facts_digest") else None) or prefs.get("timezone")
+    origin_name = (live[0]["origin_timezone"] if facts_mode else saved.get("origin_timezone") if saved.get("facts_digest") else None) or prefs.get("timezone")
     origin = ZoneInfo(origin_name) if origin_name else departure.tzinfo
     destination = ZoneInfo(arrival_timezone) if arrival_timezone else arrival.tzinfo
     if arrival_timezone and arrival.astimezone(destination).replace(tzinfo=None) != arrival.replace(tzinfo=None):

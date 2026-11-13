@@ -459,12 +459,14 @@ def test_cos_precheck_uses_rule_timezone_or_preference(tmp_path, kind, timezone)
     assert result["occurrence_id"] == auto.notification_occurrence_id(kind, logical)
 
 
+@pytest.mark.parametrize("pinned", [True, False])
 @pytest.mark.parametrize("kind", COS)
-def test_cos_rule_zone_works_without_a_preference_zone(tmp_path, kind):
+def test_cos_rule_zone_works_without_a_preference_zone(tmp_path, kind, pinned):
     config(tmp_path)
     ledger = Ledger(tmp_path)
     preferences(ledger, MONDAY_CLOSEOUT)
-    rule(ledger, kind, timezone="UTC", timezone_pinned=True)
+    # An old unpinned copy still runs while the profile has no timezone of its own.
+    rule(ledger, kind, timezone="UTC", **({"timezone_pinned": True} if pinned else {}))
     now = dt.datetime.fromisoformat("2026-10-19T15:00:00+00:00")
     assert prepare_suggestions(ledger)["jobs"][0]["timezone"] == "UTC"
     assert cron_precheck(ledger, kind, enabled=True, moment=now)["wakeAgent"]
