@@ -187,27 +187,43 @@ def _receipt_matches(expenses):
     """Pair each forwarded receipt with at most one card-statement line for the same purchase.
 
     Matching ignores the period, so every pack pairs the same records and adjacent packs add up.
+    Within one merchant, amount, currency and kind it makes as many pairs as possible (an unmatched
+    receipt counts as a separate purchase); among those it prefers the closest dates.
     """
-    groups, candidates, matched, taken = {}, [], {}, set()
+    groups, matched = {}, {}
     for row in expenses:
         f = row["fields"]
         merchant = _merchant(f.get("merchant", ""))
         if merchant:
             groups.setdefault((merchant, Decimal(f["amount"]), f["currency"], f["kind"]), []).append(row)
+    def day(row):
+        return dt.date.fromisoformat(row["fields"]["date"])
+    def order(row):
+        return (row["fields"]["date"], row["action_id"])
     for group in groups.values():
-        statements = [r for r in group if r["fields"]["evidence_ref"].startswith("statement ")]
-        receipts = [r for r in group if not r["fields"]["evidence_ref"].startswith("statement ")]
+        statements = sorted((r for r in group if r["fields"]["evidence_ref"].startswith("statement ")), key=order)
+        receipts = sorted((r for r in group if not r["fields"]["evidence_ref"].startswith("statement ")), key=order)
+        # Closest dates first, ties by statement date and ids.
+        candidates = sorted((abs((day(s) - day(r)).days), order(s), s["action_id"], r["action_id"])
+                            for s in statements for r in receipts if abs((day(s) - day(r)).days) <= 3)
+        closest, taken = {}, set()
+        for _, _, statement, receipt in candidates:
+            if statement not in taken and receipt not in taken:
+                closest[statement] = receipt
+                taken.update((statement, receipt))
+        # Every window is the same 7 days, so giving each statement, in date order, the earliest free
+        # receipt in its window makes the most pairs. Keep the closest pairing only if it is as large.
+        most, used = {}, set()
         for statement in statements:
-            s = statement["fields"]["date"]
             for receipt in receipts:
-                r = receipt["fields"]["date"]
-                days = abs((dt.date.fromisoformat(s) - dt.date.fromisoformat(r)).days)
-                if days <= 3:
-                    candidates.append((days, s, statement["action_id"], receipt["action_id"]))
-    for _, _, statement, receipt in sorted(candidates):
-        if statement not in taken and receipt not in taken:
-            matched[statement] = receipt
-            taken.update((statement, receipt))
+                gap = (day(receipt) - day(statement)).days
+                if gap > 3:
+                    break
+                if gap >= -3 and receipt["action_id"] not in used:
+                    most[statement["action_id"]] = receipt["action_id"]
+                    used.add(receipt["action_id"])
+                    break
+        matched.update(closest if len(closest) == len(most) else most)
     return matched
 
 

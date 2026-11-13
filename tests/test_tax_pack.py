@@ -282,3 +282,27 @@ def test_skill_tax_pack_held_email_and_no_tax_advice():
                  "cover email", "Hold it for the owner's yes to the exact recipient and text", "governed send path",
                  "Never send on PA's own", "no tax advice", "Never initiate a payment"):
         assert text.lower() in section.lower()
+
+
+def test_matching_makes_the_most_pairs_before_preferring_close_dates(ledger):
+    # Closest-first would pair 11-11 with 11-10 and leave both 11-13 and 11-08 alone: 30 for two purchases.
+    statement(ledger, "1", date="2026-11-11")
+    statement(ledger, "2", date="2026-11-13")
+    expense(ledger, "receipt early", date="2026-11-08")
+    expense(ledger, "receipt late", date="2026-11-10")
+    view = pack(ledger)["currencies"]["USD"]
+    assert view["expenses"]["total"] == "20" and view["matched_receipts"] == 2
+    assert view["receipts_missing"]["count"] == 0
+
+
+def test_daily_repeats_pair_each_receipt_with_its_own_day(ledger):
+    # A coffee every day for two weeks, each with its card line and a same-day receipt.
+    for day in range(1, 15):
+        date = f"2026-11-{day:02d}"
+        statement(ledger, str(day), date=date, merchant="Cafe Demo", amount="4.5")
+        expense(ledger, "cafe receipt " + str(day), date=date, merchant="Cafe Demo", amount="4.5")
+    matches = finance._receipt_matches(expenses._rows(ledger))
+    rows = {r["action_id"]: r for r in expenses._rows(ledger)}
+    assert len(matches) == 14
+    assert all(rows[s]["fields"]["date"] == rows[r]["fields"]["date"] for s, r in matches.items())
+    assert pack(ledger)["currencies"]["USD"]["expenses"]["total"] == "63"
