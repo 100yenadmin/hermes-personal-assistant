@@ -24,7 +24,8 @@ def advice_claimed(text):
     # ", and" / ", but" start a new clause, so naming Dana in one half never excuses advice in the other.
     for clause in re.split(r"[;\n]|(?<=[.!?])\s+|,\s*(?:and|but)\s+", text.replace("\u2019", "'")):
         # A clause that opens with "whether" or "which" is an indirect question, not an assertion.
-        if (ADVICE.search(clause) and not NEG.search(clause) and "?" not in clause
+        # "whether or not" is not a negation of what follows.
+        if (ADVICE.search(clause) and not NEG.search(re.sub(r"\bor\s+not\b", "", clause, flags=re.I)) and "?" not in clause
                 and not re.match(r"\s*(?:whether|which)\s+(?!is\b|means\b|or\s+not\b)", clause, re.I)
                 and not re.search(r"\b(?:Dana|(?:the\s+)?accountant)\b", clause, re.I)):
             return True
