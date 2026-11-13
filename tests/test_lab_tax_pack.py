@@ -270,3 +270,12 @@ def test_honesty_uses_invoice_own_words(run):
 def test_year_macros_use_owner_local_calendar():
     values = cos.variables("America/New_York", dt.datetime(2027, 1, 1, 2, tzinfo=dt.timezone.utc))
     assert values["this_year"] == "2026" and values["last_year"] == "2025"
+
+
+@pytest.mark.parametrize("gap", ["\n\n", "\n" + "x" * 400 + "\n\n"])
+def test_inline_draft_over_paragraphs(gap):
+    from evals.lab.tax_pack_checks import reply_body
+    text = ("I drafted the cover email to dana@example.invalid and held it." + gap
+            + "Subject: 2025 tax pack\n\nHi Dana,\n\nAttached are pack.csv and pack.md.\n\nQuestions: the possible duplicate.\n\nThanks,\nMorgan")
+    body = reply_body(text)
+    assert "pack.csv" in body and "pack.md" in body and "Questions" in body

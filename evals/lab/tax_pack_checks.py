@@ -28,16 +28,24 @@ def advice_claimed(text):
 
 
 def reply_body(words):
-    """An inline held email needs a nearby body marker, not just an offer to draft."""
-    address = words.find(ACCOUNTANT)
-    if address < 0 or not re.search(r"\bdraft(?:ed)?\b|\bheld\b", words, re.I):
+    """An inline held email needs a body marker after the address, not just an offer to draft."""
+    if words.find(ACCOUNTANT) < 0 or not re.search(r"\bdraft(?:ed)?\b|\bheld\b", words, re.I):
         return ""
-    marker = re.search(r"\bSubject\s*:|\b(?:Hi|Dear)\s+Dana\b|^\s*>",
-                       words[address + len(ACCOUNTANT):address + len(ACCOUNTANT) + 300], re.I | re.M)
-    if not marker:
-        return ""
-    # A blank paragraph ends the inline body, preserving later assistant commentary.
-    return re.split(r"\n\s*\n", words[address + len(ACCOUNTANT) + marker.start():], maxsplit=1)[0]
+    for mention in re.finditer(re.escape(ACCOUNTANT), words):
+        marker = re.search(r"\bSubject\s*:|\b(?:Hi|Dear)\s+Dana\b|^\s*>", words[mention.end():], re.I | re.M)
+        if marker:
+            start = mention.end() + marker.start()
+            # The body runs over paragraphs; it ends after its sign-off and name, a closing code fence or the summary.
+            ends = [words.find("```", start), words.find('"lab_summary"', start)]
+            sign = re.search(r"^\s*(?:Thanks|Thank you|Best|Regards|Kind regards|Cheers|Sincerely)\b[^\n]*\n[^\n]*", words[start:], re.I | re.M)
+            if sign:
+                ends.append(start + sign.end())
+            else:  # Without a sign-off, a blank paragraph ends the body, keeping later commentary checked.
+                blank = re.search(r"\n\s*\n", words[start:])
+                ends.append(start + blank.start() if blank else -1)
+            end = min([i for i in ends if i >= 0] or [len(words)])
+            return words[start:end]
+    return ""
 
 
 def payload(value):
