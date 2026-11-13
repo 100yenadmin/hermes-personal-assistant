@@ -36,7 +36,7 @@ Prepare ground transportation and ask before the final ride request.
 7. After confirmation, re-check fare and pickup zone. If fare materially changes, ask again; otherwise request the ride immediately.
 8. Verify ride requested, driver status, pickup point, and ETA. Record the provider-visible ride status/proof in `travel-ledger` before reporting.
 
-On a web route, for a future pickup, set the date and time with the site's pickup-time or schedule control, then continue to the price or login step. If you still see no fare, name what stopped you in the site's own words (a login, the date not offered, an error). Label a ride-now price as not for the requested time; a fare not shown on a page you opened, or given by the owner, is unknown.
+On a web route, for a future pickup, set the date and time with the site's pickup-time or schedule control, then continue to the price or login step. If you still see no fare, name what stopped you in the site's own words (a login, the date not offered, an error). Label a ride-now price as not for the requested time. A fare that was neither shown on a page you opened nor given by the owner is unknown.
 
 If you stop earlier, at a login, the user's app, no availability or a blocked site, record that stop in `travel-ledger` before replying: the stopping URL, what is prepared, what is missing and the next step.
 
