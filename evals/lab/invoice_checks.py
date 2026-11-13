@@ -180,7 +180,7 @@ def evaluate(root, scenario, index, messages, tools):
         for d in summary.get("drafts", []) if isinstance(summary.get("drafts"), list) else []:
             if isinstance(d, dict) and isinstance(d.get("body"), str) and d["body"].strip():
                 drafts.setdefault(d.get("reference"), []).append((str(d.get("to") or ""), d["body"]))
-        due = {ref for ref in receivable if oracle[ref]["chase"] in {"day2", "day5", "day10"} or oracle[ref].get("courtesy")}
+        due = {ref for ref in receivable if oracle[ref]["chase"] in {"owner_time", "day2", "day5", "day10"} or oracle[ref].get("courtesy")}
         allowed = due | {ref for ref in receivable if oracle[ref]["chase"] == "escalate"}
         result["reminders_drafted"] = due <= set(drafts) <= allowed
         # Every held text names its invoice and states only that invoice's amount.

@@ -104,6 +104,17 @@ def evaluated(root, data, **kw):
     return checks.evaluate(root / "run", data[0])
 
 
+@pytest.mark.parametrize("has_draft", [True, False])
+def test_owner_time_oracle_validates_and_requires_a_reminder(tmp_path, has_draft):
+    s, summaries, ledgers, tools = synthetic(tmp_path)
+    s["lab"]["invoices"]["INV-1041"]["chase"] = "owner_time"
+    assert validate(s) is s
+    if not has_draft:
+        summaries[0]["drafts"] = [d for d in summaries[0]["drafts"] if d["reference"] != "INV-1041"]
+    result = evaluated(tmp_path, (s, summaries, ledgers, tools))
+    assert result["steps"][0]["checks"]["reminders_drafted"] is has_draft
+
+
 def test_seeded_profile_matches_the_oracle(tmp_path):
     hh, s = seeded(tmp_path)
     assert validate(s) is s

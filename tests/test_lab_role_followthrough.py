@@ -70,6 +70,17 @@ def score(root, s, index):
     return role_followthrough_checks.evaluate(root, s, index, messages, common.lines(root / "tools.jsonl"))
 
 
+@pytest.mark.parametrize("step,expected", [("owner_time", False), ("owner time", False),
+                                           ("owner-time", False), ("owner", True)])
+def test_owner_time_wakes_deduplicate_without_matching_bare_owner(tmp_path, step, expected):
+    s = fixture_run(tmp_path)
+    for index in range(2):
+        common.append(tmp_path / "pulse-calls.jsonl", {"step": index, "action": "create",
+            "args": {"note": f"PA follow-through wake: lab:chase {step}.", "trigger": {"kind": "at"}},
+            "result": {"armed": True, "kind": "at", "at": "2026-11-13T09:00:00+08:00"}})
+    assert score(tmp_path, s, 1)["wakes_bounded"] is expected
+
+
 def test_clock_and_relative_seed_tokens():
     original = cos.variables("Asia/Singapore", MOMENT)
     assert original["now"] == "2026-11-11T12:00:00+08:00"

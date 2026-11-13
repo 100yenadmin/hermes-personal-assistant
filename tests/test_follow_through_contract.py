@@ -58,9 +58,9 @@ def test_follow_through_skill_front_matter_and_size():
 
     # 6000 until the HB2 role rule (#151), 6500 until the done_unconfirmed rule (lab s20), 6700 until the
     # role wake-hour and notify rules (#151, live s42), 7100 until the 280-character summary hint, 7150 until the
-    # owner's chase_at rule (#215, live w01), 7300 until the id for another nudge on a sent step (#217 review);
-    # keep the skill lean.
-    assert SKILL.stat().st_size < 7400
+    # owner's chase_at rule (#215, live w01), 7300 until the id for another nudge on a sent step (#217 review),
+    # 7400 until the extra owner_time chase before a loop opens (#233); keep the skill lean.
+    assert SKILL.stat().st_size < 7500
     front = yaml.safe_load(_skill_text().split("---", 2)[1])
     assert front["name"] == "follow-through" and front["description"]
     assert front["metadata"]["openclaw"]["skillKey"] == "follow-through"

@@ -146,10 +146,10 @@ def loop_fields(fields: dict[str, Any]) -> dict[str, Any]:
     if "chase_log" in fields:
         log = fields["chase_log"]
         if not isinstance(log, list) or any(
-            not isinstance(entry, dict) or entry.get("step") not in tuple(step for step, _ in CHASE_LADDER)
+            not isinstance(entry, dict) or entry.get("step") not in ("owner_time", *(step for step, _ in CHASE_LADDER))
             or not _iso_time(entry.get("at"), timestamp=True) for entry in log
         ):
-            raise ValueError("chase_log must be a list of objects with ladder step and ISO timestamp at")
+            raise ValueError("chase_log must be a list of objects with ladder or owner_time step and ISO timestamp at")
         fields = {**fields, "chase_log": fields["chase_log"][-MAX_CHASE_LOG:]}
     return fields
 
@@ -213,7 +213,9 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
 
     A step is done when ``last_chased_at`` falls on or after its local date or a ``chase_log``
     entry names it. Escalation completes only with a ``chase_log`` entry whose step is ``escalate``.
-    ``chase_at`` is the owner's own time for the next chase, earlier or later than the ladder: the
+    ``chase_at`` before the owner-local opening date is an extra ``owner_time`` chase, answered
+    by ``last_chased_at`` or any log timestamp at or after it; it leaves every ladder date intact.
+    On or after the opening date, ``chase_at`` is the owner's own time for the next chase: the
     steps still pending before it that fall due by then (or else the next one) fold into one chase
     at that exact time, and a chase at or after it completes them. Escalation never moves
     earlier; when the owner's time is after it, it comes a day after the owner's chase.
@@ -240,24 +242,28 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     created = local_time(created_at, zone)
     floor = min(opened, created) if created is not None else opened
     if asked is not None and asked.date() >= floor.date():
-        # Fold on the evidence from before the owner's time, so the chase made at it counts once.
         stamp = asked.timestamp()
         times = [(entry, local_time(entry.get("at"), zone)) for entry in log]
-        earlier = [at for _, at in times if at is not None and at.timestamp() < stamp]
-        earlier += [chased] if chased is not None and chased.timestamp() < stamp else []
-        base = [entry for entry in pending_after(max(earlier, key=lambda at: at.timestamp(), default=None),
-                                                 {e.get("step") for e, at in times if at and at.timestamp() < stamp})
-                if entry[0] != "escalate"]
-        folded = [entry for entry in base if entry[1].timestamp() <= stamp] or base[:1]
         answered = (chased is not None and chased.timestamp() >= stamp) or any(
             at is not None and at.timestamp() >= stamp for _, at in times)
-        names = {step for step, _ in folded}
-        # The owner put the chase off past escalation: escalate a day after their chase instead.
-        pending = [(step, asked + dt.timedelta(days=1) if step == "escalate" and due.timestamp() <= stamp else due)
-                   for step, due in pending if step not in names]
-        if not answered:
-            # With day 10 done or the loop escalated, the owner's time is still one more chase.
-            pending.append((folded[-1][0] if folded else "day10", asked))
+        if asked.date() < opened.date():
+            if not answered:
+                pending.append(("owner_time", asked))
+        else:
+            # Fold on the evidence from before the owner's time, so the chase made at it counts once.
+            earlier = [at for _, at in times if at is not None and at.timestamp() < stamp]
+            earlier += [chased] if chased is not None and chased.timestamp() < stamp else []
+            base = [entry for entry in pending_after(max(earlier, key=lambda at: at.timestamp(), default=None),
+                                                     {e.get("step") for e, at in times if at and at.timestamp() < stamp})
+                    if entry[0] != "escalate"]
+            folded = [entry for entry in base if entry[1].timestamp() <= stamp] or base[:1]
+            names = {step for step, _ in folded}
+            # The owner put the chase off past escalation: escalate a day after their chase instead.
+            pending = [(step, asked + dt.timedelta(days=1) if step == "escalate" and due.timestamp() <= stamp else due)
+                       for step, due in pending if step not in names]
+            if not answered:
+                # With day 10 done or the loop escalated, the owner's time is still one more chase.
+                pending.append((folded[-1][0] if folded else "day10", asked))
         pending.sort(key=lambda entry: entry[1].timestamp())
     due_now = [entry for entry in pending if entry[1].timestamp() <= moment.timestamp()]
     target = due_now[-1] if due_now else (pending[0] if pending else None)
