@@ -20,6 +20,8 @@ Use the tools available in this session. If a command below cannot run here, ask
 - itineraries and travel dates;
 - calendar and inbox content, and message text;
 - payment details;
+- browser session links, such as Browserbase connect or live-view links, which give control of the browser;
+- chat, sender and account IDs, and call transcripts;
 - the ledger file itself (`state/travel-ledger/travel.sqlite`).
 
 Describe the shape of the problem instead: "a hotel step stopped at the login page", "a chase came due a day early".
