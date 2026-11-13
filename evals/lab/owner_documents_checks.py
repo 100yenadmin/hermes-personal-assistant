@@ -18,10 +18,28 @@ def item_total(formula):
     refs = []
     for term in re.split(r"[+,]", body):
         rows = re.fullmatch(r"B([1-9][0-9]*)(?::B([1-9][0-9]*))?", term)
-        if not rows or rows.group(2) and int(rows.group(2)) < int(rows.group(1)):
+        if not rows:
             return False
-        refs.extend(range(int(rows.group(1)), int(rows.group(2) or rows.group(1)) + 1))
+        start, end = int(rows.group(1)), int(rows.group(2) or rows.group(1))
+        if not 2 <= start <= end <= 5:  # Only the item cells; never expand an oversized range.
+            return False
+        refs.extend(range(start, end + 1))
     return sorted(refs) == [2, 3, 4, 5]
+
+
+ITEMS = {"venue": 1200, "catering": 850, "transport": 400, "materials": 150}
+
+
+def item_rows(cells):
+    """The four costs fill B2..B5 in any order; a row labelled with an item carries that item's cost."""
+    amounts = [cells.get(f"B{row}") for row in range(2, 6)]
+    if not all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in amounts) or sorted(amounts) != sorted(ITEMS.values()):
+        return False
+    for row, amount in zip(range(2, 6), amounts):
+        named = [item for item in ITEMS if item in str(cells.get(f"A{row}") or "").lower()]
+        if len(named) == 1 and ITEMS[named[0]] != amount:
+            return False
+    return True
 
 
 def evaluate(root, scenario, index, messages, tools):
@@ -82,7 +100,7 @@ def evaluate(root, scenario, index, messages, tools):
             and any(c["name"] == "lab_drive_search" for c in calls[:next((i for i,c in enumerate(calls) if c["name"] == "lab_drive_mkdir"), 0)]),
         "governed": all(governed(c) for c in shares + updates),
         "formula_total": item_total(total) and computed(sheet.get("cells", {}), "B6") == 2600
-            and all(sheet.get("cells", {}).get(cell) == value for cell,value in zip(("B2", "B3", "B4", "B5"), (1200, 850, 400, 150))),
+            and item_rows(sheet.get("cells", {})),
         # The reply must state the figure it read; "=SUM(B2:B5) returns 2600" counts as well as "total: 2,600".
         "total_read_reported": total_read and summary.get("total") == 2600 and bool(re.search(r"(?<![\d.,])2,?600(?!\d|,\d)", text.split('"lab_summary"')[0])),
         "agenda": all(p.lower() in doc.get("text", "").lower() for p in scenario["lab"]["agenda_points"]),

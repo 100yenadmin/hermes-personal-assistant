@@ -164,6 +164,25 @@ def test_result_recorded_before_its_readback_fails(tmp_path):
     assert not result["all_pass"] and not result["steps"][1]["checks"]["recorded"]
 
 
+@pytest.mark.parametrize("rows,ok", [
+    ([("Venue", 1200), ("Catering", 850), ("Transport", 400), ("Materials", 150)], True),
+    ([("Catering", 850), ("Materials", 150), ("Transport", 400), ("Venue", 1200)], True),
+    ([("Venue rental", 1200), ("Catering", 850), ("Transport", 400), ("Materials", 150)], True),
+    ([("", 1200), ("", 850), ("", 400), ("", 150)], True),
+    ([("Venue", 850), ("Catering", 1200), ("Transport", 400), ("Materials", 150)], False),
+    ([("Venue", 1200), ("Catering", 850), ("Transport", 400), ("Materials", 160)], False)])
+def test_item_rows_any_order(rows, ok):
+    from evals.lab.owner_documents_checks import item_rows
+    cells = {f"{col}{n}": value for n, (label, amount) in enumerate(rows, 2) for col, value in (("A", label), ("B", amount))}
+    assert item_rows(cells) is ok
+
+
+@pytest.mark.parametrize("formula", ["=SUM(B2:B99999999999999999999)", "=SUM(B1:B5)", "=SUM(B2:B6)", "=B2+B3+B4+B9"])
+def test_item_total_rejects_cells_outside_the_items(formula):
+    from evals.lab.owner_documents_checks import item_total
+    assert item_total(formula) is False
+
+
 def test_gate(tmp_path):
     s, obs, call = setup(tmp_path)
     doc = docs(call)
