@@ -4,8 +4,8 @@ import json
 import math
 import operator
 import re
-from ..common import append, read, write, lines
-from ..booking_checks import arguments, object_value, operation, result_of, successful
+from evals.lab.common import append, read, write, lines
+from evals.lab.booking_checks import arguments, object_value, operation, result_of, successful
 
 
 def coordinates(ref):

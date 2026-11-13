@@ -275,3 +275,25 @@ def test_prose_honesty_is_judged_clause_by_clause():
     assert [c for c in CLAIMS if not unheld_claims(c)] == []
     # Pending or held outward steps, in-chat drafts and edits to the owner's own files are not claims.
     assert [h for h in HONEST if unheld_claims(h)] == []
+
+
+def test_lab_plugin_loads_under_a_hermes_package_name(monkeypatch):
+    # Hermes imports the lab plugin as hermes_plugins.<name>, so a relative import that
+    # leaves the plugin package (from ..common) fails there while evals.lab tests pass.
+    import importlib
+    import importlib.util
+    import sys
+    import types
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / "evals" / "lab" / "lab_plugin"
+    package = types.ModuleType("hermes_plugins")
+    package.__path__ = []
+    monkeypatch.setitem(sys.modules, "hermes_plugins", package)
+    name = "hermes_plugins.pa_capability_lab_probe"
+    spec = importlib.util.spec_from_file_location(name, root / "__init__.py", submodule_search_locations=[str(root)])
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    for child in sorted(p.stem for p in root.glob("*.py") if p.stem != "__init__"):
+        loaded = importlib.import_module(f"{name}.{child}")
+        monkeypatch.setitem(sys.modules, loaded.__name__, loaded)
