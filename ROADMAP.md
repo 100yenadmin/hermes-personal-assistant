@@ -417,7 +417,7 @@ Since then, meeting minutes with an owner and a date on every action item (M6-d,
 
 In 0.23.0-rc.1, documents in the owner's Google account (#156, lab s43) and the tax pack (#235, unit tests) were built too.
 
-Still missing: the week-one VA core (#151–#155), a live run in the owner's own systems, the voice test and the parity evidence.
+Still missing: live proof of the week-one VA core (#152; #151 and #153 to #155 are built), a live run in the owner's own systems, the voice test and the parity evidence.
 
 **Order inside M6.** The week-one VA core comes first; see "Gap review" above.
 
