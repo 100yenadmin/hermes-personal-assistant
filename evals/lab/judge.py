@@ -151,13 +151,42 @@ def compact_row(row):
     return ' | '.join(re.sub(r'\s*\[ref=[^]]*\]|,?\s*ref=[^,\]]+', '', line) for line in row)
 
 
+SPLIT_NUMBER = re.compile(r'^(\s*- StaticText ")(\d[\d.,]*)"(?:\s*\[[^\]\n]*\])*\s*$')
+SPLIT_SUFFIX = re.compile(r'^(\s*- StaticText ")(원|円|KRW|JPY|USD|EUR|GBP)"(?:\s*\[[^\]\n]*\])*\s*$')
+SPLIT_SIGN = re.compile(r'^(\s*- StaticText ")([¥₩$€£])"(?:\s*\[[^\]\n]*\])*\s*$')
+
+
+def join_split_prices(page):
+    """A number and its currency marker shown as two adjacent sibling text nodes are one price.
+
+    Catch Table shows a deposit as StaticText "20,000" then StaticText "원"; read apart, the number
+    never touches its marker and only an unrelated "20,000원" elsewhere on the page matches.
+    A suffix (원, 円, codes) joins the number before it; a sign (¥, $, ...) joins only the number
+    after it, so "3", "$", "40" is 3 and $40, never 3$. Nodes at different depths never join.
+    """
+    result, i = [], 0
+    while i < len(page):
+        following = page[i + 1] if i + 1 < len(page) else ""
+        for first, second, joined in ((SPLIT_NUMBER, SPLIT_SUFFIX, lambda a, b: a[2] + b[2]),
+                                      (SPLIT_SIGN, SPLIT_NUMBER, lambda a, b: a[2] + b[2])):
+            a, b = first.match(page[i]), second.match(following)
+            if a and b and a[1] == b[1]:
+                result.append(f'{a[1]}{joined(a, b)}"')
+                i += 2
+                break
+        else:
+            result.append(page[i])
+            i += 1
+    return result
+
+
 def page_rows(texts):
     """Keep tree rows together and split long text/HTML at known item boundaries."""
     names = {match[1] for text in texts for line in text.splitlines()
              if (match := NAME_LINE.match(line)) and not PRICE_LINE.match(line) and len(match[1]) >= 3}
     boundary = re.compile('|'.join(re.escape(name) for name in sorted(names, key=len, reverse=True))) if names else None
     for text in texts:
-        page = text.splitlines()
+        page = join_split_prices(text.splitlines())
         for i, line in enumerate(page):
             if NAME_LINE.match(line):
                 yield compact_row(snapshot_row(page, i))
