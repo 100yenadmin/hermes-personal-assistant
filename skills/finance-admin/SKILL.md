@@ -32,7 +32,9 @@ level of `data`: `{"action":"paid", "invoice_id":"<id from list>",
 This records what happened. Use `void` with invoice_id and reason for an invalid
 invoice. Never initiate a payment or transfer.
 
-For subscriptions and other recurring contracts, use [Contracts and subscriptions](../personal-assistant/references/radar.md#contracts-and-subscriptions) to track annual costs and notice deadlines.
+For subscriptions and other recurring contracts, read "Contracts and subscriptions" in
+`../personal-assistant/references/radar.md` (relative to this skill directory):
+notice deadlines, annual costs and a keep-or-cancel decision held for the owner.
 
 When the owner forwards a receipt, record it with `pa` operation `expense`,
 action `record`: amount, currency, category, kind, date, merchant and the

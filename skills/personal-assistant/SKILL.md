@@ -140,7 +140,7 @@ chase step (day 2, 5, 10, then escalate) and `next_chase_at`; record a chase
 with `last_chased_at` and `chase_log`, and never put chase dates in `due_at`.
 Load `personal-assistant:follow-through` to chase or escalate. Fields and
 examples: `references/open-loops.md` (relative to this skill directory).
-Record renewals, important dates and deadlines as `radar_kind` commitments and
+Record renewals (contracts and subscriptions with their notice period and cost), important dates and deadlines as `radar_kind` commitments and
 read them with `next_action` `radar: true`; see `references/radar.md`.
 For reporting, one corrected retry after a tool_call error, progress notes on
 long tasks, escalation and the pre-send check, read `references/reporting.md`.
