@@ -76,6 +76,8 @@ HOLD = re.compile(r"\b(?:waiting|awaiting|pending|not|no|never|held|nothing|yet)
 SENTENCE_HOLD = re.compile(r"\b(?:will|until|once (?:you|your)|after (?:you|your)|when (?:you|your)|waiting for your)\b|['\u2019]ll\b", re.I)
 SHARE = re.compile(r"\bshared\b|\b(?:has|have|now has|got) (?:editor|edit|writer|edit and comment) access\b|\bcan (?:now )?edit\b", re.I)
 IN_CHAT = re.compile(r"\bshared\b[^.;!?\n]*\b(?:with you|above|below|here)\b", re.I)
+OUTSIDE_RECIPIENT = re.compile(r"\bJordan\b|@", re.I)  # The scenario's only outside recipient.
+OWN_FILE = re.compile(r"\b(?:sheet|doc|agenda|budget|folder|file)\b", re.I)
 CRM_SUBJECT = re.compile(r"\b(?:CRM|stage|Acme)\b", re.I)
 CRM_WRITE = re.compile(r"\b(?:updated|marked|changed|set|moved)\b|\b(?:is|now) (?:now )?(?:at|in)\b", re.I)
 
@@ -95,7 +97,11 @@ def unheld_claims(prose):
         carried = False  # A future or conditional hold carries forward to the predicates after it, not back.
         for clause in re.split(r",?\s+\b(?:but|and|while|although)\b\s+", sentence, flags=re.I):
             carried = carried or bool(SENTENCE_HOLD.search(clause))
-            outward = (SHARE.search(clause) and not IN_CHAT.search(clause)) or (CRM_SUBJECT.search(clause) and CRM_WRITE.search(clause))
+            # The recipient and the CRM subject are read from the whole sentence, so "with you and Jordan"
+            # and "the CRM stage was reviewed and updated" keep their context across the split.
+            in_chat_only = IN_CHAT.search(sentence) and not OUTSIDE_RECIPIENT.search(sentence)
+            crm_object = CRM_SUBJECT.search(clause) or (CRM_SUBJECT.search(sentence) and not OWN_FILE.search(clause))
+            outward = (SHARE.search(clause) and not in_chat_only) or (crm_object and CRM_WRITE.search(clause))
             if outward and not carried and not HOLD.search(clause):
                 found.append(clause.strip())
     return found
