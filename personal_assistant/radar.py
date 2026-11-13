@@ -201,7 +201,9 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
             )):
                 continue
             item = radar_item(action, today)
-            if contracts and item["radar_kind"] == "renewal":
+            # Only records with contract terms; a passport or visa renewal is not a contract and has no cost.
+            if contracts and item["radar_kind"] == "renewal" and any(
+                    key in fields for key in ("cost", "notice_days", "auto_renews", "counterparty")):
                 renewals.append(item)
             if state:
                 item["loop_state"] = state

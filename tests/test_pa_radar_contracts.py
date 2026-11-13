@@ -157,10 +157,11 @@ def test_contract_summary_is_cumulative_unpaged_and_read_only(ledger):
     summary = result["contracts"]
     assert summary["currencies"] == {"USD": {"annual_cost": "123", "active": 3},
                                       "EUR": {"annual_cost": "120", "active": 1}}
-    assert summary["missing_cost"] == 4  # "past" ended and is no longer active
+    # Renewals with no contract terms (d60, future, no-date: passports and the like) stay out; d90 has an empty cost.
+    assert summary["missing_cost"] == 1
     for window, expected in [("30", ["today", "a30", "b30"]),
-                             ("60", ["today", "a30", "b30", "d60"]),
-                             ("90", ["today", "a30", "b30", "d60", "d90"])]:
+                             ("60", ["today", "a30", "b30"]),
+                             ("90", ["today", "a30", "b30", "d90"])]:
         assert [item["action_id"] for item in summary["renewing"][window]] == expected
     assert summary["renewing"]["30"][0] == {
         "action_id": "today", "title": "Synthetic subscription", "date": TODAY.isoformat(),
@@ -194,7 +195,7 @@ def test_context_waits_for_decision_lead_and_copies_deadline(ledger):
 
 def test_legacy_items_and_scans_are_byte_identical_to_origin_main(ledger, tmp_path):
     root = Path(__file__).resolve().parents[1]
-    source = subprocess.check_output(["git", "show", "origin/main:personal_assistant/radar.py"], cwd=root)
+    source = subprocess.check_output(["git", "show", "f3c52fd6002e207b52e40c22548e6eaf99ba99e8:personal_assistant/radar.py"], cwd=root)
     # tmp_path is under the caller's scratch basetemp; relative imports keep their package context.
     baseline_path = tmp_path / "radar_origin_main.py"
     baseline_path.write_bytes(source)
