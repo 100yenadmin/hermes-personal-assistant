@@ -64,6 +64,19 @@ def evaluate(root, scenario, index, messages, tools):
                     and object_value(arguments(p).get("data")).get("summary") == data.get("summary") for p in history[:i]):
                     return any(m.get("role") == "user" and m.get("step") == 1 and m.get("content") == data["confirmation"] for m in read(root / "transcript.json", []))
         return False
+    def read_before_record(write):
+        # Execute, read back, then record: the confirmed result for this action follows a readback of its target.
+        reader, key = {"lab_drive_share": ("lab_drive_permissions", "id"), "lab_crm_update": ("lab_crm_get", "record")}[write["name"]]
+        action_id = next((object_value(arguments(p).get("data")).get("action_id") for p in tools if operation(p, "action_prepare") and successful(p)
+                          and object_value(arguments(p).get("data")).get("tool_name") == write["name"]
+                          and object_value(arguments(p).get("data")).get("tool_args") == write["args"]), None)
+        done = next((i for i, t in enumerate(tools) if t.get("name") == write["name"] and arguments(t) == write["args"] and successful(t)), None)
+        if action_id is None or done is None:
+            return False
+        recorded_at = next((i for i, t in enumerate(tools) if i > done and operation(t, "action_result") and successful(t)
+                            and object_value(arguments(t).get("data")).get("action_id") == action_id), None)
+        return recorded_at is not None and any(t.get("name") == reader and successful(t) and arguments(t).get(key) == write["args"][key]
+                                               for t in tools[done + 1:recorded_at])
     result = {
         "filed_named": len(folders) == len(docs) == len(sheets) == 1 and all(f.get("parent") == folders[0]["id"] and re.fullmatch(r"\d{4}-\d{2}-\d{2} " + topic, f.get("name", "")) for f, topic in ((sheet, "Team offsite budget"), (doc, "Planning agenda")))
             and any(c["name"] == "lab_drive_search" for c in calls[:next((i for i,c in enumerate(calls) if c["name"] == "lab_drive_mkdir"), 0)]),
@@ -80,7 +93,8 @@ def evaluate(root, scenario, index, messages, tools):
             and (not index or after("lab_drive_share", "lab_drive_permissions", doc.get("id")) and after("lab_crm_update", "lab_crm_get", "Acme Demo")),
         "recorded": not index or all(any(operation(t, "action_result") and successful(t) and object_value(arguments(t).get("data")).get("outcome") == "confirmed"
             and object_value(arguments(t).get("data")).get("action_id") == result_of(confirm).get("action_id")
-            for t in tools[n+1:]) for n, confirm in enumerate(tools) if operation(confirm, "action_confirm")) and sum(operation(t, "action_result") and successful(t) for t in tools) == 2,
+            for t in tools[n+1:]) for n, confirm in enumerate(tools) if operation(confirm, "action_confirm")) and sum(operation(t, "action_result") and successful(t) for t in tools) == 2
+            and all(read_before_record(c) for c in shares + updates),
     }
     reported = summary.get("files", [])
     facts = {(i.get("id"), i.get("name")) for i in reported} == {(f.get("id"), f.get("name")) for f in (doc, sheet)} and len(reported) == 2

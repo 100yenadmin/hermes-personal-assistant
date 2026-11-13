@@ -149,6 +149,21 @@ def test_total_reported_in_the_owner_reply(tmp_path, stated, reported):
     assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["total_read_reported"] is reported
 
 
+def test_result_recorded_before_its_readback_fails(tmp_path):
+    # Execute, read back, then record: a confirmed result written before the readback is not proof.
+    s = synthetic(tmp_path)
+    assert checks.evaluate(tmp_path, s)["all_pass"]
+    path = tmp_path / "tools.jsonl"
+    rows = common.lines(path)
+    reads = [i for i, r in enumerate(rows) if r.get("name") == "lab_drive_permissions"]
+    results = [i for i, r in enumerate(rows) if r.get("name") == "pa" and r.get("args", {}).get("operation") == "action_result"]
+    assert reads and results and reads[0] < results[0]
+    rows[reads[0]], rows[results[0]] = rows[results[0]], rows[reads[0]]
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    result = checks.evaluate(tmp_path, s)
+    assert not result["all_pass"] and not result["steps"][1]["checks"]["recorded"]
+
+
 def test_gate(tmp_path):
     s, obs, call = setup(tmp_path)
     doc = docs(call)
