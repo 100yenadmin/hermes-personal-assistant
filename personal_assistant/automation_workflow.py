@@ -477,7 +477,8 @@ def dispatch(ledger, data, *, get_config=None):
         data.pop("get_config", None)
         return prepare_suggestions(ledger, get_config=get_config, **data)
     if action == "rule":
-        rule = dict(auto._rule_data(data["rule"]))
+        # Flatten a full status row too, so a nested copy cannot bring a dropped zone back.
+        rule = {k: v for k, v in auto._rule_data(data["rule"]).items() if k not in ("fields", "automation_rule")}
         # A routine keeps its own zone only when the owner pinned it. A bare zone is
         # usually a copy of the owner's current one, which goes stale when they
         # travel, so it is dropped and the rule follows preferences.

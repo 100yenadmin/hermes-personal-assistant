@@ -86,6 +86,11 @@ def test_acceptance_inherits_later_preferences_and_explicit_update_pins(tmp_path
             dispatch(ledger, {"action": "rule", "rule_id": "daily",
                               "rule": {**rule, "timezone": bad, "timezone_pinned": True}})
     assert auto.rule_timezone(ledger.get("action", row["action_id"]), preferences(ledger)) == "Asia/Seoul"
+    # A full status row (nested rule) round trip drops a legacy bare zone as well.
+    legacy = dict(row); legacy["fields"] = {**row["fields"], "automation_rule": {**rule, "timezone": "Asia/Seoul"}}
+    row = dispatch(ledger, {"action": "rule", "rule_id": "daily", "rule": legacy})
+    assert "timezone" not in row["fields"]["automation_rule"]
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Bangkok"
 
 
 @pytest.mark.parametrize("pinned,expected", [(False, []), (True, ["feed"])])
