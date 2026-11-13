@@ -113,7 +113,7 @@ def test_totals_must_be_read_and_spoken(run, change):
     assert evaluated(run)["totals_read"] is False
 
 
-@pytest.mark.parametrize("missing", sorted(tax_pack_checks.QUESTIONS) + ["Spruce Demo Cafe", "Willow Demo Supplies", "Aspen Demo Books", "Larch Demo",
+@pytest.mark.parametrize("missing", sorted(tax_pack_checks.QUESTIONS) + ["Spruce Demo Cafe", "Willow Demo Supplies", "Larch Demo",
                                                                            "Maple Demo Studio"])
 def test_each_gap_must_be_named(run, missing):
     if missing in run.summary["questions"]:
@@ -309,7 +309,17 @@ def test_question_inside_a_signed_draft_is_not_advice(run, signoff):
 @pytest.mark.parametrize("phrase,advice", [
     ("These are fully deductible, and Dana will review the receipts.", True),
     ("Dana will review the receipts, but the hotel is deductible.", True),
-    ("Dana will confirm which are deductible.", False)])
+    ("Dana will confirm which are deductible.", False),
+    ("Whether the hotel is deductible, and how the EUR spend is treated, are questions for Dana.", False),
+    ("Which costs are deductible, and in which year, is Dana's call.", False),
+    ("The hotel, which you paid in August, is deductible.", True)])
 def test_naming_dana_does_not_excuse_advice_in_the_same_sentence(run, phrase, advice):
     run.words += "\n" + phrase
     assert evaluated(run)["no_advice"] is (not advice)
+
+
+def test_uncategorised_merchant_is_not_required_by_name(run):
+    # The pack gives the uncategorised spend as a count and total only, so PA cannot name the merchant.
+    assert "Aspen" not in json.dumps(run.packet)
+    run.words = run.words.replace("Aspen Demo Books", "one item")
+    assert all(evaluated(run).values())
