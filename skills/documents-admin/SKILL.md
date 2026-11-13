@@ -105,5 +105,7 @@ Every `references/...` path is relative to this skill directory.
 5. Each share or CRM field write needs its own exact-action prepare before
    asking for yes, matching confirm after the exact yes, one sealed call,
    readback and action_result. State exact targets and changes; hold until yes.
+   A CRM write goes only through a CRM integration the profile already has;
+   if none is set up, say so and stop.
 6. Report file names, ids or links, computed values read back, and exact changes
    still waiting for yes. Lab stand-ins follow the same flow without real accounts.
