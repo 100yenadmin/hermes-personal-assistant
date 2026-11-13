@@ -45,7 +45,7 @@ def item_rows(cells):
     if len(seen) != len(set(seen)) or any(item in str(cells.get("A6") or "").lower() for item in ITEMS):
         return False
     # No further cost below the total: a number in column B after row 6 is an item left out of it.
-    return not any(isinstance(v, (int, float)) and not isinstance(v, bool)
+    return not any(isinstance(v, (int, float)) and not isinstance(v, bool) or isinstance(v, str) and v.startswith("=")
                    for k, v in cells.items() if (m := re.fullmatch(r"B([0-9]+)", k)) and int(m.group(1)) > 6)
 
 

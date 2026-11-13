@@ -181,7 +181,7 @@ def test_item_rows_any_order(rows, ok):
     assert item_rows(cells) is ok
 
 
-@pytest.mark.parametrize("extra,ok", [({"A7": "Equipment", "B7": 500}, False), ({"A6": "Venue"}, False),
+@pytest.mark.parametrize("extra,ok", [({"A7": "Equipment", "B7": 500}, False), ({"A7": "Equipment", "B7": "=250+250"}, False), ({"A6": "Venue"}, False),
                                       ({"A8": "Prepared by PA"}, True), ({"A8": "Notes", "B8": "deposits due Friday"}, True)])
 def test_item_rows_nothing_outside_the_items(extra, ok):
     from evals.lab.owner_documents_checks import item_rows
