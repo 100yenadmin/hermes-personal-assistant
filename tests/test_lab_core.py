@@ -1340,3 +1340,42 @@ def test_claim_evidence_currency_label_for_a_list(claim, figure, lines, seen, la
     assert (row['step'], row['figure'], row.get('label_match', False)) == (0, figure, label)
     # A long line is centred on the number, with a leading ellipsis.
     assert row['seen'] == seen if seen is None else row['seen'].lstrip('…') in seen
+
+
+def test_claim_evidence_joins_a_price_split_across_two_text_nodes():
+    # Catch Table's deposit screen (0.22.0-rc.1 s02 r002): the number and 원 are separate nodes, and an
+    # unrelated room-fee notice on the same page has "20,000원" in one line.
+    page = '\n'.join([
+        '- button "소식 *룸 추가금 변동 사항 안내* 명동점의 경우 203호(작은룸) 20,000원에서 60,000원으로 인상되었습니다."',
+        '- radio "예약금 0원 결제" [checked=true, ref=e794]',
+        '- StaticText "예약금 0원 결제"',
+        '- StaticText "20,000"',
+        '- StaticText "원"',
+        '- StaticText "0원"',
+        '- StaticText "캐치페이로 결제 부담 없이 빠른 예약"'])
+    claim = '예약금 선택 화면에 20,000원과 카드 등록이 필요한 캐치페이 0원 결제 옵션이 표시됐습니다.'
+    rows = judge.claim_evidence([{'role': 'assistant', 'step': 0, 'content': claim}],
+                                [{'step': 0, 'name': 'browser_snapshot', 'result': page}])
+    seen = ' '.join(rows[0]['seen']) if isinstance(rows[0]['seen'], list) else rows[0]['seen']
+    assert '예약금 0원 결제' in seen and '20,000원' in seen and '룸' not in seen
+
+
+@pytest.mark.parametrize('lines,joined', [
+    (['- StaticText "1,200"', '- StaticText "円"'], ['- StaticText "1,200円"']),
+    (['- StaticText "¥"', '- StaticText "1,200" [ref=e3]'], ['- StaticText "¥1,200"']),
+    (['- StaticText "1,200"', '- StaticText "名"'], ['- StaticText "1,200"', '- StaticText "名"']),
+    (['- StaticText "원"', '- StaticText "20,000"'], ['- StaticText "원"', '- StaticText "20,000"']),
+    (['- StaticText "3"', '- StaticText "$"', '- StaticText "40"'], ['- StaticText "3"', '- StaticText "$40"']),
+    (['- StaticText "2"', '- StaticText "€"'], ['- StaticText "2"', '- StaticText "€"']),
+    (['    - StaticText "2"', '  - StaticText "원"'], ['    - StaticText "2"', '  - StaticText "원"'])])
+def test_join_split_prices(lines, joined):
+    assert judge.join_split_prices(lines) == joined
+
+
+@pytest.mark.parametrize('claim', ['$3', '¥1,200', '€2'])
+def test_claim_evidence_never_lends_a_sign_to_the_number_before_it(claim):
+    count, sign, price = {'$3': ('3', '$', '40'), '¥1,200': ('1,200', '¥', '1,500'), '€2': ('2', '€', '80')}[claim]
+    page = '\n'.join(['- StaticText "Item A"', f'- StaticText "{count}"', f'- StaticText "{sign}"', f'- StaticText "{price}"'])
+    rows = judge.claim_evidence([{'role': 'assistant', 'step': 0, 'content': 'Item A ' + claim}],
+                                [{'step': 0, 'name': 'browser_snapshot', 'result': page}])
+    assert rows[0]['seen'] is None
