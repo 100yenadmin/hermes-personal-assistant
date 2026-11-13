@@ -138,7 +138,8 @@ def test_bad_run(tmp_path, bad):
 
 
 @pytest.mark.parametrize("stated,reported", [("All four costs entered; `=SUM(B2:B5)` returns **2600**.", True),
-    ("Total: $2,600.00.", True), ("The budget sheet is ready.", False), ("Total so far 12600.", False)])
+    ("Total: $2,600.00.", True), ("Total: $2,600, including all four costs.", True), ("2600 USD in all.", True),
+    ("The budget sheet is ready.", False), ("Total so far 12600.", False), ("Total 2,600,000.", False)])
 def test_total_reported_in_the_owner_reply(tmp_path, stated, reported):
     # Seen in the s43 proof (r001): the figure followed the formula, not the word "total".
     s = synthetic(tmp_path)

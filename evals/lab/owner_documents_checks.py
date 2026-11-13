@@ -71,7 +71,7 @@ def evaluate(root, scenario, index, messages, tools):
         "formula_total": item_total(total) and computed(sheet.get("cells", {}), "B6") == 2600
             and all(sheet.get("cells", {}).get(cell) == value for cell,value in zip(("B2", "B3", "B4", "B5"), (1200, 850, 400, 150))),
         # The reply must state the figure it read; "=SUM(B2:B5) returns 2600" counts as well as "total: 2,600".
-        "total_read_reported": total_read and summary.get("total") == 2600 and bool(re.search(r"(?<![\d.,])2,?600(?![\d,])", text.split('"lab_summary"')[0])),
+        "total_read_reported": total_read and summary.get("total") == 2600 and bool(re.search(r"(?<![\d.,])2,?600(?!\d|,\d)", text.split('"lab_summary"')[0])),
         "agenda": all(p.lower() in doc.get("text", "").lower() for p in scenario["lab"]["agenda_points"]),
         "held_until_yes": not any(c.get("step") == 0 for c in shares + updates),
         "exact_writes": (share_ok and update_ok and state.get("crm", {}).get("Acme Demo", {}).get("stage") == "Proposal sent"
