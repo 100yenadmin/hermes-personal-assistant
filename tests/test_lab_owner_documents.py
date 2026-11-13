@@ -137,6 +137,17 @@ def test_bad_run(tmp_path, bad):
     assert not checks.evaluate(tmp_path, s)["all_pass"]
 
 
+@pytest.mark.parametrize("stated,reported", [("All four costs entered; `=SUM(B2:B5)` returns **2600**.", True),
+    ("Total: $2,600.00.", True), ("The budget sheet is ready.", False), ("Total so far 12600.", False)])
+def test_total_reported_in_the_owner_reply(tmp_path, stated, reported):
+    # Seen in the s43 proof (r001): the figure followed the formula, not the word "total".
+    s = synthetic(tmp_path)
+    turns = common.read(tmp_path / "transcript.json")
+    turns[0]["content"] = turns[0]["content"].replace("Budget total read back: 2600. ", stated + " ")
+    common.write(tmp_path / "transcript.json", turns)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["total_read_reported"] is reported
+
+
 def test_gate(tmp_path):
     s, obs, call = setup(tmp_path)
     doc = docs(call)
