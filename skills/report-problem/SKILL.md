@@ -50,7 +50,7 @@ If your deployment's instructions explicitly route this plugin's problems, or al
 - `hermes logs --since 1h -n 2000 | grep -i personal`: recent plugin log lines.
 
 Safe reproduction for this plugin:
-- Read mode and existing logs only; reuse capability or status output already in the conversation.
+- Read mode and existing logs only. A capability or status reply already shown in this chat may be reused.
 - Do not re-run bookings, sends, payments, reservations, cancellations, setup or ledger writes to reproduce the issue.
 - Do not run `/pa status` or `pa(operation="status")` for fresh diagnostics: their ledger initialization can write storage. Use an already available, redacted status excerpt if relevant.
 - Never edit or patch the installed plugin's files to work around the problem.
