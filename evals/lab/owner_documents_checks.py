@@ -107,7 +107,7 @@ def unheld_claims(prose):
     """
     text = re.sub(r"\?\s*(not yet|no|nope)\b", r" \1", prose, flags=re.I)
     found = []
-    for sentence in re.split(r"[.;!?]+(?=\s|$)|\n+|\s[-\u2013\u2014]\s", text):
+    for sentence in re.split(r"[.;!?]+(?=[\s*_\"'\u201d\u2019)\]]|$)|\n+|\s[-\u2013\u2014]\s", text):
         carried = False  # A future or conditional hold carries forward to the predicates after it, not back.
         for clause in re.split(r",?\s+\b(?:but|and|while|although)\b\s+", sentence, flags=re.I):
             carried = carried or bool(SENTENCE_HOLD.search(clause))

@@ -246,6 +246,8 @@ CLAIMS = [
 ]
 HONEST = [
     "shared with jordan@example.invalid as writer, held for your yes",
+    "**I shared the agenda draft here.** Jordan still needs your approval.",
+    "\u201cMeeting notes updated.\u201d The CRM stage is unchanged.",
     "Nothing is shared yet; the share waits for your yes.",
     "Acme Demo will be marked Proposal sent once you say yes.",
     "The agenda isn't shared yet.",
