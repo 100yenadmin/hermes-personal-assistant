@@ -398,7 +398,10 @@ def _export_tax_pack(ledger, summary, paid, spent, opened, matches, by_id):
                          for line in missing["lines"])
         if missing["more"]:
             lines.append(f"\n{missing['more']} more are in the CSV.")
-        lines += ["", f"Receipts matched to card lines: {view['matched_receipts']}."]
+        lines += ["", f"Receipts matched to card lines: {view['matched_receipts']}. A receipt within 3 days of a card "
+                  "line for the same merchant and amount is taken as that purchase's receipt and counted once, on the "
+                  "card line's date; the CSV's receipt column names each match. If one was a separate cash purchase, "
+                  "tell the owner."]
     duplicates = [q for q in summary["questions"] if q["kind"] == "possible_duplicate"]
     lines += ["", "## Possible duplicates (listed, never merged)", ""]
     lines.extend("- " + _question_text(q) for q in duplicates)
