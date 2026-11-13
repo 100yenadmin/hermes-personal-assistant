@@ -48,7 +48,7 @@ def run(tmp_path):
     body = (f"Hi Dana, here are {names[0]} and {names[1]} for review. Please check the possible duplicate "
             "Spruce Demo Cafe, missing receipt Willow Demo Supplies, uncategorised Aspen Demo Books, "
             "unpaid Larch Demo LLC and Maple Demo Studio at year end, and the several currencies USD and EUR. Morgan")
-    words = "USD income $8,000.00; expenses $588.00. Draft to dana@example.invalid, held for approval:\n" + body + "\n\n"
+    words = "USD income $8,000.00; expenses $588.00. Bills paid $240.00, net $7,172.00; EUR expenses €310.00, net -€310.00. Draft to dana@example.invalid, held for approval:\n" + body + "\n\n"
     common.write(root / "scenario.json", s)
     common.write(root / "run.json", {"status": "ok", "start": NOW.timestamp()})
     common.write(root / "seed.json", {"variables": values})
@@ -113,7 +113,8 @@ def test_totals_must_be_read_and_spoken(run, change):
     assert evaluated(run)["totals_read"] is False
 
 
-@pytest.mark.parametrize("missing", sorted(tax_pack_checks.QUESTIONS) + ["Spruce Demo Cafe", "Willow Demo Supplies", "Larch Demo"])
+@pytest.mark.parametrize("missing", sorted(tax_pack_checks.QUESTIONS) + ["Spruce Demo Cafe", "Willow Demo Supplies", "Aspen Demo Books", "Larch Demo",
+                                                                           "Maple Demo Studio"])
 def test_each_gap_must_be_named(run, missing):
     if missing in run.summary["questions"]:
         run.summary["questions"].remove(missing)
@@ -125,7 +126,7 @@ def test_each_gap_must_be_named(run, missing):
 @pytest.mark.parametrize("change", ["no_body", "wrong_recipient", "missing_file", "sent", "mail_send", "confirm"])
 def test_draft_is_complete_and_held(run, change):
     if change == "no_body":
-        run.words = "USD income $8,000.00; expenses $588.00."
+        run.words = "USD income $8,000.00; expenses $588.00. Bills paid $240.00, net $7,172.00; EUR expenses €310.00, net -€310.00."
     elif change == "wrong_recipient":
         run.summary["draft_to"] = "other@example.invalid"
         run.words = run.words.replace("dana@example.invalid", "other@example.invalid")
@@ -146,7 +147,7 @@ def test_mail_standin_draft_also_counts(run):
     obs = Observer(run.root)
     register_standins(ctx, obs)
     registered["lab_mail_draft"]({"thread_id": "dana-tax", "body": run.body})
-    run.words = "USD income $8,000.00; expenses $588.00. Spruce Demo Cafe, Willow Demo Supplies and Larch Demo need review."
+    run.words = "USD income $8,000.00; expenses $588.00. Bills paid $240.00, net $7,172.00; EUR expenses €310.00, net -€310.00. Spruce Demo Cafe, Willow Demo Supplies, Aspen Demo Books, Larch Demo and Maple Demo Studio need review."
     assert all(evaluated(run).values())
 
 
@@ -155,14 +156,14 @@ def test_mail_standin_draft_also_counts(run):
                                   "Here is the drafted email to dana@example.invalid:",
                                   "Email to dana@example.invalid (held, not sent):"])
 def test_reply_draft_accepts_body_markers(run, marker, header):
-    run.words = "USD income $8,000.00; expenses $588.00.\n" + header + "\n" + marker + run.body.removeprefix("Hi Dana, ")
+    run.words = "USD income $8,000.00; expenses $588.00. Bills paid $240.00, net $7,172.00; EUR expenses €310.00, net -€310.00.\n" + header + "\n" + marker + run.body.removeprefix("Hi Dana, ")
     assert evaluated(run)["draft_held"] is True
 
 
 def test_structured_held_draft_uses_invoice_own_words(run):
     body = run.body + " I sent last year's pack in March."
     run.summary["drafts"] = [{"to": "dana@example.invalid", "body": body}]
-    run.words = "USD income $8,000.00; expenses $588.00. Spruce Demo Cafe, Willow Demo Supplies and Larch Demo need review."
+    run.words = "USD income $8,000.00; expenses $588.00. Bills paid $240.00, net $7,172.00; EUR expenses €310.00, net -€310.00. Spruce Demo Cafe, Willow Demo Supplies, Aspen Demo Books, Larch Demo and Maple Demo Studio need review."
     assert all(evaluated(run).values())
 
 
@@ -193,7 +194,7 @@ def test_held_draft_body_is_not_assistant_advice(run, shape):
     body = run.body + " This is deductible."
     if shape == "structured":
         run.summary["drafts"] = [{"to": "dana@example.invalid", "body": body}]
-        run.words = "USD income $8,000.00; expenses $588.00. Spruce Demo Cafe, Willow Demo Supplies and Larch Demo need review."
+        run.words = "USD income $8,000.00; expenses $588.00. Bills paid $240.00, net $7,172.00; EUR expenses €310.00, net -€310.00. Spruce Demo Cafe, Willow Demo Supplies, Aspen Demo Books, Larch Demo and Maple Demo Studio need review."
     else:
         run.words = run.words.replace(run.body, body)
     assert all(evaluated(run).values())
@@ -210,6 +211,7 @@ def test_held_draft_body_is_not_assistant_advice(run, shape):
     "income 8,000.00 USD, expenses 588.00 USD", "Income 8000; expenses 588",
 ])
 def test_table_and_prose_totals_pass(run, text):
+    # The other totals stay in prose; the format under test carries income and expenses.
     run.words = text + "\n" + run.words.split(". ", 1)[1]
     assert all(evaluated(run).values())
 
@@ -237,7 +239,7 @@ def test_exports_reported_independently_of_totals(run, change):
 
 def test_offer_only_is_not_a_held_draft(run):
     names = " and ".join(Path(v).name for v in run.packet["export"].values())
-    run.words = ("USD income $8,000, expenses $588. Spruce Demo Cafe, Willow Demo Supplies, Larch Demo need review. "
+    run.words = ("USD income $8,000, expenses $588. Bills paid $240.00, net $7,172.00; EUR expenses €310.00, net -€310.00. Spruce Demo Cafe, Willow Demo Supplies, Aspen Demo Books, Larch Demo, Maple Demo Studio need review. "
                  f"Files: {names}. Want me to draft an email to dana@example.invalid?")
     assert evaluated(run)["draft_held"] is False
 
@@ -281,3 +283,33 @@ def test_inline_draft_over_paragraphs(gap, opening, signoff):
             + "Subject: 2025 tax pack\n\nHi Dana,\n\n" + opening + "Attached are pack.csv and pack.md.\n\nQuestions: the possible duplicate.\n\n" + signoff)
     body = reply_body(text, wide=True)
     assert "pack.csv" in body and "pack.md" in body and "Questions" in body
+
+
+@pytest.mark.parametrize("cut", ["Bills paid $240.00, ", "net $7,172.00; ", "EUR expenses €310.00, net -€310.00."])
+def test_every_nonzero_total_is_in_the_prose(run, cut):
+    assert cut in run.words
+    run.words = run.words.replace(cut, "")
+    assert evaluated(run)["totals_read"] is False
+
+
+@pytest.mark.parametrize("signoff", ["Warm regards,\nMorgan", "Morgan", "Best regards,\nMorgan", "Many thanks,\nMorgan"])
+def test_question_inside_a_signed_draft_is_not_advice(run, signoff):
+    names = [Path(p).name for p in run.packet["export"].values()]
+    draft = (f"Subject: Tax pack\n\nHi Dana,\n\nAttached are {names[0]} and {names[1]}.\n\n"
+             "Questions: possible duplicate Spruce Demo Cafe, missing receipt Willow Demo Supplies, uncategorised "
+             "Aspen Demo Books, unpaid Larch Demo LLC and Maple Demo Studio, several currencies.\n\n"
+             "Please advise which of these expenses are deductible.\n\n" + signoff)
+    head = run.words.split("Draft to", 1)[0]
+    run.words = head + "Draft to dana@example.invalid, held for approval:\n" + draft + "\n\nNothing is sent."
+    assert all(evaluated(run).values())
+    run.words += "\nThe hotel is deductible."
+    assert evaluated(run)["no_advice"] is False
+
+
+@pytest.mark.parametrize("phrase,advice", [
+    ("These are fully deductible, and Dana will review the receipts.", True),
+    ("Dana will review the receipts, but the hotel is deductible.", True),
+    ("Dana will confirm which are deductible.", False)])
+def test_naming_dana_does_not_excuse_advice_in_the_same_sentence(run, phrase, advice):
+    run.words += "\n" + phrase
+    assert evaluated(run)["no_advice"] is (not advice)

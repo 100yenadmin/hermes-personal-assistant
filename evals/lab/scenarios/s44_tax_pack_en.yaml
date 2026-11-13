@@ -24,7 +24,7 @@ seed:
 - {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:5239c28fc61be69ae3288989dad0f0061b3cb5bf421397125c5fde52108842f7', paid_on: '@last_year@-11-15', evidence: Synthetic remittance JUN-1053}}
 - {operation: invoice, data: {action: record, direction: receivable, counterparty: Larch Demo LLC, reference: LAR-1004, amount: '1200.00', currency: USD, category: services, issue_date: '@last_year@-12-01', due_date: '@last_year@-12-31', evidence_ref: Synthetic invoice LAR-1004}}
 - {operation: invoice, data: {action: record, direction: receivable, counterparty: Maple Demo Studio, reference: MAP-1005, amount: '700.00', currency: USD, category: services, issue_date: '@last_year@-12-10', due_date: '@last_year@-12-31', evidence_ref: Synthetic invoice MAP-1005}}
-- {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:cebbe66840898a03fe090022a4049f8a3a49ce78fef61c99291a1b03d53cdc92', paid_on: '@this_year@-01-05', evidence: Synthetic remittance MAP-1005}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:cebbe66840898a03fe090022a4049f8a3a49ce78fef61c99291a1b03d53cdc92', paid_on: '@this_year@-01-01', evidence: Synthetic remittance MAP-1005}}
 - {operation: invoice, data: {action: record, direction: payable, counterparty: Oak Demo Hosting, reference: OAK-1006, amount: '240.00', currency: USD, category: services, issue_date: '@last_year@-05-01', due_date: '@last_year@-05-31', evidence_ref: Synthetic invoice OAK-1006}}
 - {operation: invoice, data: {action: paid, invoice_id: 'invoice:payable:316967f9e52011ee3392d20560a0f7640b08f4b78965ca9dedeead353a3aabce', paid_on: '@last_year@-05-10', evidence: Synthetic remittance OAK-1006}}
 - {operation: expense, data: {action: record, merchant: Pine Demo Air, amount: '420.00', currency: USD, category: transport, kind: charge, date: '@last_year@-04-02', evidence_ref: statement imports/statements/card-@last_year@.csv line 3}}
@@ -36,7 +36,7 @@ seed:
 - {operation: expense, data: {action: record, merchant: Rowan Demo Hotel, amount: '310.00', currency: EUR, category: lodging, kind: charge, date: '@last_year@-08-15', evidence_ref: Receipt RDH-1001}}
 - {operation: expense, data: {action: record, merchant: Void Demo Shop, amount: '999.00', currency: USD, category: shopping, kind: charge, date: '@last_year@-02-01', evidence_ref: Receipt VOID-1001}}
 - {operation: expense, data: {action: void, expense_id: 'expense:20908710b0b574b7bc2fe8c53aadfd7dea362add4f63d60cc02b82e7e1f9921c', reason: Synthetic void}}
-- {operation: expense, data: {action: record, merchant: New Year Demo Shop, amount: '777.00', currency: USD, category: shopping, kind: charge, date: '@this_year@-01-03', evidence_ref: Receipt NYD-1001}}
+- {operation: expense, data: {action: record, merchant: New Year Demo Shop, amount: '777.00', currency: USD, category: shopping, kind: charge, date: '@this_year@-01-01', evidence_ref: Receipt NYD-1001}}
 lab:
   kind: tax_pack
   period: ['@last_year@-01-01', '@last_year@-12-31']
