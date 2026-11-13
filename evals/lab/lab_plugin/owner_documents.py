@@ -9,7 +9,7 @@ from ..booking_checks import arguments, object_value, operation, result_of, succ
 
 
 def coordinates(ref):
-    match = re.fullmatch(r"([A-Z]{1,2})([1-9][0-9]{0,2})", ref)
+    match = re.fullmatch(r"\$?([A-Z]{1,2})\$?([1-9][0-9]{0,2})", ref)
     if not match:
         raise ValueError("bounded A1 reference required")
     col = 0
@@ -29,18 +29,29 @@ def cells(area):
     return [[f"{label(c)}{r}" for c in range(c1, c2+1)] for r in range(r1, r2+1)]
 
 
+def user_entered(value):
+    """Numeric input strings become numbers; formulas and labels stay strings."""
+    if isinstance(value, str) and re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", value.strip()):
+        number = float(value)
+        if math.isfinite(number):
+            return int(number) if number.is_integer() else number
+    return value
+
+
 def computed(grid, ref, seen=(), budget=None):
     budget = [10000] if budget is None else budget
     try:
         budget[0] -= 1
         if budget[0] < 0:
             raise ValueError("formula work limit")
-        value = grid.get(ref, 0)
+        ref = ref.replace("$", "")
+        value = user_entered(grid.get(ref, 0))
         if not isinstance(value, str) or not value.startswith("="):
             return value
         if ref in seen or len(seen) > 30 or len(value) > 1000:
             raise ValueError("cycle or formula limit")
-        expression = re.sub(r"\b([A-Z]{1,2}[1-9][0-9]*):([A-Z]{1,2}[1-9][0-9]*)\b", r'RANGE("\1","\2")', value[1:].upper())
+        expression = re.sub(r"\$?([A-Z]{1,2})\$?([1-9][0-9]*)\b", r"\1\2", value[1:].upper()).strip()
+        expression = re.sub(r"\b([A-Z]{1,2}[1-9][0-9]*)\s*:\s*([A-Z]{1,2}[1-9][0-9]*)\b", r'RANGE("\1","\2")', expression)
         def number(v):
             if type(v) not in (int, float) or not math.isfinite(v):
                 raise ValueError("not numeric")
@@ -50,18 +61,21 @@ def computed(grid, ref, seen=(), budget=None):
                 return number(node.value)
             if isinstance(node, ast.Name):
                 coordinates(node.id)
-                return number(computed(grid, node.id, (*seen, ref), budget))
+                return computed(grid, node.id, (*seen, ref), budget)
             if isinstance(node, ast.BinOp) and type(node.op) in (ast.Add, ast.Sub, ast.Mult, ast.Div):
                 fn = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}[type(node.op)]
-                return number(fn(visit(node.left), visit(node.right)))
+                return number(fn(number(visit(node.left)), number(visit(node.right))))
             if isinstance(node, ast.UnaryOp) and type(node.op) in (ast.UAdd, ast.USub):
                 return number(visit(node.operand)) * (-1 if isinstance(node.op, ast.USub) else 1)
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
                 if node.func.id == "RANGE" and len(node.args) == 2 and all(isinstance(a, ast.Constant) and isinstance(a.value, str) for a in node.args):
-                    return [number(computed(grid, c, (*seen, ref), budget)) for row in cells(":".join(a.value for a in node.args)) for c in row]
+                    return [computed(grid, c, (*seen, ref), budget) for row in cells(":".join(a.value for a in node.args)) for c in row]
                 if node.func.id == "SUM":
                     values = [visit(a) for a in node.args]
-                    return number(sum(n for v in values for n in (v if isinstance(v, list) else [v])))
+                    flat = [n for v in values for n in (v if isinstance(v, list) else [v])]
+                    if "#UNSUPPORTED" in flat:
+                        raise ValueError("unsupported input")
+                    return number(sum(number(n) for n in flat if not isinstance(n, str)))
             raise ValueError("unsupported syntax")
         return number(visit(ast.parse(expression, mode="eval").body))
     except (ValueError, TypeError, SyntaxError, ArithmeticError, RecursionError):
@@ -120,11 +134,10 @@ def register(ctx, obs):
                     result = {"files": [v for v in files.values() if args["query"].lower() in v["name"].lower()]}
                 elif name in {"drive_mkdir", "sheets_create", "docs_create"}:
                     kind = name.split("_")[0] if name != "drive_mkdir" else "folder"
-                    existing = next((v for v in files.values() if v["kind"] == "folder" and v["name"] == args["name"]), None)
                     if kind != "folder" and files.get(args["parent"], {}).get("kind") != "folder":
                         raise ValueError("known parent folder required")
                     identity = "file-" + str(len(files)+1)
-                    result = existing if kind == "folder" and existing else {"id": identity, "name": args["name"], "kind": kind,
+                    result = {"id": identity, "name": args["name"], "kind": kind,
                         "parent": args.get("parent"), "url": "https://drive.example.invalid/" + identity, "cells": {}, "text": "", "permissions": []}
                     files[result["id"]] = result
                 elif name.startswith("sheets_") and file.get("kind") == "sheets":
@@ -133,7 +146,7 @@ def register(ctx, obs):
                         values = args["values"]
                         if len(values) != len(area) or any(len(v) != len(r) for v, r in zip(values, area)):
                             raise ValueError("values must match range dimensions")
-                        file["cells"].update({c: v for row, vals in zip(area, values) for c, v in zip(row, vals)})
+                        file["cells"].update({c: user_entered(v) for row, vals in zip(area, values) for c, v in zip(row, vals)})
                         result = {"id": file["id"], "updated": args["range"]}
                     else:
                         result = {"id": file["id"], "range": args["range"], "values": [[computed(file["cells"], c) for c in row] for row in area]}
