@@ -35,11 +35,18 @@ def item_rows(cells):
     amounts = [cells.get(f"B{row}") for row in range(2, 6)]
     if not all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in amounts) or sorted(amounts) != sorted(ITEMS.values()):
         return False
+    seen = []
     for row, amount in zip(range(2, 6), amounts):
-        named = [item for item in ITEMS if item in str(cells.get(f"A{row}") or "").lower()]
-        if len(named) == 1 and ITEMS[named[0]] != amount:
-            return False
-    return True
+        label = str(cells.get(f"A{row}") or "").strip().lower()
+        named = [item for item in ITEMS if item in label]
+        if label and (len(named) != 1 or ITEMS[named[0]] != amount):
+            return False  # A labelled item row names exactly one item and carries its cost.
+        seen += named
+    if len(seen) != len(set(seen)) or any(item in str(cells.get("A6") or "").lower() for item in ITEMS):
+        return False
+    # No further cost below the total: a number in column B after row 6 is an item left out of it.
+    return not any(isinstance(v, (int, float)) and not isinstance(v, bool)
+                   for k, v in cells.items() if (m := re.fullmatch(r"B([0-9]+)", k)) and int(m.group(1)) > 6)
 
 
 def evaluate(root, scenario, index, messages, tools):

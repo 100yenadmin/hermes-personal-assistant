@@ -170,10 +170,23 @@ def test_result_recorded_before_its_readback_fails(tmp_path):
     ([("Venue rental", 1200), ("Catering", 850), ("Transport", 400), ("Materials", 150)], True),
     ([("", 1200), ("", 850), ("", 400), ("", 150)], True),
     ([("Venue", 850), ("Catering", 1200), ("Transport", 400), ("Materials", 150)], False),
-    ([("Venue", 1200), ("Catering", 850), ("Transport", 400), ("Materials", 160)], False)])
+    ([("Venue", 1200), ("Catering", 850), ("Transport", 400), ("Materials", 160)], False),
+    ([("Venue", 1200), ("Catering", 850), ("Transportation", 400), ("Materials", 150.0)], True),
+    ([("Total", 1200), ("Catering", 850), ("Transport", 400), ("Materials", 150)], False),
+    ([("Venue", 1200), ("Venue", 850), ("Transport", 400), ("Materials", 150)], False)])
 def test_item_rows_any_order(rows, ok):
     from evals.lab.owner_documents_checks import item_rows
     cells = {f"{col}{n}": value for n, (label, amount) in enumerate(rows, 2) for col, value in (("A", label), ("B", amount))}
+    cells.update({"A1": "Item", "B1": "Cost", "A6": "Total", "B6": "=SUM(B2:B5)"})
+    assert item_rows(cells) is ok
+
+
+@pytest.mark.parametrize("extra,ok", [({"A7": "Equipment", "B7": 500}, False), ({"A6": "Venue"}, False),
+                                      ({"A8": "Prepared by PA"}, True), ({"A8": "Notes", "B8": "deposits due Friday"}, True)])
+def test_item_rows_nothing_outside_the_items(extra, ok):
+    from evals.lab.owner_documents_checks import item_rows
+    cells = {"A1": "Item", "B1": "Cost", "A2": "Venue", "B2": 1200, "A3": "Catering", "B3": 850, "A4": "Transport", "B4": 400,
+             "A5": "Materials", "B5": 150, "A6": "Total", "B6": "=SUM(B2:B5)", **extra}
     assert item_rows(cells) is ok
 
 
