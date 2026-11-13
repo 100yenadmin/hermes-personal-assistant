@@ -55,6 +55,6 @@ Say a missed notice (`notice: "missed ..."`) or a notice `gap` plainly and give 
 exit from the source terms; ask for those terms if unknown. Yearly records keep
 the current renewal date until it passes, even if its notice deadline was missed.
 
-`next_action` with `radar:true, contracts:true` gives annual cost per currency,
+`next_action` with `radar:true, contracts:true` covers records with contract terms (cost, notice, auto-renewal or counterparty) and gives annual cost per currency,
 the missing-cost count, and what renews in cumulative 30/60/90-day windows,
 including active records that have not surfaced yet. Never combine currencies.
