@@ -272,10 +272,12 @@ def test_year_macros_use_owner_local_calendar():
     assert values["this_year"] == "2026" and values["last_year"] == "2025"
 
 
-@pytest.mark.parametrize("gap", ["\n\n", "\n" + "x" * 400 + "\n\n"])
-def test_inline_draft_over_paragraphs(gap):
+@pytest.mark.parametrize("gap,opening,signoff", [("\n\n", "", "Thanks,\nMorgan"), ("\n" + "x" * 400 + "\n\n", "", "Thanks,\nMorgan"),
+    ("\n\n", "", "Many thanks,\nMorgan"), ("\n\n", "", "Morgan"), ("\n\n", "", "— Morgan"),
+    ("\n\n", "Thanks for taking this on.\n\n", "Warm regards,\nMorgan"), ("\n\n```\n", "", "Morgan\n```")])
+def test_inline_draft_over_paragraphs(gap, opening, signoff):
     from evals.lab.tax_pack_checks import reply_body
     text = ("I drafted the cover email to dana@example.invalid and held it." + gap
-            + "Subject: 2025 tax pack\n\nHi Dana,\n\nAttached are pack.csv and pack.md.\n\nQuestions: the possible duplicate.\n\nThanks,\nMorgan")
-    body = reply_body(text)
+            + "Subject: 2025 tax pack\n\nHi Dana,\n\n" + opening + "Attached are pack.csv and pack.md.\n\nQuestions: the possible duplicate.\n\n" + signoff)
+    body = reply_body(text, wide=True)
     assert "pack.csv" in body and "pack.md" in body and "Questions" in body

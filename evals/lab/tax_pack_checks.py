@@ -27,8 +27,12 @@ def advice_claimed(text):
     return False
 
 
-def reply_body(words):
-    """An inline held email needs a body marker after the address, not just an offer to draft."""
+def reply_body(words, wide=False):
+    """An inline held email needs a body marker after the address, not just an offer to draft.
+
+    wide=True (for finding the draft) runs to a closing code fence, the summary or the end;
+    the narrow span (for removing the draft before the advice scan) also ends at its sign-off.
+    """
     if words.find(ACCOUNTANT) < 0 or not re.search(r"\bdraft(?:ed)?\b|\bheld\b", words, re.I):
         return ""
     for mention in re.finditer(re.escape(ACCOUNTANT), words):
@@ -37,6 +41,8 @@ def reply_body(words):
             start = mention.end() + marker.start()
             # The body runs over paragraphs; it ends after its sign-off and name, a closing code fence or the summary.
             ends = [words.find("```", start), words.find('"lab_summary"', start)]
+            if wide:
+                return words[start:min([i for i in ends if i >= 0] or [len(words)])]
             sign = re.search(r"^\s*(?:Thanks|Thank you|Best|Regards|Kind regards|Cheers|Sincerely)\b[^\n]*\n[^\n]*", words[start:], re.I | re.M)
             if sign:
                 ends.append(start + sign.end())
@@ -136,7 +142,8 @@ def evaluate(root, scenario, index, messages, tools):
     inline_body = reply_body(words)
     if inline_body:
         held.append(inline_body)
-    has_draft = bool(names) and any(all(name in body for name in names) and QUESTION.search(body) for body in held)
+    found = held + [reply_body(words, wide=True)]
+    has_draft = bool(names) and any(all(name in body for name in names) and QUESTION.search(body) for body in found)
     advice_words = own_words(text)
     for body in held:
         advice_words = advice_words.replace(body, "")
