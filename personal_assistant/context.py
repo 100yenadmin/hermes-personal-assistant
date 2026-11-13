@@ -217,6 +217,7 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
     steps still pending before it that fall due by then (or else the next one) fold into one chase
     at that exact time, and a chase at or after it completes them. Escalation never moves
     earlier; when the owner's time is after it, it comes a day after the owner's chase.
+    An owner time from before both the loop's opening and its recording is ignored.
     """
 
     today = moment.astimezone(zone).date()
@@ -236,7 +237,9 @@ def loop_chase(fields: dict[str, Any], *, created_at: Any = None, moment: dt.dat
 
     pending = pending_after(chased, {entry.get("step") for entry in log})
     asked = local_time(fields.get("chase_at"), zone) if fields.get("chase_at") else None
-    if asked is not None and asked.date() >= opened.date():
+    created = local_time(created_at, zone)
+    floor = min(opened, created) if created is not None else opened
+    if asked is not None and asked.date() >= floor.date():
         # Fold on the evidence from before the owner's time, so the chase made at it counts once.
         stamp = asked.timestamp()
         times = [(entry, local_time(entry.get("at"), zone)) for entry in log]

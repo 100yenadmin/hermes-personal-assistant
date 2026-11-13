@@ -199,7 +199,8 @@ def dispatch(ledger, data):
             row["days_overdue"] = max(0, overdue) if row["status"] == "open" else 0
             if fields["direction"] == "receivable":
                 loop = ledger.get("action", row["action_id"] + ":loop")
-                row["chase"] = loop_chase(loop["fields"], moment=moment, zone=zone) if loop and row["status"] == "open" else None
+                row["chase"] = loop_chase(loop["fields"], created_at=loop.get("created_at"), moment=moment,
+                                          zone=zone) if loop and row["status"] == "open" else None
             rows.append(row)
         return sorted(rows, key=lambda r: (r["fields"]["due_date"], r["action_id"]))
     with ledger.connect() as conn:

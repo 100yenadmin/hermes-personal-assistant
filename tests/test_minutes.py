@@ -431,7 +431,8 @@ def test_restored_item_chases_afresh(home):
     ids = save(home)["loop_ids"]
     with Ledger(home).connect() as conn:
         row = conn.execute("select fields_json from actions where action_id=?", (ids[0],)).fetchone()[0]
-        fields = {**json.loads(row), "last_chased_at": "2026-11-15T09:00:00+00:00", "snoozed_until": "2026-11-20"}
+        fields = {**json.loads(row), "last_chased_at": "2026-11-15T09:00:00+00:00", "snoozed_until": "2026-11-20",
+                  "chase_at": "2026-11-16T09:00:00+00:00"}
         conn.execute("update actions set fields_json=? where action_id=?", (json.dumps(fields), ids[0]))
     kept = [i for i in MINUTES["action_items"] if loops(home)[ids[0]]["fields"]["title"] != i["text"]]
     save(home, action_items=kept)
@@ -439,6 +440,7 @@ def test_restored_item_chases_afresh(home):
     save(home)
     restored = loops(home)[ids[0]]["fields"]
     assert "last_chased_at" not in restored and "snoozed_until" not in restored and restored["chase_log"] == []
+    assert "chase_at" not in restored
 
 
 def test_resave_keeps_an_existing_loops_opened_at(home):
@@ -480,6 +482,25 @@ def _chase(home, identity, at):
 
 DAY2_LOGGED = {"chase_log": [{"step": "day2", "at": "2026-11-11T10:00:00+00:00", "how": "reminder"}],
                "chase_at": "2026-11-11T09:00:00+00:00"}
+
+
+def test_owner_chase_time_before_minutes_synthetic_opening(home):
+    (home / "imports/meetings/sync.txt").write_text(TRANSCRIPT.replace("November 12", "November 30"), encoding="utf-8")
+    items = copy.deepcopy(MINUTES["action_items"])[1:]
+    items[0].update(due_date="2026-11-30", due_wording="by November 30",
+                    quote=items[0]["quote"].replace("November 12", "November 30"))
+    result = save(home, action_items=items, timezone="Asia/Tokyo")
+    assert "error" not in result, result
+    identity, = result["loop_ids"]
+    ledger = Ledger(home)
+    ledger.put("action", "pa:preferences", {"timezone": "Asia/Tokyo"})
+    ledger.put("action", identity, {"chase_at": "2026-11-20T09:00:00+09:00"})
+    with ledger.connect() as conn:
+        conn.execute("update actions set created_at=? where action_id=?", ("2026-11-13T00:00:00+09:00", identity))
+    assert ledger.get("action", identity)["fields"]["opened_at"] == "2026-11-28"
+    for hour, step in ((8, "none"), (10, "day2")):
+        chase = _chase(home, identity, f"2026-11-20T{hour:02}:00:00+09:00")
+        assert (chase["step"], chase["next_chase_at"]) == (step, "2026-11-20T09:00:00+09:00")
 
 
 def test_a_moved_due_date_starts_a_new_chase_ladder(home):
