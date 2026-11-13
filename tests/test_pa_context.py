@@ -7,7 +7,7 @@ from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from personal_assistant.context import next_actions, read_kanban_task, retrieve, status_snapshot
+from personal_assistant.context import loop_chase, next_actions, read_kanban_task, retrieve, status_snapshot
 from personal_assistant.entry import dispatch
 from personal_assistant.state import Ledger
 from personal_assistant.trips import import_trip
@@ -231,6 +231,29 @@ class OpenLoopTests(unittest.TestCase):
             day2 = next_actions(ledger, {"at": "2026-11-21T10:00:00+09:00", "limit": 20},
                                 kanban_reader=lambda task_id, board: UNKNOWN)
             self.assertEqual({i["action_id"]: i["chase"]["step"] for i in day2["candidates"]}["chased-then"], "none")
+
+    def test_owner_chase_time_before_synthetic_opening(self):
+        zone = dt.timezone(dt.timedelta(hours=9))
+        fields = {"opened_at": "2026-11-28", "chase_at": "2026-11-20T09:00:00+09:00"}
+        for hour, step in ((8, "none"), (10, "day2")):
+            with self.subTest(hour=hour):
+                chase = loop_chase(fields, created_at="2026-11-13T00:00:00+09:00",
+                                   moment=dt.datetime(2026, 11, 20, hour, tzinfo=zone), zone=zone)
+                self.assertEqual((chase["step"], chase["next_chase_at"]), (step, fields["chase_at"]))
+        chase = loop_chase({**fields, "last_chased_at": "2026-11-20T09:30:00+09:00"},
+                           created_at="2026-11-13T00:00:00+09:00",
+                           moment=dt.datetime(2026, 11, 30, 10, tzinfo=zone), zone=zone)
+        self.assertEqual((chase["step"], chase["next_chase_at"]), ("none", "2026-12-03T00:00:00+09:00"))
+
+    def test_owner_chase_time_before_creation_and_opening_is_ignored(self):
+        zone = dt.timezone(dt.timedelta(hours=9))
+        fields = {"opened_at": "2026-11-28", "chase_at": "2026-11-12T09:00:00+09:00",
+                  "last_chased_at": "2026-11-12T09:30:00+09:00"}
+        for created in ("2026-11-13T00:00:00+09:00", "2026-12-01T00:00:00+09:00", None, "invalid"):
+            with self.subTest(created_at=created):
+                chase = loop_chase(fields, created_at=created,
+                                   moment=dt.datetime(2026, 11, 30, 10, tzinfo=zone), zone=zone)
+                self.assertEqual((chase["step"], chase["next_chase_at"]), ("day2", "2026-11-30T00:00:00+09:00"))
 
     def test_owner_chase_time_review_cases(self):
         # Reviews of #217: same-day reschedule, a replaced time after a chase, a chase with no log,

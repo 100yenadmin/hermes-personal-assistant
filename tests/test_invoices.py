@@ -105,6 +105,7 @@ def test_void_and_matching_revive_reset_only_invoice_closure_and_chases(ledger):
     identity = record(ledger)["action_id"]
     dispatch(ledger.root, {"operation": "action_upsert", "data": {"action_id": identity + ":loop", "fields": {
         "last_chased_at": "2026-11-12T10:00:00+09:00", "snoozed_until": "2026-11-13T10:00:00+09:00",
+        "chase_at": "2026-11-12T09:00:00+09:00",
         "chase_log": [{"at": "2026-11-12T10:00:00+09:00", "step": "day2", "how": "draft held"}]}}})
     voided = call(ledger, "void", invoice_id=identity, reason="Wrong recipient")
     assert voided["status"] == "void" and voided["fields"]["void_reason"] == "Wrong recipient"
@@ -124,6 +125,7 @@ def test_void_and_matching_revive_reset_only_invoice_closure_and_chases(ledger):
     assert due["status"] == "pending" and loop["status"] == "open" and loop_state(loop, {}) == "open"
     assert loop["fields"]["chase_log"] == []
     assert not {"confirmation", "loop_cancelled", "last_chased_at", "snoozed_until"} & loop["fields"].keys()
+    assert "chase_at" not in loop["fields"]
 
 
 def test_live_rerecord_never_reopens_an_owner_closed_loop(ledger):
@@ -183,6 +185,20 @@ def test_next_action_existing_day_ladder_and_bookkeeping(ledger):
     call(ledger, "paid", invoice_id=identity, paid_on="2026-11-12", evidence="Owner reports receipt")
     assert loop_state(ledger.get("action", identity + ":loop"), {}) == "closed"
     assert dispatch(ledger.root, {"operation": "next_action", "data": {"loops_only": True}})["candidates"] == []
+
+
+def test_owner_chase_time_before_invoice_synthetic_opening(ledger, monkeypatch):
+    identity = record(ledger, due_date="2026-11-30")["action_id"]
+    ledger.put("action", identity + ":loop", {"chase_at": "2026-11-20T09:00:00+09:00"})
+    with ledger.connect() as conn:
+        conn.execute("update actions set created_at=? where action_id=?",
+                     ("2026-11-13T00:00:00+09:00", identity + ":loop"))
+    assert ledger.get("action", identity + ":loop")["fields"]["opened_at"] == "2026-11-30"
+    for hour, step in ((8, "none"), (10, "day2")):
+        moment = dt.datetime.fromisoformat(f"2026-11-20T{hour:02}:00:00+09:00")
+        monkeypatch.setattr(invoices, "evaluation_moment", lambda data: moment)
+        row, = call(ledger, "list")
+        assert (row["chase"]["step"], row["chase"]["next_chase_at"]) == (step, "2026-11-20T09:00:00+09:00")
 
 
 def test_list_order_filters_owner_local_overdue_and_chase(ledger, monkeypatch):
