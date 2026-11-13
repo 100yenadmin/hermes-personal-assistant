@@ -49,7 +49,7 @@ To link open items, update each existing commitment by `action_id`; never duplic
   line, with what you need and why it matters now.
 - `waiting_on_them` or `delegated` with `next_actor` `them`: draft one short,
   polite nudge to the counterparty and hold it for the owner's yes. Show the
-  exact text and recipient. A draft is not a send.
+  exact text and recipient, and ask whether to send it. A draft is not a send.
 - `our_promise`, or `next_actor` `us`: do our next step now if it is reversible
   and already approved; otherwise tell the owner it has slipped.
 
