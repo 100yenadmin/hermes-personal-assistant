@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.23.0-rc.1 — 2026-11-14
+
+This release candidate brings two office jobs a remote VA is hired for: documents kept in the owner's own Google account, and a year-end pack for the owner's accountant. Routines also follow the owner home after a trip.
+- **Owner documents (#243; #156 stays open for a live run).** A new flow in the `documents-admin` skill for the owner's own Google account, through the profile's `gog` CLI:
+  - PA finds the owner's PA folder (it searches before creating one and asks if more than one matches) and names files by the owner's convention, else `YYYY-MM-DD Topic`.
+  - A budget sheet's total is a formula over the item cells, never a typed number, and PA reports only the value it read back from the sheet. An agenda doc is checked point by point against the text read back.
+  - Sharing a file and moving a CRM field are outward writes. Each needs its own exact-action prepare, the owner's yes to that exact action, one sealed call, a readback and a recorded result. No invitation email unless the owner asks. A CRM change goes only through a CRM integration the profile already has; with none, PA says so and stops.
+  - Lab scenario s43 tests this with stand-in Drive, Sheets, Docs and CRM tools that refuse a share or CRM change without a confirmed yes.
+- **A tax-season pack for the accountant (#237, for #235).** New `finance` action `tax_pack` for a period of up to a year. It reads PA's ledger and changes nothing. Per currency: income and bills paid, by category and counterparty; expenses by category with refunds netted; net; invoices still open at the period's end; card lines with no receipt. It lists questions for the accountant: possible duplicates (listed, never merged), spending still uncategorised, missing receipts, invoices unpaid at the end, and more than one currency (PA never converts). A card line and a forwarded receipt for the same purchase count once. With `export: true` it writes a private CSV and Markdown, with the monthly export's protections. The `finance-admin` skill offers a cover email to the accountant, held for the owner's yes, and never says what is deductible or owed.
+- **Routines follow the owner's timezone after a trip (#241, for #238).** An accepted routine used to store its own copy of the owner's timezone, and that copy won. So after a trip, the daily brief and the CoS routines kept running on the trip's clock, and changing the preference fixed nothing. Now a routine keeps its own zone only when the owner pinned it (`timezone_pinned: true`); otherwise it follows the owner's preference. Hermes cron jobs created earlier keep their zone: re-accept those suggestions once. Trip watch now labels a departure in the flight's origin zone; quiet hours still follow the owner's zone.
+- **Rideshare: a typical fare when the booking page shows none (#244).** When the ride site still shows no fare for a later pickup, PA may give the typical fare from the provider's public route page, with the page's route, link, currency and any date it states, labelled as a typical fare and not a quote.
+- **Lab judge: a price split across two page nodes is one price (#240, Fixes #239).** Catch Table shows a deposit as "20,000" and "원" in separate text nodes. The judge's evidence now joins a number and its currency marker, so a figure PA read correctly is no longer judged against an unrelated line.
+
+PA's skills still stop every booking, payment, share and send for the owner's yes.
+
+WAVE_PARAGRAPH
+
 ## 0.22.0-rc.1 — 2026-11-13
 
 This release candidate makes PA easier to report problems against and safer to install, holds a chase draft for an explicit yes, and keeps an owner's early chase time. Its HeartBeat 2.0 chase now passes a live wake in the lab.

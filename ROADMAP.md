@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.22.0-rc.1, 13 November 2026)
+## Where we are (0.23.0-rc.1, 14 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -88,6 +88,8 @@ In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), 
 
 0.22.0-rc.1 adds a community kit: the shared bug form, a security policy with private reporting, and a `report-problem` skill that drafts an issue with no personal data and files it only after the owner's yes (#225). Every pull request now installs its commit with Hermes v0.22.2's install-time security scan on (#230), after one line of that skill tripped the scan (#227). A held chase draft now asks for the yes (#226). An owner's early chase time counts on minutes and invoice loops (#232). For a later pickup, PA sets the time on the ride site before looking for a fare, and names what stopped it when no fare shows (#234). A new live runner puts the owner's chase time on a real HeartBeat 2.0 v0.2.0 wake: PA arms one wake, stays quiet until it fires, then shows the held draft and asks (#221, #223). In its wave (120 runs on real Hermes, one at a time, 118 passing), 38 of 40 scenarios passed 3 of 3. Tokyo to Seoul (s02) passed 2 of 3, its miss a judge evidence gap over a price split across two page nodes (lab fix #240). San Francisco to Tokyo (s03) passed 2 of 3, its miss a run over its time budget at an Uber schedule step, reported honestly. The continuous week (w01) passed 3 of 3.
 
+ROADMAP_WAVE_PARAGRAPH
+
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page; in 0.22.0-rc.1 Seoul to Tokyo (s01) passed 3 of 3, Tokyo to Seoul (s02) 2 of 3 over a judge evidence gap, and San Francisco to Tokyo (s03) 2 of 3, its miss a run over budget at an Uber schedule step, reported honestly);
 - the safe-action gateway and the durable ledger;
@@ -98,7 +100,7 @@ In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), 
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
 - attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1) and passes a two-day lab scenario (s42, with a stand-in for HB2's `pulse`); in 0.22.0-rc.1 an owner's chase time fired on a real HeartBeat 2.0 v0.2.0 wake in an isolated lab home with loopback Telegram, but not yet on a live profile;
 - a yes that leads to finished work: no live send, invite or booking completed yet (#152);
-- office work in the owner's own systems, statement reconciliation and the tax pack (#146, #156);
+- office work in the owner's own systems on a live account: the documents flow passes in the lab (s43) but has not run on an owner's Google account (#156); the tax pack is built (#237, unit tests), its lab scenario next (#235);
 - real phone calls (#4).
 
 **Missing against the Chief of Staff bar:** everything that involves the team.
@@ -120,8 +122,8 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Calendar | partial: reads and conflict checks | M4 |
 | Errands and bookings | partial: stops correctly before booking, nothing completed | M5 |
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
-| Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3 in 0.19.0-rc.1, 2 of 3 in 0.20.0-rc.1 over an unhelpful error, 3 of 3 in 0.21.0-rc.1 once the error names the call's shape); meeting minutes with owners and dates (lab s34 3 of 3); agendas and spreadsheets in the owner's systems missing (#156) | M6 |
-| Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); no tax pack yet | M6 |
+| Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3 in 0.19.0-rc.1, 2 of 3 in 0.20.0-rc.1 over an unhelpful error, 3 of 3 in 0.21.0-rc.1 once the error names the call's shape); meeting minutes with owners and dates (lab s34 3 of 3); a budget sheet with a formula total and an agenda doc in the owner's Google account, sharing and a CRM change held for the yes (0.23.0-rc.1, lab s43 S43_RESULT; live run next, #156) | M6 |
+| Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); a tax-season pack for the accountant with CSV and Markdown exports (0.23.0-rc.1, unit tests; lab s44 next) | M6 |
 | Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1; lab s31 3 of 3 since 0.14.0-rc.1); a read-only weekly report of volume, response time, recurring complaints and open items (0.16.0-rc.1, lab s40 3 of 3) | M6 |
 | Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1; lab s38 3 of 3 in 0.15.0-rc.1 and 0.16.0-rc.1, 2 of 3 in 0.17.0-rc.1, 3 of 3 in 0.18.0-rc.1, 1 of 3 in 0.19.0-rc.1 and 3 of 3 in a rerun, 3 of 3 in 0.20.0-rc.1 with the calendar shown week by week); no comment replies, mention monitoring or weekly report yet | M6 |
 
@@ -413,7 +415,9 @@ In the release wave, replies under policy (s31) passed 2 of 3; the miss came fro
 
 Since then, meeting minutes with an owner and a date on every action item (M6-d, #145; lab s34 3 of 3) and card statement import (M6-e, #146; unit tests) have been built.
 
-Still missing: the week-one VA core (#151–#155), agendas and spreadsheets in the owner's systems (#156), the tax pack, the voice test and the parity evidence.
+In 0.23.0-rc.1, documents in the owner's Google account (#156, lab s43) and the tax pack (#235, unit tests) were built too.
+
+Still missing: the week-one VA core (#151–#155), a live run in the owner's own systems, the voice test and the parity evidence.
 
 **Order inside M6.** The week-one VA core comes first; see "Gap review" above.
 
