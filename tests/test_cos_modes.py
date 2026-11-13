@@ -441,7 +441,7 @@ def test_registered_cos_skills_are_gated_after_mode_off(tmp_path, monkeypatch, s
 def test_cos_precheck_uses_rule_timezone_or_preference(tmp_path, kind, timezone):
     ledger = ledger_at(tmp_path, kind)
     preferences(ledger, MONDAY_CLOSEOUT)
-    rule(ledger, kind, timezone=timezone)
+    rule(ledger, kind, timezone=timezone, timezone_pinned=bool(timezone))
     zone = timezone or "Asia/Tokyo"
     now = dt.datetime.fromisoformat("2026-10-19T10:00:00" + ("+00:00" if timezone else "+09:00"))
     if kind == "cos_kickoff":
@@ -464,7 +464,7 @@ def test_cos_rule_zone_works_without_a_preference_zone(tmp_path, kind):
     config(tmp_path)
     ledger = Ledger(tmp_path)
     preferences(ledger, MONDAY_CLOSEOUT)
-    rule(ledger, kind, timezone="UTC")
+    rule(ledger, kind, timezone="UTC", timezone_pinned=True)
     now = dt.datetime.fromisoformat("2026-10-19T15:00:00+00:00")
     assert prepare_suggestions(ledger)["jobs"][0]["timezone"] == "UTC"
     assert cron_precheck(ledger, kind, enabled=True, moment=now)["wakeAgent"]
@@ -478,7 +478,7 @@ def test_conflicting_cos_rule_zones_never_wake(tmp_path, kind):
     ledger = ledger_at(tmp_path, kind)
     auto.upsert_automation_rule(ledger, kind + "-second", {
         "kind": kind, "accepted": True, "destination": "telegram:fixture-owner",
-        "destination_verified": True, "timezone": "UTC"})
+        "destination_verified": True, "timezone": "UTC", "timezone_pinned": True})
     now = dt.datetime.fromisoformat("2026-10-19T15:00:00+00:00")
     assert cron_precheck(ledger, kind, enabled=True, moment=now) == {
         "wakeAgent": False, "reason": "timezone_conflict"}
@@ -591,7 +591,7 @@ def test_kickoff_reads_a_closeout_rule_in_another_zone(tmp_path):
     config(tmp_path)
     ledger = Ledger(tmp_path)
     preferences(ledger, {"timezone": "Asia/Tokyo", "cos_weekly_day": "mon", "cos_weekly_time": "15:00"})
-    rule(ledger, "cos_kickoff", timezone="UTC")
+    rule(ledger, "cos_kickoff", timezone="UTC", timezone_pinned=True)
     rule(ledger, "cos_weekly")
     at = lambda text: dt.datetime.fromisoformat(text + "+00:00")
     result = cron_precheck(ledger, "cos_kickoff", enabled=True, moment=at("2026-10-19T11:00:00"))

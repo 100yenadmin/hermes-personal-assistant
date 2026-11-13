@@ -124,7 +124,7 @@ def test_cos_suggestion_withheld_when_rules_disagree_on_the_chat(tmp_path, kind)
     ledger = Ledger(tmp_path)
     for rule_id, chat in ((kind, "telegram:one"), (kind + "-2", "telegram:two")):
         auto.upsert_automation_rule(ledger, rule_id, {"kind": kind, "accepted": True, "destination": chat,
-                                                      "destination_verified": True, "timezone": "Asia/Tokyo"})
+                                                      "destination_verified": True, "timezone": "Asia/Tokyo", "timezone_pinned": True})
     result = auto.suggest_automation_jobs(ledger=ledger, chief_of_staff=True)
     assert result["jobs"] == [] and f"{kind}: conflicting destinations" in result["missing_inputs"]
 

@@ -8,7 +8,7 @@ import sys
 import datetime as dt
 from pathlib import Path
 
-from ..automation import canonical_notification_payload, notification_receipt
+from ..automation import canonical_notification_payload, notification_receipt, rule_timezone
 from ..state import Ledger, stable_id
 from .config import load_config, profile_root, validate_config
 from .gog_collector import DailyOpsError, auth_check, gog_binary
@@ -65,6 +65,7 @@ def _delivery_receipt(cfg: dict):
 
     try:
         ledger = Ledger(root)
+        prefs = (ledger.get("action", "pa:preferences") or {}).get("fields", {})
         rules = []
         for action in ledger.list("action"):
             if action.get("action_type") != "automation_rule":
@@ -83,7 +84,7 @@ def _delivery_receipt(cfg: dict):
         revision = rule.get("rule_revision", rule.get("revision"))
         if (rule.get("accepted") is not True or rule.get("destination_verified") is not True
                 or rule.get("destination") != target or rule.get("profile_id") != profile_id
-                or rule.get("timezone") != timezone or not isinstance(account, str)
+                or rule_timezone(rule, prefs) != timezone or not isinstance(account, str)
                 or account not in {accounts.get("work"), accounts.get("personal")}
                 or revision != expected_revision):
             return None

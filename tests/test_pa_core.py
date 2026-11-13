@@ -78,6 +78,7 @@ class CoreTests(unittest.TestCase):
                         Ledger(root, read_only=read_only)
 
     def prepare_native_suggestions(self, ledger):
+        ledger.put("action", "pa:preferences", {"timezone": "UTC"})
         upsert_automation_rule(ledger, "daily_brief", {"kind": "daily_brief", "accepted": True,
             "destination": "fixture-owner", "destination_verified": True, "timezone": "UTC"})
         modules = {

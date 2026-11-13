@@ -8,9 +8,86 @@ from unittest.mock import patch
 
 import pytest
 
+from personal_assistant import automation as auto
+
 from personal_assistant.automation import upsert_automation_rule, record_notification
 from personal_assistant.automation_workflow import preferences, cron_precheck, prepare_suggestions, _install_precheck
 from personal_assistant.state import Ledger
+
+
+@pytest.mark.parametrize("pinned", [False, True])
+@pytest.mark.parametrize("kind", ["cos_daily", "cos_kickoff", "cos_weekly", "daily_brief", "due_source_check"])
+def test_rule_timezone_follows_owner_unless_pinned(tmp_path, pinned, kind):
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Bangkok", "cos_weekly_day": "mon"})
+    upsert_automation_rule(ledger, kind, {"kind": kind, "accepted": True,
+        "destination": "fixture", "destination_verified": True, "timezone": "Asia/Seoul",
+        "source_ref": "fixture-feed",
+        **({"timezone_pinned": True} if pinned else {})})
+    zone, offset = ("Asia/Seoul", "+09:00") if pinned else ("Asia/Bangkok", "+07:00")
+    clock = "12:00:00" if kind == "cos_kickoff" else "07:30:00" if kind == "due_source_check" else "16:00:00"
+    now = dt.datetime.fromisoformat("2026-11-09T" + clock + offset)
+    jobs = auto.suggest_automation_jobs(ledger=ledger, chief_of_staff=True)["jobs"]
+    assert jobs[0]["timezone"] == jobs[0]["schedule_timezone"] == zone
+    with patch("personal_assistant.automation_workflow.cos_enabled", return_value=True):
+        result = cron_precheck(ledger, kind, enabled=True, moment=now)
+    slots = auto.routine_slots(ledger, now=now)
+    if kind == "daily_brief" and pinned:
+        assert result == {"wakeAgent": False, "reason": "timezone_conflict"}
+        assert slots == []
+    else:
+        assert result["wakeAgent"]
+        if kind == "due_source_check":
+            assert result["due_sources"] == ["fixture-feed"] and slots == []
+        else:
+            assert slots and all(s["due_at"].endswith(offset) for s in slots)
+
+
+@pytest.mark.parametrize("pinned", [False, True])
+def test_snooze_release_parses_effective_zone(tmp_path, pinned):
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    rule = {"kind": "cos_daily", "timezone": "Asia/Seoul", "timezone_pinned": pinned,
+            "snooze_until": "2026-11-09T12:00:00"}
+    upsert_automation_rule(ledger, "daily", rule)
+    current = dt.datetime.fromisoformat("2026-11-09T04:00:00+00:00")
+    with patch.object(auto, "_now", return_value=current):
+        row = upsert_automation_rule(ledger, "daily", {**rule, "snooze_until": None})
+    # Noon Seoul has passed; noon Bangkok is still snoozed, so clearing it resumes.
+    assert ("routine_resumed_at" in row["fields"]) is (not pinned)
+
+
+def test_acceptance_inherits_later_preferences_and_explicit_update_pins(tmp_path):
+    from personal_assistant.automation_workflow import dispatch
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Seoul"})
+    rule = {"kind": "cos_daily", "accepted": True,
+            "destination": "fixture", "destination_verified": True}
+    row = dispatch(ledger, {"action": "rule", "rule_id": "daily", "rule": rule})
+    assert "timezone" not in row["fields"]["automation_rule"]
+    assert not row["fields"]["automation_rule"].get("timezone_pinned")
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Bangkok"
+    assert auto.suggest_automation_jobs(ledger, chief_of_staff=True)["jobs"][0]["schedule_timezone"] == "Asia/Bangkok"
+    row = dispatch(ledger, {"action": "rule", "rule_id": "daily",
+                           "rule": {**rule, "timezone": "Asia/Seoul"}})
+    assert row["fields"]["automation_rule"]["timezone_pinned"] is True
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Seoul"
+    with pytest.raises(Exception):
+        dispatch(ledger, {"action": "rule", "rule_id": "daily",
+                          "rule": {**rule, "timezone": "invalid/zone"}})
+    assert auto.rule_timezone(ledger.get("action", row["action_id"]), preferences(ledger)) == "Asia/Seoul"
+
+
+@pytest.mark.parametrize("pinned,expected", [(False, []), (True, ["feed"])])
+def test_due_source_naive_clock_uses_effective_zone(tmp_path, pinned, expected):
+    rule = {"kind": "due_source_check", "accepted": True, "source_ref": "feed",
+            "timezone": "Asia/Seoul", "timezone_pinned": pinned,
+            "last_checked_at": "2026-11-09T12:00:00", "refresh_interval_minutes": 180}
+    # At 13:30 Bangkok / 15:30 Seoul, a three-hour refresh is due only in Seoul.
+    result = auto.script_precheck({"timezone": "Asia/Bangkok", "sources": [rule]},
+                                  now="2026-11-09T06:30:00+00:00")
+    assert result["due_sources"] == expected
 
 
 @pytest.mark.parametrize("limit", [2, None])

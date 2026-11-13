@@ -296,15 +296,15 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
     destinations = {r.get("destination") for r in rules}
     if len(destinations) != 1 or not next(iter(destinations)):
         return _health_failure(ledger, kind, "destination_conflict", current)
-    if cos:  # Resolve each rule's zone as the suggestion does; never pick between zones.
-        zones = {r.get("timezone") or zone for r in rules}
+    if kind != "daily_brief":  # Only the daily brief must share the profile clock.
+        zones = {auto.rule_timezone(r, prefs) for r in rules}
         if len(zones) != 1 or None in zones:
             reason = "timezone_conflict" if len(zones - {None}) > 1 else "disabled_or_timezone_missing"
             return _health_failure(ledger, kind, reason, current)
         zone = zones.pop()
     try:
         ZoneInfo(zone)
-        if any(r.get("timezone") and r["timezone"] != zone for r in rules):
+        if any(auto.rule_timezone(r, prefs) != zone for r in rules):
             return _health_failure(ledger, kind, "timezone_conflict", current)
     except (ValueError, TypeError, KeyError):
         return _health_failure(ledger, kind, "invalid_timezone", current)
@@ -363,7 +363,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
         if auto._due_actions([row], current):
             due.append(row)
     active = auto._trip_active(trips, current)
-    state = {**prefs, "actions": due, "accepted_sources": rules, "active_travel": active}
+    state = {**prefs, "timezone": zone, "actions": due, "accepted_sources": rules, "active_travel": active}
     if not cos:
         for finding in auto.routine_health(ledger, now=current)["findings"]:
             if finding.get("kind") == kind or finding.get("recovered_at"): continue  # The other routine carries the exception.
@@ -388,7 +388,7 @@ def cron_precheck(ledger, kind, *, enabled, moment=None):
                 return {"wakeAgent": False, "reason": "before_cos_time"}
             if kind == "cos_kickoff":
                 # Compare instants: the closeout rule may carry another zone.
-                zones = {r.get("timezone") or prefs.get("timezone") for r in accepted if r.get("kind") == "cos_weekly"}
+                zones = {auto.rule_timezone(r, prefs) for r in accepted if r.get("kind") == "cos_weekly"}
                 closeout = _latest_closeout(prefs, local, zones.pop() if len(zones) == 1 and None not in zones else zone)
                 # A missed kickoff catches up within its ISO week, but never once a
                 # later closeout slot in that week has come.
@@ -477,6 +477,15 @@ def dispatch(ledger, data, *, get_config=None):
         data.pop("get_config", None)
         return prepare_suggestions(ledger, get_config=get_config, **data)
     if action == "rule":
+        rule = auto._rule_data(data["rule"])
+        # Supplying a routine's zone here is an explicit owner choice. Acceptance
+        # without one inherits preferences, including after the owner travels.
+        if "timezone" in rule:
+            ZoneInfo(rule["timezone"])
+            rule["timezone_pinned"] = True
+        else:
+            rule.pop("timezone_pinned", None)
+        data["rule"] = rule
         return auto.upsert_automation_rule(ledger, **data)
     if action == "preferences":
         return preferences(ledger, data["changes"])

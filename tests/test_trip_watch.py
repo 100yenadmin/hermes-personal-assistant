@@ -38,6 +38,33 @@ def test_zones_note_and_payload(tmp_path):
     assert not call(tmp_path, arrival_at="2026-11-10T18:00:00+01:00")["late_arrival"]
 
 
+def test_flight_origin_overrides_profile_zone_and_saved_facts(tmp_path, monkeypatch):
+    import datetime as dt
+    from personal_assistant import trip_facts, trip_watch
+    ledger = Ledger(tmp_path)
+    segment = {"carrier": "TG", "number": "100", "origin": "BKK", "destination": "CDG",
+        "origin_timezone": "Asia/Bangkok", "destination_timezone": "Europe/Paris",
+        "scheduled_departure": "2026-11-10T12:00:00+07:00",
+        "scheduled_arrival": "2026-11-10T22:30:00+01:00", "status": "scheduled"}
+    trip_facts.record_facts(ledger, "synthetic", [segment], "user", observed_at=BASE["at"])
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    baseline = trip_watch.plan(ledger, "synthetic", at=BASE["at"], hb2_timezone="UTC")
+    preferences(ledger, {"timezone": "Asia/Seoul"})
+    planned = trip_watch.plan(ledger, "synthetic", at=BASE["at"], hb2_timezone="UTC")
+    assert planned["inputs"]["origin_timezone"] == "Asia/Bangkok"
+    assert planned["moments"] == baseline["moments"]
+    assert planned["pulse_create"]["note"] == baseline["pulse_create"]["note"]
+    assert "Departure 2026-11-10T12:00:00+07:00 (Asia/Bangkok)" in planned["pulse_create"]["note"]
+    for moment in planned["moments"][:3]:
+        assert moment["timezone"] == "Asia/Bangkok" and moment["at"].endswith("+07:00")
+    assert dt.datetime.fromisoformat(planned["inputs"]["departure_at"]) == dt.datetime.fromisoformat(segment["scheduled_departure"])
+    # Restoring saved facts must retain the origin even when facts are unavailable.
+    monkeypatch.setattr(trip_facts, "facts", lambda *args: {})
+    restored = trip_watch.plan(ledger, "synthetic", at=BASE["at"], hb2_timezone="UTC")
+    assert restored["inputs"]["origin_timezone"] == "Asia/Bangkok"
+    assert restored["moments"] == baseline["moments"]
+
+
 def test_needs_input_is_read_only(tmp_path):
     ledger = Ledger(tmp_path)
     ledger.put("trip", "synthetic", {"events": [{"start": "2026-11-10", "summary": "Candidate"}] * 10})
