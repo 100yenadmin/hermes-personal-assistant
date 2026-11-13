@@ -199,7 +199,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "contracts", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
         if s["lab"]["kind"] == "owner_documents":
             drive = s["lab"].get("drive")
             require(isinstance(drive, dict) and drive.get("crm") == {"Acme Demo": {"stage": "Qualified", "owner": "Riley Demo"}}, "lab.drive.crm")

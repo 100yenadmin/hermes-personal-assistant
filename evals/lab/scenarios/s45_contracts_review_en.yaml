@@ -1,0 +1,53 @@
+id: s45_contracts_review_en
+language: en
+area: personal_admin
+capabilities: [personal_admin]
+timezone: America/Chicago
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0155
+  home_city: Chicago
+  notes: Synthetic small studio owner; all contracts and contacts are fictional.
+user_md: >-
+  I am Morgan Demo and run a small studio. Owner zone America/Chicago.
+  I approve every email before it goes. Never pay, cancel or sign anything yourself.
+  Sign drafts Morgan.
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- {operation: action_upsert, data: {action_id: 'lab:crm', action_type: commitment, status: open, fields: {title: Birch Demo CRM, radar_kind: renewal, expires_on: '@in_40_days@', recurs: yearly, auto_renews: true, notice_days: 30, lead_days: 14, cost: {amount: '49.00', currency: USD, per: month}, counterparty: Birch Demo Software, source_ref: 'synthetic:crm-terms'}}}
+- {operation: action_upsert, data: {action_id: 'lab:lease', action_type: commitment, status: open, fields: {title: Cedar Demo Offices lease, radar_kind: renewal, expires_on: '@in_120_days@', recurs: none, auto_renews: true, notice_days: 90, lead_days: 30, cost: {amount: '2000.00', currency: USD, per: month}, counterparty: Cedar Demo Properties, source_ref: 'synthetic:lease-terms'}}}
+- {operation: action_upsert, data: {action_id: 'lab:licence', action_type: commitment, status: open, fields: {title: City business licence, radar_kind: renewal, expires_on: '@in_20_days@', recurs: none, auto_renews: false, notice_days: 0, lead_days: 30, cost: {amount: '120.00', currency: USD, per: year}, source_ref: 'synthetic:licence-terms'}}}
+- {operation: action_upsert, data: {action_id: 'lab:insurance', action_type: commitment, status: open, fields: {title: Pine Demo Insurance, radar_kind: renewal, expires_on: '@in_10_days@', recurs: yearly, auto_renews: true, notice_days: 30, lead_days: 30, cost: {amount: '900.00', currency: USD, per: year}, source_ref: 'synthetic:insurance-terms'}}}
+- {operation: action_upsert, data: {action_id: 'lab:domain', action_type: commitment, status: open, fields: {title: oak-demo.example domain, radar_kind: renewal, expires_on: '@in_200_days@', recurs: yearly, auto_renews: true, lead_days: 30, cost: {amount: '15.00', currency: USD, per: year}, source_ref: 'synthetic:domain-terms'}}}
+lab:
+  kind: contracts
+  threads:
+  - {thread_id: birch-renewal, from: billing@birch-demo.invalid, to: morgan@example.invalid, subject: Your Birch Demo CRM plan renews soon, body: 'Your yearly Birch Demo CRM plan renews on @in_40_days@. Notice is required 30 days before renewal.'}
+  output_contract: >-
+    Step 0: call pa next_action with radar true, contracts true and at @now@.
+    Give owner-facing prose with annual cost per currency, renewal dates, notice deadlines,
+    keep/cancel/renegotiate options and recommendations for surfaced renewals. Name missed notice plainly;
+    ask for source terms if the next possible exit is unknown. Include all active costs, even not-due items.
+    End with JSON {"lab_summary":{"annual_cost":{"USD":"<sum>"},"decisions":[{"action_id":"...",
+    "decide_by":"YYYY-MM-DD or null","options":["keep","cancel","renegotiate"],"recommendation":"..."}],
+    "missed":["lab:insurance"],"not_due":["lab:domain"]}}. Use JSON null if no decide_by exists.
+    Step 1: draft a cancellation notice to billing@birch-demo.invalid naming Birch Demo CRM
+    and its renewal date; hold it, do not send or confirm any action. Put the actual body in a
+    lab_mail_draft, inline after the address and a Subject: or Dear/Hi greeting, or in
+    lab_summary.drafts [{"to":"billing@birch-demo.invalid","body":"..."}]. Sign Morgan.
+    End with {"lab_summary":{"draft_to":"billing@birch-demo.invalid","sent":false}}.
+    Never pay, cancel or sign anything yourself. A draft is not a send.
+steps:
+- goal: "Run my contracts review: what's coming up, what it all costs a year, and what I need to decide."
+  capability: personal_admin
+  answers: {}
+  hour: 10
+  expect: {lab: contracts}
+- goal: "Cancel the CRM. Draft the cancellation notice to Birch, but don't send it."
+  capability: personal_admin
+  skill: personal-assistant:follow-through
+  answers: {}
+  hour: 11
+  expect: {lab: contracts}
