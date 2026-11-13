@@ -92,6 +92,14 @@ def _rule_data(item):
     return base
 def _accepted(rule):
     return rule.get("accepted") is True
+def rule_timezone(rule, prefs):
+    """Only an explicit owner pin overrides the owner's current timezone.
+
+    An old unpinned copy counts only when the profile has no timezone at all."""
+    data = _rule_data(rule)
+    if data.get("timezone_pinned") is True:
+        return data.get("timezone")
+    return prefs.get("timezone") or data.get("timezone")
 def _destination(rule, default, default_verified):
     value = rule.get("destination", default); verified = rule.get("destination_verified")
     if verified is None and isinstance(value, dict):
@@ -103,7 +111,7 @@ def _destination(rule, default, default_verified):
         value = value.strip()
     return value, verified is True
 def _timezone(rule, default):
-    value = rule.get("timezone", default)
+    value = rule_timezone(rule, {"timezone": default})
     if not isinstance(value, str) or not value.strip():
         return None, "timezone is required"
     try:
@@ -119,7 +127,7 @@ def source_rule_fields(rule):
         raise ValueError("automation rule kind is required")
     canonical = {"kind": kind, "accepted": data.get("accepted") is True, "destination": data.get("destination"), "destination_verified": data.get("destination_verified", False) is True, "timezone": data.get("timezone"), "source_ref": data.get("source_ref"), "snooze_until": data.get("snooze_until"), "trip_end": data.get("trip_end")}
     for key in (
-        "source_type", "last_checked_at", "due_at", "on_request",
+        "timezone_pinned", "source_type", "last_checked_at", "due_at", "on_request",
         "refresh_interval_minutes", "paused", "profile_id", "account",
         "quiet_hours_exceptions", "accepted_at", "verified_at", "receipt_reference", "rule_revision", "revision",
     ):
@@ -158,8 +166,7 @@ def upsert_automation_rule(ledger, rule_id, rule):
     # A resume (unpause, or a snooze ended early) starts the routine's health grace again.
     if prior and ((old.get("paused") and not _rule_data(rule).get("paused"))
                   or snooze_released(old.get("snooze_until"), _rule_data(rule).get("snooze_until"),
-                                     _rule_data(rule).get("timezone") or old.get("timezone")
-                                     or ((ledger.get("action", "pa:preferences") or {}).get("fields", {}).get("timezone")) or "UTC")):
+                                     rule_timezone(rule, (ledger.get("action", "pa:preferences") or {}).get("fields", {})) or "UTC")):
         fields["routine_resumed_at"] = _now(None, "UTC").isoformat()
     return ledger.put(
         "action", action_id, fields, status="configured", action_type="automation_rule", provider="local"
@@ -192,12 +199,12 @@ def _rules_from(source, ledger=None):
             return [source], []
         return source.get("rules", source.get("actions", [])), source.get("trips", [])
     return list(source or []), []
-def _due_sources(sources, current, active=False):
+def _due_sources(sources, current, active=False, prefs=None):
     due, default = [], DEFAULTS["travel_source_refresh_minutes"] if active else DEFAULTS["normal_source_refresh_minutes"]
     for source in sources or []:
         source = _rule_data(source); ref = source.get("source_ref")
         if source.get("accepted") is not True or not ref or source.get("on_request") is True or source.get("source_type") == "authenticated_guide" or source.get("paused") is True: continue
-        zone = source.get("timezone", "UTC"); due_at, checked = source.get("due_at"), source.get("last_checked_at")
+        zone = rule_timezone(source, prefs or {}) or "UTC"; due_at, checked = source.get("due_at"), source.get("last_checked_at")
         due_time = _value_time(due_at, zone) if due_at else None; last = _value_time(checked, zone) if checked else None
         interval = DEFAULTS["inbox_refresh_minutes"] if source.get("source_type") == "inbox" else default
         if (due_time and due_time <= current) or not checked or (last and current >= last + dt.timedelta(minutes=int(source.get("refresh_interval_minutes", interval)))): due.append(ref)
@@ -214,6 +221,9 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
                             timezone=None, now=None, ledger=None, chief_of_staff=False):
     """Build inert native cron suggestions from accepted rules and enabled modes."""
     raw_rules, trips = _rules_from(source, ledger)
+    owner_ledger = ledger if ledger is not None else source if isinstance(source, Ledger) else None
+    if timezone is None and owner_ledger is not None:
+        timezone = (owner_ledger.get("action", "pa:preferences") or {}).get("fields", {}).get("timezone")
     # Use UTC solely to inspect explicit trip dates when no configured timezone exists.
     current = _now(now, timezone or "UTC")
     grouped, missing, seen, conflicted = {}, [], set(), set()
@@ -277,7 +287,7 @@ def suggest_automation_jobs(source=None, *, destination=None, destination_verifi
             skills = _SKILLS[kind]
             settings["due_interval_minutes"] = DEFAULTS["due_interval_minutes"]
             settings["accepted_sources"] = entry["sources"]
-            settings["due_sources"] = _due_sources(raw_rules, current, active)
+            settings["due_sources"] = _due_sources(raw_rules, current, active, {"timezone": timezone})
         jobs.append({
             "name": name, "kind": kind, "schedule": schedule, "timezone": entry["timezone"],
             "schedule_timezone": entry["timezone"], "destination": entry["destination"],
@@ -338,7 +348,7 @@ def script_precheck(state=None, *, now=None, timezone=None, kind=None, quiet_hou
         return {"run": False, "allowed": False, "status": "suppressed", "reason": "trip_ended", "timezone": timezone}
     if in_quiet and not urgent:
         return {"run": False, "allowed": False, "status": "suppressed", "reason": "quiet_hours", "timezone": timezone}
-    due_sources = _due_sources(data.get("accepted_sources", data.get("sources", [])), current, data.get("active_travel") is True)
+    due_sources = _due_sources(data.get("accepted_sources", data.get("sources", [])), current, data.get("active_travel") is True, {"timezone": timezone})
     due_actions = _due_actions(data.get("actions", data.get("due_actions", [])), current)
     if not (due_sources or due_actions or refunds):
         return {"run": False, "allowed": False, "status": "suppressed", "reason": "no_due_work", "timezone": timezone, "due_sources": due_sources}
@@ -508,9 +518,9 @@ def routine_slots(ledger, *, now=None, date=None, findings=None, health=False):
     slots = []
     for kind, rules in grouped.items():
         if kind not in {"daily_brief", *COS_JOBS}: continue
-        zone = rules[0].get("timezone") or prefs.get("timezone")
+        zone = rule_timezone(rules[0], prefs)
         if len({r.get("destination") for r in rules}) != 1 or not rules[0].get("destination"): continue
-        if any((r.get("timezone") or prefs.get("timezone")) != zone for r in rules): continue
+        if any(rule_timezone(r, prefs) != zone for r in rules): continue
         if kind == "daily_brief" and prefs.get("timezone") != zone: continue
         try:
             local = current.astimezone(ZoneInfo(zone))

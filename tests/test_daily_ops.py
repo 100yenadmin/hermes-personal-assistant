@@ -310,6 +310,7 @@ def test_doctor_reads_existing_pa_automation_rule(tmp_path):
     root, cfg_path, log = write_runtime(tmp_path)
     from personal_assistant.state import Ledger
     ledger = Ledger(root)
+    ledger.put("action", "pa:preferences", {"timezone": "Asia/Bangkok"})
     upsert_automation_rule(ledger, "daily_ops", {
         "kind": "due_source_check", "accepted": True,
         "destination": "example-topic", "destination_verified": True,
@@ -351,6 +352,34 @@ def test_doctor_blocks_mismatched_pa_automation_target(tmp_path):
     result = run_module("personal_assistant.daily_ops.doctor", env_for(root, cfg_path, log, tmp_path), tmp_path)
     assert result.returncode == 1 and "matching accepted PA automation rule" in result.stdout
     assert all(not any(verb in json.loads(line) for verb in ("modify", "send", "reply", "forward", "archive", "delete")) for line in log.read_text().splitlines())
+
+
+@pytest.mark.parametrize("pinned,config_zone,matched", [
+    (False, "Asia/Bangkok", True), (False, "Asia/Seoul", False),
+    (True, "Asia/Seoul", True), (True, "Asia/Bangkok", False),
+])
+def test_doctor_matches_effective_rule_zone(tmp_path, monkeypatch, pinned, config_zone, matched):
+    from personal_assistant import automation as auto
+    from personal_assistant.daily_ops import doctor
+    from personal_assistant.state import Ledger
+    ledger = Ledger(tmp_path)
+    monkeypatch.setattr(doctor, "profile_root", lambda: tmp_path)
+    ledger.put("action", "pa:preferences", {"timezone": "Asia/Bangkok"})
+    auto.upsert_automation_rule(ledger, "daily", {"kind": "daily_brief", "accepted": True,
+        "destination": "example-topic", "destination_verified": True,
+        "timezone": "Asia/Seoul", "timezone_pinned": pinned,
+        "profile_id": "example-profile", "account": "owner@example.com", "rule_revision": "r1",
+        "accepted_at": NOW, "verified_at": "2026-09-08T03:01:00+00:00"})
+    payload = auto.canonical_notification_payload(profile_id="example-profile", account="owner@example.com",
+        timezone="Asia/Seoul" if pinned else "Asia/Bangkok", destination="example-topic",
+        rule_id="daily", rule_revision="r1")
+    auto.claim_notification(ledger, "occ", rule_id="daily", payload=payload)
+    auto.record_notification(ledger, "occ", "delivered", proof={"provider": "fixture",
+        "receipt_reference": "fixture", "observed_at": "2026-09-08T03:03:00+00:00"})
+    cfg = base_config()
+    cfg["timezone"] = config_zone
+    cfg["delivery"]["verification"] = {"occurrence_id": "occ", "rule_id": "daily", "rule_revision": "r1"}
+    assert (doctor._delivery_receipt(cfg) is not None) is matched
 
 
 def test_supabase_malformed_project_and_row_shapes_fail_closed(monkeypatch):

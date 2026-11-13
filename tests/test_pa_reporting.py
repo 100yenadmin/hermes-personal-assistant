@@ -103,7 +103,7 @@ def test_broken_rule_health_and_other_routine_wakes_once(ledger, fault, reason):
     rule(ledger)
     rule(ledger, 'due_source_check')
     if fault == 'zone':
-        rule(ledger, timezone='broken/zone')
+        rule(ledger, timezone='broken/zone', timezone_pinned=True)
     else:
         rule(ledger, identity='conflict', destination='other-fixture')
     now = at('2026-11-09T08:00')

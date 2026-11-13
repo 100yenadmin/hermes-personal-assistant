@@ -167,7 +167,11 @@ Desktop: there Hermes uses a configured home channel or delivers nothing. `desti
 records the owner's explicit yes in this chat; PA runs no other verification, and
 Hermes shows each suggested job before `/suggestions accept`, which is the final check.
 After apply, use the existing
-`pa(operation="automations", data={"action":"rule","rule_id":"<stable rule id>","rule":{"kind":"cos_daily","accepted":true,"destination":"origin","destination_verified":true,"timezone":"<IANA zone>","accepted_at":"<aware acceptance timestamp>"}})`.
+`pa(operation="automations", data={"action":"rule","rule_id":"<stable rule id>","rule":{"kind":"cos_daily","accepted":true,"destination":"origin","destination_verified":true,"accepted_at":"<aware acceptance timestamp>"}})`.
+Omit the rule's timezone so it follows the owner's preferences as they travel.
+Only when the owner explicitly chooses a fixed zone for this routine, include
+`"timezone":"<IANA zone>","timezone_pinned":true`; the rule command validates it.
+A timezone without `timezone_pinned` is dropped.
 Use `cos_kickoff` and `cos_weekly` (the closeout), each with its own stable rule ID;
 create only the selected kinds.
 Rules store intent and create no jobs. Read automation status back, then call

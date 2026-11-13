@@ -511,13 +511,15 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
     if weather_included_minutes > airport_lead_minutes:
         raise ValueError("weather_included_minutes must not exceed airport_lead_minutes")
     prefs = preferences(ledger)
-    origin_name = prefs.get("timezone") or (segments[0]["origin_timezone"] if facts_mode else saved.get("origin_timezone") if saved.get("facts_digest") else None)
+    origin_name = (live[0]["origin_timezone"] if facts_mode else saved.get("origin_timezone") if saved.get("facts_digest") else None) or prefs.get("timezone")
     origin = ZoneInfo(origin_name) if origin_name else departure.tzinfo
     destination = ZoneInfo(arrival_timezone) if arrival_timezone else arrival.tzinfo
     if arrival_timezone and arrival.astimezone(destination).replace(tzinfo=None) != arrival.replace(tzinfo=None):
         raise ValueError("arrival_timezone offset does not match arrival_at offset at that local time")
     window = prefs.get("quiet_hours") or DEFAULTS["quiet_hours"]
-    zones = [departure.tzinfo, origin]
+    # The flight's origin zone labels the moments; quiet hours still hold in the
+    # owner's profile zone, so the scheduled instants do not move.
+    zones = [departure.tzinfo, ZoneInfo(prefs["timezone"]) if prefs.get("timezone") else origin]
     hb2_zone = ZoneInfo(hb2_timezone) if hb2_timezone else None
     if not hb2_timezone:
         try:
