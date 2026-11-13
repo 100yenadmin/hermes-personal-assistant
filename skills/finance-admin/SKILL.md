@@ -63,3 +63,17 @@ Overlapping statement files may show possible duplicates; check dates before dra
 For each duplicate, draft a refund request naming the merchant, amount and both dates.
 Hold it for the owner's yes to the exact recipient and text.
 Never dispute, pay or contact anyone on PA's own; never store card numbers.
+
+## Tax-season pack
+
+When the owner asks for the accountant's pack, or their tax year has ended:
+1. Use the tax year from the owner's profile; if unknown, ask once for the start and end dates.
+2. Use `pa` operation `finance`, action `tax_pack`, with `period_start`, `period_end` and `export: true`.
+3. Report per currency the income, bills paid, expenses and net exactly as read, the export file paths,
+   and every gap and question: possible duplicates, `other` spending to categorise, receipts missing,
+   invoices unpaid at the end, and several currencies (never convert).
+4. Offer a cover email to the accountant: the period, the two files, the questions.
+   Hold it for the owner's yes to the exact recipient and text through the governed send path.
+   Never send on PA's own.
+5. No tax advice: never say what is deductible or what is owed; that is the accountant's call.
+   Never initiate a payment.
