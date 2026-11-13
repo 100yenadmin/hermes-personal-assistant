@@ -409,3 +409,15 @@ def test_monthly_export_lists_a_matched_purchase_once_with_a_note(ledger):
         ids = [r["record_id"] for r in csv.DictReader(handle) if r["record_id"]]
     assert ids == [line["action_id"]] and receipt["action_id"] not in paths["markdown"].read_text()
     assert "Receipts matched to card lines: 1." in paths["markdown"].read_text()
+
+
+def test_monthly_export_notes_a_receipt_counted_in_another_month(ledger):
+    card_line(ledger, "5", amount="30", date="2026-10-31", merchant="Oak Demo Cafe")
+    receipt = expense(ledger, "Receipt ODC-1", amount="30", date="2026-11-02", merchant="Oak Demo Cafe")
+    expense(ledger, "Receipt other", amount="7", date="2026-11-03", merchant="Elm Demo Shop")
+    for month, total in (("2026-10", "30"), ("2026-11", "7")):
+        result = call(ledger, "monthly", month=month, export=True)
+        assert result["currencies"]["USD"]["expenses"]["total"] == total and result["possible_duplicates"] == []
+        markdown = Path(result["export"]["markdown"]).read_text()
+        assert "Receipts matched to card lines: 1." in markdown and "even when that date is in another month" in markdown
+    assert receipt["action_id"] not in markdown

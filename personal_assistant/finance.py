@@ -174,7 +174,11 @@ def _monthly(rows, expenses, month):
         result["possible_duplicates"].extend(_bill_duplicates(bills, candidates))
     result["possible_duplicates"].extend(p for p in card_duplicates(candidates) if p["dates"][-1].startswith(month + "-")
                                          and frozenset(p["expense_ids"]) not in matched_pairs)
-    return result, paid, expenses, sum(r["action_id"] in matches for r in expenses)
+    # Name the matching in every month that holds either side of a pair, so a receipt counted in another month
+    # is never silently missing from this one.
+    dated = {r["action_id"]: r["fields"]["date"] for r in candidates}
+    matched = sum(any(dated[i].startswith(month + "-") for i in pair) for pair in matches.items())
+    return result, paid, expenses, matched
 
 
 def _bill_duplicates(bills, expenses):
@@ -337,7 +341,8 @@ def _export(ledger, summary, paid, expenses, matched=0):
                                   f"{', '.join(pair['dates'])}; {', '.join(pair['expense_ids'])}"))
     if matched:
         lines += ["", f"Receipts matched to card lines: {matched}. A receipt within 3 days of a card line for the same "
-                  "merchant and amount is taken as that purchase's receipt and counted once, on the card line's date. "
+                  "merchant and amount is taken as that purchase's receipt and counted once, on the card line's date, "
+                  "even when that date is in another month. "
                   "If one was a separate cash purchase, tell the owner."]
     return _write_export(ledger, "monthly-" + summary["month"], columns, table, lines)
 
