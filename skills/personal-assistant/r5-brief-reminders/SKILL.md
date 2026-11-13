@@ -42,8 +42,8 @@ CLI or Desktop), ask the owner to continue in that chat; never guess a chat ID.
 
 1. Save their clock: `{"operation":"automations","data":{"action":"preferences","changes":{"timezone":"<IANA zone>","brief_time":"HH:MM"}}}`.
 2. Record their acceptance: `{"operation":"automations","data":{"action":"rule","rule_id":"daily_brief","rule":{"kind":"daily_brief","accepted":true,"destination":"origin","destination_verified":true}}}`.
-   Omit timezone to follow the owner's preferences. Include it only if the owner
-   explicitly pins this routine's zone; the rule command sets `timezone_pinned: true`.
+   Omit timezone to follow the owner's preferences. Only if the owner explicitly
+   pins this routine's zone, add `"timezone":"<IANA zone>","timezone_pinned":true`.
    A daily brief requires its effective zone to match preferences.
    For the due check use `"rule_id":"due_source_check"` and `"kind":"due_source_check"`
    instead; each routine keeps its own rule.

@@ -69,13 +69,22 @@ def test_acceptance_inherits_later_preferences_and_explicit_update_pins(tmp_path
     preferences(ledger, {"timezone": "Asia/Bangkok"})
     assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Bangkok"
     assert auto.suggest_automation_jobs(ledger, chief_of_staff=True)["jobs"][0]["schedule_timezone"] == "Asia/Bangkok"
+    # A bare zone (a copy of the owner's current one, or a status round trip) never pins.
     row = dispatch(ledger, {"action": "rule", "rule_id": "daily",
                            "rule": {**rule, "timezone": "Asia/Seoul"}})
+    assert "timezone" not in row["fields"]["automation_rule"]
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Bangkok"
+    row = dispatch(ledger, {"action": "rule", "rule_id": "daily",
+                           "rule": {**rule, "timezone": "Asia/Seoul", "timezone_pinned": True}})
     assert row["fields"]["automation_rule"]["timezone_pinned"] is True
     assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Seoul"
-    with pytest.raises(Exception):
-        dispatch(ledger, {"action": "rule", "rule_id": "daily",
-                          "rule": {**rule, "timezone": "invalid/zone"}})
+    # Reading the pinned rule back and writing it again keeps the pin.
+    row = dispatch(ledger, {"action": "rule", "rule_id": "daily", "rule": dict(row["fields"]["automation_rule"])})
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Seoul"
+    for bad in ("invalid/zone", None, ""):
+        with pytest.raises(Exception):
+            dispatch(ledger, {"action": "rule", "rule_id": "daily",
+                              "rule": {**rule, "timezone": bad, "timezone_pinned": True}})
     assert auto.rule_timezone(ledger.get("action", row["action_id"]), preferences(ledger)) == "Asia/Seoul"
 
 

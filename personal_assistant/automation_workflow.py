@@ -477,14 +477,16 @@ def dispatch(ledger, data, *, get_config=None):
         data.pop("get_config", None)
         return prepare_suggestions(ledger, get_config=get_config, **data)
     if action == "rule":
-        rule = auto._rule_data(data["rule"])
-        # Supplying a routine's zone here is an explicit owner choice. Acceptance
-        # without one inherits preferences, including after the owner travels.
-        if "timezone" in rule:
+        rule = dict(auto._rule_data(data["rule"]))
+        # A routine keeps its own zone only when the owner pinned it. A bare zone is
+        # usually a copy of the owner's current one, which goes stale when they
+        # travel, so it is dropped and the rule follows preferences.
+        if rule.get("timezone_pinned") is True:
+            if not isinstance(rule.get("timezone"), str) or not rule["timezone"].strip():
+                raise ValueError("a pinned rule needs its IANA timezone")
             ZoneInfo(rule["timezone"])
-            rule["timezone_pinned"] = True
         else:
-            rule.pop("timezone_pinned", None)
+            rule.pop("timezone_pinned", None); rule.pop("timezone", None)
         data["rule"] = rule
         return auto.upsert_automation_rule(ledger, **data)
     if action == "preferences":
