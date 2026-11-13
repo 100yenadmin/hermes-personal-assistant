@@ -154,6 +154,7 @@ def test_gate(tmp_path):
 @pytest.mark.parametrize("formula,accepted", [("=2600", False), ("=1200+850+400+150", False),
     ("= SUM ( $B$2 : B$5 ) ", True), ("=B5+$B$3+B$2+$B4", True), ("=SUM(B2,B3,B4,B5)", True),
     ("=SUM(B2:B3,B4:B5)", True), ("=(B2+B3+B4+B5)", True), ("=(B2+B3)+(B4+B5)", True),
+    ("=SUM(B2+B3+B4+B5)", True), ("=SUM(B2:B3)+SUM(B4:B5)", True), ("=SUM(B2:B5)*1", False), ("=SUM(B2:B4)+150", False),
     ("=B2+B3+B4+B4", False), ("=SUM(B2:B5)+0", False), ("=SUM(B2:B6)", False), ("=SUM(B5:B2)", False)])
 def test_total_must_reference_items(tmp_path, formula, accepted):
     s = synthetic(tmp_path)

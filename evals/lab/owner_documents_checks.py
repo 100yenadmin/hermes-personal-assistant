@@ -8,16 +8,15 @@ from .sim_user import scripted_yes
 
 
 def item_total(formula):
-    """A total over the four item cells, each exactly once: SUM of cells or ranges, or the cells added."""
+    """A total adds the four item cells, each exactly once, as SUM arguments or ranges or with +.
+
+    The evaluator separately requires the formula to compute 2600, so syntax is checked there.
+    """
     if not isinstance(formula, str) or not formula.startswith("="):
         return False
-    body = re.sub(r"[\s$]", "", formula[1:].upper())
-    while body.startswith("(") and body.endswith(")"):
-        body = body[1:-1]
-    match = re.fullmatch(r"SUM\((.*)\)", body)
-    terms = match.group(1).split(",") if match else body.replace("(", "").replace(")", "").split("+")
+    body = re.sub(r"[\s$]", "", formula[1:].upper()).replace("SUM(", "").replace("(", "").replace(")", "")
     refs = []
-    for term in terms:
+    for term in re.split(r"[+,]", body):
         rows = re.fullmatch(r"B([1-9][0-9]*)(?::B([1-9][0-9]*))?", term)
         if not rows or rows.group(2) and int(rows.group(2)) < int(rows.group(1)):
             return False
