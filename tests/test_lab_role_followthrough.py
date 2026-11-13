@@ -529,3 +529,13 @@ def test_quiet_hours_validation_rejects_non_ascii_and_out_of_range(value):
     s["preferences"] = {"quiet_hours": {"start": value, "end": "07:00"}}
     with pytest.raises(ValueError, match="quiet_hours"):
         validate(s)
+
+
+def test_owner_time_wakes_deduplicate_across_separators(tmp_path):
+    # #233 review: the same loop and step in another spelling is still the same wake.
+    s = fixture_run(tmp_path)
+    for index, step in enumerate(("owner_time", "owner time")):
+        common.append(tmp_path / "pulse-calls.jsonl", {"step": index, "action": "create",
+            "args": {"note": f"PA follow-through wake: lab:chase {step}.", "trigger": {"kind": "at"}},
+            "result": {"armed": True, "kind": "at", "at": "2026-11-13T09:00:00+08:00"}})
+    assert score(tmp_path, s, 1)["wakes_bounded"] is False

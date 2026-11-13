@@ -314,7 +314,8 @@ def _loop_step(fields: dict[str, Any], item: dict[str, Any], zone: dt.tzinfo) ->
                     f"since {since}, never as a chase.")
         return ("Escalate to the owner with problem, options (2-3), recommendation and decision_deadline; "
                 "load personal-assistant:follow-through." + held)
-    if waiting and step in {"none", "day5", "day10"}:
+    # Any step after a held draft waits for the owner's decision; an owner_time draft can be pending at day 2 (#233).
+    if waiting and step in {"none", "owner_time", "day2", "day5", "day10"}:
         since = local_time(waiting["since"], zone).date().isoformat()
         prefix = f"Approval overdue ({waiting['days']} days): " if waiting["overdue"] else ""
         if step == "none":
