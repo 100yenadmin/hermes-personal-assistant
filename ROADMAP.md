@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.21.0-rc.1, 12 November 2026)
+## Where we are (0.22.0-rc.1, 13 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -86,15 +86,17 @@ In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), 
 
 0.21.0-rc.1 gives the owner's own chase time a home in every open loop (`chase_at`, #217): "chase them tomorrow morning" now sets when the next chase comes due. It also makes a wrong contacts call name its shape (#214), runs a persona's days as one continuous lab week (#216) and shows the judge what PA read during a run (#219). In its wave (120 runs on real Hermes, one at a time, 119 passing), 39 of 40 scenarios passed 3 of 3, including Seoul to Tokyo (s01), the real-web failures (s11) and contact cleanup (s32); San Francisco to Tokyo (s03) passed 2 of 3, its miss an Uber fare the date step never showed, reported honestly. No run failed on the judge alone. The first continuous week (w01) passed 3 of 3.
 
+0.22.0-rc.1 adds a community kit: the shared bug form, a security policy with private reporting, and a `report-problem` skill that drafts an issue with no personal data and files it only after the owner's yes (#225). Every pull request now installs its commit with Hermes v0.22.2's install-time security scan on (#230), after one line of that skill tripped the scan (#227). A held chase draft now asks for the yes (#226). An owner's early chase time counts on minutes and invoice loops (#232). For a later pickup, PA sets the time on the ride site before looking for a fare, and names what stopped it when no fare shows (#234). A new live runner puts the owner's chase time on a real HeartBeat 2.0 v0.2.0 wake: PA arms one wake, stays quiet until it fires, then shows the held draft and asks (#221, #223). In its wave (120 runs on real Hermes, one at a time, 118 passing), 38 of 40 scenarios passed 3 of 3. Tokyo to Seoul (s02) passed 2 of 3, its miss a judge evidence gap over a price split across two page nodes (lab fix #240). San Francisco to Tokyo (s03) passed 2 of 3, its miss a run over its time budget at an Uber schedule step, reported honestly. The continuous week (w01) passed 3 of 3.
+
 **Strong:**
-- travel prep (hotels and restaurants on real sites up to the final review page; in 0.21.0-rc.1 Seoul to Tokyo (s01) and Tokyo to Seoul (s02) passed 3 of 3 and San Francisco to Tokyo (s03) 2 of 3, its miss an honest stop on an Uber fare);
+- travel prep (hotels and restaurants on real sites up to the final review page; in 0.22.0-rc.1 Seoul to Tokyo (s01) passed 3 of 3, Tokyo to Seoul (s02) 2 of 3 over a judge evidence gap, and San Francisco to Tokyo (s03) 2 of 3, its miss a run over budget at an Uber schedule step, reported honestly);
 - the safe-action gateway and the durable ledger;
 - quiet-by-default reporting;
 - Japan and Korea provider routing;
-- simulated phone calls in Korean and Japanese (s04 to s08, 15 of 15 in the 0.20.0-rc.1 and 0.21.0-rc.1 waves).
+- simulated phone calls in Korean and Japanese (s04 to s08, 15 of 15 in the 0.20.0-rc.1, 0.21.0-rc.1 and 0.22.0-rc.1 waves).
 
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
-- attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1) and passes a two-day lab scenario (s42, 0.19.0-rc.1, with a stand-in for HB2's `pulse`), but it has not yet run on a live HeartBeat 2.0 install;
+- attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1) and passes a two-day lab scenario (s42, with a stand-in for HB2's `pulse`); in 0.22.0-rc.1 an owner's chase time fired on a real HeartBeat 2.0 v0.2.0 wake in an isolated lab home with loopback Telegram, but not yet on a live profile;
 - a yes that leads to finished work: no live send, invite or booking completed yet (#152);
 - office work in the owner's own systems, statement reconciliation and the tax pack (#146, #156);
 - real phone calls (#4).
@@ -142,7 +144,7 @@ A code inventory, an adversarial cross-model plan review and the live lab result
 
 **How it is measured.**
 - An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption. Built in 0.15.0-rc.1 (lab s37: a yes in a new chat confirms the prepared booking once).
-- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161). First version built: each release scorecard strings run N of every scenario a persona meets into week N, and the simulated owner fires PA at the first failing run. These are separate lab sessions, not one continuous week (8 of 12 weeks kept in 0.20.0-rc.1, 11 of 12 in 0.21.0-rc.1). A continuous week is built too (#216): a persona's days run in one lab home on a shifted clock, and PA carries its ledger from day to day. The first such week (w01, a chase the owner timed for the next morning) found #215, fixed in 0.21.0-rc.1, and passed 3 of 3 at the release commit. Next: the owner's chase time on a live HeartBeat 2.0 wake (#161 phase 2).
+- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161). First version built: each release scorecard strings run N of every scenario a persona meets into week N, and the simulated owner fires PA at the first failing run. These are separate lab sessions, not one continuous week (8 of 12 weeks kept in 0.20.0-rc.1, 11 of 12 in 0.21.0-rc.1). A continuous week is built too (#216): a persona's days run in one lab home on a shifted clock, and PA carries its ledger from day to day. The first such week (w01, a chase the owner timed for the next morning) found #215, fixed in 0.21.0-rc.1, and passed 3 of 3 at the release commit. In 0.22.0-rc.1 the owner's chase time ran on a real HeartBeat 2.0 wake in the lab (#161 phase 2, 11 of 11 checks in both rounds). Next: the same on a live profile.
 
 **Trimmed.**
 - More travel specialisation waits until the office loop is proven.
