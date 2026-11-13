@@ -53,7 +53,10 @@ def test_invalid_notice_surfaces_on_the_date_and_names_a_gap(invalid):
     # Review: never fall back silently, since the real notice deadline may already be past.
     item = radar_item(_action(notice_days=invalid), TODAY)
     assert item.pop("gap") == "notice_days must be an integer from 0 to 730; surface_at uses the renewal date"
-    assert item == radar_item(_action(), TODAY)
+    plain = radar_item(_action(), TODAY)
+    # It surfaces now, so the owner fixes the terms before the real deadline can pass.
+    assert (item.pop("surface_at"), item.pop("surfaced")) == (TODAY.isoformat(), True)
+    assert item == {k: v for k, v in plain.items() if k not in ("surface_at", "surfaced")}
 
 
 @pytest.mark.parametrize("today,date,deadline,surface,missed", [
@@ -223,6 +226,7 @@ def test_yearly_notice_of_a_year_or_more_is_a_gap():
     item = radar_item(_action(expires_on="2020-12-31", recurs="yearly", notice_days=365), TODAY)
     assert "decide_by" not in item and "notice" not in item
     assert item["gap"] == "notice_days must be an integer from 0 to 364; surface_at uses the renewal date"
+    assert item["surfaced"] is True and item["surface_at"] == TODAY.isoformat()
     assert radar_item(_action(expires_on="2020-12-31", recurs="yearly", notice_days=364), TODAY)["decide_by"] == "2026-01-01"
 
 
