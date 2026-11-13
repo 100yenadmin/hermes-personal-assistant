@@ -72,7 +72,7 @@ def approval(root, scenario, obs, name, args, confirm=True):
         data = {"action_id": item, "summary": summary, "confirmation": sim_user.scripted_yes(scenario["steps"][1]), "at": "2026-11-13T12:00:00+09:00"}
         assert obs.pre("pa", {"operation": "action_confirm", "data": data}) is None
         pa("action_confirm", data)
-        gateway = Gateway(ActionAuthorizationStore(Ledger(hh), hh.name), GatewayPolicy.from_dict({"protocol": "pa.gateway-policy/v1", "version": "fixture-v1", "pass_through_tools": [], "denied_tools": []}), now=lambda: dt.datetime(2026, 11, 13, 3, tzinfo=dt.timezone.utc))
+        gateway = Gateway(ActionAuthorizationStore(Ledger(hh), hh.name), GatewayPolicy.from_dict({"protocol": "pa.gateway-policy/v1", "version": "fixture-v1", "pass_through_tools": [], "denied_tools": []}), now=lambda: "2026-11-13T03:00:00+00:00")
         assert gateway.evaluate({"tool_name": name, "tool_input": args, "session_id": "synthetic-session", "task_id": "synthetic-documents"}) is None
         return pa
     return finish() if confirm else finish

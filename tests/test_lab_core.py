@@ -26,9 +26,9 @@ def offline(monkeypatch):
 
 def test_catalog_and_plan():
     catalog = load_catalog()
-    assert len(catalog) == 43
+    assert len(catalog) == 44
     jobs = runner.plan(catalog, runs=3)
-    assert len(jobs) == 129 and len({j["run_id"] for j in jobs}) == 129
+    assert len(jobs) == 132 and len({j["run_id"] for j in jobs}) == 132
     args = SimpleNamespace(scenarios=__import__('evals.lab.scenario', fromlist=['CATALOG']).CATALOG, scenario='all', runs=3, workers=2, dry_run=True)
     assert runner.wave(args) == {'workers': 2, 'jobs': jobs}
     assert jobs[0]['run_id'] == 's01_seoul_tokyo_en__r001'
