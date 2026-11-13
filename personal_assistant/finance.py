@@ -183,7 +183,11 @@ def _bill_duplicates(bills, expenses):
     return result
 
 
-def _receipt_matches(expenses, start, end):
+def _receipt_matches(expenses):
+    """Pair each forwarded receipt with at most one card-statement line for the same purchase.
+
+    Matching ignores the period, so every pack pairs the same records and adjacent packs add up.
+    """
     groups, candidates, matched, taken = {}, [], {}, set()
     for row in expenses:
         f = row["fields"]
@@ -198,7 +202,7 @@ def _receipt_matches(expenses, start, end):
             for receipt in receipts:
                 r = receipt["fields"]["date"]
                 days = abs((dt.date.fromisoformat(s) - dt.date.fromisoformat(r)).days)
-                if days <= 3 and (start <= s <= end or start <= r <= end):
+                if days <= 3:
                     candidates.append((days, s, statement["action_id"], receipt["action_id"]))
     for _, _, statement, receipt in sorted(candidates):
         if statement not in taken and receipt not in taken:
@@ -223,11 +227,11 @@ def _tax_pack(rows, expenses, start, end):
     opened = sorted([r for r in invoices if r["fields"]["issue_date"] <= end and (
         r["status"] == "open" or r["status"] == "paid" and r["fields"]["paid_on"] > end)],
         key=lambda r: (r["fields"]["due_date"], r["action_id"]))
-    matches = _receipt_matches(expenses, start, end)
+    matches = _receipt_matches(expenses)
     by_id = {r["action_id"]: r for r in expenses + invoices}
-    # An outside statement is not counted: its inside receipt still belongs to this period.
-    suppressed = {receipt for statement, receipt in matches.items()
-                  if start <= by_id[statement]["fields"]["date"] <= end}
+    # A matched purchase counts once, on its statement line's date: a receipt on the other side of a
+    # period boundary never counts on its own, so consecutive packs never count it twice.
+    suppressed = set(matches.values())
     spent = [r for r in expenses if start <= r["fields"]["date"] <= end and r["action_id"] not in suppressed]
     matched_pairs = {frozenset(pair) for pair in matches.items()}
     duplicates = _bill_duplicates([r for r in paid if r["fields"]["direction"] == "payable"], expenses)
@@ -325,6 +329,28 @@ def _write_export(ledger, name, columns, table, lines):
     return {k: str(v) for k, v in paths.items()}
 
 
+def _text_md(text):
+    """Markdown-escape record text for a file the accountant opens: no live links or emphasis from merchant names."""
+    return re.sub(r"([\[\]()*_`#!~])", r"\\\1", _md(str(text)))
+
+
+def _question_text(q):
+    kind = q["kind"]
+    if kind == "possible_duplicate":
+        ids = q.get("expense_ids") or [q["invoice_id"], q["expense_id"]]
+        text = (f"Possible duplicate: {q['merchant']}, {q['amount']} {q['currency']} on "
+                f"{' and '.join(q['dates'])} ({', '.join(ids)}).")
+    elif kind == "uncategorised":
+        text = f"{q['count']} {q['currency']} expenses are in category other, total {q['total']}: which category?"
+    elif kind == "receipts_missing":
+        text = f"{q['count']} {q['currency']} card lines have no receipt, total {q['total']}."
+    elif kind == "unpaid_at_end":
+        text = f"{q['count']} {q['direction']} invoices in {q['currency']} were unpaid at the end, total {q['total']}."
+    else:
+        text = f"Several currencies ({', '.join(q['currencies'])}): totals are per currency and not converted."
+    return _text_md(text)
+
+
 def _export_tax_pack(ledger, summary, paid, spent, opened, matches, by_id):
     columns = "section date kind category amount currency counterparty evidence_ref record_id receipt".split()
     table = []
@@ -349,26 +375,40 @@ def _export_tax_pack(ledger, summary, paid, spent, opened, matches, by_id):
         for kind in ("income", "bills_paid", "expenses"):
             lines += ["", "### " + kind.replace("_", " ").capitalize()]
             for category, amount in view[kind]["by_category"].items():
-                lines.append(f"- {_md(category)}: {amount}")
+                lines.append(f"- {_text_md(category)}: {amount}")
                 table.append(["summary", "", kind + "_category", category, amount, currency, "", "", "", ""])
             lines.append("- Total: " + view[kind]["total"])
             table.append(["summary", "", kind + "_total", "", view[kind]["total"], currency, "", "", "", ""])
+            if view[kind].get("by_counterparty"):
+                lines.append("- By counterparty:")
+                lines.extend(f"  - {_text_md(party)}: {amount}" for party, amount in view[kind]["by_counterparty"].items())
         lines += ["", "Net: " + view["net"], "", "### Open at the end"]
         table.append(["summary", "", "net", "", view["net"], currency, "", "", "", ""])
         for direction, bucket in view["open_at_end"].items():
             lines.append(f"- {direction}: {bucket['total']}")
             for invoice in bucket["invoices"]:
-                lines.append("  - " + _md(f"{invoice['invoice_id']}: {invoice['counterparty']}; "
-                                          f"{invoice['amount']}; due {invoice['due_date']}"))
+                lines.append("  - " + _text_md(f"{invoice['counterparty']}, {invoice['amount']}, due "
+                                               f"{invoice['due_date']} ({invoice['invoice_id']})"))
         missing = view["receipts_missing"]
-        lines += ["", "### Receipts missing", f"- {missing['count']} lines; total {missing['total']}; {missing['more']} more"]
-        lines.extend("- " + _md(json.dumps(line, ensure_ascii=False)) for line in missing["lines"])
-        lines.append(f"- Matched receipts: {view['matched_receipts']}")
-    lines += ["", "## Possible duplicates (listed, never merged)"]
-    lines.extend("- " + _md(json.dumps(q, ensure_ascii=False)) for q in summary["questions"] if q["kind"] == "possible_duplicate")
-    lines += ["", "## Questions"]
-    lines.extend("- " + _md(json.dumps(q, ensure_ascii=False)) for q in summary["questions"])
-    lines += ["", summary["basis"]]
+        lines += ["", "### Receipts missing", "",
+                  f"{missing['count']} card lines have no receipt, total {missing['total']}."]
+        if missing["lines"]:
+            lines += ["", "| Date | Merchant | Amount | Record |", "| --- | --- | --- | --- |"]
+            lines.extend("| " + " | ".join(_text_md(line[k]) for k in ("date", "merchant", "amount", "expense_id")) + " |"
+                         for line in missing["lines"])
+        if missing["more"]:
+            lines.append(f"\n{missing['more']} more are in the CSV.")
+        lines += ["", f"Receipts matched to card lines: {view['matched_receipts']}."]
+    duplicates = [q for q in summary["questions"] if q["kind"] == "possible_duplicate"]
+    lines += ["", "## Possible duplicates (listed, never merged)", ""]
+    lines.extend("- " + _question_text(q) for q in duplicates)
+    if not duplicates:
+        lines.append("None found.")
+    lines += ["", "## Questions", ""]
+    lines.extend("- " + _question_text(q) for q in summary["questions"] if q["kind"] != "possible_duplicate")
+    if duplicates:
+        lines.append("- Check each possible duplicate above.")
+    lines += ["", summary["basis"].capitalize() + "."]
     return _write_export(ledger, f"tax-pack-{summary['period_start']}_{summary['period_end']}", columns, table, lines)
 
 

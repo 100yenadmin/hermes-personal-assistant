@@ -1,5 +1,6 @@
 """Synthetic, offline accountant packs through the public PA interface."""
 import csv
+from decimal import Decimal
 import socket
 import stat
 from pathlib import Path
@@ -101,9 +102,19 @@ def test_imported_statement_matches_receipt_just_outside_period(ledger):
     table = list(csv.DictReader(Path(result["export"]["csv"]).open()))
     details = [r for r in table if r["record_id"]]
     assert len(details) == 1 and details[0]["receipt"] == "matched:year end receipt"
-    # In the earlier period only the receipt is counted, never the outside statement.
-    december = pack(ledger, period_start="2026-12-01", period_end="2026-12-31")["currencies"]["USD"]
-    assert december["expenses"] == {"by_category": {"other": "10"}, "total": "10"}
+    # The purchase counts once, on its statement line's date: the December pack does not count the receipt.
+    december = pack(ledger, period_start="2026-12-01", period_end="2026-12-31")
+    assert "USD" not in december["currencies"]
+
+
+def test_consecutive_packs_add_up_across_the_boundary(ledger):
+    # Two charges on statement lines either side of the year end, and one receipt for the later one.
+    statement(ledger, "1", date="2026-12-29", merchant="Shop")
+    statement(ledger, "2", date="2027-01-01", merchant="Shop")
+    expense(ledger, "shop receipt", date="2026-12-31", merchant="Shop")
+    totals = [pack(ledger, period_start=start, period_end=end)["currencies"].get("USD", {}).get("expenses", {}).get("total", "0")
+              for start, end in (("2026-01-01", "2026-12-31"), ("2027-01-01", "2027-12-31"))]
+    assert sum(Decimal(t) for t in totals) == Decimal("20")
 
 
 def test_greedy_matching_prefers_distance_then_statement_date_and_ids(ledger):
@@ -112,11 +123,11 @@ def test_greedy_matching_prefers_distance_then_statement_date_and_ids(ledger):
     c = statement(ledger, "3", date="2026-11-12")
     x = expense(ledger, "receipt x", date="2026-11-12")
     y = expense(ledger, "receipt y", date="2026-11-12")
-    matches = finance._receipt_matches(expenses._rows(ledger), "2026-11-01", "2026-11-30")
+    matches = finance._receipt_matches(expenses._rows(ledger))
     assert matches == dict(zip(sorted([b["action_id"], c["action_id"]]), sorted([x["action_id"], y["action_id"]])))
     assert a["action_id"] not in matches
     # Equal distance uses the earlier statement date before either generated identity.
-    matches = finance._receipt_matches([a, b, expense(ledger, "middle", date="2026-11-11")], "2026-11-01", "2026-11-30")
+    matches = finance._receipt_matches([a, b, expense(ledger, "middle", date="2026-11-11")])
     assert list(matches) == [a["action_id"]]
 
 
@@ -227,8 +238,10 @@ def test_export_paths_modes_formula_guard_markdown_and_read_only(ledger):
     markdown = Path(result["export"]["markdown"]).read_text()
     for text in ("# Tax pack 2026-11-01 to 2026-11-30", "Open\\|Vendor", "synthetic", "\\|Vendor",
                  "Income", "Bills paid", "Expenses", "Net: 108", "Open at the end", "Receipts missing",
-                 "Possible duplicates (listed, never merged)", "Questions", plain["basis"]):
+                 "Possible duplicates (listed, never merged)", "Questions", "Ledger records only; no currency conversion; not tax advice.",
+                 "card lines have no receipt", "| Date | Merchant | Amount | Record |", "By counterparty:"):
         assert text in markdown
+    assert '{"kind"' not in markdown and "\\\"" not in markdown
     Path(result["export"]["csv"]).chmod(0o644)
     pack(ledger, export=True)
     assert stat.S_IMODE(Path(result["export"]["csv"]).stat().st_mode) == 0o600
