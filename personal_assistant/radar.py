@@ -98,6 +98,7 @@ def radar_item(action: dict[str, Any], today: dt.date) -> dict[str, Any] | None:
         # Never fall back silently to the renewal date: the real deadline may already be past.
         gap = f"notice_days must be an integer from 0 to {limit}; surface_at uses the renewal date"
         item["gap"] = item["gap"] + "; " + gap if "gap" in item else gap
+        surface_at = min(surface_at, today)  # Surface now, as a missing date does, so the owner fixes the terms.
     return {**item, "date": date.isoformat(), "surface_at": surface_at.isoformat(),
             "days_until": (date - today).days, "surfaced": surface_at <= today}
 

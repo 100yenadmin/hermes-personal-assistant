@@ -15,7 +15,7 @@ Use one commitment action per item:
 | `document` | The document or thing's name as a value, for example `Passport` or `Car service` |
 | `expires_on` / `event_date` | The date, `YYYY-MM-DD`, or month-only `YYYY-MM` (read as the 1st); a birthday may use any year |
 | `lead_days` | Days ahead to surface it; defaults 30 (renewal), 14 (important date), 7 (deadline). On an unanswered offer in the radar read, it is the `offer_days` wait after which the offer surfaces |
-| `notice_days` | Renewal only: integer 0–730; `decide_by` is the occurrence date minus notice days, and `surface_at` is `decide_by` minus `lead_days` |
+| `notice_days` | Renewal only: integer 0–730 (0–364 for a yearly record); `decide_by` is the occurrence date minus notice days, and `surface_at` is `decide_by` minus `lead_days` |
 | `auto_renews` | Renewal only: boolean; whether it renews automatically |
 | `cost` | Renewal only: `{amount: "9.99", currency: "USD", per: "month"}` or `per: "year"`; `annual_cost` uses exact decimal arithmetic |
 | `counterparty` | Renewal only: the provider or other party's name as text |
