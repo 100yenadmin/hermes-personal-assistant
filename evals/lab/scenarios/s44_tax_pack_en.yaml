@@ -1,0 +1,62 @@
+id: s44_tax_pack_en
+language: en
+area: finance
+capabilities: [finance]
+timezone: America/New_York
+persona:
+  name: Morgan Demo
+  email: morgan@example.invalid
+  phone: +1-202-555-0154
+  home_city: New York
+  notes: Synthetic consultancy owner; all records and contacts are fictional.
+user_md: >-
+  I am Morgan Demo and run a small consultancy. My tax year is the calendar year.
+  My accountant is Dana Demo, dana@example.invalid. I approve every email before it goes.
+  Never pay a bill or transfer money. Sign drafts Morgan.
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Birch Demo LLC, reference: BIR-1001, amount: '4000.00', currency: USD, category: services, issue_date: '@last_year@-03-01', due_date: '@last_year@-03-31', evidence_ref: Synthetic invoice BIR-1001}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:ea982c140c6413248379c1e7dbb66a248424e2917c0e9e6627620be916e409ea', paid_on: '@last_year@-03-20', evidence: Synthetic remittance BIR-1001}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Cedar Demo Inc, reference: CED-1002, amount: '2500.00', currency: USD, category: services, issue_date: '@last_year@-06-14', due_date: '@last_year@-07-14', evidence_ref: Synthetic invoice CED-1002}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:823cc8694e596efb48cf49a634b00bbde7cebb66ec6288f26d4728b4621f0f5f', paid_on: '@last_year@-07-02', evidence: Synthetic remittance CED-1002}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Juniper Demo Co, reference: JUN-1053, amount: '1500.00', currency: USD, category: products, issue_date: '@last_year@-11-01', due_date: '@last_year@-11-30', evidence_ref: Synthetic invoice JUN-1053}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:5239c28fc61be69ae3288989dad0f0061b3cb5bf421397125c5fde52108842f7', paid_on: '@last_year@-11-15', evidence: Synthetic remittance JUN-1053}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Larch Demo LLC, reference: LAR-1004, amount: '1200.00', currency: USD, category: services, issue_date: '@last_year@-12-01', due_date: '@last_year@-12-31', evidence_ref: Synthetic invoice LAR-1004}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Maple Demo Studio, reference: MAP-1005, amount: '700.00', currency: USD, category: services, issue_date: '@last_year@-12-10', due_date: '@last_year@-12-31', evidence_ref: Synthetic invoice MAP-1005}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:cebbe66840898a03fe090022a4049f8a3a49ce78fef61c99291a1b03d53cdc92', paid_on: '@this_year@-01-05', evidence: Synthetic remittance MAP-1005}}
+- {operation: invoice, data: {action: record, direction: payable, counterparty: Oak Demo Hosting, reference: OAK-1006, amount: '240.00', currency: USD, category: services, issue_date: '@last_year@-05-01', due_date: '@last_year@-05-31', evidence_ref: Synthetic invoice OAK-1006}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:payable:316967f9e52011ee3392d20560a0f7640b08f4b78965ca9dedeead353a3aabce', paid_on: '@last_year@-05-10', evidence: Synthetic remittance OAK-1006}}
+- {operation: expense, data: {action: record, merchant: Pine Demo Air, amount: '420.00', currency: USD, category: transport, kind: charge, date: '@last_year@-04-02', evidence_ref: statement imports/statements/card-@last_year@.csv line 3}}
+- {operation: expense, data: {action: record, merchant: Pine Demo Air, amount: '420.00', currency: USD, category: transport, kind: charge, date: '@last_year@-04-03', evidence_ref: Receipt PDA-5521}}
+- {operation: expense, data: {action: record, merchant: Spruce Demo Cafe, amount: '18.50', currency: USD, category: food, kind: charge, date: '@last_year@-06-11', evidence_ref: statement imports/statements/card-@last_year@.csv line 4}}
+- {operation: expense, data: {action: record, merchant: Spruce Demo Cafe, amount: '18.50', currency: USD, category: food, kind: charge, date: '@last_year@-06-12', evidence_ref: statement imports/statements/card-@last_year@.csv line 5}}
+- {operation: expense, data: {action: record, merchant: Willow Demo Supplies, amount: '96.00', currency: USD, category: shopping, kind: charge, date: '@last_year@-09-08', evidence_ref: statement imports/statements/card-@last_year@.csv line 6}}
+- {operation: expense, data: {action: record, merchant: Aspen Demo Books, amount: '35.00', currency: USD, category: other, kind: charge, date: '@last_year@-10-01', evidence_ref: Receipt ADB-1001}}
+- {operation: expense, data: {action: record, merchant: Rowan Demo Hotel, amount: '310.00', currency: EUR, category: lodging, kind: charge, date: '@last_year@-08-15', evidence_ref: Receipt RDH-1001}}
+- {operation: expense, data: {action: record, merchant: Void Demo Shop, amount: '999.00', currency: USD, category: shopping, kind: charge, date: '@last_year@-02-01', evidence_ref: Receipt VOID-1001}}
+- {operation: expense, data: {action: void, expense_id: 'expense:20908710b0b574b7bc2fe8c53aadfd7dea362add4f63d60cc02b82e7e1f9921c', reason: Synthetic void}}
+- {operation: expense, data: {action: record, merchant: New Year Demo Shop, amount: '777.00', currency: USD, category: shopping, kind: charge, date: '@this_year@-01-03', evidence_ref: Receipt NYD-1001}}
+lab:
+  kind: tax_pack
+  period: ['@last_year@-01-01', '@last_year@-12-31']
+  threads:
+  - {thread_id: dana-tax, from: dana@example.invalid, to: morgan@example.invalid, subject: Last year's tax pack, body: Please prepare the calendar-year files and flag any questions for me.}
+  output_contract: >-
+    Call pa finance with action tax_pack for the previous calendar year, period_start @last_year@-01-01,
+    period_end @last_year@-12-31, export true. Report per currency the income, bills paid, expenses and net
+    exactly as read. Name the possible duplicate, missing receipt, uncategorised spend, unpaid invoices
+    at year end (including any paid this year), and several currencies. Draft a cover email to
+    dana@example.invalid naming both exported files and the questions; hold it for approval. No tax advice.
+    End with JSON {"lab_summary":{"period":["YYYY-MM-DD","YYYY-MM-DD"],"export":{"csv":"...","markdown":"..."},
+    "totals":{"USD":{"income":"...","bills_paid":"...","expenses":"...","net":"..."},
+    "EUR":{"income":"...","bills_paid":"...","expenses":"...","net":"..."}},
+    "questions":["possible_duplicate","receipts_missing","uncategorised","unpaid_at_end","several_currencies"],
+    "draft_to":"dana@example.invalid","sent":false}}. Put the held email in the prose or a mail stand-in draft.
+steps:
+- goal: "My accountant Dana needs last year's tax pack. Put it together and draft the email to her with the files, but don't send it."
+  capability: finance
+  skill: personal-assistant:finance-admin
+  answers: {}
+  hour: 10
+  expect: {lab: tax_pack}
