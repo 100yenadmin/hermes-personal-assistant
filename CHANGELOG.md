@@ -16,7 +16,28 @@ This release candidate adds a job a remote VA is hired for: tracking the owner's
 
 PA's skills still stop every booking, payment, cancellation, share and send for the owner's yes.
 
-WAVE PARAGRAPH: <fill from the f?????? wave: 43 scenarios x 3 + w01; per-scenario misses; fire-me; scorecard areas>
+It ships `releases/0.24.0-rc.1/scorecard.md`. It is built from 129 Capability Lab runs: 43 scenarios (the 0.23.0-rc.1 set plus s44 and s45), 3 runs each, pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. 125 of 129 runs pass (121 of 123 in 0.23.0-rc.1). The continuous week (w01) passes 3 of 3 in the same wave. No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations).
+
+- **40 of 43 scenarios pass 3 of 3** (39 of 41 in 0.23.0-rc.1). They include the new tax pack scenario (s44), Seoul to Tokyo (s01), Tokyo to Seoul (s02), the Japanese multi-errand day (s12) and every simulated call (s04 to s08).
+- **Three of the four misses are lab checks that were too narrow, not PA errors.** The judge passed all three runs. A lab PR after this release widens the checks, and the stored runs pass when checked again with them. The scorecard keeps the wave's result.
+  - The weekly closeout (s16) passes 1 of 3.
+    - In run 1, PA wrote that "no calendar tool is accessible", and the check knew only "available" or "connected".
+    - In run 2, the benchmark note stored its time box as `time_box_minutes`, and the check looked only for `time_box`.
+  - The contracts review (s45) passes 2 of 3. The held notice was a correct notice of non-renewal, and the check required the word "cancel".
+- **San Francisco to Tokyo (s03) passes 2 of 3** (2 of 3 in 0.23.0-rc.1). The miss ran past its 30-minute budget (1,821 seconds).
+  - In its last step, Uber's pickup search returned Washington, DC airports for Haneda, in English and in Japanese. As #251 intends, PA stopped after two tries and said that no estimate was shown and nothing was requested. It did not go on to the typical-fare route page (#244).
+  - The judge also doubted the food step's ¥1,500 cart subtotal, but the page listed that set meal at ¥1,500; the judge's evidence had matched a promotion line instead.
+- **Fire-me week (stitched):** 6 of 12 persona weeks kept (8 of 12 in 0.23.0-rc.1).
+  - The two s16 check misses end weeks 1 and 2 for the solo founder and the agency owner, and week 2 for the executive.
+  - s03 ends the executive's week 1.
+  - The family user keeps 3 of 3.
+  - Checked again with the widened checks, the stored runs keep 11 of 12.
+- **Scorecard:**
+  - 1 area passing.
+  - 10 areas with partial checks passing.
+  - 3 areas with partial checks failing: travel (s03), personal life admin (s45, the check miss) and recurring ops (s16, the check misses).
+  - 13 areas unproven.
+  - In 0.23.0-rc.1, 11 areas had partial checks passing and 2 had partial checks failing.
 
 ## 0.23.0-rc.1 — 2026-11-14
 
