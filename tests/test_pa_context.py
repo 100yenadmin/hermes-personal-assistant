@@ -235,7 +235,8 @@ class OpenLoopTests(unittest.TestCase):
     def test_owner_chase_time_before_synthetic_opening(self):
         zone = dt.timezone(dt.timedelta(hours=9))
         fields = {"opened_at": "2026-11-28", "chase_at": "2026-11-20T09:00:00+09:00"}
-        for hour, step in ((8, "none"), (10, "day2")):
+        # #233: a time before the opening is an extra chase; day 2 keeps its ladder date.
+        for hour, step in ((8, "none"), (10, "owner_time")):
             with self.subTest(hour=hour):
                 chase = loop_chase(fields, created_at="2026-11-13T00:00:00+09:00",
                                    moment=dt.datetime(2026, 11, 20, hour, tzinfo=zone), zone=zone)
@@ -243,7 +244,7 @@ class OpenLoopTests(unittest.TestCase):
         chase = loop_chase({**fields, "last_chased_at": "2026-11-20T09:30:00+09:00"},
                            created_at="2026-11-13T00:00:00+09:00",
                            moment=dt.datetime(2026, 11, 30, 10, tzinfo=zone), zone=zone)
-        self.assertEqual((chase["step"], chase["next_chase_at"]), ("none", "2026-12-03T00:00:00+09:00"))
+        self.assertEqual((chase["step"], chase["next_chase_at"]), ("day2", "2026-11-30T00:00:00+09:00"))
 
     def test_owner_chase_time_before_creation_and_opening_is_ignored(self):
         zone = dt.timezone(dt.timedelta(hours=9))

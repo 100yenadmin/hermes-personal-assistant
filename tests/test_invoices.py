@@ -194,7 +194,7 @@ def test_owner_chase_time_before_invoice_synthetic_opening(ledger, monkeypatch):
         conn.execute("update actions set created_at=? where action_id=?",
                      ("2026-11-13T00:00:00+09:00", identity + ":loop"))
     assert ledger.get("action", identity + ":loop")["fields"]["opened_at"] == "2026-11-30"
-    for hour, step in ((8, "none"), (10, "day2")):
+    for hour, step in ((8, "none"), (10, "owner_time")):  # #233: an extra chase; day 2 stays on 2 December
         moment = dt.datetime.fromisoformat(f"2026-11-20T{hour:02}:00:00+09:00")
         monkeypatch.setattr(invoices, "evaluation_moment", lambda data: moment)
         row, = call(ledger, "list")

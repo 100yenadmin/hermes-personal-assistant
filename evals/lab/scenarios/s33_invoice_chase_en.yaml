@@ -27,7 +27,7 @@ lab:
   output_contract: >-
     End with JSON {"lab_summary": {...}} (a code fence is fine), with owner-facing prose above it.
     Step 0: chases maps each receivable's invoice reference to its chase step as pa next_action with loops_only
-    returned it (none, day2, day5, day10 or escalate). drafts is a list of {reference, to, body}: one held reminder
+    returned it (none, owner_time, day2, day5, day10 or escalate). drafts is a list of {reference, to, body}: one held reminder
     or chase for each receivable with a reminder or chase due today, never sent; each body names its invoice
     reference and states the amount due. escalation is
     {reference, problem, options, recommendation, decision_deadline} for the receivable at escalate.

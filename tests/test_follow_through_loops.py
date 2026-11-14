@@ -2,6 +2,7 @@
 import copy
 import datetime as dt
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from jsonschema import Draft7Validator
@@ -10,6 +11,7 @@ from personal_assistant import state
 from personal_assistant.action_gateway import ActionAuthorizationStore, Gateway, GatewayPolicy
 from personal_assistant.automation_workflow import preferences
 from personal_assistant.entry import SCHEMA, dispatch
+from personal_assistant.context import loop_chase, loop_fields
 from test_booking_follow_through import ACTION, OTHER, READBACK, TRIP, ledger, prepare, record
 
 
@@ -233,3 +235,85 @@ def test_loop_keeps_the_trip_of_its_request(ledger):
     scoped = dispatch(ledger.root, {"operation": "next_action", "data": {
         "loops_only": True, "trip_id": TRIP, "at": STAMP}})
     assert LOOP_ID in [row["action_id"] for row in scoped["candidates"]]
+
+
+OWNER_TIME = "2026-11-20T09:00:00+09:00"
+INVOICE_LOOP = {"opened_at": "2026-11-30", "chase_at": OWNER_TIME}
+
+
+def invoice_chase(fields, at):
+    return loop_chase(fields, created_at="2026-11-10", moment=dt.datetime.fromisoformat(at),
+                      zone=ZoneInfo("Asia/Tokyo"))
+
+
+def test_preopening_owner_time_is_extra_and_keeps_the_entire_ladder():
+    chase = invoice_chase(INVOICE_LOOP, "2026-11-20T10:00:00+09:00")
+    assert (chase["step"], chase["next_chase_at"]) == ("owner_time", OWNER_TIME)
+    answered = {**INVOICE_LOOP, "last_chased_at": "2026-11-20T09:05:00+09:00",
+                "chase_log": [{"step": "owner_time", "at": "2026-11-20T09:05:00+09:00"}]}
+    before = invoice_chase(answered, "2026-12-01T10:00:00+09:00")
+    assert (before["step"], before["next_chase_at"]) == ("none", "2026-12-02T00:00:00+09:00")
+    for day, step in ((2, "day2"), (5, "day5"), (10, "day10"), (11, "escalate")):
+        at = f"2026-12-{day:02}T10:00:00+09:00"
+        expected = (step, f"2026-12-{day:02}T00:00:00+09:00")
+        for fields in (answered, {"opened_at": "2026-11-30"}, INVOICE_LOOP):
+            result = invoice_chase(fields, at)
+            assert (result["step"], result["next_chase_at"]) == expected
+
+
+@pytest.mark.parametrize("evidence", [
+    {"last_chased_at": OWNER_TIME},
+    {"chase_log": [{"step": "owner_time", "at": OWNER_TIME}]},
+    {"chase_log": [{"step": "day10", "at": OWNER_TIME}]},
+])
+def test_preopening_owner_time_answered_by_timestamp(evidence):
+    chase = invoice_chase({**INVOICE_LOOP, **evidence}, "2026-11-20T10:00:00+09:00")
+    assert (chase["step"], chase["next_chase_at"]) == ("none", "2026-12-02T00:00:00+09:00")
+
+
+def test_preopening_owner_time_still_pending_before_answer_and_snooze_unchanged():
+    fields = {**INVOICE_LOOP, "last_chased_at": "2026-11-20T08:59:00+09:00",
+              "chase_log": [{"step": "owner_time", "at": "2026-11-20T08:59:00+09:00"}]}
+    before = invoice_chase(fields, "2026-11-20T08:00:00+09:00")
+    assert (before["step"], before["next_chase_at"]) == ("none", OWNER_TIME)
+    assert invoice_chase(fields, "2026-11-20T10:00:00+09:00")["step"] == "owner_time"
+    until = "2026-11-21T09:00:00+09:00"
+    fields["snoozed_until"] = until
+    held = invoice_chase(fields, "2026-11-20T10:00:00+09:00")
+    assert (held["step"], held["next_chase_at"]) == ("none", until)
+    assert invoice_chase(fields, until)["step"] == "owner_time"
+
+
+def test_preopening_owner_time_compares_owner_local_dates_and_keeps_floor():
+    # These UTC timestamps are Nov 20 and Nov 30 respectively in Tokyo.
+    fields = {"opened_at": "2026-11-29T15:00:00Z", "chase_at": "2026-11-19T23:59:00Z"}
+    chase = invoice_chase(fields, "2026-11-20T10:00:00+09:00")
+    assert (chase["step"], chase["next_chase_at"]) == ("owner_time", "2026-11-20T08:59:00+09:00")
+    ignored = invoice_chase({**INVOICE_LOOP, "chase_at": "2026-11-09T09:00:00+09:00"},
+                            "2026-11-20T10:00:00+09:00")
+    assert (ignored["step"], ignored["next_chase_at"]) == ("none", "2026-12-02T00:00:00+09:00")
+
+
+@pytest.mark.parametrize("asked,answered,step,next_at,age", [
+    # Expected values captured from the base implementation before the #233 fix.
+    ("2026-11-30T09:00:00+09:00", False, "day2", "2026-11-30T09:00:00+09:00", 0),
+    ("2026-11-30T09:00:00+09:00", True, "none", "2026-12-05T00:00:00+09:00", 0),
+    ("2026-12-03T09:00:00+09:00", False, "day2", "2026-12-03T09:00:00+09:00", 3),
+    ("2026-12-03T09:00:00+09:00", True, "none", "2026-12-05T00:00:00+09:00", 3),
+    ("2026-12-15T09:00:00+09:00", False, "day10", "2026-12-15T09:00:00+09:00", 15),
+    ("2026-12-15T09:00:00+09:00", True, "none", "2026-12-16T09:00:00+09:00", 15),
+])
+def test_owner_time_on_or_after_opening_keeps_base_fold_results(asked, answered, step, next_at, age):
+    fields = {"opened_at": "2026-11-30T18:00:00+09:00", "chase_at": asked}
+    if answered:
+        fields["last_chased_at"] = asked
+    at = (dt.datetime.fromisoformat(asked) + dt.timedelta(hours=1)).isoformat()
+    assert invoice_chase(fields, at) == {"step": step, "next_chase_at": next_at,
+                                        "age_days": age, "escalated": False}
+
+
+def test_owner_time_chase_log_validates_but_bare_owner_does_not():
+    fields = {"chase_log": [{"step": "owner_time", "at": OWNER_TIME}]}
+    assert loop_fields(fields) == fields
+    with pytest.raises(ValueError, match="chase_log"):
+        loop_fields({"chase_log": [{"step": "owner", "at": OWNER_TIME}]})
