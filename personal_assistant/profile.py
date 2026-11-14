@@ -106,7 +106,7 @@ def _shape_hint(kind, allowed, unknown):
         "trust": {"task_type": "Weekly prep"},
     }
     head = f"remember {kind} takes flat data: " + ", ".join(sorted(allowed))
-    named = sorted(key for key in unknown if re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key) and not _private([key]))[:5]
+    named = sorted(key for key in unknown if re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key) and not re.search(r"\d{4}", key) and not _private([key]))[:5]
     extra = "; not accepted: " + ", ".join(named) if named else ""
     tail = ""
     if len(unknown) > len(named):

@@ -642,3 +642,13 @@ def test_review_round_three_lifecycle(tmp_path):
     assert retired["fields"]["remove_from_files"] is True
     with pytest.raises(ValidationError):
         call(tmp_path, kind="sop", title="Prep", trigger="Fri", steps=["x" * 301], tools=["cal"], done_when="ok", escalation="ask")
+
+
+def test_account_shaped_key_names_are_counted_not_named(tmp_path):
+    # A field name never carries four digits in a row; an IBAN-shaped key is only counted.
+    from personal_assistant.state import Ledger
+    from personal_assistant.profile import remember
+    import pytest as _pytest
+    with _pytest.raises(ValueError) as caught:
+        remember(Ledger(tmp_path), {"kind": "preference", "text": "x", "iban_gb29nwbk60161331926819": "y"})
+    assert "60161331926819" not in str(caught.value) and "1 other key" in str(caught.value)
