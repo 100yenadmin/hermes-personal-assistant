@@ -79,7 +79,7 @@ When the owner asks to close a month, run the month-end close below. Action `mon
 
 ## Month-end close
 
-When the owner asks to close a month (offer it when they ask about last month in the first days of a new one):
+When asked to close a month, or asked about the previous month on the first working day of a new one:
 1. Read the month just ended with `pa` operation `finance`, action `tax_pack`, with `period_start` and
    `period_end` its first and last days (`export: true` only if the owner wants files). Report per currency
    the income, bills paid, expenses and net exactly as read. Never convert currencies.
