@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
+from decimal import Decimal, localcontext
 from typing import Any, Callable
+
+from .expenses import _number
 
 RADAR_KINDS = {"renewal", "important_date", "deadline"}
 DEFAULT_LEAD_DAYS = {"renewal": 30, "important_date": 14, "deadline": 7}
@@ -36,8 +40,21 @@ def _occurrence(base: dt.date, yearly: bool, today: dt.date) -> dt.date:
     return candidate
 
 
+def _annual_cost(cost: Any) -> str | None:
+    if not isinstance(cost, dict) or set(cost) != {"amount", "currency", "per"}:
+        return None
+    amount, currency = cost["amount"], cost["currency"]
+    if (not isinstance(amount, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", amount)
+            or not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency)
+            or cost["per"] not in ("month", "year")):
+        return None
+    with localcontext() as ctx:
+        ctx.prec = max(ctx.prec, len(amount) + 2)
+        return _number(Decimal(amount) * (12 if cost["per"] == "month" else 1))
+
+
 def radar_item(action: dict[str, Any], today: dt.date) -> dict[str, Any] | None:
-    """Surface timing for one radar record: surface_at = next date - lead_days."""
+    """Surface before the occurrence, or before a renewal's notice deadline."""
 
     fields = action.get("fields", {})
     kind = fields.get("radar_kind")
@@ -49,17 +66,67 @@ def radar_item(action: dict[str, Any], today: dt.date) -> dict[str, Any] | None:
             "title": fields.get("title") or fields.get("document"), "document": fields.get("document"),
             "lead_days": lead, "recurs": "yearly" if fields.get("recurs") == "yearly" else "none",
             "source_ref": fields.get("source_ref"), "next_action": fields.get("next_action")}
+    if kind == "renewal":
+        for key, value_type in (("auto_renews", bool), ("counterparty", str)):
+            if isinstance(fields.get(key), value_type):
+                item[key] = fields[key]
+        if "cost" in fields:
+            annual = _annual_cost(fields["cost"])
+            if annual is None:
+                item["gap"] = "cost must be {amount, currency, per month|year}"
+            else:
+                item.update(cost=fields["cost"], annual_cost=annual)
     raw = str(fields.get("expires_on") or fields.get("event_date") or "").strip()
     base = _date(raw)
     if base and len(raw) == 7:
         item["date_precision"] = "month: surface_at uses the first of the month"
     if base is None:
         return {**item, "date": None, "surface_at": None, "days_until": None, "surfaced": True,
-                "gap": "record has no expires_on or event_date; ask the owner for the date"}
+                "gap": "record has no expires_on or event_date; ask the owner for the date" + (
+                    "; " + item["gap"] if "gap" in item else "")}
     date = _occurrence(base, item["recurs"] == "yearly", today)
     surface_at = date - dt.timedelta(days=lead)
+    notice = fields.get("notice_days")
+    limit = 364 if item["recurs"] == "yearly" else 730  # A yearly notice of a year or more could never be met.
+    if kind == "renewal" and type(notice) is int and 0 <= notice <= limit:
+        decide_by = date - dt.timedelta(days=notice)
+        item.update(decide_by=decide_by.isoformat(), days_until_decide_by=(decide_by - today).days)
+        surface_at = decide_by - dt.timedelta(days=lead)
+        if decide_by < today <= date:
+            item["notice"] = f"missed: the last day to give notice was {decide_by.isoformat()}"
+    elif kind == "renewal" and "notice_days" in fields:
+        # Never fall back silently to the renewal date: the real deadline may already be past.
+        gap = f"notice_days must be an integer from 0 to {limit}; surface_at uses the renewal date"
+        item["gap"] = item["gap"] + "; " + gap if "gap" in item else gap
+        surface_at = min(surface_at, today)  # Surface now, as a missing date does, so the owner fixes the terms.
     return {**item, "date": date.isoformat(), "surface_at": surface_at.isoformat(),
             "days_until": (date - today).days, "surfaced": surface_at <= today}
+
+
+def _contracts(items: list[dict[str, Any]]) -> dict[str, Any]:
+    currencies, renewing = {}, {"30": [], "60": [], "90": []}
+    missing_cost = 0
+    for item in sorted(items, key=lambda row: (row.get("date") or "", row["action_id"])):
+        if item["days_until"] is not None and item["days_until"] < 0:
+            continue  # Ended and not yearly: no longer an active cost.
+        annual = item.get("annual_cost")
+        currency = item["cost"]["currency"] if annual is not None else None
+        if annual is None:
+            missing_cost += 1
+        else:
+            bucket = currencies.setdefault(currency, {"annual_cost": "0", "active": 0})
+            with localcontext() as ctx:
+                ctx.prec = max(ctx.prec, len(annual) + len(bucket["annual_cost"]) + 2)
+                bucket["annual_cost"] = _number(Decimal(bucket["annual_cost"]) + Decimal(annual))
+            bucket["active"] += 1
+        if item["days_until"] is None:
+            continue
+        row = {key: item.get(key) for key in ("action_id", "title", "date", "decide_by", "auto_renews", "annual_cost")}
+        row["currency"] = currency
+        for window in renewing:
+            if item["days_until"] <= int(window):
+                renewing[window].append(row)
+    return {"currencies": currencies, "renewing": renewing, "missing_cost": missing_cost}
 
 
 def _offered_at(fields: dict[str, Any]) -> str | None:
@@ -111,8 +178,10 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
     if type(offer_days) is not int or not 1 <= offer_days <= 60:
         raise ValueError("offer_days must be an integer from 1 to 60")
     include_upcoming = data.get("include_upcoming") is True
+    contracts = data.get("contracts") is True
     today = moment.astimezone(zone).date()
     items, upcoming = [], []
+    renewals = []
     actions = ledger.list("action")
     opt_outs = {action["action_id"] for action in actions
                 if action.get("action_type") == "offer" and action.get("fields", {}).get("outcome") == "opted_out"}
@@ -132,6 +201,10 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
             )):
                 continue
             item = radar_item(action, today)
+            # Only records with contract terms; a passport or visa renewal is not a contract and has no cost.
+            if contracts and item["radar_kind"] == "renewal" and any(
+                    key in fields for key in ("cost", "notice_days", "auto_renews", "counterparty")):
+                renewals.append(item)
             if state:
                 item["loop_state"] = state
             if not item["surfaced"]:
@@ -147,6 +220,9 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
     items.sort(key=lambda row: (not row["surfaced"], row.get("date") or row.get("offered_at") or row.get("review_at") or "",
                                 row["action_id"]))
     page = _page(items, limit, offset)
-    return {"radar": True, "candidates": page.pop("items"), **page,
+    result = {"radar": True, "candidates": page.pop("items"), **page,
             "not_yet_surfaced": len(upcoming), "next_surface_at": min(upcoming) if upcoming else None,
             "offer_days": offer_days, "owner_timezone": str(zone), "read_only": True}
+    if contracts:
+        result["contracts"] = _contracts(renewals)
+    return result
