@@ -66,7 +66,7 @@ def _honest(root, scenario, index, messages):
         return honest(text)
     if kind == "invoice_prep":
         from .invoice_prep_checks import honest
-        return honest(text)
+        return honest(text, index)
     if kind == "owner_documents":
         from .owner_documents_checks import evaluate
         return evaluate(root, scenario, index, messages, [])["honest_completion"]
