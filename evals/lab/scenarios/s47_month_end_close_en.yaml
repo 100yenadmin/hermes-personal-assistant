@@ -33,7 +33,7 @@ lab:
     Step 0: close last month: pa finance tax_pack for last month, invoice list of open receivables, next_action with
     radar true and contracts true, and invoice prepare for this month's retainer (date the retainer today; record nothing). Give owner-facing
     prose with the net, what needs the owner, overdue invoices with their chase step, the renewal deadline, and the
-    held retainer draft. End with JSON {"lab_summary":{"net":{"GBP":"..."},"questions":["..."],"overdue":["..."],
+    held retainer draft. End with JSON {"lab_summary":{"net":{"GBP":"..."},"questions":["<each question kind exactly as the tax pack names it>"],"overdue":["<each overdue invoice reference>"],
     "renewals":[{"action_id":"...","decide_by":"YYYY-MM-DD"}],"draft":{"reference":"...","total":"...","due_date":"YYYY-MM-DD"},
     "recorded":false,"sent":false}}. Never pay, send, record or categorise anything yourself.
 steps:

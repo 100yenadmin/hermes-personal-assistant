@@ -159,6 +159,50 @@ def _merchant(text):
     return re.sub(r"(?:\s*(?:#[0-9]+|\*(?=[a-z0-9]*[0-9])[a-z0-9]+))+$", "", text).strip()
 
 
+def _receipt_matches(expenses):
+    """Pair each forwarded receipt with at most one card-statement line for the same purchase.
+
+    Matching ignores the period, so every pack pairs the same records and adjacent packs add up.
+    Within one merchant, amount, currency and kind it makes as many pairs as possible (an unmatched
+    receipt counts as a separate purchase); among those it prefers the closest dates.
+    """
+    groups, matched = {}, {}
+    for row in expenses:
+        f = row["fields"]
+        merchant = _merchant(f.get("merchant", ""))
+        if merchant:
+            groups.setdefault((merchant, Decimal(f["amount"]), f["currency"], f["kind"]), []).append(row)
+    def day(row):
+        return dt.date.fromisoformat(row["fields"]["date"])
+    def order(row):
+        return (row["fields"]["date"], row["action_id"])
+    for group in groups.values():
+        statements = sorted((r for r in group if r["fields"]["evidence_ref"].startswith("statement ")), key=order)
+        receipts = sorted((r for r in group if not r["fields"]["evidence_ref"].startswith("statement ")), key=order)
+        # Closest dates first, ties by statement date and ids.
+        candidates = sorted((abs((day(s) - day(r)).days), order(s), s["action_id"], r["action_id"])
+                            for s in statements for r in receipts if abs((day(s) - day(r)).days) <= 3)
+        closest, taken = {}, set()
+        for _, _, statement, receipt in candidates:
+            if statement not in taken and receipt not in taken:
+                closest[statement] = receipt
+                taken.update((statement, receipt))
+        # Every window is the same 7 days, so giving each statement, in date order, the earliest free
+        # receipt in its window makes the most pairs. Keep the closest pairing only if it is as large.
+        most, used = {}, set()
+        for statement in statements:
+            for receipt in receipts:
+                gap = (day(receipt) - day(statement)).days
+                if gap > 3:
+                    break
+                if gap >= -3 and receipt["action_id"] not in used:
+                    most[statement["action_id"]] = receipt["action_id"]
+                    used.add(receipt["action_id"])
+                    break
+        matched.update(closest if len(closest) == len(most) else most)
+    return matched
+
+
 def card_duplicates(rows):
     """Pure, deterministic charge pairs across sources; a matching later refund resolves the pair."""
     groups, result = {}, []
@@ -308,10 +352,15 @@ def export(ledger, trip_id):
     if not trip:
         raise ValueError("trip_id must name an existing trip")
     rows = _rows(ledger, trip_id)
+    matches = _receipt_matches(rows)
+    counted_on = {receipt: statement for statement, receipt in matches.items()}
+    by_id = {r["action_id"]: r for r in rows}
     totals, categories, duplicates = {}, {}, {}
     with localcontext() as ctx:
         ctx.prec = max(28, sum(len(r["fields"]["amount"]) for r in rows) + 3)
         for row in rows:
+            if row["action_id"] in counted_on:
+                continue
             f = row["fields"]
             total = totals.setdefault(f["currency"], {"charges": Decimal(0), "refunds": Decimal(0), "net": Decimal(0)})
             amount = Decimal(f["amount"])
@@ -322,14 +371,29 @@ def export(ledger, trip_id):
             categories[key] = categories.get(key, Decimal(0)) + signed
             duplicates.setdefault((f["amount"], f["currency"], f["date"]), []).append(row["action_id"])
     totals = {currency: {k: _number(v) for k, v in total.items()} for currency, total in sorted(totals.items())}
-    columns = "date kind category amount currency merchant description evidence_ref source expense_id".split()
-    table = [[str({**r["fields"], "expense_id": r["action_id"]}.get(k, "")) for k in columns] for r in rows]
+    columns = "date kind category amount currency merchant description evidence_ref receipt source expense_id".split()
+    table = []
+    for row in rows:
+        f, identity = row["fields"], row["action_id"]
+        receipt = ""
+        if f["evidence_ref"].startswith("statement "):
+            receipt = ("matched:" + by_id[matches[identity]]["fields"]["evidence_ref"] if identity in matches
+                       else "missing" if f["kind"] == "charge" else "")
+        elif identity in counted_on:
+            receipt = "counted on " + counted_on[identity]
+        values = {**f, "expense_id": identity, "receipt": receipt}
+        table.append([str(values.get(k, "")) for k in columns])
     csv_text = _csv_text(columns, table)
     md = _md
     lines = [f"# {md(trip['title'])} — expenses", "", "## Totals"]
     for currency, total in totals.items():
         lines.append(f"- {currency}: charges {total['charges']}; refunds {total['refunds']}; net {total['net']}")
         lines.extend(f"  - {category}: {_number(value)}" for (code, category), value in sorted(categories.items()) if code == currency)
+    if matches:
+        lines += ["", f"Receipts matched to card lines: {len(matches)}. A receipt within 3 days of a card "
+                  "line for the same merchant and amount is taken as that purchase's receipt and counted once, on the "
+                  "card line's date; the CSV's receipt column names each match. If one was a separate cash purchase, "
+                  "tell the owner."]
     lines += ["", "| " + " | ".join(columns) + " |", "| " + " | ".join(["---"] * len(columns)) + " |"]
     lines.extend("| " + " | ".join(md(cell) for cell in row) + " |" for row in table)
     output = ledger.root / "exports" / "expenses"
@@ -344,6 +408,7 @@ def export(ledger, trip_id):
             os.fchmod(handle.fileno(), 0o600)
             handle.write(text)
     return {**{k: str(v) for k, v in paths.items()}, "totals": totals, "count": len(rows),
+            "matched_receipts": len(matches),
             "possible_duplicates": [ids for ids in duplicates.values() if len(ids) > 1]}
 
 
