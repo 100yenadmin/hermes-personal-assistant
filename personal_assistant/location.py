@@ -42,9 +42,9 @@ def timezone_check(ledger, moment) -> dict | None:
             segments.append((seg, departure, arrival, origin, destination))
     if any(departure <= moment < arrival for _, departure, arrival, _, _ in segments):
         return None
-    # A diverted flight did not reach its planned destination, so it says nothing about where the owner is.
-    landed = max((s for s in segments if s[2] <= moment and s[0].get("status") != "diverted"),
-                 key=lambda s: s[2], default=None)
+    landed = max((s for s in segments if s[2] <= moment), key=lambda s: s[2], default=None)
+    if landed and landed[0].get("status") == "diverted":
+        landed = None  # It did not reach its planned destination, and the owner has left the earlier stop too.
     if landed and any(s is not landed and landed[2] <= s[1] <= landed[2] + dt.timedelta(hours=24)
                       and s[1] > moment and (s[0]["origin"] == landed[0]["destination"]
                       or s[3] == landed[4]) for s in segments):
