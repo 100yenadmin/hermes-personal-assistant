@@ -1,4 +1,5 @@
 """Owner memory in existing action records; never writes profile files."""
+import json
 import re
 import unicodedata
 
@@ -95,15 +96,57 @@ def _save(ledger, identity, kind, fields):
     return ledger.put("action", identity, fields, action_type=kind, status=fields["state"], remove=remove)
 
 
+def _safe_names(unknown):
+    """Unknown key names that are safe to echo: short identifiers, no 4-digit runs, nothing private."""
+    return sorted(key for key in unknown if re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key)
+                  and not re.search(r"\d{4}", key) and not _private([key]))[:5]
+
+
+def _unknown_keys(action, unknown):
+    """The host passes unknown keys through to PA (#258); every action but remember refuses them, briefly."""
+    named = _safe_names(unknown)
+    message = f"profile {action} does not accept " + (", ".join(named) if named else "these keys")
+    if len(unknown) > len(named) and named:
+        message += f"; plus {len(unknown) - len(named)} other keys"
+    if action == "list":
+        message += "; list filters are kind, category, state and name"
+    return message[:300]
+
+
+def _shape_hint(kind, allowed, unknown):
+    """Keep corrective hints bounded and value-free, with a complete valid example."""
+    examples = {
+        "preference": {"text": "Prefers aisle seats", "category": "travel", "source": "said", "evidence": "Owner said so"},
+        "person": {"name": "Alex", "rules": ["Formal greeting"], "source": "said"},
+        "sop": {"title": "Weekly prep", "trigger": "Monday", "steps": ["Review tasks"], "tools": [],
+                "done_when": "Tasks reviewed", "escalation": "Ask owner"},
+        "trust": {"task_type": "Weekly prep"},
+    }
+    head = f"remember {kind} takes flat data: " + ", ".join(sorted(allowed))
+    named = _safe_names(unknown)
+    extra = "; not accepted: " + ", ".join(named) if named else ""
+    tail = ""
+    if len(unknown) > len(named):
+        tail += f"; plus {len(unknown) - len(named)} other keys not accepted"
+    if "fields" in unknown:
+        tail += "; fields is for action_upsert, send these keys at the top level of data"
+    tail += ". Example: " + json.dumps({"action": "remember", "kind": kind, **examples[kind]}, separators=(",", ":"))
+    budget = 600 - len(head) - len(tail)
+    if len(extra) > budget:
+        extra = extra[:max(budget - 1, 0)] + "…"
+    return (head + extra + tail)[:600]
+
+
 def remember(ledger, data):
     if clean(data) != data or _private(data):
         raise ValueError("profile records prohibit credentials, card/account/passport numbers and raw message bodies")
     kind = data.get("kind")
-    if kind not in KINDS:
-        raise ValueError("profile kind must be preference, person, sop or trust")
+    if not isinstance(kind, str) or kind not in KINDS:
+        raise ValueError("profile kind must be preference, person, sop or trust; accepted kinds: " + ", ".join(sorted(KINDS)))
     allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "filed_text", "since"} | {"kind", "slug", "change"}
-    if set(data) - allowed:
-        raise ValueError("unsupported profile fields (raw message bodies and credentials are prohibited)")
+    unknown = set(data) - allowed
+    if unknown:
+        raise ValueError(_shape_hint(kind, allowed, unknown))
     if data.get("state") == "filed":
         raise ValueError("filed is set only by mark_filed after a reviewed write")
     label = data.get({"preference": "text", "person": "name", "sop": "title", "trust": "task_type"}[kind])
@@ -205,6 +248,10 @@ def dispatch(ledger, data):
     action = data.pop("action", "list")
     if action == "remember":
         return remember(ledger, data)
+    unknown = set(data) - set(SCHEMA["properties"])
+    if unknown and action in {"list", "pending_files", "confirm", "forget", "mark_filed"}:
+        # A misspelled list filter would otherwise be ignored and list every record (review of #266).
+        raise ValueError(_unknown_keys(action, unknown))
     if action in {"list", "pending_files"}:
         rows = sorted(_rows(ledger), key=lambda r: (r["fields"].get("source") == "corrected", r["updated_at"]), reverse=True)
         if action == "list" and not data.get("state"):
