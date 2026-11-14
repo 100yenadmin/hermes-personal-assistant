@@ -20,11 +20,12 @@ def preferences(ledger, changes=None):
                    "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time", "eod_time"}
         if set(changes) - allowed:
             raise ValueError("unknown preference")
-        for key in ("timezone", "home_timezone"):
-            if key in changes:
-                ZoneInfo(changes[key])
-        if "timezone_kept" in changes and (not isinstance(changes["timezone_kept"], str)
-                                          or not 1 <= len(changes["timezone_kept"]) <= 120):
+        if "timezone" in changes:
+            ZoneInfo(changes["timezone"])
+        if changes.get("home_timezone") is not None:  # None clears it.
+            ZoneInfo(changes["home_timezone"])
+        if changes.get("timezone_kept") is not None and (not isinstance(changes["timezone_kept"], str)
+                                                         or not 1 <= len(changes["timezone_kept"]) <= 120):
             raise ValueError("timezone_kept must be a string from 1 to 120 characters")
         for key in ("brief_time", "cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
             if key in changes:

@@ -40,10 +40,10 @@ set `completed` or `cancelled` only when it should leave the radar for good.
 ## Timezone check
 
 `timezone_check` means PA's timezone may be stale; `evidence` names a landed or departing flight, or home.
-When `switch` is true (a flight landed in the last 48 hours), switch and tell the owner in the same message, naming the flight and both zones; explain how to undo: "say 'keep Seoul time'" (use the old zone's name).
+When `switch` is true (a flight landed in the last 48 hours), switch and tell the owner in the same message, naming the flight and both zones; when `stored` is set, explain how to undo: "say 'keep Seoul time'" (use the old zone's name).
 Otherwise ask once in the owner's language before switching.
 Write `pa(operation="automations", data={"action":"preferences","changes":{"timezone":"<suggested>"}})`, then read back with `{"action":"status"}`.
-If the owner says keep, write `{"timezone_kept":"<evidence_key>"}` the same way so this evidence does not ask again.
+If the owner says keep before a switch, write `{"timezone_kept":"<evidence_key>"}` the same way so this evidence does not ask again. If they undo after a switch, write `{"timezone":"<stored>","timezone_kept":"<evidence_key>"}` and read back.
 If the owner names their home timezone, save `home_timezone` the same way.
 Routines follow the preference unless pinned. Existing Hermes cron jobs keep their creation zone; if the owner has them, say their times did not move.
 

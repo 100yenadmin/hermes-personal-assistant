@@ -213,7 +213,7 @@ def test_preferences_accept_new_fields_without_changing_schedule(ledger):
     assert preferences(ledger) == result
 
 
-@pytest.mark.parametrize("value", ["", "x" * 121, None, 123, []])
+@pytest.mark.parametrize("value", ["", "x" * 121, 123, []])
 def test_preferences_reject_invalid_kept_key_atomically(ledger, value):
     with pytest.raises(ValueError, match="timezone_kept"):
         preferences(ledger, {"home_timezone": "Asia/Bangkok", "timezone_kept": value})
@@ -248,3 +248,35 @@ def test_departing_and_home_evidence_never_switch_without_asking(ledger):
                             origin="CNX", destination="DMK", origin_timezone="Asia/Bangkok", status="scheduled"))
     item = timezone_check(ledger, MOMENT)
     assert item["evidence"]["kind"] == "departing" and item["switch"] is False
+
+
+def test_preferences_clear_home_and_kept_with_none(ledger):
+    preferences(ledger, {"timezone": "Asia/Seoul", "home_timezone": "Asia/Bangkok", "timezone_kept": "home:Asia/Bangkok"})
+    assert timezone_check(ledger, MOMENT) is None
+    preferences(ledger, {"timezone_kept": None})
+    assert timezone_check(ledger, MOMENT)["evidence_key"] == "home:Asia/Bangkok"
+    preferences(ledger, {"home_timezone": None})
+    assert timezone_check(ledger, MOMENT) is None
+
+
+def test_delay_without_new_arrival_moves_the_arrival(ledger):
+    # ICN->HKG landed 2 h ago; HKG->CNX is delayed past its scheduled arrival with no estimated arrival.
+    preferences(ledger, {"timezone": "Asia/Seoul"})
+    _facts(ledger,
+           _segment(segment_id="KE1:2026-11-14", carrier="KE", number="1", destination="HKG",
+                    destination_timezone="Asia/Hong_Kong", scheduled_departure="2026-11-14T06:30:00Z",
+                    scheduled_arrival="2026-11-14T10:00:00Z"),
+           _segment(segment_id="CX9:2026-11-14", carrier="CX", number="9", origin="HKG", origin_timezone="Asia/Hong_Kong",
+                    scheduled_departure="2026-11-14T11:00:00Z", scheduled_arrival="2026-11-14T13:00:00Z",
+                    estimated_departure="2026-11-14T14:00:00Z", status="delayed"))
+    assert timezone_check(ledger, MOMENT) is None  # Between legs at the hub.
+    assert timezone_check(ledger, MOMENT + dt.timedelta(hours=3)) is None  # In the air on the delayed leg.
+    item = timezone_check(ledger, MOMENT + dt.timedelta(hours=5))
+    assert item["evidence"]["segment_id"] == "CX9:2026-11-14" and item["suggested"] == "Asia/Bangkok"
+    assert item["evidence"]["at"] == "2026-11-14T23:00:00+07:00"  # 13:00Z scheduled + 3 h delay
+
+
+def test_diverted_flight_is_not_landed_evidence(ledger):
+    preferences(ledger, {"timezone": "Asia/Seoul"})
+    _facts(ledger, _segment(status="diverted"))
+    assert timezone_check(ledger, MOMENT) is None
