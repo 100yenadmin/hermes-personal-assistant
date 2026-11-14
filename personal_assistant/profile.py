@@ -96,6 +96,23 @@ def _save(ledger, identity, kind, fields):
     return ledger.put("action", identity, fields, action_type=kind, status=fields["state"], remove=remove)
 
 
+def _safe_names(unknown):
+    """Unknown key names that are safe to echo: short identifiers, no 4-digit runs, nothing private."""
+    return sorted(key for key in unknown if re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key)
+                  and not re.search(r"\d{4}", key) and not _private([key]))[:5]
+
+
+def _unknown_keys(action, unknown):
+    """The host passes unknown keys through to PA (#258); every action but remember refuses them, briefly."""
+    named = _safe_names(unknown)
+    message = f"profile {action} does not accept " + (", ".join(named) if named else "these keys")
+    if len(unknown) > len(named) and named:
+        message += f"; plus {len(unknown) - len(named)} other keys"
+    if action == "list":
+        message += "; list filters are kind, category, state and name"
+    return message[:300]
+
+
 def _shape_hint(kind, allowed, unknown):
     """Keep corrective hints bounded and value-free, with a complete valid example."""
     examples = {
@@ -106,7 +123,7 @@ def _shape_hint(kind, allowed, unknown):
         "trust": {"task_type": "Weekly prep"},
     }
     head = f"remember {kind} takes flat data: " + ", ".join(sorted(allowed))
-    named = sorted(key for key in unknown if re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key) and not re.search(r"\d{4}", key) and not _private([key]))[:5]
+    named = _safe_names(unknown)
     extra = "; not accepted: " + ", ".join(named) if named else ""
     tail = ""
     if len(unknown) > len(named):
@@ -231,6 +248,10 @@ def dispatch(ledger, data):
     action = data.pop("action", "list")
     if action == "remember":
         return remember(ledger, data)
+    unknown = set(data) - set(SCHEMA["properties"])
+    if unknown and action in {"list", "pending_files", "confirm", "forget", "mark_filed"}:
+        # A misspelled list filter would otherwise be ignored and list every record (review of #266).
+        raise ValueError(_unknown_keys(action, unknown))
     if action in {"list", "pending_files"}:
         rows = sorted(_rows(ledger), key=lambda r: (r["fields"].get("source") == "corrected", r["updated_at"]), reverse=True)
         if action == "list" and not data.get("state"):

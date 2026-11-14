@@ -99,6 +99,32 @@ def test_unknown_key_names_are_filtered_and_counted(tmp_path, overflow):
     assert Ledger(tmp_path).list("action") == []
 
 
+@pytest.mark.parametrize("action", ["list", "pending_files", "forget"])
+def test_other_actions_refuse_unknown_keys_without_echoing_private_ones(tmp_path, action):
+    # Review of #266: the host no longer rejects unknown keys, so a misspelled list filter must not list everything.
+    dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference",
+                                                         "text": "Prefers aisle seats", "category": "travel",
+                                                         "source": "said", "evidence": "Owner said so"}})
+    data = {"action": action, "categroy": "travel", "4111 1111 1111 1111": "x"}
+    if action == "forget":
+        data["identity"] = "missing"
+    with pytest.raises(ValueError) as exc:
+        dispatch(tmp_path, {"operation": "profile", "data": data})
+    message = str(exc.value)
+    assert "categroy" in message and "4111" not in message and "plus 1 other keys" in message and len(message) <= 300
+    if action == "list":
+        assert "list filters are kind, category, state and name" in message
+
+
+def test_list_with_valid_filters_still_lists(tmp_path):
+    dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference",
+                                                         "text": "Prefers aisle seats", "category": "travel",
+                                                         "source": "said", "evidence": "Owner said so"}})
+    rows = dispatch(tmp_path, {"operation": "profile", "data": {"action": "list", "category": "travel"}})
+    assert [r["text"] for r in rows] == ["Prefers aisle seats"]
+    assert dispatch(tmp_path, {"operation": "profile", "data": {"action": "list", "category": "food"}}) == []
+
+
 def test_shape_hint_caps_fixed_text_that_exceeds_budget():
     allowed = {f"allowed_{i}_" + "x" * 40 for i in range(20)}
     assert len(_shape_hint("preference", allowed, {"fields"})) <= 600
