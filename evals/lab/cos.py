@@ -70,6 +70,7 @@ def variables(timezone, moment=None, hour=12, day=0):
         next_weekday += dt.timedelta(days=1)
     values = {"now": current.isoformat(), "today": current.date().isoformat(),
             "next_weekday": next_weekday.date().isoformat(),
+            "last_year": str(current.year - 1), "this_year": str(current.year),
             "tomorrow": (current.date() + dt.timedelta(days=1)).isoformat(),
             "yesterday": (current.date() - dt.timedelta(days=1)).isoformat(),
             "last_week_date": past.date().isoformat(), "last_week_at": past.isoformat(),

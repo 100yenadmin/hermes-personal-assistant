@@ -76,7 +76,9 @@ loop. Steps fall on owner-local calendar days counted from `opened_at` (the
 profile timezone in `pa:preferences`): `day2`, `day5`, `day10`, then `escalate`
 from day 11. When several steps are overdue, only the latest one is due.
 Recording `last_chased_at` completes every chase step due by that local date,
-and a `chase_log` entry completes the step it names. A `chase_at` moves the next
+and a `chase_log` entry completes the step it names. An owner's time before the
+loop opens is an extra chase: record step `owner_time`; day 2 stays.
+On or after the opening date, a `chase_at` moves the next
 chase to the owner's exact time, earlier or later than the ladder; a chase at or
 after it completes the steps it replaced. Escalation never comes earlier; when
 the owner's time is after it, it comes a day after the owner's chase.

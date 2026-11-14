@@ -498,7 +498,7 @@ def test_owner_chase_time_before_minutes_synthetic_opening(home):
     with ledger.connect() as conn:
         conn.execute("update actions set created_at=? where action_id=?", ("2026-11-13T00:00:00+09:00", identity))
     assert ledger.get("action", identity)["fields"]["opened_at"] == "2026-11-28"
-    for hour, step in ((8, "none"), (10, "day2")):
+    for hour, step in ((8, "none"), (10, "owner_time")):  # #233: an extra chase; day 2 stays on the due date
         chase = _chase(home, identity, f"2026-11-20T{hour:02}:00:00+09:00")
         assert (chase["step"], chase["next_chase_at"]) == (step, "2026-11-20T09:00:00+09:00")
 
