@@ -1,6 +1,6 @@
 ---
 name: finance-admin
-description: Record invoices and bills with evidence, draft polite overdue reminders, and track pay-by deadlines without making payments.
+description: Prepare and record invoices and bills with evidence, draft polite overdue reminders, and track pay-by deadlines without making payments.
 metadata:
   openclaw:
     skillKey: finance-admin
@@ -11,8 +11,8 @@ metadata:
 
 # Finance admin
 
-When the owner forwards or mentions an invoice or bill, use `pa` operation
-`invoice`, action `record`, with direction `receivable` or `payable`, counterparty,
+To bill a client, see "Preparing an invoice" below. When the owner forwards or mentions
+an invoice or bill they already have, use `pa` operation `invoice`, action `record`, with direction `receivable` or `payable`, counterparty,
 reference, amount, currency, issue_date, due_date, category and evidence_ref.
 Ask for missing facts; never invent money facts or evidence. Describe the evidence by sender, date and
 subject, not a raw message id. Add description,
@@ -43,6 +43,28 @@ with trip_id for the expense report.
 
 Never store card or account details in any field, not even a card's last four
 digits or a masked number; keep only a safe reference to the source.
+
+## Preparing an invoice
+
+When the owner asks PA to invoice a client:
+1. Gather the billable lines from the owner's words, minutes or time notes: description,
+   quantity (hours or units) and unit price. Ask for a missing rate or quantity; never guess one.
+2. Use `pa` operation `invoice`, action `prepare`, with counterparty, currency, issue_date and
+   lines (quantity and unit_price as strings), plus the owner's terms as `terms_days`, or a `due_date`.
+   Add `tax` (`label`, `rate_percent`) only with the rate the owner gives. Without a `reference`, PA takes
+   the next number in the owner's series. If `reference_source` is `none`, ask for the owner's numbering,
+   then run `prepare` again with that `reference`. If the number carries a year and the year has changed,
+   confirm the number with the owner. When several drafts wait for the yes together, give each later
+   draft its `reference` explicitly, continuing from the one before. `prepare` writes nothing.
+3. Show the draft exactly as returned: number, client, each line with its amount, subtotal, tax,
+   total and due date, and any warning (a number already used, a possible duplicate, a draft
+   `record` would reject). Payment details come from the owner's own template; never type bank or account numbers.
+4. Hold it for the owner's yes. To send it, use the governed send path in
+   `personal-assistant:follow-through` with the exact recipient and text.
+5. Record it only once it has gone out: after PA sends it on the owner's yes, or when the owner says they
+   sent it. Use `record_args` from `prepare`, with `evidence_ref` saying where and when it was sent.
+   The chase ladder then follows it. An approved draft that has not been sent is not recorded.
+   Never change an amount by hand; run `prepare` again instead.
 
 ## Cash position and monthly summary
 
