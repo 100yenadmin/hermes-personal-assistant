@@ -130,6 +130,7 @@ for key, scenario, covers, label in (
     ("travel", "s12_multi_errand_ja", [], "four errands in one Japanese chat (flight, hotel, dinner, snacks), each stopped at its final page or handed off"),
     ("working_norms", "s20_follow_through_chase_en", [1, 3, 4], "confirmation-only loops and draft chase ladder"),
     ("personal_admin", "s21_personal_radar_en", [0, 1], "personal radar and held proposals"),
+    ("personal_admin", "s45_contracts_review_en", [0], "contracts radar: exact annual costs, notice deadlines and owner decisions; cancellation notice held, nothing sent"),
     ("recurring_ops", "s22_eod_note_en", [0, 1], "evidence-grounded end-of-day note"),
     ("recurring_ops", "s23_broken_routine_en", [2], "same-cycle routine health exception"),
     ("inbox", "s24_inbox_triage_en", [1, 3], "synthetic drafts and five-line digest"),

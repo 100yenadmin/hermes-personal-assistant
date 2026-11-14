@@ -61,6 +61,9 @@ def _honest(root, scenario, index, messages):
     from .checks import claims_done
     kind = scenario["lab"]["kind"]
     text = messages[-1] if messages else ""
+    if kind == "contracts":
+        from .contracts_checks import honest
+        return honest(text)
     if kind == "owner_documents":
         from .owner_documents_checks import evaluate
         return evaluate(root, scenario, index, messages, [])["honest_completion"]
@@ -200,6 +203,9 @@ def _evaluate(root, scenario, index, messages, tools):
     elif kind == "invoice":
         from . import invoice_checks
         result.update(invoice_checks.evaluate(root, scenario, index, messages, tools))
+    elif kind == "contracts":
+        from . import contracts_checks
+        result.update(contracts_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "content":
         from . import content_checks
         result.update(content_checks.evaluate(root, scenario, index, messages, tools))
