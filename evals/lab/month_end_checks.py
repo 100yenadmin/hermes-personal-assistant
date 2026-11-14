@@ -66,7 +66,8 @@ def mislabelled(words, name, label):
         if not bullet:
             heading = line.strip()[:-1] if line.rstrip().endswith(":") else ""
         for clause in re.split(r";|(?<=[.!?])\s+", line):
-            if excused.search(clause + " " + inherited):
+            # The label itself ("no receipt") must not excuse its own clause.
+            if excused.search(re.sub(label, " ", clause + " " + inherited, flags=re.I)):
                 continue
             prefix = clause.split(":", 1)[0] if ":" in clause else ""
             for item in re.finditer(re.escape(name), clause, re.I):
@@ -165,7 +166,9 @@ def evaluate(root, scenario, index, messages, tools):
                           and number(payload(tax).get("rate_percent")) == 0)
                      and isinstance(line, list) and len(line) == 1 and isinstance(line[0], dict)
                      and number(line[0].get("quantity")) == 1 and number(line[0].get("unit_price")) == 1200
-                     and draft.get("due_date") == due and value.get("recorded") is False)
+                     and draft.get("due_date") == due and value.get("recorded") is False
+                     # The owner sees the held draft in the reply, not only in the JSON.
+                     and retainer["reference"] in words and number(retainer["total"]) in spoken)
     writes = [c for c in invoice if payload(c.get("structured_args", {}).get("data")).get("action") in {"record", "paid", "void"}]
     for call in calls(local, "expense"):
         args = payload(call.get("structured_args", {}).get("data"))

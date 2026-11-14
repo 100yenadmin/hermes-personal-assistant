@@ -388,3 +388,15 @@ def test_expected_schema_is_validated(run, key, value):
     parent[parts[-1]] = value
     with pytest.raises(ValueError, match="lab.expected." + key):
         validate(run.s)
+
+
+@pytest.mark.parametrize("claim", ["Birch Demo Software has no receipt.",
+                                   "Birch Demo Software has no receipt; please forward it."])
+def test_no_receipt_claim_about_the_matched_purchase_fails(run, claim):
+    run.words += "\n" + claim
+    assert evaluated(run)["questions_named"] is False
+
+
+def test_the_retainer_draft_must_appear_in_the_reply(run):
+    run.words = run.words.replace("INV-2026-033", "the retainer")
+    assert evaluated(run)["draft_prepared"] is False
