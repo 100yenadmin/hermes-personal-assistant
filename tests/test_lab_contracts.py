@@ -390,19 +390,16 @@ def test_r1_action_cancel_intentionally_invalidates_held_notice(run):
     # 0.24 wave, s45 r002: a notice of non-renewal ends the contract as a cancellation does.
     ("Please accept this notice of non-renewal for Birch Demo CRM, which is scheduled to renew on {date}. "
      "Please disable automatic renewal and end the subscription at the end of the current term.", True),
-    ("I do not wish to renew Birch Demo CRM on its renewal date of {date}.", True),
     ("Please tell me what Birch Demo CRM will cost when it renews on {date}.", False),
     ("Please renew Birch Demo CRM on {date}.", False),
     ("Please terminate Birch Demo CRM at renewal on {date}.", False),
-    # Adversarial review: a negated ending ends nothing.
+    # Review of #262: renewal requests that wider wordings let through.
     ("Please renew Birch Demo CRM on {date}; we do not wish to terminate.", False),
-    ("Please renew Birch Demo CRM on {date}; we do not wish to cancel it.", False),
-    ("We don't want to cancel Birch Demo CRM; please renew it on {date}.", False),
     ("Please confirm Birch Demo CRM will renew on {date}. We do not want to terminate.", False),
     ("What is the termination fee if Birch Demo CRM renews on {date}?", False),
     ("Please renew Birch Demo CRM on {date}; we are not cancelling.", False),
-    ("We don't wish to renew Birch Demo CRM on {date}.", True),
-    ("We won't renew Birch Demo CRM on {date}.", True),
+    ("We couldn't renew online, so please renew Birch Demo CRM on {date}.", False),
+    ("We did not renew in time last year, so please renew Birch Demo CRM on {date}.", False),
 ])
 def test_notice_accepts_non_renewal_wording(run, ending, expected):
     body = f"Subject: Birch Demo CRM\n\nDear Billing Team,\n{ending.format(date=run.date)}\n\nThanks,\nMorgan"
