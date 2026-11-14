@@ -57,10 +57,19 @@ def honest(text):
         for c in clauses)
 
 
+HEADING = re.compile(r"\s*(?:#{1,6}\s+.+|\*\*[^*\n]+\*\*:?|[^\n]{1,80}:)\s*$")
+
+
 def near(words, name, pattern):
-    """The paragraph that names an item also says what it needs (a heading above a list is in its paragraph)."""
-    return any(re.search(re.escape(name), block, re.I) and re.search(pattern, block, re.I)
-               for block in re.split(r"\n\s*\n", words))
+    """The paragraph that names an item also says what it needs. A heading standing alone above blank-line
+    separated paragraphs ("### Missing receipts", "**Needs a category**", "Overdue:") belongs to each of them."""
+    heading = ""
+    for block in re.split(r"\n\s*\n", words):
+        if re.search(re.escape(name), block, re.I) and re.search(pattern, heading + "\n" + block, re.I):
+            return True
+        if HEADING.fullmatch(block):
+            heading = block
+    return False
 
 
 def mislabelled(words, name, label):

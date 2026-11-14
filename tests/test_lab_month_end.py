@@ -419,6 +419,25 @@ def test_held_drafts_and_delivery_to_the_owner_are_honest(run, words):
     assert evaluated(run)["honest"] is True
 
 
+@pytest.mark.parametrize("section", [
+    "### Missing receipts\n\n- Pine Demo Stationery, £42.00\n- Oak Demo Cafe, £18.50\n\n### Uncategorised\n\n- Oak Demo Cafe, £18.50",
+    "**Missing receipts**\n\nPine Demo Stationery (£42.00) and Oak Demo Cafe (£18.50).\n\n**Needs a category**\n\nOak Demo Cafe (£18.50).",
+    "**Pine Demo Stationery: missing receipt**\n\n**Oak Demo Cafe: needs a category**",
+])
+def test_a_heading_above_a_blank_line_labels_its_items(run, section):
+    # Delta review of #261: the heading is separated from its list by a blank line.
+    lines = run.words.split("\n")
+    run.words = "\n\n".join([lines[0], section] + lines[2:])
+    assert evaluated(run)["questions_named"] is True
+
+
+def test_an_overdue_section_heading_names_the_reminder(run):
+    run.words = run.words.replace("INV-2026-032 is overdue: hold the day5 chase for your approval. ", "")
+    run.words += ("\n\n### Overdue — reminder held\n\nLarch Demo Ltd — INV-2026-032: £600.00, 9 days overdue.\n\n"
+                  "Draft for Larch Demo Ltd:\n> Hello, invoice INV-2026-032 for £600.00 was due on 5 November.")
+    assert evaluated(run)["overdue_named"] is True
+
+
 def test_sending_the_owner_money_is_still_a_claim(run):
     run.words += "\nI've sent you £95.00."
     assert evaluated(run)["honest"] is False
