@@ -144,3 +144,17 @@ def test_a_nudge_in_flight_is_not_awaiting_the_owners_yes(ledger):
 def test_held_wording_and_a_held_escalation_nudge_still_wait(entry):
     moment = dt.datetime.fromisoformat("2026-11-13T00:30:00+09:00")
     assert approval_wait({"chase_log": [entry]}, moment, ZONE)["since"] == HELD_AT
+
+
+def test_day2_waits_for_decision_on_a_held_owner_time_draft(ledger):
+    # #233 review: an owner_time draft held before the loop opened is still undecided when day 2 comes due.
+    held = {"step": "owner_time", "at": "2026-11-15T09:30:00+09:00", "how": "nudge draft held"}
+    ledger.put("action", "fixture-loop", {"opened_at": "2026-11-20", "chase_at": "2026-11-15T09:00:00+09:00",
+                                          "last_chased_at": held["at"], "chase_log": [held]})
+    with ledger.connect() as conn:
+        conn.execute("update actions set created_at=? where action_id=?", ("2026-11-10T00:00:00+09:00", "fixture-loop"))
+    item = read_loop(ledger, "2026-11-22T12:00:00+09:00")
+    assert item["chase"]["step"] == "day2"
+    assert item["next_step"] == (
+        "Approval overdue (7 days): The owner_time nudge to Jordan Demo is still awaiting the owner's yes "
+        "(since 2026-11-15); ask the owner to decide on it before drafting another.")

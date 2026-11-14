@@ -251,7 +251,7 @@ def validate(s):
                 if seeded[ref]["direction"] == "payable":
                     require(expected == {"payable": True}, f"lab.invoices.{ref}")
                 else:
-                    require(expected.get("chase") in ("none", "day2", "day5", "day10", "escalate")
+                    require(expected.get("chase") in ("none", "owner_time", "day2", "day5", "day10", "escalate")
                             and set(expected) <= {"chase", "courtesy"}, f"lab.invoices.{ref}")
             require(sum(v.get("chase") == "escalate" for v in oracle.values()) == 1, "lab.invoices.escalate")
             require(isinstance(remittance, dict) and remittance.get("reference") in seeded
