@@ -342,8 +342,8 @@ def test_retainer_rejects_other_issue_days_and_mismatched_due_dates(run, change)
 def test_month_end_contract_and_monthly_skill_text(run):
     assert "date the retainer today" in run.s["lab"]["output_contract"]
     skill = (Path(__file__).resolve().parents[1] / "skills/finance-admin/SKILL.md").read_text()
-    assert ("On the first working day of a month, run the month-end close below. Action `monthly`, with month as YYYY-MM and\n"
-            "optionally export: true, gives that month's summary as CSV and Markdown.") in skill
+    assert ("On the first working day, run the month-end close below for the previous month. Action `monthly`\n"
+            "(month as YYYY-MM, optional export: true) gives a month's CSV and Markdown.") in skill
 
 
 @pytest.mark.parametrize("date", ["29 November", "Sunday, 29 Nov"])

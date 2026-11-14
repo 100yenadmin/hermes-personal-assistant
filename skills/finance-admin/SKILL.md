@@ -74,25 +74,25 @@ with evidence. Never claim a bank balance PA did not get from the owner.
 Include action `cash_position` on Fridays inside the owner's existing brief,
 or on request. Ask for a fresh balance when one is stale or missing.
 A projection is a projection; label it that way. For an account that holds several currencies, put the currency in the label ("Wise USD") so two balances on one date never replace each other.
-On the first working day of a month, run the month-end close below. Action `monthly`, with month as YYYY-MM and
-optionally export: true, gives that month's summary as CSV and Markdown.
+On the first working day, run the month-end close below for the previous month. Action `monthly`
+(month as YYYY-MM, optional export: true) gives a month's CSV and Markdown.
 
 ## Month-end close
 
-On the owner's first working day of a month (inside the existing brief), or when the owner asks to close a month:
+On the owner's first working day of a month (in the brief), or when asked to close a month:
 1. Read the month just ended with `pa` operation `finance`, action `tax_pack`, with `period_start` and
    `period_end` its first and last days (`export: true` only if the owner wants files). Report per currency
    the income, bills paid, expenses and net exactly as read. Never convert currencies.
 2. Name what needs the owner from the pack's `questions`: receipts missing, spending to categorise,
    possible duplicates and invoices unpaid at the month's end, each with its one next step
-   (forward the receipt, pick a category, check the two dates).
+   (forward the receipt, pick a category, check the dates).
 3. Use `invoice` action `list` with direction `receivable` and status `open`: name each overdue invoice with
    its chase step, and draft the chases due today, held as in `personal-assistant:follow-through`.
 4. Read `next_action` with `radar: true, contracts: true`: name each surfaced contract renewal with its last day
    to give notice and the keep / cancel / renegotiate decision.
 5. If the owner's notes list recurring invoices (client, lines, terms), prepare each one for the new month
    as in "Preparing an invoice", numbered in sequence, and hold them for the yes.
-6. Give one month-end note: the numbers, the decisions with their deadlines, and the drafts waiting for a yes.
+6. Give one month-end note: the numbers, the decisions with deadlines, and the drafts awaiting a yes.
    Never send, record, pay or categorise anything on PA's own.
 
 ## Card statements
