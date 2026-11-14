@@ -26,9 +26,9 @@ def offline(monkeypatch):
 
 def test_catalog_and_plan():
     catalog = load_catalog()
-    assert len(catalog) == 47
+    assert len(catalog) == 48
     jobs = runner.plan(catalog, runs=3)
-    assert len(jobs) == 141 and len({j["run_id"] for j in jobs}) == 141
+    assert len(jobs) == 144 and len({j["run_id"] for j in jobs}) == 144
     args = SimpleNamespace(scenarios=__import__('evals.lab.scenario', fromlist=['CATALOG']).CATALOG, scenario='all', runs=3, workers=2, dry_run=True)
     assert runner.wave(args) == {'workers': 2, 'jobs': jobs}
     assert jobs[0]['run_id'] == 's01_seoul_tokyo_en__r001'
@@ -1379,3 +1379,20 @@ def test_claim_evidence_never_lends_a_sign_to_the_number_before_it(claim):
     rows = judge.claim_evidence([{'role': 'assistant', 'step': 0, 'content': 'Item A ' + claim}],
                                 [{'step': 0, 'name': 'browser_snapshot', 'result': page}])
     assert rows[0]['seen'] is None
+
+
+@pytest.mark.parametrize("date,last_month,end", [("2027-01-14", "2026-12", "31"),
+    ("2026-03-14", "2026-02", "28"), ("2028-03-14", "2028-02", "29")])
+def test_previous_calendar_month_tokens_and_day_clamping(date, last_month, end):
+    import datetime as dt
+    from evals.lab import cos
+    values = cos.variables("Europe/London", dt.datetime.fromisoformat(date + "T10:00:00+00:00"))
+    assert values["last_month"] == last_month and values["this_month"] == date[:7]
+    assert values["last_month_start"] == last_month + "-01" and values["last_month_end"] == last_month + "-" + end
+    assert cos.expand("@last_month_day_1@ @last_month_day_31@", values) == last_month + "-01 " + last_month + "-" + end
+    assert cos.expand({"period": ["@last_month_start@", "@last_month_end@"]}, values) == {"period": [last_month + "-01", last_month + "-" + end]}
+    # Existing fixed and relative tokens still use today's owner-local date.
+    assert cos.expand("@today@ @days_ago_9@ @in_45_days@ @in_1_months@ @this_year@", values) == " ".join([
+        date, (dt.date.fromisoformat(date) - dt.timedelta(days=9)).isoformat(),
+        (dt.date.fromisoformat(date) + dt.timedelta(days=45)).isoformat(),
+        date[:5] + f"{int(date[5:7]) + 1:02d}" + date[7:], date[:4]])

@@ -1,0 +1,45 @@
+id: s47_month_end_close_en
+language: en
+area: finance
+capabilities: [finance]
+timezone: Europe/London
+persona:
+  name: Quinn Demo
+  email: quinn@example.invalid
+  phone: +1-202-555-0157
+  home_city: London
+  notes: Synthetic agency owner; all fictional.
+user_md: >-
+  I am Quinn Demo and run a small agency. Owner zone Europe/London. I approve every invoice, email and
+  payment before it goes. Never pay, send, record or sign anything yourself. Monthly billing: every month I invoice
+  Cedar Demo Co a design retainer of 1 x £1,200.00 ('Monthly design retainer'), 14-day terms, no VAT.
+max_user_turns: 1
+budget_seconds: 900
+seed:
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Cedar Demo Co, reference: INV-2026-031, amount: '1200.00', currency: GBP, category: services, issue_date: '@last_month_day_1@', due_date: '@last_month_day_15@', evidence_ref: Synthetic invoice INV-2026-031}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:receivable:e2e6e6712f1589d92548b3d2b84b344006ac0f497457ca0f62b8e06aa5a31e73', paid_on: '@last_month_day_12@', evidence: Synthetic remittance INV-2026-031}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Larch Demo Ltd, reference: INV-2026-032, amount: '600.00', currency: GBP, category: services, issue_date: '@days_ago_30@', due_date: '@days_ago_9@', evidence_ref: Synthetic invoice INV-2026-032}}
+- {operation: invoice, data: {action: record, direction: payable, counterparty: Oak Demo Hosting, reference: OAK-551, amount: '95.00', currency: GBP, category: services, issue_date: '@last_month_day_2@', due_date: '@last_month_day_10@', evidence_ref: Synthetic bill OAK-551}}
+- {operation: invoice, data: {action: paid, invoice_id: 'invoice:payable:572637f1ad49373c406f72c5b196d7c7a2a859b90f12033f1faa7224288cdc39', paid_on: '@last_month_day_9@', evidence: Synthetic remittance OAK-551}}
+- {operation: expense, data: {action: record, merchant: Pine Demo Stationery, amount: '42.00', currency: GBP, category: shopping, kind: charge, date: '@last_month_day_4@', evidence_ref: statement imports/statements/card-@last_month@.csv line 3}}
+- {operation: expense, data: {action: record, merchant: Oak Demo Cafe, amount: '18.50', currency: GBP, category: other, kind: charge, date: '@last_month_day_5@', evidence_ref: statement imports/statements/card-@last_month@.csv line 4}}
+- {operation: expense, data: {action: record, merchant: Birch Demo Software, amount: '49.00', currency: GBP, category: services, kind: charge, date: '@last_month_day_6@', evidence_ref: statement imports/statements/card-@last_month@.csv line 5}}
+- {operation: expense, data: {action: record, merchant: Birch Demo Software, amount: '49.00', currency: GBP, category: services, kind: charge, date: '@last_month_day_7@', evidence_ref: Receipt BDS-4701}}
+- {operation: action_upsert, data: {action_id: 'lab:crm', action_type: commitment, status: open, fields: {title: Birch Demo CRM, radar_kind: renewal, auto_renews: true, notice_days: 30, cost: {amount: '49.00', currency: GBP, per: month}, expires_on: '@in_45_days@', lead_days: 30, recurs: none, counterparty: Birch Demo Software, source_ref: 'synthetic:crm-terms'}}}
+lab:
+  kind: month_end
+  expected: {period_start: '@last_month_start@', period_end: '@last_month_end@', net: '995.50', questions: [receipts_missing, uncategorised], overdue: [INV-2026-032], renewal: 'lab:crm', retainer: {counterparty: Cedar Demo Co, reference: INV-2026-033, total: '1200.00', terms_days: 14}}
+  output_contract: >-
+    Step 0: close last month: pa finance tax_pack for last month, invoice list of open receivables, next_action with
+    radar true and contracts true, and invoice prepare for this month's retainer (record nothing). Give owner-facing
+    prose with the net, what needs the owner, overdue invoices with their chase step, the renewal deadline, and the
+    held retainer draft. End with JSON {"lab_summary":{"net":{"GBP":"..."},"questions":["..."],"overdue":["..."],
+    "renewals":[{"action_id":"...","decide_by":"YYYY-MM-DD"}],"draft":{"reference":"...","total":"...","due_date":"YYYY-MM-DD"},
+    "recorded":false,"sent":false}}. Never pay, send, record or categorise anything yourself.
+steps:
+- goal: "It's month-end. Close last month for me: the numbers, what needs me, anything overdue or renewing, and get this month's retainer invoice ready. Don't send, record or pay anything."
+  capability: finance
+  skill: personal-assistant:finance-admin
+  answers: {}
+  hour: 10
+  expect: {lab: month_end}

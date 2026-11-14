@@ -64,7 +64,7 @@ def _honest(root, scenario, index, messages):
     if kind == "contracts":
         from .contracts_checks import honest
         return honest(text)
-    if kind == "invoice_prep":
+    if kind in {"invoice_prep", "month_end"}:
         from .invoice_prep_checks import honest
         return honest(text, index)
     if kind == "owner_documents":
@@ -209,6 +209,9 @@ def _evaluate(root, scenario, index, messages, tools):
     elif kind == "contracts":
         from . import contracts_checks
         result.update(contracts_checks.evaluate(root, scenario, index, messages, tools))
+    elif kind == "month_end":
+        from . import month_end_checks
+        result.update(month_end_checks.evaluate(root, scenario, index, messages, tools))
     elif kind == "invoice_prep":
         from . import invoice_prep_checks
         result.update(invoice_prep_checks.evaluate(root, scenario, index, messages, tools))
