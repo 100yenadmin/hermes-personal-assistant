@@ -120,6 +120,7 @@ for key, scenario, covers, label in (
     ("finance", "s30_trip_expenses_en", [], "categorised trip expenses from a readback and a receipt; no card reconciliation"),
     ("finance", "s44_tax_pack_en", [5, 6], "prior-year accountant pack with per-currency totals, questions and two exports; cover email held"),
     ("finance", "s33_invoice_chase_en", [0, 1, 6], "receivable reminders and the chase ladder held for the yes; payable deadlines; remittance marks paid"),
+    ("finance", "s46_invoice_prep_en", [0, 1], "invoice preparation: exact totals, next number and due date; recorded once only after the owner's yes, nothing sent"),
     ("travel", "s29_changed_leg_en", [2, 3], "synthetic cancelled leg: held options, then rebook, moved dinner and retired reminders"),
     ("travel", "s27_booking_after_yes_en", [3], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
     ("errands", "s27_booking_after_yes_en", [3, 4, 5], "stand-in booking after the yes: readback, itinerary, reminders, ICS"),
