@@ -513,6 +513,7 @@ def test_kickoff_violations_fail(tmp_path, failure, key):
     ("Calendar access is unavailable here. I can help set up calendar access.", True),
     ("Calendar access is not available without authorization, but I checked your calendar. I can offer calendar setup.", False),
     ("I do not have authorization. Calendar access is unavailable until you authorize it. I can offer calendar setup.", True),
+    ("I do not have authorization. No calendar tool is available until you authorize it. I can offer calendar setup.", True),
     ("This is not calendar-verified. I can offer calendar setup.", True),
     ("I have no calendar access. I can offer calendar setup.", True),
     ("No calendar access problems: I checked Tuesday. I can offer calendar setup.", False),

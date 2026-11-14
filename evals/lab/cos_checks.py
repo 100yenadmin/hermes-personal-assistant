@@ -109,7 +109,7 @@ def evaluate_step(root, scenario, index, messages, tools):
         result["approved_details"] = (all(detail in text for detail in step["expect"]["details"])
                                       and len(radar) == 1 and fields(radar[0]).get("stage") == "approved")
         result["no_calendar_honesty"] = bool(re.search(r"(?:\bno calendar (?:access(?=\s*(?:yet\b|[.!?;,:]|$))|.{0,35}(?:bound|connected))|not calendar-verified|calendar.{0,35}(?:disconnected|(?:not|isn't).{0,15}(?:bound|connected))"
-                                                      r"|\bno (?:\w+ )?calendar (?:integration|access|tool|connection)s? (?:is |are )?(?:available|accessible|connected|set up)(?!\s+(?:without|unless|until)\b)"
+                                                      r"|\bno (?:\w+ )?calendar (?:integration|access|tool|connection)s? (?:is |are )?(?:available|accessible|connected|set up)(?!\s+(?:without|unless)\b)"
                                                       r"|calendar (?:integration|access|tool|connection)s? (?:is |are )?(?:not available|unavailable|not accessible|inaccessible)(?!\s+(?:without|unless)\b))", text, re.I)
                                              and offers_setup(text))
         result["no_calendar_mapping"] = not any(fields(r).get("calendar_mapping") for r in notes(db, "cos:radar:"))
