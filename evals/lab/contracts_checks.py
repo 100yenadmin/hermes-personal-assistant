@@ -97,7 +97,7 @@ def acted(local, mail):
 
 # A cancellation or a notice of non-renewal both end the contract (0.24 wave, s45 r002: "notice of non-renewal").
 NOTICE = re.compile(r"\bcancel(?:l?ation|l?ed|l?ing|s)?\b|\bnon-?renewal\b"
-                    r"|\b(?:not|n't)\s+(?:wish\s+to\s+|want\s+to\s+|to\s+)?renew\b", re.I)
+                    r"|(?:\bnot|n't)\s+(?:wish\s+to\s+|want\s+to\s+|to\s+)?renew\b", re.I)
 
 
 def ends_contract(body):
