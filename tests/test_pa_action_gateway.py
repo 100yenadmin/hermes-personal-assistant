@@ -209,6 +209,12 @@ class ActionGatewayTests(unittest.TestCase):
         self.assertEqual(status["envelope"]["args_digest"], args_digest(ARGS))
         self.assertNotIn("I approve these exact fixture details", json.dumps(status))
 
+    def test_recommendations_calls_pass_through_like_other_pa_operations(self):
+        # Retiring old CoS notes is an ordinary ledger write, never a provider action: no envelope needed.
+        for data in ({"action": "retire"}, {"action": "retire", "preview": False, "by": "owner",
+                                            "action_ids": ["cos:daily:2026-11-01"]}):
+            self.assertIsNone(self.gateway.evaluate(hook_payload("pa", {"operation": "recommendations", "data": data})))
+
     def test_shell_pass_through_does_not_require_pa_state(self):
         policy_path = self.profile / "policy.json"
         policy_path.write_text(json.dumps(policy().to_dict()), encoding="utf-8")

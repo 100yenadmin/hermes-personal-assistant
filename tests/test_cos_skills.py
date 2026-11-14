@@ -45,6 +45,10 @@ def test_cos_skill_contract(name):
 
 def test_shared_state_reference_uses_real_operations():
     check_operations_and_no_install(STATE_REFERENCE.read_text())
+    assert "recommendations" in OPERATIONS
+    text = STATE_REFERENCE.read_text()
+    assert "## Retiring old recommendations" in text
+    assert "never retire a note the owner has not seen listed" in text
 
 
 def test_pa_setup_cos_guidance_uses_real_operations():

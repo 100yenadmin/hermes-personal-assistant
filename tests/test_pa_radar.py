@@ -101,6 +101,55 @@ def test_unanswered_offers_and_recommendations(ledger):
         _read(ledger, offer_days=0)
 
 
+def test_stale_recommendations_leave_candidates_without_recording_outcomes(ledger):
+    moment = dt.datetime.fromisoformat(AT)
+    for identity, days, extra in (
+        ("cos:recent", 5, {}), ("cos:boundary", 14, {}),
+        ("cos:stale", 20, {}), ("cos:retired", 20, {"retired": {}}),
+        ("cos:used", 20, {"outcome": "used"}), ("cos:declined", 20, {"outcome": "declined"}),
+    ):
+        ledger.put("action", identity, {"outcome": "unknown", "title": identity,
+                   "review_at": (moment - dt.timedelta(days=days)).isoformat(), **extra},
+                   action_type="note", status="completed")
+    before = _fingerprint(ledger.root)
+    result = _read(ledger)
+    assert {row["action_id"] for row in result["candidates"]} == {"cos:recent", "cos:boundary"}
+    assert result["stale_recommendations"] == {
+        "count": 1, "action_ids": ["cos:stale"], "stale_after_days": 14,
+        "next_step": "Ask the owner once whether to retire these old recommendations; on a yes call "
+                     "pa operation recommendations with action retire, preview false, by owner and "
+                     "these action_ids. Retiring records no outcome.",
+    }
+    assert _fingerprint(ledger.root) == before
+    assert "stale_recommendations" not in _read(ledger, at=(moment - dt.timedelta(days=6)).isoformat())
+    just_after = _read(ledger, at=(moment + dt.timedelta(microseconds=1)).isoformat())
+    assert just_after["stale_recommendations"]["count"] == 2
+
+
+def test_stale_recommendation_sort_cap_filters_and_candidate_paging(ledger):
+    moment = dt.datetime.fromisoformat(AT)
+    for i in reversed(range(25)):
+        ledger.put("action", f"cos:{i:02}", {"outcome": "unknown", "loop_kind": "ask_owner",
+                   "review_at": (moment - dt.timedelta(days=20 + i // 2)).isoformat()},
+                   action_type="note", trip_id="requested")
+    for identity, trip, fields in (("cos:other", "other", {"loop_kind": "ask_owner"}),
+                                    ("cos:plain", "requested", {})):
+        ledger.put("action", identity, {"outcome": "unknown", "review_at": "2026-01-01T00:00:00Z", **fields},
+                   action_type="note", trip_id=trip)
+    _radar(ledger, "current-a", radar_kind="deadline", event_date="2026-11-09")
+    _radar(ledger, "current-b", radar_kind="deadline", event_date="2026-11-09")
+    expected = sorted(range(25), key=lambda i: (-(i // 2), i))
+    result = _read(ledger, trip_id="requested", loops_only=True, limit=1, offset=20)
+    assert result["candidates"] == []
+    assert result["stale_recommendations"]["count"] == 25
+    assert result["stale_recommendations"]["action_ids"] == [f"cos:{i:02}" for i in expected[:20]]
+    assert _read(ledger, trip_id="requested")["stale_recommendations"]["count"] == 26
+    assert "stale_recommendations" not in _read(ledger, trip_id="missing")
+    page = _read(ledger, limit=1, offset=1)
+    assert page["candidates"][0]["action_id"] == "current-b"
+    assert page["stale_recommendations"]["count"] == 27
+
+
 def _fingerprint(root):
     return {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
             for path in sorted(Path(root).rglob("*")) if path.is_file()}

@@ -13,6 +13,7 @@ from .location import timezone_check
 RADAR_KINDS = {"renewal", "important_date", "deadline"}
 DEFAULT_LEAD_DAYS = {"renewal": 30, "important_date": 14, "deadline": 7}
 DEFAULT_OFFER_DAYS = 3
+STALE_AFTER_DAYS = 14
 _CLOSED = {"completed", "cancelled"}
 _KANBAN_DONE = {"done", "archived"}
 
@@ -158,7 +159,8 @@ def _unanswered(action: dict[str, Any], moment: dt.datetime, offer_days: int, lo
         return {"action_id": identity, "radar_kind": "unanswered_offer", "trip_id": action.get("trip_id"),
                 "offer_type": offer_type, "offered_at": offered.isoformat(),
                 "age_days": (moment - offered).days, "lead_days": offer_days, "surfaced": True}
-    if identity.startswith("cos:") and fields.get("outcome") == "unknown":
+    if (identity.startswith("cos:") and action.get("action_type") == "note"
+            and fields.get("outcome") == "unknown" and not isinstance(fields.get("retired"), dict)):
         review_at = local(fields.get("review_at"))
         if review_at is None or review_at >= moment:
             return None
@@ -181,7 +183,7 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
     include_upcoming = data.get("include_upcoming") is True
     contracts = data.get("contracts") is True
     today = moment.astimezone(zone).date()
-    items, upcoming = [], []
+    items, upcoming, stale = [], [], []
     renewals = []
     actions = ledger.list("action")
     opt_outs = {action["action_id"] for action in actions
@@ -190,6 +192,8 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
         if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
             continue
         fields = action.get("fields", {})
+        if action["action_id"].startswith("cos:") and isinstance(fields.get("retired"), dict):
+            continue
         state = loop_state(action, {})
         if data.get("loops_only") is True and state is None:
             continue
@@ -217,7 +221,11 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
         offer = _unanswered(action, moment, offer_days, lambda value: local_time(value, zone) if value else None,
                             opt_outs)
         if offer:
-            items.append(offer)
+            if (offer["radar_kind"] == "unanswered_recommendation"
+                    and moment - local_time(offer["review_at"], zone) > dt.timedelta(days=STALE_AFTER_DAYS)):
+                stale.append(offer)
+            else:
+                items.append(offer)
     if not data.get("trip_id") and data.get("loops_only") is not True:
         timezone_item = timezone_check(ledger, moment)
         if timezone_item:
@@ -231,4 +239,13 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
             "offer_days": offer_days, "owner_timezone": str(zone), "read_only": True}
     if contracts:
         result["contracts"] = _contracts(renewals)
+    if stale:
+        stale.sort(key=lambda row: (local_time(row["review_at"], zone), row["action_id"]))
+        result["stale_recommendations"] = {
+            "count": len(stale), "action_ids": [row["action_id"] for row in stale[:20]],
+            "stale_after_days": STALE_AFTER_DAYS,
+            "next_step": "Ask the owner once whether to retire these old recommendations; on a yes call "
+                         "pa operation recommendations with action retire, preview false, by owner and "
+                         "these action_ids. Retiring records no outcome.",
+        }
     return result
