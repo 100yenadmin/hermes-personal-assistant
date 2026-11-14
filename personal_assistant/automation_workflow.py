@@ -16,12 +16,17 @@ WEEKLY_SLOT_KEYS = {"cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "co
 def preferences(ledger, changes=None):
     prior = ledger.get("action", "pa:preferences")
     if changes is not None:
-        allowed = {"timezone", "brief_time", "quiet_hours", "paused", "snooze_until", "cos_daily_time",
+        allowed = {"timezone", "home_timezone", "timezone_kept", "brief_time", "quiet_hours", "paused", "snooze_until", "cos_daily_time",
                    "cos_kickoff_day", "cos_kickoff_time", "cos_weekly_day", "cos_weekly_time", "eod_time"}
         if set(changes) - allowed:
             raise ValueError("unknown preference")
         if "timezone" in changes:
             ZoneInfo(changes["timezone"])
+        if changes.get("home_timezone") is not None:  # None clears it.
+            ZoneInfo(changes["home_timezone"])
+        if changes.get("timezone_kept") is not None and (not isinstance(changes["timezone_kept"], str)
+                                                         or not 1 <= len(changes["timezone_kept"]) <= 120):
+            raise ValueError("timezone_kept must be a string from 1 to 120 characters")
         for key in ("brief_time", "cos_daily_time", "cos_kickoff_time", "cos_weekly_time", "eod_time"):
             if key in changes:
                 value = changes[key]
