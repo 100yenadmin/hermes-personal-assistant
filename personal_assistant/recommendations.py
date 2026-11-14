@@ -62,6 +62,9 @@ def dispatch(ledger, data):
                  and moment - local_time(row["fields"]["review_at"], zone) > dt.timedelta(days=STALE_AFTER_DAYS)]
         stale.sort(key=lambda row: (local_time(row["fields"]["review_at"], zone), row["action_id"]))
         identities = [row["action_id"] for row in stale]
+    identities = list(dict.fromkeys(identities))  # A repeated id is handled once.
+    more = max(len(identities) - 100, 0)  # Retire calls take at most 100 ids, so a preview lists at most 100.
+    identities = identities[:100]
     retired, would_retire, skipped = [], [], []
     stamp = moment.isoformat()
     for identity in identities:
@@ -75,12 +78,16 @@ def dispatch(ledger, data):
             would_retire.append({"action_id": identity, **{
                 key: fields.get(key) for key in ("title", "cos_skill", "review_at")}})
             continue
-        history = fields.get("history") if isinstance(fields.get("history"), list) else []
+        old = fields.get("history")
+        history = old if isinstance(old, list) else [] if old is None else [{"legacy": old}]  # Never drop history.
         ledger.put("action", identity, {
             "retired": {"at": stamp, "by": data["by"], "reason": "no outcome recorded"},
             "history": history + [{"at": stamp, "event": "retired", "by": data["by"]}],
         })
         retired.append(identity)
     rows = would_retire if preview else retired
-    return {"preview": preview, "would_retire" if preview else "retired": rows,
-            "skipped": skipped, "count": len(rows)}
+    result = {"preview": preview, "would_retire" if preview else "retired": rows,
+              "skipped": skipped, "count": len(rows)}
+    if more:
+        result["more"] = more
+    return result

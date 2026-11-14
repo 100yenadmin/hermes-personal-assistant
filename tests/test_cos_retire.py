@@ -84,7 +84,7 @@ def test_explicit_retire_preserves_fields_and_all_skip_reasons(tmp_path, by):
         expected = copy.deepcopy(before[identity])
         expected["fields"]["retired"] = {"at": AT, "by": by, "reason": "no outcome recorded"}
         history = expected["fields"].get("history")
-        expected["fields"]["history"] = (history if isinstance(history, list) else []) + [
+        expected["fields"]["history"] = (history if isinstance(history, list) else [{"legacy": history}]) + [
             {"at": AT, "event": "retired", "by": by}]
         after.pop("updated_at")
         expected.pop("updated_at")
@@ -133,3 +133,22 @@ def test_tool_schema_and_descriptions():
     text = json.dumps(SCHEMA)
     assert "recommendations: action retire lists" in text and "never records an outcome" in text
     assert "outcome used, declined, ignored or unknown (unknown when evidence is missing)" in text
+
+
+def test_repeated_ids_once_and_preview_capped_at_100(tmp_path):
+    ledger = Ledger(tmp_path)
+    note(ledger, "cos:a")
+    assert call(tmp_path, preview=False, by="owner", action_ids=["cos:a", "cos:a"]) == {
+        "preview": False, "retired": ["cos:a"], "skipped": [], "count": 1}
+    for i in range(103):
+        note(ledger, f"cos:n{i:03d}")
+    preview = call(tmp_path)
+    assert preview["count"] == 100 and preview["more"] == 3 and len(preview["would_retire"]) == 100
+
+
+def test_malformed_write_on_fresh_profile_creates_nothing(tmp_path):
+    root = tmp_path / "fresh"
+    root.mkdir()
+    with pytest.raises(ValueError):
+        dispatch(root, {"operation": "recommendations", "data": {"action": "retire", "preview": False, "by": "owner"}})
+    assert list(root.rglob("*")) == []
