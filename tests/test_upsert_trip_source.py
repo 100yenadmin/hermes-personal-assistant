@@ -63,6 +63,12 @@ def test_explicit_null_prevents_inference(ledger):
     assert upsert(ledger, trip_id=None)["trip_id"] is None
 
 
+def test_explicit_null_keeps_an_existing_link(ledger):
+    # put treats None as "keep the stored value", so a linked row stays linked.
+    assert upsert(ledger)["trip_id"] == TRIP
+    assert upsert(ledger, trip_id=None)["trip_id"] == TRIP
+
+
 def test_existing_different_trip_link_is_preserved(ledger):
     saved = upsert(ledger, trip_id=OTHER_TRIP)
     updated = upsert(ledger, fields={"next_step": "Read back the arrival time"})
@@ -113,6 +119,7 @@ def test_tool_and_skill_explain_exact_trip_source_linking():
     assert (
         "The same `source_id`, `action_kind` and `occurrence` update one record. "
         "A `source_id` that is a trip ID from `trip_import` also links the record to that trip, "
-        "so `next_action` with `trip_id` finds it; for an errand that belongs to a trip, "
+        "so `next_action` with `trip_id` lists it when it is a commitment, refund or return; "
+        "for an errand that belongs to a trip, "
         'pass `"trip_id": "<trip id>"` as well.'
     ) in " ".join(text.split())
