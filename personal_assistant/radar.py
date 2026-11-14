@@ -8,6 +8,7 @@ from decimal import Decimal, localcontext
 from typing import Any, Callable
 
 from .expenses import _number
+from .location import timezone_check
 
 RADAR_KINDS = {"renewal", "important_date", "deadline"}
 DEFAULT_LEAD_DAYS = {"renewal": 30, "important_date": 14, "deadline": 7}
@@ -217,7 +218,12 @@ def scan(ledger, data: dict[str, Any], *, kanban_reader: Callable[[str, str | No
                             opt_outs)
         if offer:
             items.append(offer)
-    items.sort(key=lambda row: (not row["surfaced"], row.get("date") or row.get("offered_at") or row.get("review_at") or "",
+    if not data.get("trip_id") and data.get("loops_only") is not True:
+        timezone_item = timezone_check(ledger, moment)
+        if timezone_item:
+            items.append(timezone_item)
+    items.sort(key=lambda row: (not row["surfaced"], row.get("date") or row.get("offered_at") or row.get("review_at")
+                                or row.get("evidence", {}).get("at") or "",
                                 row["action_id"]))
     page = _page(items, limit, offset)
     result = {"radar": True, "candidates": page.pop("items"), **page,
