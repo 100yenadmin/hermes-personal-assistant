@@ -16,8 +16,11 @@ from .state import legacy, now, stable_id
 
 DIRECTIONS = ["receivable", "payable"]
 STATUSES = ["open", "paid", "void"]
-MINOR_UNITS = {"JPY": 0, "KRW": 0, "VND": 0, "CLP": 0, "ISK": 0, "UGX": 0,
-               "BHD": 3, "KWD": 3, "OMR": 3, "JOD": 3, "TND": 3}
+MINOR_UNITS = {"BIF": 0, "CLP": 0, "DJF": 0, "GNF": 0, "ISK": 0, "JPY": 0, "KMF": 0,
+               "KRW": 0, "PYG": 0, "RWF": 0, "UGX": 0, "UYI": 0, "VND": 0, "VUV": 0,
+               "XAF": 0, "XOF": 0, "XPF": 0,
+               "BHD": 3, "IQD": 3, "JOD": 3, "KWD": 3, "LYD": 3, "OMR": 3, "TND": 3,
+               "CLF": 4, "UYW": 4}
 TEXT_LIMITS = {"counterparty": 120, "reference": 80, "description": 200, "evidence_ref": 1000,
                "trip_id": 1000, "invoice_id": 1000, "evidence": 200, "reason": 200}
 FIELDS = {**{k: {"type": "string", "minLength": 1, "maxLength": n} for k, n in TEXT_LIMITS.items()},
@@ -250,6 +253,9 @@ def prepare(ledger, data):
             raise ValueError("invoice total must be positive after rounding")
         subtotal_text, total_text = money(subtotal), money(total)
 
+    def normalized(value):
+        return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
     receivables = [r for r in ledger.list("action")
                    if r["action_type"] == "invoice" and r["fields"].get("direction") == "receivable"]
     reference, source, basis = data.get("reference"), "given" if "reference" in data else "none", None
@@ -257,30 +263,33 @@ def prepare(ledger, data):
         series = []
         for row in receivables:
             fields = row["fields"]
-            match = re.fullmatch(r"(.*?)([0-9]+)", fields.get("reference", ""))
+            match = re.fullmatch(r"(.*?)([0-9]+)", normalized(fields.get("reference", "")))
             if match:
-                series.append((fields["issue_date"], int(match[2]), match[1], len(match[2]), fields["reference"]))
+                # Keep the original prefix, including compatibility spelling, for display.
+                prefix = fields["reference"].rstrip()
+                while prefix and re.fullmatch(r"[0-9]+", unicodedata.normalize("NFKC", prefix[-1])):
+                    prefix = prefix[:-1]
+                series.append((fields["issue_date"], int(match[2]), match[1], len(match[2]),
+                               fields["reference"], prefix))
         if series:
-            prefix = max(series)[2]
-            matching = [s for s in series if s[2] == prefix]
+            latest = max(series, key=lambda s: (s[0], s[1]))
+            matching = [s for s in series if s[2] == latest[2]]
             followed = max(matching, key=lambda s: (s[1], s[3], s[4]))
-            reference = prefix + str(followed[1] + 1).zfill(max(s[3] for s in matching))
+            reference = latest[5] + str(followed[1] + 1).zfill(max(s[3] for s in matching))
             source, basis = "next_in_series", followed[4]
-
-    def normalized(value):
-        return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
     warnings = []
     for row in receivables:
         fields = row["fields"]
-        if normalized(fields["counterparty"]) != normalized(data["counterparty"]):
-            continue
-        if source == "given" and normalized(fields["reference"]) == normalized(reference):
-            warning = f"reference already used for {data['counterparty']}: {reference}"
+        same_counterparty = normalized(fields["counterparty"]) == normalized(data["counterparty"])
+        if reference is not None and normalized(fields["reference"]) == normalized(reference):
+            counterparty = data["counterparty"] if same_counterparty else fields["counterparty"]
+            warning = f"reference already used for {counterparty}: {reference}"
             if warning not in warnings:
                 warnings.append(warning)
-        if (row["status"] == "open" and fields["currency"] == currency and Decimal(fields["amount"]) == total
-                and abs((issue - dt.date.fromisoformat(fields["issue_date"])).days) <= 31):
+        if (same_counterparty and row["status"] == "open" and fields["currency"] == currency
+                and Decimal(fields["amount"]) == total
+                and abs((issue - dt.date.fromisoformat(fields["issue_date"])).days) <= 7):
             warnings.append(f"possible duplicate of {fields['reference']} issued {fields['issue_date']}")
     category = data.get("category", "services")
     record_args = ({"action": "record", "direction": "receivable", "counterparty": data["counterparty"],
@@ -289,13 +298,21 @@ def prepare(ledger, data):
                     "evidence_ref": "draft:prepared-invoice",
                     **{k: data[k] for k in ("description", "trip_id") if k in data}}
                    if reference is not None else None)
+    missing = [] if reference is not None else ["reference"]
+    if record_args is not None:
+        try:
+            _validate(record_args)
+        except ValueError as error:
+            record_args = None
+            missing.append("record")
+            warnings.append(f"record would reject this draft: {error}")
     return {"prepared": True, "recorded": False, "direction": "receivable", "counterparty": data["counterparty"],
             "currency": currency, "issue_date": data["issue_date"], "due_date": due,
             "terms_days": data.get("terms_days"), "reference": reference, "reference_source": source,
             "reference_basis": basis, "lines": lines, "subtotal": subtotal_text, "tax": tax, "total": total_text,
             "category": category, "description": data.get("description"), "warnings": warnings,
-            "missing": [] if reference is not None else ["reference"], "record_args": record_args,
-            "next_step": "Show the owner this draft invoice. Record it with record_args only after the owner's explicit yes; replace evidence_ref with where it was sent or saved."}
+            "missing": missing, "record_args": record_args,
+            "next_step": "Show the owner this draft invoice. Record it with record_args only once it has been sent after the owner's explicit yes; set evidence_ref to where and when it was sent."}
 
 
 def dispatch(ledger, data):

@@ -474,16 +474,40 @@ def test_prepare_services_invoice_exact_totals_next_reference_and_no_writes(ledg
                         "reference": "INV-2026-015", "amount": "1521.00", "currency": "GBP",
                         "issue_date": "2026-11-30", "due_date": "2026-12-14", "category": "services",
                         "evidence_ref": "draft:prepared-invoice"},
-        "next_step": "Show the owner this draft invoice. Record it with record_args only after the owner's explicit yes; replace evidence_ref with where it was sent or saved."}
+        "next_step": "Show the owner this draft invoice. Record it with record_args only once it has been sent after the owner's explicit yes; set evidence_ref to where and when it was sent."}
 
 
 @pytest.mark.parametrize("currency,quantity,price,amount", [
-    ("GBP", "3", "0.335", "1.01"), ("JPY", "3", "333.3", "1000"), ("KWD", "2", "1.2345", "2.469")])
+    ("GBP", "3", "0.335", "1.01"), ("JPY", "3", "333.3", "1000"), ("KWD", "2", "1.2345", "2.469"),
+    ("USD", "1", "1.234", "1.23"), ("ZZZ", "1", "1.234", "1.23")
+] + [(currency, "1", "1.234", "1") for currency in (
+    "BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "UYI",
+    "VND", "VUV", "XAF", "XOF", "XPF")
+] + [(currency, "1", "1.234", "1.234") for currency in ("BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND")
+] + [(currency, "1.234", "1.0005", "1.2346") for currency in ("CLF", "UYW")])
 def test_prepare_line_rounding_half_up_and_currency_precision(ledger, currency, quantity, price, amount):
     draft = prepare(ledger, currency=currency, tax=None, reference="DEMO-P",
                     lines=[{"description": "Service", "quantity": quantity, "unit_price": price}])
     assert draft["lines"][0]["amount"] == draft["subtotal"] == draft["total"] == amount
     assert draft["tax"] is None
+    if currency in {"CLF", "UYW"}:
+        assert draft["record_args"] is None and draft["missing"] == ["record"]
+        warning, = draft["warnings"]
+        assert warning.startswith("record would reject this draft: ")
+    else:
+        assert draft["record_args"]["amount"] == amount and draft["warnings"] == []
+
+
+def test_prepare_clf_calculator_rounds_five_decimal_price_half_up(ledger):
+    # Exercise the calculator directly: public prepare inputs allow four price decimals.
+    data = {**DRAFT, "currency": "CLF", "reference": "DEMO-P",
+            "lines": [{"description": "Service", "quantity": "1", "unit_price": "1.23456"}]}
+    data.pop("tax")
+    draft = invoices.prepare(ledger, data)
+    assert draft["lines"][0]["amount"] == draft["subtotal"] == draft["total"] == "1.2346"
+    assert draft["record_args"] is None and draft["missing"] == ["record"]
+    warning, = draft["warnings"]
+    assert warning.startswith("record would reject this draft: ")
 
 
 def test_prepare_rounds_lines_before_subtotal_and_tax(ledger):
@@ -541,18 +565,83 @@ def test_prepare_series_date_tie_uses_larger_number_and_accepts_plain_numbers(le
     assert (draft["reference"], draft["reference_basis"]) == ("1044", "1043")
 
 
+@pytest.mark.parametrize("older,newer,next_reference", [
+    ("INV-099", "inv-098", "inv-100"), ("INV-002", "inv-001", "inv-003"),
+    ("INV-００９９", "ｉｎｖ-００９８", "ｉｎｖ-0100"),
+    ("INV   -099 ", "inv  -098 ", "inv  -100"),
+    ("Straße-099", "STRASSE-098", "STRASSE-100"),
+    ("INV-⁰⁹⁹", "inv-⁰⁹⁸", "inv-100")])
+def test_prepare_series_normalizes_group_but_keeps_latest_prefix(ledger, older, newer, next_reference):
+    record(ledger, reference=older, issue_date="2026-09-01", due_date="2026-09-15")
+    record(ledger, reference=newer, issue_date="2026-10-01", due_date="2026-10-15")
+    draft = prepare(ledger)
+    assert (draft["reference"], draft["reference_basis"]) == (next_reference, older)
+    assert draft["reference_source"] == "next_in_series" and draft["warnings"] == []
+    assert draft["record_args"]["reference"] == next_reference
+
+
+@pytest.mark.parametrize("reference,next_reference,error", [
+    ("INV-9999999999999999", "INV-10000000000000000", "PA does not store payment or account numbers"),
+    ("A" * 78 + "99", "A" * 78 + "100", "reference as text up to 80 characters")])
+def test_prepare_returns_draft_but_withholds_invalid_record_args(ledger, reference, next_reference, error):
+    record(ledger, reference=reference)
+    draft = prepare(ledger)
+    assert draft["prepared"] is True and draft["recorded"] is False
+    assert draft["reference"] == next_reference and draft["reference_basis"] == reference
+    assert draft["reference_source"] == "next_in_series"
+    assert draft["total"] == "1521.00" and draft["due_date"] == "2026-12-14"
+    assert draft["record_args"] is None and draft["missing"] == ["record"]
+    warning, = draft["warnings"]
+    assert warning.startswith("record would reject this draft: ") and error in warning
+
+
 def test_prepare_duplicate_warnings_use_record_counterparty_and_reference_normalization(ledger):
-    record(ledger, reference="DEMO-P", amount="1521", currency="GBP")
+    record(ledger, reference="DEMO-P", amount="1521", currency="GBP",
+           issue_date="2026-11-25", due_date="2026-11-30")
     draft = prepare(ledger, counterparty="  ＳＹＮＴＨＥＴＩＣ   Acme ", reference="demo-p")
     assert draft["warnings"] == [
         "reference already used for   ＳＹＮＴＨＥＴＩＣ   Acme : demo-p",
-        "possible duplicate of DEMO-P issued 2026-11-01"]
+        "possible duplicate of DEMO-P issued 2026-11-25"]
+
+
+@pytest.mark.parametrize("status", ["open", "paid", "void"])
+def test_prepare_given_reference_warns_across_clients_and_deduplicates(ledger, monkeypatch, status):
+    row = record(ledger, counterparty="Other Synthetic Client", reference="  ＤＥＭＯ   P ",
+                 amount="1521", currency="GBP", issue_date="2026-11-30", due_date="2026-12-14")
+    if status == "paid":
+        call(ledger, "paid", invoice_id=row["action_id"], paid_on="2026-11-30", evidence="Owner confirms")
+    elif status == "void":
+        call(ledger, "void", invoice_id=row["action_id"], reason="Cancelled")
+    row = ledger.get("action", row["action_id"])
+    monkeypatch.setattr(ledger, "list", lambda kind: [row, row])
+    draft = prepare(ledger, reference="demo p")
+    assert draft["warnings"] == ["reference already used for Other Synthetic Client: demo p"]
+
+
+@pytest.mark.parametrize("status", ["open", "paid", "void"])
+def test_prepare_generated_reference_still_warns_if_series_inference_misses_collision(ledger, monkeypatch, status):
+    record(ledger, reference="INV-001")
+    row = record(ledger, counterparty="Other Synthetic Client", reference="  ｉｎｖ-002  ")
+    if status == "paid":
+        call(ledger, "paid", invoice_id=row["action_id"], paid_on="2026-11-30", evidence="Owner confirms")
+    elif status == "void":
+        call(ledger, "void", invoice_id=row["action_id"], reason="Cancelled")
+    real_fullmatch = invoices.re.fullmatch
+    # Isolate the collision guard from series inference, which normally avoids reuse.
+    monkeypatch.setattr(invoices.re, "fullmatch", lambda pattern, value, *args, **kwargs:
+                        None if pattern == r"(.*?)([0-9]+)" and value == "inv-002"
+                        else real_fullmatch(pattern, value, *args, **kwargs))
+    draft = prepare(ledger)
+    assert draft["reference"] == "INV-002" and draft["reference_source"] == "next_in_series"
+    assert draft["warnings"] == ["reference already used for Other Synthetic Client: INV-002"]
+    assert draft["record_args"]["reference"] == "INV-002" and draft["missing"] == []
 
 
 @pytest.mark.parametrize("status,days,currency,warns", [
-    ("open", 31, "GBP", True), ("open", -31, "GBP", True), ("open", 32, "GBP", False),
+    ("open", 7, "GBP", True), ("open", -7, "GBP", True), ("open", 8, "GBP", False),
+    ("open", -8, "GBP", False), ("open", -30, "GBP", False), ("open", -5, "GBP", True),
     ("paid", 0, "GBP", False), ("void", 0, "GBP", False), ("open", 0, "USD", False)])
-def test_prepare_possible_duplicate_only_open_same_currency_within_31_days(ledger, status, days, currency, warns):
+def test_prepare_possible_duplicate_only_open_same_currency_within_7_days(ledger, status, days, currency, warns):
     issued = (dt.date(2026, 11, 30) + dt.timedelta(days=days)).isoformat()
     row = record(ledger, amount="1521", currency=currency, issue_date=issued, due_date=issued)
     if status == "paid":
@@ -626,5 +715,8 @@ def test_finance_admin_skill_prepares_then_records_after_the_yes():
     section = skill.split("## Preparing an invoice", 1)[1].split("\n## ", 1)[0]
     assert "action `prepare`" in section and "`prepare` writes nothing" in section
     assert "Hold it for the owner's yes" in section
-    assert "Only after the yes" in section and "`record_args`" in section
+    assert "Record it only once it has gone out" in section and "`record_args`" in section
+    assert "An approved draft that has not been sent is not recorded." in section
+    assert "run `prepare` again with that `reference`" in section
+    assert "give each later\n   draft its `reference` explicitly" in section
     assert "never type bank or account numbers" in section
