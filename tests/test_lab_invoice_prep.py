@@ -184,13 +184,14 @@ def test_prose_must_name_the_invoice_number_and_due_date(run, change):
     assert evaluated(run)["summary_exact"] is False
 
 
-@pytest.mark.parametrize("form", ["iso", "day_month_year", "month_day", "uk_slash", "uk_dot"])
+@pytest.mark.parametrize("form", ["iso", "day_month_year", "month_day", "uk_slash", "uk_dot", "day_month", "day_month_comma_year"])
 def test_prose_due_date_accepts_owner_facing_forms(run, form):
     import datetime as dt
     date = dt.date.fromisoformat(run.packet["due_date"])
     said = {"iso": date.isoformat(), "day_month_year": f"{date.day} {date:%B} {date.year}",
             "month_day": f"{date:%B} {date.day}, {date.year}", "uk_slash": f"{date:%d/%m/%Y}",
-            "uk_dot": f"{date.day}.{date.month}.{date.year}"}[form]
+            "uk_dot": f"{date.day}.{date.month}.{date.year}", "day_month": f"{date.day} {date:%B}",
+            "day_month_comma_year": f"{date.day} {date:%B}, {date.year}"}[form]
     run.words[0] = run.words[0].replace("Due " + run.packet["due_date"], "Due " + said)
     assert evaluated(run)["summary_exact"] is True
 
