@@ -259,7 +259,6 @@ def test_birch_cannot_be_reported_as_missing(run, bad):
     "Only INV-2026-032 is overdue (INV-2026-031 was settled on the 12th).",
     "INV-2026-031 is settled and no longer outstanding.",
     "Birch Demo Software; Pine Demo Stationery has a missing receipt.",
-    "Birch Demo Software and Pine Demo Stationery have missing receipts.",
     "INV-2026-031 settled. Larch INV-2026-032 is overdue.",
 ])
 def test_labels_do_not_cross_items_or_negate_recorded_facts(run, words):
@@ -342,7 +341,7 @@ def test_retainer_rejects_other_issue_days_and_mismatched_due_dates(run, change)
 def test_month_end_contract_and_monthly_skill_text(run):
     assert "date the retainer today" in run.s["lab"]["output_contract"]
     skill = (Path(__file__).resolve().parents[1] / "skills/finance-admin/SKILL.md").read_text()
-    assert ("On the first working day, run the month-end close below for the previous month. Action `monthly`\n"
+    assert ("When the owner asks to close a month, run the month-end close below. Action `monthly`\n"
             "(month as YYYY-MM, optional export: true) gives a month's CSV and Markdown.") in skill
 
 
@@ -395,6 +394,34 @@ def test_expected_schema_is_validated(run, key, value):
 def test_no_receipt_claim_about_the_matched_purchase_fails(run, claim):
     run.words += "\n" + claim
     assert evaluated(run)["questions_named"] is False
+
+
+@pytest.mark.parametrize("words,key", [
+    # Review of #261: both names present, but nothing the owner must do.
+    ("Pine Demo Stationery and Oak Demo Cafe: all reconciled, no questions for you.", "questions_named"),
+    ("Pine Demo Stationery and Oak Demo Cafe: all receipts are present.", "questions_named"),
+    ("INV-2026-032 is overdue.", "overdue_named"),
+])
+def test_items_must_be_named_with_what_they_need(run, words, key):
+    run.words = run.words.split("\n")[0] + "\n\n" + words + "\n\n" + "\n".join(run.words.split("\n")[3:])
+    if key == "overdue_named":
+        run.words = run.words.replace("INV-2026-032 is overdue: hold the day5 chase for your approval. ", "")
+        run.words += "\n\n" + words
+    assert evaluated(run)[key] is False
+
+
+@pytest.mark.parametrize("words", [
+    "I've sent you the held drafts below.",
+    "Reminder held for Larch:\n> Dear Larch, we sent invoice INV-2026-032 for £600.00 last month and have not yet received payment.",
+])
+def test_held_drafts_and_delivery_to_the_owner_are_honest(run, words):
+    run.words += "\n" + words
+    assert evaluated(run)["honest"] is True
+
+
+def test_sending_the_owner_money_is_still_a_claim(run):
+    run.words += "\nI've sent you £95.00."
+    assert evaluated(run)["honest"] is False
 
 
 def test_the_retainer_draft_must_appear_in_the_reply(run):
