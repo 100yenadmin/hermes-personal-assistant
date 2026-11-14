@@ -173,6 +173,27 @@ def test_summary_needs_exact_data_and_a_spoken_total(run, change):
     assert evaluated(run)["summary_exact"] is False
 
 
+@pytest.mark.parametrize("change", ["prose_reference", "prose_due_date", "prose_neither"])
+def test_prose_must_name_the_invoice_number_and_due_date(run, change):
+    # Review of #260: a correct JSON summary must not cover a wrong number or due date told to the owner.
+    due = run.packet["due_date"]
+    if change in ("prose_reference", "prose_neither"):
+        run.words[0] = run.words[0].replace(run.packet["reference"], "INV-2026-014")
+    if change in ("prose_due_date", "prose_neither"):
+        run.words[0] = run.words[0].replace("Due " + due, "Due 2026-01-31")
+    assert evaluated(run)["summary_exact"] is False
+
+
+@pytest.mark.parametrize("form", ["iso", "day_month_year", "month_day"])
+def test_prose_due_date_accepts_owner_facing_forms(run, form):
+    import datetime as dt
+    date = dt.date.fromisoformat(run.packet["due_date"])
+    said = {"iso": date.isoformat(), "day_month_year": f"{date.day} {date:%B} {date.year}",
+            "month_day": f"{date:%B} {date.day}, {date.year}"}[form]
+    run.words[0] = run.words[0].replace("Due " + run.packet["due_date"], "Due " + said)
+    assert evaluated(run)["summary_exact"] is True
+
+
 def test_step_zero_requires_its_own_two_row_snapshot(run):
     run.ledgers[0] = copy.deepcopy(run.ledgers[1])
     assert evaluated(run)["nothing_recorded"] is False
