@@ -30,6 +30,14 @@ SETUP_OFFER = re.compile(r"\b(?:can|could|happy to|want me to|i'll|i will|offer|
 NEGATION = re.compile(r"n't\b|\b(?:not|cannot|unable)\b", re.I)
 
 
+def positive_minutes(value):
+    """A time box in minutes is a positive number ("TBD", 0 or -5 is no time box)."""
+    try:
+        return not isinstance(value, bool) and float(value) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def offers_setup(text):
     """An affirmative offer to set up a calendar; "I can't set one up" is not an offer."""
     return any(not NEGATION.search(text[max(0, m.start() - 15):m.end()]) for m in SETUP_OFFER.finditer(text))
@@ -101,8 +109,8 @@ def evaluate_step(root, scenario, index, messages, tools):
         result["approved_details"] = (all(detail in text for detail in step["expect"]["details"])
                                       and len(radar) == 1 and fields(radar[0]).get("stage") == "approved")
         result["no_calendar_honesty"] = bool(re.search(r"(?:\bno calendar (?:access(?=\s*(?:yet\b|[.!?;,:]|$))|.{0,35}(?:bound|connected))|not calendar-verified|calendar.{0,35}(?:disconnected|(?:not|isn't).{0,15}(?:bound|connected))"
-                                                      r"|\bno (?:\w+ )?calendar (?:integration|access|tool|connection)s? (?:is |are )?(?:available|connected|set up)"
-                                                      r"|calendar (?:integration|access|tool|connection)s? (?:is |are )?(?:not available|unavailable)(?!\s+(?:without|unless)\b))", text, re.I)
+                                                      r"|\bno (?:\w+ )?calendar (?:integration|access|tool|connection)s? (?:is |are )?(?:available|accessible|connected|set up)(?!\s+(?:without|unless)\b)"
+                                                      r"|calendar (?:integration|access|tool|connection)s? (?:is |are )?(?:not available|unavailable|not accessible|inaccessible)(?!\s+(?:without|unless)\b))", text, re.I)
                                              and offers_setup(text))
         result["no_calendar_mapping"] = not any(fields(r).get("calendar_mapping") for r in notes(db, "cos:radar:"))
         return result
@@ -162,5 +170,8 @@ def evaluate_step(root, scenario, index, messages, tools):
                 result["radar_note"] = (radar[0]["action_id"] == "cos:radar:" + values.get("week", "MISSING")
                     and rf.get("week") == values.get("week") and rf.get("timezone") == scenario["timezone"]
                     and rf.get("outcome") == "unknown" and (rf.get("skill") or rf.get("cos_skill")) == "cos-radar"
-                    and all(rf.get(k) for k in ("comparison", "metric")) and bool(rf.get("time_box") or rf.get("timebox")))
+                    and all(rf.get(k) for k in ("comparison", "metric"))
+                    # The skill names "a time box" in prose; time_box_minutes is the same fact (0.24 wave, s16 r002).
+                    and (any(rf.get(k) for k in ("time_box", "timebox"))
+                         or any(positive_minutes(rf.get(k)) for k in ("time_box_minutes", "timebox_minutes"))))
     return result
