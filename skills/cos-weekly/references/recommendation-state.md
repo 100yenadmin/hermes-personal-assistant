@@ -50,7 +50,8 @@ not usefulness.
 A note still `unknown` more than 14 days past `review_at` leaves the radar list and is counted in
 `stale_recommendations`. In the weekly closeout, ask the owner once whether to retire them, naming how many and
 the oldest. Preview with `pa(operation="recommendations", data={"action":"retire"})`, and on a yes call it with
-`"preview":false,"by":"owner","action_ids":[...]` from the preview. Retiring is not an outcome: never record
+`"preview":false,"by":"owner","action_ids":[...]` from the preview; while the preview shows `more`, preview again
+after each retire. Retiring is not an outcome: never record
 `declined` or `ignored` to clear the radar, and never retire a note the owner has not seen listed.
 
 ## Scheduled delivery receipts
