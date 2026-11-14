@@ -38,9 +38,10 @@ before offering. If no comparison would help a stated need, offer nothing.
 Offer at most one benchmark per week. Name what to compare (current tool versus
 candidate), one metric tied to the user's need, a time box, the smallest trial,
 and one concrete slot to book (day, start, end, timezone) that the owner can
-accept or move; if the calendar is not readable, say the slot is unchecked. Explain the benefit and how
+accept or move; say so when the slot was not checked against the calendar. Explain the benefit and how
 to decline. Record `skill: "cos-radar"`, `week`, `timezone`, comparison, metric,
-time box and `outcome: "unknown"` on the `cos:radar:<local ISO week>` note.
+time box, the proposed slot's `start` and `end` with whether it was checked, and
+`outcome: "unknown"` on the `cos:radar:<local ISO week>` note.
 Never install software or treat discovery as approval to adopt or activate it.
 
 ## On yes, book and read back
