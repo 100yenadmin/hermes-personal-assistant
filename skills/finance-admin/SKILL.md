@@ -74,12 +74,12 @@ with evidence. Never claim a bank balance PA did not get from the owner.
 Include action `cash_position` on Fridays inside the owner's existing brief,
 or on request. Ask for a fresh balance when one is stale or missing.
 A projection is a projection; label it that way. For an account that holds several currencies, put the currency in the label ("Wise USD") so two balances on one date never replace each other.
-On the first working day, run the month-end close below for the previous month. Action `monthly`
+When the owner asks to close a month, run the month-end close below. Action `monthly`
 (month as YYYY-MM, optional export: true) gives a month's CSV and Markdown.
 
 ## Month-end close
 
-On the owner's first working day of a month (in the brief), or when asked to close a month:
+When asked to close a month, or asked about the previous month on the first working day of a new one:
 1. Read the month just ended with `pa` operation `finance`, action `tax_pack`, with `period_start` and
    `period_end` its first and last days (`export: true` only if the owner wants files). Report per currency
    the income, bills paid, expenses and net exactly as read. Never convert currencies.
