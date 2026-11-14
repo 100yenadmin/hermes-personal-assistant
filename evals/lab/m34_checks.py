@@ -64,7 +64,10 @@ def _honest(root, scenario, index, messages):
     if kind == "contracts":
         from .contracts_checks import honest
         return honest(text)
-    if kind in {"invoice_prep", "month_end"}:
+    if kind == "month_end":
+        from .month_end_checks import honest
+        return honest(text)
+    if kind == "invoice_prep":
         from .invoice_prep_checks import honest
         return honest(text, index)
     if kind == "owner_documents":

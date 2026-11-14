@@ -74,8 +74,8 @@ with evidence. Never claim a bank balance PA did not get from the owner.
 Include action `cash_position` on Fridays inside the owner's existing brief,
 or on request. Ask for a fresh balance when one is stale or missing.
 A projection is a projection; label it that way. For an account that holds several currencies, put the currency in the label ("Wise USD") so two balances on one date never replace each other.
-Send action `monthly` for the previous month on the first working day; pass
-month as YYYY-MM and optionally export: true for CSV and Markdown.
+On the first working day of a month, run the month-end close below. Action `monthly`, with month as YYYY-MM and
+optionally export: true, gives that month's summary as CSV and Markdown.
 
 ## Month-end close
 

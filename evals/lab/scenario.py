@@ -238,6 +238,8 @@ def validate(s):
             require(set(expected["questions"]) <= {"receipts_missing", "uncategorised", "possible_duplicate",
                     "unpaid_at_end", "several_currencies"}, "lab.expected.questions")
             require(isinstance(expected.get("renewal"), str) and bool(expected["renewal"].strip()), "lab.expected.renewal")
+            require(any(item.get("data", {}).get("action_id") == expected["renewal"]
+                        for item in s.get("seed", [])), "lab.expected.renewal")
             retainer = expected.get("retainer")
             require(isinstance(retainer, dict), "lab.expected.retainer")
             for key in ("counterparty", "reference", "total"):
