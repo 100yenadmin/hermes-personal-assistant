@@ -23,6 +23,7 @@ checkpoints through the `pa` tool. It writes this same ledger and needs no shell
   "status": "pending|awaiting-final-confirmation|blocked|completed",
   "fields": {"url": "...", "state": "...", "total": "...", "missing": [...], "next": "..."}})`.
   The same `source_id`, `action_kind` and `occurrence` update one record.
+  A `source_id` that is a trip ID from `trip_import` also links the record to that trip, so `next_action` with `trip_id` finds it; for an errand that belongs to a trip, pass `"trip_id": "<trip id>"` as well.
   `note` is for preparation and evidence. An unresolved refund or return keeps
   `action_type` `refund` or `return`, and linked Kanban work uses `commitment`,
   as in `personal-assistant:personal-assistant`.
