@@ -391,9 +391,13 @@ def test_r1_action_cancel_intentionally_invalidates_held_notice(run):
     ("Please accept this notice of non-renewal for Birch Demo CRM, which is scheduled to renew on {date}. "
      "Please disable automatic renewal and end the subscription at the end of the current term.", True),
     ("I do not wish to renew Birch Demo CRM on its renewal date of {date}.", True),
-    ("Please terminate Birch Demo CRM at renewal on {date}.", True),
     ("Please tell me what Birch Demo CRM will cost when it renews on {date}.", False),
     ("Please renew Birch Demo CRM on {date}.", False),
+    ("Please terminate Birch Demo CRM at renewal on {date}.", False),
+    # Adversarial review: a negated ending ends nothing.
+    ("Please renew Birch Demo CRM on {date}; we do not wish to terminate.", False),
+    ("Please renew Birch Demo CRM on {date}; we do not wish to cancel it.", False),
+    ("We don't want to cancel Birch Demo CRM; please renew it on {date}.", False),
 ])
 def test_notice_accepts_non_renewal_wording(run, ending, expected):
     body = f"Subject: Birch Demo CRM\n\nDear Billing Team,\n{ending.format(date=run.date)}\n\nThanks,\nMorgan"

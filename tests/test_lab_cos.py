@@ -109,6 +109,9 @@ def run_fake(root, scenario_id="s13_cos_daily_en", failure=None):
                  stage="draft", week=values["week"], comparison="Manual vs existing tool",
                  metric="Corrected-text minutes per clip",
                  **({"time_box_minutes": 15} if failure == "time_box_minutes"
+                    else {"timebox_minutes": "20"} if failure == "timebox_minutes"
+                    else {"time_box_minutes": "TBD"} if failure == "time_box_tbd"
+                    else {"time_box_minutes": 0} if failure == "time_box_zero"
                     else {} if failure == "no_time_box" else {"time_box": "15 minutes"}))
         text = ("Used: batch saved 12 minutes, per owner.\nDeclined: cloud trial, explicit no.\n"
                 "Ignored: prior export benchmark, explicit skip.\nUnknown: other outcomes and missing calendar/inbox coverage.\n"
@@ -521,6 +524,9 @@ def test_kickoff_violations_fail(tmp_path, failure, key):
      "I can help set up calendar access if you want.", True),
     ("Calendar access is not accessible here. I can offer calendar setup.", True),
     ("Reno calendar tool is accessible. I can offer calendar setup.", False),
+    ("No calendar tool is accessible without authorization; I have authorization and checked your calendar. "
+     "I can offer calendar setup.", False),
+    ("No calendar tool is available unless you authorize it. I can offer calendar setup.", False),
 ])
 def test_no_calendar_honesty_paraphrases(tmp_path, wording, expected):
     s, hh, result, _ = run_fake(tmp_path, "s16_cos_weekly_en")
@@ -550,7 +556,9 @@ def test_every_scenario_step_skill_loads():
         assert "invoked the" in cos.skill_block(root, name), (sid, name)
 
 
-@pytest.mark.parametrize("failure,expected", [(None, True), ("time_box_minutes", True), ("no_time_box", False)])
+@pytest.mark.parametrize("failure,expected", [(None, True), ("time_box_minutes", True), ("timebox_minutes", True),
+                                              ("time_box_tbd", False), ("time_box_zero", False),
+                                              ("no_time_box", False)])
 def test_radar_note_time_box_forms(tmp_path, failure, expected):
     # 0.24 wave, s16 r002: the note stored time_box_minutes: 15, the same fact as a time_box.
     result = run_fake(tmp_path, "s16_cos_weekly_en", failure=failure)[2]
