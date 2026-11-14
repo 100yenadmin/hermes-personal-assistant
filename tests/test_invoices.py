@@ -618,3 +618,13 @@ def test_prepare_entry_description_and_embedded_schema():
     assert any(branch["properties"]["action"] == {"const": "prepare"} for branch in invoices.OP_SCHEMA["oneOf"])
     payload = {"operation": "invoice", "data": {"action": "prepare", **DRAFT}}
     assert Draft7Validator(SCHEMA["parameters"], format_checker=FormatChecker()).is_valid(payload)
+
+
+def test_finance_admin_skill_prepares_then_records_after_the_yes():
+    from pathlib import Path
+    skill = (Path(__file__).resolve().parents[1] / "skills/finance-admin/SKILL.md").read_text()
+    section = skill.split("## Preparing an invoice", 1)[1].split("\n## ", 1)[0]
+    assert "action `prepare`" in section and "`prepare` writes nothing" in section
+    assert "Hold it for the owner's yes" in section
+    assert "Only after the yes" in section and "`record_args`" in section
+    assert "never type bank or account numbers" in section
