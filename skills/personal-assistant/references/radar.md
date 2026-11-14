@@ -57,6 +57,9 @@ store account numbers or contract numbers.
 When one surfaces, give the owner ONE decision packet: what it is, annual cost,
 renewal date, the last day to give notice (`decide_by`), and keep / cancel /
 renegotiate with a recommendation and why. Say when a fact or cost is missing.
+Only surfaced records get a decision. A record that has not surfaced yet counts in
+the annual cost and the renewal windows, and is not listed as a decision.
+In a review, offer to draft a notice; draft it only after the owner chooses.
 If the owner chooses cancel or renegotiate, draft the notice to the counterparty.
 Hold it for the owner's yes to the exact recipient and text through the governed
 exact-action send path in `personal-assistant:follow-through`. A draft is not a send.

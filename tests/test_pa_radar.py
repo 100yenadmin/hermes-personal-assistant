@@ -152,6 +152,8 @@ def test_radar_text_contract():
     for name in ("radar_kind", "document", "expires_on", "event_date", "lead_days", "recurs", "source_ref"):
         assert f"`{name}`" in reference, name
     assert "never write `passport_expiry`" in reference
+    assert "Only surfaced records get a decision." in reference
+    assert "draft it only after the owner chooses" in reference
     assert "`references/radar.md`" in (root / "skills/personal-assistant/SKILL.md").read_text()
 
 
