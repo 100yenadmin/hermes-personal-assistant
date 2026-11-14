@@ -6,11 +6,13 @@ from types import SimpleNamespace
 
 import pytest
 from jsonschema import validate, ValidationError
+from jsonschema.exceptions import best_match
+from jsonschema.validators import validator_for
 
 from personal_assistant.entry import dispatch, SCHEMA
 from personal_assistant.onboarding_hook import OWNER_MEMORY, make_pre_llm_call
 from personal_assistant.state import Ledger, legacy
-from personal_assistant.profile import remember, session_note
+from personal_assistant.profile import SCHEMA as PROFILE_SCHEMA, _shape_hint, remember, session_note
 
 
 def call(root, action="remember", **data):
@@ -50,9 +52,12 @@ def test_nested_fields_hint_through_entry_without_write(tmp_path):
     before = ledger.list("action")
     database = tmp_path / "state/travel-ledger/travel.sqlite"
     before_bytes = database.read_bytes()
+    args = {"operation": "profile", "data": {"action": "remember", "kind": "preference",
+            "fields": {"text": "Synthetic nested value"}}}
+    parameters = SCHEMA["parameters"]
+    assert best_match(validator_for(parameters)(parameters).iter_errors(args)) is None
     with pytest.raises(ValueError) as exc:
-        dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference",
-                 "fields": {"text": "Synthetic nested value"}}})
+        dispatch(tmp_path, args)
     message = str(exc.value)
     assert "fields is for action_upsert" in message and "text" in message
     assert "Synthetic nested value" not in message and len(message) <= 600
@@ -62,6 +67,41 @@ def test_nested_fields_hint_through_entry_without_write(tmp_path):
     assert example == {"action": "remember", "kind": "preference", "text": "Prefers aisle seats",
                        "category": "travel", "source": "said", "evidence": "Owner said so"}
     assert dispatch(tmp_path, {"operation": "profile", "data": example})["fields"]["text"] == example["text"]
+
+
+def test_profile_wire_schema_copy_preserves_strict_storage_validation(tmp_path):
+    wired = SCHEMA["parameters"]["allOf"][-1]["then"]["properties"]["data"]
+    assert "additionalProperties" not in wired
+    assert PROFILE_SCHEMA["additionalProperties"] is False
+    assert {**wired, "additionalProperties": False} == PROFILE_SCHEMA
+    assert wired["properties"] is not PROFILE_SCHEMA["properties"]
+    assert wired["properties"]["changelog"] is not PROFILE_SCHEMA["properties"]["changelog"]
+    args = {"operation": "profile", "data": {"action": "remember", "kind": "preference",
+            "text": "Prefers aisle seats", "category": "travel", "source": "said", "evidence": "Owner said so"}}
+    validate(args, SCHEMA["parameters"])
+    validate(args["data"], PROFILE_SCHEMA)
+    validate(dispatch(tmp_path, args)["fields"], PROFILE_SCHEMA)
+    with pytest.raises(ValidationError):
+        validate({**args["data"], "fields": {}}, PROFILE_SCHEMA)
+
+
+@pytest.mark.parametrize("overflow", [0, 7])
+def test_unknown_key_names_are_filtered_and_counted(tmp_path, overflow):
+    private = ["4111 1111 1111 1111", "ghp_abcdefghijklmnop1234", "card number: 4111111111111111"]
+    unknown = {key: "Synthetic value" for key in ["fields", *private, *(f"unknown_{i}" for i in range(overflow))]}
+    with pytest.raises(ValueError) as exc:
+        dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference", **unknown}})
+    message = str(exc.value)
+    assert all(key not in message for key in private)
+    assert "not accepted: fields" in message and "fields is for action_upsert" in message
+    assert f"; plus {len(unknown) - min(overflow + 1, 5)} other keys not accepted" in message
+    assert len(message) <= 600
+    assert Ledger(tmp_path).list("action") == []
+
+
+def test_shape_hint_caps_fixed_text_that_exceeds_budget():
+    allowed = {f"allowed_{i}_" + "x" * 40 for i in range(20)}
+    assert len(_shape_hint("preference", allowed, {"fields"})) <= 600
 
 
 def test_many_unknown_keys_are_bounded_and_sorted(tmp_path):
@@ -94,9 +134,10 @@ def test_each_kind_hint_example_validates(tmp_path, kind, pathological):
     with pytest.raises(ValueError) as exc:
         remember(ledger, data)
     message = str(exc.value)
-    assert len(message) <= 600 and ("…" in message) == pathological
+    assert len(message) <= 600
     if pathological:
-        assert "; plus 26 other keys not accepted" in message
+        assert "; plus 30 other keys not accepted" in message
+        assert "long_" not in message
     assert "fields is for action_upsert" in message and "Synthetic value" not in message
     assert ledger.list("action") == []
     accepted = message.split(" takes flat data: ", 1)[1].split(";", 1)[0].split(", ")

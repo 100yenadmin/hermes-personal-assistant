@@ -106,17 +106,18 @@ def _shape_hint(kind, allowed, unknown):
         "trust": {"task_type": "Weekly prep"},
     }
     head = f"remember {kind} takes flat data: " + ", ".join(sorted(allowed))
-    extra = "; not accepted: " + ", ".join(sorted(unknown)[:5])
+    named = sorted(key for key in unknown if re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key) and not _private([key]))[:5]
+    extra = "; not accepted: " + ", ".join(named) if named else ""
     tail = ""
-    if len(unknown) > 5:
-        tail += f"; plus {len(unknown) - 5} other keys not accepted"
+    if len(unknown) > len(named):
+        tail += f"; plus {len(unknown) - len(named)} other keys not accepted"
     if "fields" in unknown:
         tail += "; fields is for action_upsert, send these keys at the top level of data"
     tail += ". Example: " + json.dumps({"action": "remember", "kind": kind, **examples[kind]}, separators=(",", ":"))
     budget = 600 - len(head) - len(tail)
     if len(extra) > budget:
-        extra = extra[:budget - 1] + "…"
-    return head + extra + tail
+        extra = extra[:max(budget - 1, 0)] + "…"
+    return (head + extra + tail)[:600]
 
 
 def remember(ledger, data):

@@ -1,4 +1,5 @@
 """One small structured interface, bound to the installing Hermes profile."""
+from copy import deepcopy
 import inspect
 import json
 from pathlib import Path
@@ -123,9 +124,12 @@ SCHEMA = {
 }
 
 from .profile import SCHEMA as PROFILE_SCHEMA
+PROFILE_DATA_SCHEMA = deepcopy(PROFILE_SCHEMA)
+# Let PA return bounded shape hints; stored profile fields still use the strict schema.
+PROFILE_DATA_SCHEMA.pop("additionalProperties")
 SCHEMA["parameters"]["allOf"].append({
     "if": {"properties": {"operation": {"const": "profile"}}},
-    "then": {"properties": {"data": PROFILE_SCHEMA}},
+    "then": {"properties": {"data": PROFILE_DATA_SCHEMA}},
     "else": {"if": {"properties": {"operation": {"const": "expense"}}},
     "then": {"properties": {"data": EXPENSE_OP_SCHEMA}},
     "else": {"if": {"properties": {"operation": {"const": "invoice"}}},
