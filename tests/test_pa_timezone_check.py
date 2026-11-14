@@ -291,3 +291,12 @@ def test_diverted_last_leg_does_not_fall_back_to_the_hub(ledger):
            _segment(segment_id="CX9:2026-11-14", carrier="CX", number="9", origin="HKG", origin_timezone="Asia/Hong_Kong",
                     scheduled_departure="2026-11-14T07:00:00Z", scheduled_arrival="2026-11-14T10:00:00Z", status="diverted"))
     assert timezone_check(ledger, MOMENT) is None
+
+
+@pytest.mark.parametrize("status, expected", [("landed", True), ("scheduled", False), ("delayed", False),
+                                              ("departed", False), ("unknown", False)])
+def test_switch_needs_a_confirmed_landing(ledger, status, expected):
+    preferences(ledger, {"timezone": "Asia/Seoul"})
+    _facts(ledger, _segment(status=status))
+    item = timezone_check(ledger, MOMENT)
+    assert item["evidence"]["kind"] == "landed" and item["suggested"] == "Asia/Bangkok" and item["switch"] is expected

@@ -73,5 +73,7 @@ def timezone_check(ledger, moment) -> dict | None:
     return {"radar_kind": "timezone_check", "action_id": "pa:preferences",
             "stored": str(stored) if stored else None, "suggested": str(zone),
             "evidence": evidence, "evidence_key": key, "surfaced": True,
-            # Switch without asking only on a fresh landing; older evidence may predate the owner's own correction.
-            "switch": evidence["kind"] == "landed" and moment - arrival <= dt.timedelta(hours=48)}
+            # Switch without asking only on a confirmed, fresh landing: a past arrival time alone is not proof the
+            # owner flew, and older evidence may predate the owner's own correction.
+            "switch": (evidence["kind"] == "landed" and seg.get("status") == "landed"
+                       and moment - arrival <= dt.timedelta(hours=48))}
