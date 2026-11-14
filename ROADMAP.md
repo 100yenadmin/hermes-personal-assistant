@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.23.0-rc.1, 14 November 2026)
+## Where we are (0.24.0-rc.1, 14 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -90,6 +90,8 @@ In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), 
 
 0.23.0-rc.1 keeps documents in the owner's own Google account: a budget sheet with a formula total and an agenda doc, with each share or CRM change held for the yes (#243, lab s43 3 of 3). It adds a tax-season pack for the accountant (#237). Routines now follow the owner's timezone after a trip unless pinned (#241). A ride site that shows no fare gets a labelled typical fare (#244), and the judge reads a price split across two page nodes as one (#240). In its wave (123 runs on real Hermes, one at a time, 121 passing), 39 of 41 scenarios passed 3 of 3. The two misses were s03 (an Uber pickup field that kept resetting) and s16 (a source that never opened, reported as checked). #251 addresses both after the release.
 
+0.24.0-rc.1 tracks the owner's contracts, subscriptions and licences: each surfaces before its last day to give notice, with the annual cost per currency and one keep / cancel / renegotiate decision, and a notice drafted only after the owner chooses (#249, #254, lab s45 ⟨S45⟩). PA notices when its stored timezone no longer matches the owner's recorded flights or home, switching after a fresh landing and asking otherwise (#252). The monthly summary and cash position count a matched receipt once, as the tax pack does (#246), and the tax pack has its lab scenario (s44 ⟨S44⟩). An owner's early chase time is an extra chase that leaves the overdue ladder in place (#247). ⟨WAVE_ROADMAP⟩
+
 **Strong:**
 - travel prep (hotels and restaurants on real sites up to the final review page; in 0.23.0-rc.1 Seoul to Tokyo (s01) and Tokyo to Seoul (s02) passed 3 of 3, and San Francisco to Tokyo (s03) 2 of 3, its miss an Uber pickup field that kept resetting, reported honestly);
 - the safe-action gateway and the durable ledger;
@@ -116,14 +118,14 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2 (check), M3 (daily and weekly), M6 (monthly, quarterly, licences and contracts) |
 | Research | partial: adopt-or-build research only | M2 |
 | Travel | partial: prep up to the final page, nothing completed | M0 (real trip), M5 (completion) |
-| Personal life admin | partial: renewal and birthday radar (lab s21); family appointments, household vendors and a year at a glance with gift ideas, every booking and send held for the yes (0.16.0-rc.1, lab s41 3 of 3) | M3 (radar), M6 (the rest) |
+| Personal life admin | partial: renewal and birthday radar (lab s21); contracts, subscriptions and licences surfaced before the notice deadline with annual cost and a keep-or-cancel decision (0.24.0-rc.1, lab s45 ⟨S45⟩); family appointments, household vendors and a year at a glance with gift ideas, every booking and send held for the yes (0.16.0-rc.1, lab s41 3 of 3) | M3 (radar), M6 (the rest) |
 | Follow-up, reporting, escalation | missing or partial | M3 |
 | Inbox | missing | M4 |
 | Calendar | partial: reads and conflict checks | M4 |
 | Errands and bookings | partial: stops correctly before booking, nothing completed | M5 |
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
 | Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3 in 0.19.0-rc.1, 2 of 3 in 0.20.0-rc.1 over an unhelpful error, 3 of 3 in 0.21.0-rc.1 once the error names the call's shape); meeting minutes with owners and dates (lab s34 3 of 3); a budget sheet with a formula total and an agenda doc in the owner's Google account, sharing and a CRM change held for the yes (0.23.0-rc.1, lab s43 3 of 3; live run next, #156) | M6 |
-| Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); a tax-season pack for the accountant with CSV and Markdown exports (0.23.0-rc.1, unit tests; lab s44 next) | M6 |
+| Finance admin | partial: invoices with the overdue chase ladder, owner-stated balances, a weekly cash position and a monthly summary (0.13.0-rc.1, unit tests); trip expenses export (lab s30); card statement import with possible duplicates (0.14.0-rc.1, unit tests); a tax-season pack for the accountant with CSV and Markdown exports (0.23.0-rc.1; lab s44 ⟨S44⟩ in 0.24.0-rc.1); a matched receipt counts once in every total (0.24.0-rc.1) | M6 |
 | Customer and vendor messages | partial: replies under the owner's written policy, out-of-policy decision packets and vendor timeline chases (0.13.0-rc.1; lab s31 3 of 3 since 0.14.0-rc.1); a read-only weekly report of volume, response time, recurring complaints and open items (0.16.0-rc.1, lab s40 3 of 3) | M6 |
 | Social and content admin | partial: a content calendar and drafts in the owner's voice, every post held for the yes (0.15.0-rc.1; lab s38 3 of 3 in 0.15.0-rc.1 and 0.16.0-rc.1, 2 of 3 in 0.17.0-rc.1, 3 of 3 in 0.18.0-rc.1, 1 of 3 in 0.19.0-rc.1 and 3 of 3 in a rerun, 3 of 3 in 0.20.0-rc.1 with the calendar shown week by week); no comment replies, mention monitoring or weekly report yet | M6 |
 
@@ -415,7 +417,7 @@ In the release wave, replies under policy (s31) passed 2 of 3; the miss came fro
 
 Since then, meeting minutes with an owner and a date on every action item (M6-d, #145; lab s34 3 of 3) and card statement import (M6-e, #146; unit tests) have been built.
 
-In 0.23.0-rc.1, documents in the owner's Google account (#156, lab s43) and the tax pack (#235, unit tests) were built too.
+In 0.23.0-rc.1, documents in the owner's Google account (#156, lab s43) and the tax pack (#235, unit tests) were built too. In 0.24.0-rc.1, the tax pack passed its lab scenario (s44 ⟨S44⟩) and contract renewals with notice deadlines were added (#248, lab s45 ⟨S45⟩).
 
 Still missing: live proof of the week-one VA core (#152; #151 and #153 to #155 are built), a live run in the owner's own systems, the voice test and the parity evidence.
 

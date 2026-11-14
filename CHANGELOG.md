@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.24.0-rc.1 — 2026-11-14
+
+This release candidate adds a job a remote VA is hired for: tracking the owner's contracts, subscriptions and licences, and raising each one in time to cancel or renegotiate. PA also notices when its timezone no longer matches where the owner is.
+- **Contracts, subscriptions and licences (#249, #254; #248 stays open for a live run).** A renewal record may carry a notice period (`notice_days`), auto-renewal, a counterparty and a cost (amount, currency, per month or year).
+  - The last day to give notice, `decide_by`, is the renewal date minus the notice period. The item surfaces `lead_days` before that day, not before the renewal. Before, a 90-day notice with the default 30-day lead surfaced two months after the last day to cancel.
+  - A yearly record whose notice deadline has passed surfaces with the missed notice named, and keeps this cycle's date until it passes.
+  - `next_action` with `radar: true, contracts: true` gives the annual cost per currency in exact decimals (never mixed), how many records have no cost, and what renews in the next 30, 60 and 90 days, including records that have not surfaced yet.
+  - The skill gives one keep / cancel / renegotiate decision per surfaced record, with the deadline and a recommendation. A record that is not due counts in the cost and the windows and is not listed as a decision. PA drafts a notice only after the owner chooses, and holds it for the owner's yes to the exact recipient and text.
+- **PA notices when its timezone is out of date (#252, for #238).** A new read-only radar item, `timezone_check`, compares the stored timezone with the owner's recorded flights (the nearest landed or departing flight within 30 days) or a new `home_timezone` preference. Nothing is suggested in the air or between connecting legs, or when the zones share a UTC offset. For a flight marked landed in the last 48 hours, PA switches and tells the owner how to undo; otherwise it asks once. A "keep" is remembered per flight (`timezone_kept`). In the incident behind #238, the owner was home while PA still ran on an earlier trip's zone, so the daily brief came two hours early.
+- **A matched receipt counts once everywhere (#246, Fixes #236).** The monthly summary, its export and the weekly cash position now pair a card line with its forwarded receipt the way the tax pack does, so twelve months add up to the year.
+- **An owner's early chase time is an extra chase (#247, Fixes #233).** On minutes and invoice loops, an owner's time before the loop opens gets its own `owner_time` step. Day 2, day 5, day 10 and escalation keep their dates.
+- **Fixes from the 0.23.0-rc.1 wave misses (#251).** CoS skills say a page that would not open was not checked. A benchmark offer proposes one concrete slot and says when it was not checked against the calendar. Rideshare stops retrying a pickup or dropoff field after two resets and counts it as no fare shown.
+- **Lab: two new scenarios (#245, #250).** s44: the year-end tax pack drafted for the owner's accountant and held. s45: the contracts review, then a cancellation notice drafted and held.
+
+PA's skills still stop every booking, payment, cancellation, share and send for the owner's yes.
+
+WAVE PARAGRAPH: <fill from the f?????? wave: 43 scenarios x 3 + w01; per-scenario misses; fire-me; scorecard areas>
+
 ## 0.23.0-rc.1 — 2026-11-14
 
 This release candidate brings two office jobs a remote VA is hired for: documents kept in the owner's own Google account, and a year-end pack for the owner's accountant. Routines also follow the owner home after a trip.
