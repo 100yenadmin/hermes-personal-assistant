@@ -1,6 +1,7 @@
 """Synthetic offline invoice bookkeeping through the public PA interface."""
 import datetime as dt
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -433,3 +434,187 @@ def test_value_hint_lists_only_the_fields_sent(tmp_path):
     message = str(error.value)
     assert 'amount as a string like "850.00"' in message and "currency as 3 capital letters" in message
     assert "status open" not in message and "paid_on" not in message
+
+
+DRAFT = {"counterparty": "Synthetic Acme", "currency": "GBP", "issue_date": "2026-11-30",
+         "terms_days": 14, "lines": [{"description": "Consulting", "quantity": "12.500", "unit_price": "95.00"},
+                                    {"description": "Materials", "quantity": "2", "unit_price": "40.00"}],
+         "tax": {"label": "VAT", "rate_percent": "20"}}
+
+
+def prepare(ledger, **changes):
+    data = {**DRAFT, **changes}
+    # None removes optional fields, making due-date and no-tax examples easy to read.
+    data = {k: v for k, v in data.items() if v is not None}
+    before = ledger.path.read_bytes()
+    with ledger.connect() as conn:
+        action_bytes = conn.execute("select * from actions order by action_id").fetchall()
+        action_bytes = [tuple(row) for row in action_bytes]
+    result = call(ledger, "prepare", **data)
+    assert ledger.path.read_bytes() == before
+    with ledger.connect() as conn:
+        assert [tuple(row) for row in conn.execute("select * from actions order by action_id")] == action_bytes
+    return result
+
+
+def test_prepare_services_invoice_exact_totals_next_reference_and_no_writes(ledger):
+    record(ledger, counterparty="Other Synthetic Client", reference="INV-2026-013",
+           issue_date="2026-09-30", due_date="2026-10-14")
+    record(ledger, reference="INV-2026-014", issue_date="2026-10-31", due_date="2026-11-14")
+    draft = prepare(ledger)
+    assert draft == {
+        "prepared": True, "recorded": False, "direction": "receivable", "counterparty": "Synthetic Acme",
+        "currency": "GBP", "issue_date": "2026-11-30", "due_date": "2026-12-14", "terms_days": 14,
+        "reference": "INV-2026-015", "reference_source": "next_in_series", "reference_basis": "INV-2026-014",
+        "lines": [{"description": "Consulting", "quantity": "12.5", "unit_price": "95.00", "amount": "1187.50"},
+                  {"description": "Materials", "quantity": "2", "unit_price": "40.00", "amount": "80.00"}],
+        "subtotal": "1267.50", "tax": {"label": "VAT", "rate_percent": "20", "amount": "253.50"},
+        "total": "1521.00", "category": "services", "description": None, "warnings": [], "missing": [],
+        "record_args": {"action": "record", "direction": "receivable", "counterparty": "Synthetic Acme",
+                        "reference": "INV-2026-015", "amount": "1521.00", "currency": "GBP",
+                        "issue_date": "2026-11-30", "due_date": "2026-12-14", "category": "services",
+                        "evidence_ref": "draft:prepared-invoice"},
+        "next_step": "Show the owner this draft invoice. Record it with record_args only after the owner's explicit yes; replace evidence_ref with where it was sent or saved."}
+
+
+@pytest.mark.parametrize("currency,quantity,price,amount", [
+    ("GBP", "3", "0.335", "1.01"), ("JPY", "3", "333.3", "1000"), ("KWD", "2", "1.2345", "2.469")])
+def test_prepare_line_rounding_half_up_and_currency_precision(ledger, currency, quantity, price, amount):
+    draft = prepare(ledger, currency=currency, tax=None, reference="DEMO-P",
+                    lines=[{"description": "Service", "quantity": quantity, "unit_price": price}])
+    assert draft["lines"][0]["amount"] == draft["subtotal"] == draft["total"] == amount
+    assert draft["tax"] is None
+
+
+def test_prepare_rounds_lines_before_subtotal_and_tax(ledger):
+    draft = prepare(ledger, lines=[{"description": "Service", "quantity": "1", "unit_price": "0.005"}] * 2,
+                    tax={"label": "Tax", "rate_percent": "25"})
+    assert [line["amount"] for line in draft["lines"]] == ["0.01", "0.01"]
+    assert (draft["subtotal"], draft["tax"]["amount"], draft["total"]) == ("0.02", "0.01", "0.03")
+
+
+def test_prepare_large_operands_preserve_all_digits(ledger):
+    operand = "1" * 40
+    draft = prepare(ledger, lines=[{"description": "Service", "quantity": operand, "unit_price": operand}],
+                    tax={"label": "Tax", "rate_percent": "100"})
+    expected = str(int(operand) ** 2)
+    assert draft["lines"][0]["amount"] == draft["subtotal"] == draft["tax"]["amount"] == expected + ".00"
+    assert draft["total"] == str(2 * int(expected)) + ".00"
+
+
+def test_prepare_explicit_due_date_and_given_reference(ledger):
+    draft = prepare(ledger, terms_days=None, due_date="2026-11-30", reference="DEMO-P", tax=None)
+    assert draft["due_date"] == "2026-11-30" and draft["terms_days"] is None
+    assert draft["reference"] == "DEMO-P" and draft["reference_source"] == "given"
+    assert draft["reference_basis"] is None
+
+
+@pytest.mark.parametrize("changes", [{"due_date": "2026-12-14"}, {"terms_days": None}])
+def test_prepare_needs_exactly_one_due_date_or_terms_days(ledger, changes):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError, match="exactly one of due_date or terms_days"):
+        prepare(ledger, **changes)
+    assert ledger.path.read_bytes() == before
+
+
+def test_prepare_no_usable_receivable_series_asks_owner_for_reference(ledger):
+    record(ledger)  # A reference without a trailing number cannot define a series.
+    record(ledger, direction="payable", category="other", reference="BILL-099")
+    draft = prepare(ledger)
+    assert draft["reference"] is draft["record_args"] is draft["reference_basis"] is None
+    assert draft["reference_source"] == "none" and draft["missing"] == ["reference"]
+
+
+def test_prepare_selects_latest_series_then_max_number_and_widest_width_including_void(ledger):
+    record(ledger, reference="OLD-999", issue_date="2026-09-30", due_date="2026-10-01")
+    record(ledger, reference="NEW-0012", issue_date="2026-10-30", due_date="2026-10-31")
+    voided = record(ledger, reference="NEW-25", issue_date="2026-10-01", due_date="2026-10-02")
+    call(ledger, "void", invoice_id=voided["action_id"], reason="Cancelled draft")
+    draft = prepare(ledger)
+    assert (draft["reference"], draft["reference_basis"]) == ("NEW-0026", "NEW-25")
+
+
+def test_prepare_series_date_tie_uses_larger_number_and_accepts_plain_numbers(ledger):
+    record(ledger, reference="INV-007")
+    record(ledger, reference="1043", counterparty="Other Synthetic Client")
+    draft = prepare(ledger)
+    assert (draft["reference"], draft["reference_basis"]) == ("1044", "1043")
+
+
+def test_prepare_duplicate_warnings_use_record_counterparty_and_reference_normalization(ledger):
+    record(ledger, reference="DEMO-P", amount="1521", currency="GBP")
+    draft = prepare(ledger, counterparty="  ＳＹＮＴＨＥＴＩＣ   Acme ", reference="demo-p")
+    assert draft["warnings"] == [
+        "reference already used for   ＳＹＮＴＨＥＴＩＣ   Acme : demo-p",
+        "possible duplicate of DEMO-P issued 2026-11-01"]
+
+
+@pytest.mark.parametrize("status,days,currency,warns", [
+    ("open", 31, "GBP", True), ("open", -31, "GBP", True), ("open", 32, "GBP", False),
+    ("paid", 0, "GBP", False), ("void", 0, "GBP", False), ("open", 0, "USD", False)])
+def test_prepare_possible_duplicate_only_open_same_currency_within_31_days(ledger, status, days, currency, warns):
+    issued = (dt.date(2026, 11, 30) + dt.timedelta(days=days)).isoformat()
+    row = record(ledger, amount="1521", currency=currency, issue_date=issued, due_date=issued)
+    if status == "paid":
+        call(ledger, "paid", invoice_id=row["action_id"], paid_on=issued, evidence="Owner confirms")
+    elif status == "void":
+        call(ledger, "void", invoice_id=row["action_id"], reason="Cancelled")
+    assert bool(prepare(ledger, reference="DEMO-P")["warnings"]) is warns
+
+
+@pytest.mark.parametrize("currency", ["GBP", "JPY", "KWD"])
+def test_prepare_record_args_round_trip_creates_open_invoice_and_chase_loop(ledger, currency):
+    draft = prepare(ledger, reference="DEMO-P", currency=currency,
+                    description="November services", trip_id="synthetic-trip", category="products")
+    assert Draft7Validator(invoices.OP_SCHEMA, format_checker=FormatChecker()).is_valid(draft["record_args"])
+    args = draft["record_args"]
+    row = dispatch(ledger.root, {"operation": "invoice", "data": args})
+    assert row["status"] == "open" and row["fields"]["direction"] == "receivable"
+    assert row["fields"]["amount"] == invoices._number(Decimal(draft["total"]))
+    assert row["fields"]["description"] == "November services" and row["trip_id"] == "synthetic-trip"
+    assert ledger.get("action", row["action_id"] + ":loop")["status"] == "open"
+
+
+@pytest.mark.parametrize("description", ["Account 12345678", "GB82 WEST 1234 5698 7654 32",
+    "DE89370400440532013000", "token=synthetic123456", "passport number ABCD", " ", "x" * 201])
+def test_prepare_rejects_restricted_or_invalid_line_description_without_writes(ledger, description):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError):
+        prepare(ledger, lines=[{"description": description, "quantity": "1", "unit_price": "1"}])
+    assert ledger.path.read_bytes() == before
+
+
+@pytest.mark.parametrize("changes", [
+    {"lines": []}, {"lines": DRAFT["lines"] * 25 + DRAFT["lines"][:1]},
+    {"tax": {"label": "VAT", "rate_percent": "101"}},
+    {"tax": {"label": " ", "rate_percent": "20"}}, {"tax": {"label": "VAT", "rate_percent": 20.0}},
+    {"tax": {"label": "VAT", "rate_percent": "20", "extra": True}},
+    {"due_date": "2026-11-29", "terms_days": None}, {"issue_date": "2026-02-30"},
+    {"terms_days": -1}, {"terms_days": 121}, {"terms_days": True}, {"category": "food"},
+    {"trip_id": "unknown"}, {"counterparty": " "}, {"reference": " "},
+] + [{"lines": [{"description": "Service", "quantity": q, "unit_price": p, **extra}]}
+     for q, p, extra in [("0", "1", {}), ("1", "0", {}), (1.5, "1", {}), ("1", 1.5, {}),
+                         ("1.0001", "1", {}), ("1", "1.00001", {}), ("1e2", "1", {}),
+                         ("1", "1", {"extra": True}), ("1", "0.0001", {})]])
+def test_prepare_invalid_fields_without_writes(ledger, changes):
+    before = ledger.path.read_bytes()
+    with pytest.raises(ValueError):
+        prepare(ledger, **changes)
+    assert ledger.path.read_bytes() == before
+
+
+def test_prepare_unknown_keys_hint_names_prepare_fields_without_values(ledger):
+    with pytest.raises(ValueError) as error:
+        prepare(ledger, fields={"private": "do not echo"})
+    message = str(error.value)
+    for name in ("prepare takes counterparty, currency, issue_date, lines", "one of due_date or terms_days",
+                 "category", "description", "reference", "tax", "trip_id", "not accepted: fields"):
+        assert name in message
+    assert "do not echo" not in message
+
+
+def test_prepare_entry_description_and_embedded_schema():
+    assert "action prepare" in SCHEMA["parameters"]["properties"]["data"]["description"]
+    assert any(branch["properties"]["action"] == {"const": "prepare"} for branch in invoices.OP_SCHEMA["oneOf"])
+    payload = {"operation": "invoice", "data": {"action": "prepare", **DRAFT}}
+    assert Draft7Validator(SCHEMA["parameters"], format_checker=FormatChecker()).is_valid(payload)

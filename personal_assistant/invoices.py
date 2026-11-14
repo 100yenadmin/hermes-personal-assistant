@@ -3,7 +3,7 @@ import datetime as dt
 import json
 import re
 import unicodedata
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, localcontext
 
 from jsonschema import Draft7Validator, FormatChecker
 
@@ -16,6 +16,8 @@ from .state import legacy, now, stable_id
 
 DIRECTIONS = ["receivable", "payable"]
 STATUSES = ["open", "paid", "void"]
+MINOR_UNITS = {"JPY": 0, "KRW": 0, "VND": 0, "CLP": 0, "ISK": 0, "UGX": 0,
+               "BHD": 3, "KWD": 3, "OMR": 3, "JOD": 3, "TND": 3}
 TEXT_LIMITS = {"counterparty": 120, "reference": 80, "description": 200, "evidence_ref": 1000,
                "trip_id": 1000, "invoice_id": 1000, "evidence": 200, "reason": 200}
 FIELDS = {**{k: {"type": "string", "minLength": 1, "maxLength": n} for k, n in TEXT_LIMITS.items()},
@@ -24,11 +26,25 @@ FIELDS = {**{k: {"type": "string", "minLength": 1, "maxLength": n} for k, n in T
           "category": {"enum": sorted(set(CATEGORIES + ["products"]))},
           **{k: {"type": "string", "format": "date"} for k in ("issue_date", "due_date", "paid_on")},
           "remind_days_before": {"type": "integer", "minimum": 0, "maximum": 60}}
+FIELDS.update({
+    "terms_days": {"type": "integer", "minimum": 0, "maximum": 120},
+    "lines": {"type": "array", "minItems": 1, "maxItems": 50, "items": {
+        "type": "object", "additionalProperties": False,
+        "required": ["description", "quantity", "unit_price"], "properties": {
+            "description": FIELDS["description"],
+            "quantity": {"type": "string", "pattern": r"^[0-9]+(?:\.[0-9]{1,3})?$"},
+            "unit_price": {"type": "string", "pattern": r"^[0-9]+(?:\.[0-9]{1,4})?$"}}}},
+    "tax": {"type": "object", "additionalProperties": False, "required": ["label", "rate_percent"],
+            "properties": {"label": {"type": "string", "minLength": 1, "maxLength": 40},
+                           "rate_percent": {"type": "string", "pattern": r"^(?:[0-9]{1,2}(?:\.[0-9]{1,3})?|100)$"}}},
+})
 RECORD = {"direction", "counterparty", "reference", "amount", "currency", "issue_date", "due_date",
           "category", "evidence_ref"}
+PREPARE = {"counterparty", "currency", "issue_date", "lines"}
 ALLOWED = {"record": RECORD | {"description", "trip_id", "remind_days_before"},
            "paid": {"invoice_id", "paid_on", "evidence"}, "void": {"invoice_id", "reason"},
-           "list": {"direction", "status", "trip_id"}}
+           "list": {"direction", "status", "trip_id"},
+           "prepare": PREPARE | {"due_date", "terms_days", "reference", "tax", "category", "description", "trip_id"}}
 OP_SCHEMA = {"oneOf": [
     {"type": "object", "additionalProperties": False,
      "properties": {"action": {"const": action}, **{k: FIELDS[k] for k in keys}},
@@ -36,7 +52,12 @@ OP_SCHEMA = {"oneOf": [
      **({"allOf": [{"if": {"properties": {"direction": {"const": "receivable"}}},
                     "then": {"properties": {"category": {"enum": ["services", "products", "other"]}}},
                     "else": {"properties": {"category": {"enum": CATEGORIES}}}}]} if action == "record" else {})}
-    for action, keys in ALLOWED.items()]}
+    for action, keys in ALLOWED.items() if action != "prepare"] + [
+        {"type": "object", "additionalProperties": False,
+         "properties": {"action": {"const": "prepare"}, **{k: FIELDS[k] for k in ALLOWED["prepare"]},
+                        "category": {"enum": ["services", "products", "other"]}},
+         "required": ["action", *sorted(PREPARE)],
+         "oneOf": [{"required": ["due_date"]}, {"required": ["terms_days"]}]}]}
 
 
 def guarded(identity, action_type=None, existing=None, *, bookkeeping=False):
@@ -70,6 +91,9 @@ VALUE_HINTS = {"amount": 'amount as a string like "850.00"', "currency": "curren
                "direction": "direction receivable or payable", "status": "status open, paid or void",
                "category": "category services, products or other for a receivable",
                "remind_days_before": "remind_days_before a whole number from 0 to 60",
+               "terms_days": "terms_days a whole number from 0 to 120",
+               "lines": "lines as 1 to 50 objects with description, quantity and unit_price decimal strings",
+               "tax": "tax with label and rate_percent as a decimal string from 0 to 100",
                **{k: f"{k} as YYYY-MM-DD" for k in ("issue_date", "due_date", "paid_on")},
                **{k: f"{k} as text up to {n} characters" for k, n in TEXT_LIMITS.items()}}
 
@@ -78,14 +102,17 @@ def _shape_hint(data):
     """Name the fields the action takes, so a model can correct its call (key names only, never values)."""
     action = data.get("action")
     if not isinstance(action, str) or action not in ALLOWED:
-        return "action must be one of " + ", ".join(sorted(ALLOWED))
-    required = sorted(RECORD if action == "record" else ALLOWED[action] if action != "list" else ())
+        return "action must be one of " + ", ".join([*sorted(ALLOWED.keys() - {"prepare"}), "prepare"])
+    required = sorted(PREPARE if action == "prepare" else RECORD if action == "record"
+                      else ALLOWED[action] if action != "list" else ())
     optional = sorted(ALLOWED[action] - set(required))
     extra = [k for k in data if k != "action" and k not in ALLOWED[action]]
     named = sorted(k for k in extra if k in KNOWN_KEYS)[:5]
     others = len(extra) - len(named)
     missing = sorted(set(required) - set(data))
     hint = f"{action} takes " + (", ".join(required) or "no required fields")
+    if action == "prepare":
+        hint += "; exactly one of due_date or terms_days"
     hint += f"; optional: {', '.join(optional)}" if optional else ""
     hint += f"; missing: {', '.join(missing)}" if missing else ""
     hint += f"; not accepted: {', '.join(named)}" if named else ""
@@ -97,7 +124,11 @@ def _shape_hint(data):
 
 
 def _validate(data):
-    if _private({k: v for k, v in data.items() if k != "invoice_id"}):  # Generated hex ids are not owner text.
+    private_data = {k: v for k, v in data.items() if k != "invoice_id"}  # Generated hex ids are not owner text.
+    if data.get("action") == "prepare" and isinstance(data.get("lines"), list):
+        # Decimal operands are numeric facts; apply the free-text scan to descriptions.
+        private_data["lines"] = [line.get("description") for line in data["lines"] if isinstance(line, dict)]
+    if _private(private_data):
         raise ValueError("PA does not store payment or account numbers or credentials")
     for key, value in data.items():
         if isinstance(value, str) and (_iban(value)
@@ -115,9 +146,19 @@ def _validate(data):
     for key in ("issue_date", "due_date", "paid_on"):
         if key in data:
             _date(data[key], "invoice." + key)
+    if data["action"] == "prepare":
+        for line in data["lines"]:
+            _text(line["description"], "invoice.lines.description", 200)
+            if _iban(line["description"]) or re.search(r"\d{8,}", line["description"]):
+                raise ValueError("PA does not store payment or account numbers")
+            if any(Decimal(line[k]) <= 0 for k in ("quantity", "unit_price")):
+                raise ValueError("invoice line quantity and unit_price must be positive")
+        if "tax" in data:
+            _text(data["tax"]["label"], "invoice.tax.label", 40)
     if data["action"] == "record":
         if Decimal(data["amount"]) <= 0:
             raise ValueError("invoice.amount must be positive")
+    if data["action"] in {"record", "prepare"} and "due_date" in data:
         if data["due_date"] < data["issue_date"]:
             raise ValueError("invoice.due_date must be on or after issue_date")
     if clean(data) != data:
@@ -179,12 +220,92 @@ def _record(conn, data, zone):
     return identity
 
 
+def prepare(ledger, data):
+    """Compute a draft from validated input and existing rows, without recording it."""
+    issue = dt.date.fromisoformat(data["issue_date"])
+    try:
+        due = data.get("due_date") or (issue + dt.timedelta(days=data["terms_days"])).isoformat()
+    except OverflowError:
+        raise ValueError("invoice due_date is outside the supported date range") from None
+    currency = data["currency"]
+    places = MINOR_UNITS.get(currency, 2)
+    with localcontext() as ctx:
+        # Product coefficients, summation carry, and tax multiplication all fit exactly.
+        ctx.prec = max(28, max(len(line["quantity"]) + len(line["unit_price"])
+                               for line in data["lines"]) + 20)
+        quantum = Decimal(1).scaleb(-places)
+
+        def money(value):
+            return format(value.quantize(quantum, rounding=ROUND_HALF_UP), f".{places}f")
+
+        lines = [{"description": line["description"], "quantity": _number(Decimal(line["quantity"])),
+                  "unit_price": line["unit_price"],
+                  "amount": money(Decimal(line["quantity"]) * Decimal(line["unit_price"]))}
+                 for line in data["lines"]]
+        subtotal = sum((Decimal(line["amount"]) for line in lines), Decimal(0))
+        tax = ({**data["tax"], "amount": money(subtotal * Decimal(data["tax"]["rate_percent"]) / 100)}
+               if "tax" in data else None)
+        total = subtotal + (Decimal(tax["amount"]) if tax else Decimal(0))
+        if total <= 0:
+            raise ValueError("invoice total must be positive after rounding")
+        subtotal_text, total_text = money(subtotal), money(total)
+
+    receivables = [r for r in ledger.list("action")
+                   if r["action_type"] == "invoice" and r["fields"].get("direction") == "receivable"]
+    reference, source, basis = data.get("reference"), "given" if "reference" in data else "none", None
+    if reference is None:
+        series = []
+        for row in receivables:
+            fields = row["fields"]
+            match = re.fullmatch(r"(.*?)([0-9]+)", fields.get("reference", ""))
+            if match:
+                series.append((fields["issue_date"], int(match[2]), match[1], len(match[2]), fields["reference"]))
+        if series:
+            prefix = max(series)[2]
+            matching = [s for s in series if s[2] == prefix]
+            followed = max(matching, key=lambda s: (s[1], s[3], s[4]))
+            reference = prefix + str(followed[1] + 1).zfill(max(s[3] for s in matching))
+            source, basis = "next_in_series", followed[4]
+
+    def normalized(value):
+        return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+    warnings = []
+    for row in receivables:
+        fields = row["fields"]
+        if normalized(fields["counterparty"]) != normalized(data["counterparty"]):
+            continue
+        if source == "given" and normalized(fields["reference"]) == normalized(reference):
+            warning = f"reference already used for {data['counterparty']}: {reference}"
+            if warning not in warnings:
+                warnings.append(warning)
+        if (row["status"] == "open" and fields["currency"] == currency and Decimal(fields["amount"]) == total
+                and abs((issue - dt.date.fromisoformat(fields["issue_date"])).days) <= 31):
+            warnings.append(f"possible duplicate of {fields['reference']} issued {fields['issue_date']}")
+    category = data.get("category", "services")
+    record_args = ({"action": "record", "direction": "receivable", "counterparty": data["counterparty"],
+                    "reference": reference, "amount": total_text, "currency": currency,
+                    "issue_date": data["issue_date"], "due_date": due, "category": category,
+                    "evidence_ref": "draft:prepared-invoice",
+                    **{k: data[k] for k in ("description", "trip_id") if k in data}}
+                   if reference is not None else None)
+    return {"prepared": True, "recorded": False, "direction": "receivable", "counterparty": data["counterparty"],
+            "currency": currency, "issue_date": data["issue_date"], "due_date": due,
+            "terms_days": data.get("terms_days"), "reference": reference, "reference_source": source,
+            "reference_basis": basis, "lines": lines, "subtotal": subtotal_text, "tax": tax, "total": total_text,
+            "category": category, "description": data.get("description"), "warnings": warnings,
+            "missing": [] if reference is not None else ["reference"], "record_args": record_args,
+            "next_step": "Show the owner this draft invoice. Record it with record_args only after the owner's explicit yes; replace evidence_ref with where it was sent or saved."}
+
+
 def dispatch(ledger, data):
     _validate(data)
     action, zone = data["action"], owner_zone(ledger)
     trip = data.get("trip_id")
     if trip is not None and not ledger.get("trip", trip):
         raise ValueError("trip_id must name an existing trip")
+    if action == "prepare":
+        return prepare(ledger, data)
     if action == "list":
         moment = evaluation_moment({})
         today = moment.astimezone(zone).date()
