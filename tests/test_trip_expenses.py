@@ -162,6 +162,7 @@ def test_export_totals_table_duplicates_privacy_and_sort(ledger):
     assert result["totals"] == {"USD": {"charges": "20.002", "refunds": "2.001", "net": "18.001"},
                                 "JPY": {"charges": "12000", "refunds": "0", "net": "12000"}}
     assert result["count"] == 4
+    assert result["matched_receipts"] == 0
     assert result["possible_duplicates"] == [sorted([r["action_id"] for r in rows[:2]])]
     for kind, suffix in (("csv", ".csv"), ("markdown", ".md")):
         path = Path(result[kind])
@@ -170,16 +171,137 @@ def test_export_totals_table_duplicates_privacy_and_sort(ledger):
         assert rows[-1]["action_id"] not in path.read_text()
     with Path(result["csv"]).open(newline="") as handle:
         reader = csv.DictReader(handle)
-        assert reader.fieldnames == "date kind category amount currency merchant description evidence_ref source expense_id".split()
+        assert reader.fieldnames == "date kind category amount currency merchant description evidence_ref receipt source expense_id".split()
         cells = list(reader)
     assert [r["date"] for r in cells] == sorted(r["date"] for r in cells)
     assert any(r["description"] == "'=SUM(1,2)" for r in cells)
     assert any(r["merchant"] == "'+formula" for r in cells)
     assert any(r["merchant"] == "'@formula" for r in cells)
+    assert all(r["receipt"] == "" for r in cells)
     markdown = Path(result["markdown"]).read_text()
     assert "Untitled trip" in markdown and "lodging: 20.002" in markdown and "fees: -2.001" in markdown
     assert ledger.get("trip", TRIP)["fields"]["events"] == [OTHER]
     assert len(expense(ledger, "list", trip_id=TRIP)) == 4
+
+
+def trip_purchase(ledger, ref, date, **changes):
+    return expense(ledger, "record", **{"trip_id": TRIP, "amount": "420", "currency": "USD",
+                   "category": "transport", "kind": "charge", "merchant": "Pine Demo Air",
+                   "date": date, "evidence_ref": ref, **changes})
+
+
+@pytest.mark.parametrize("receipt_date", ["2026-04-02", "2026-04-03"])
+def test_export_counts_matched_receipt_once_and_lists_both_rows(ledger, receipt_date):
+    line = trip_purchase(ledger, "statement imports/statements/synthetic.csv line 3", "2026-04-02")
+    receipt = trip_purchase(ledger, "Receipt PDA-1", receipt_date, category="other")
+    result = expense(ledger, "export", trip_id=TRIP)
+    assert result["totals"] == {"USD": {"charges": "420", "refunds": "0", "net": "420"}}
+    assert result["count"] == 2 and result["matched_receipts"] == 1
+    assert result["possible_duplicates"] == []
+    with Path(result["csv"]).open(newline="") as handle:
+        cells = {r["expense_id"]: r for r in csv.DictReader(handle)}
+    assert set(cells) == {line["action_id"], receipt["action_id"]}
+    assert cells[line["action_id"]]["receipt"] == "matched:Receipt PDA-1"
+    assert cells[receipt["action_id"]]["receipt"] == "counted on " + line["action_id"]
+    assert cells[line["action_id"]]["date"] == "2026-04-02"
+    markdown = Path(result["markdown"]).read_text()
+    assert line["action_id"] in markdown and receipt["action_id"] in markdown
+    assert "  - transport: 420" in markdown and "  - other:" not in markdown
+    note = ("Receipts matched to card lines: 1. A receipt within 3 days of a card line for the same merchant "
+            "and amount is taken as that purchase's receipt and counted once, on the card line's date; "
+            "the CSV's receipt column names each match. If one was a separate cash purchase, tell the owner.")
+    assert note in markdown
+    assert markdown.index("## Totals") < markdown.index(note) < markdown.index("| date |")
+
+
+def test_export_keeps_second_card_line_without_a_receipt(ledger):
+    first = trip_purchase(ledger, "statement first", "2026-04-02")
+    receipt = trip_purchase(ledger, "Receipt PDA-1", "2026-04-03")
+    second = trip_purchase(ledger, "statement second", "2026-04-04")
+    result = expense(ledger, "export", trip_id=TRIP)
+    assert result["totals"] == {"USD": {"charges": "840", "refunds": "0", "net": "840"}}
+    assert result["count"] == 3 and result["matched_receipts"] == 1
+    with Path(result["csv"]).open(newline="") as handle:
+        cells = {r["expense_id"]: r for r in csv.DictReader(handle)}
+    assert set(cells) == {r["action_id"] for r in (first, receipt, second)}
+    assert cells[second["action_id"]]["receipt"] == "missing"
+    assert second["action_id"] in Path(result["markdown"]).read_text()
+
+
+def test_export_counts_receipt_five_days_from_card_line_separately(ledger):
+    trip_purchase(ledger, "statement first", "2026-04-02")
+    trip_purchase(ledger, "Receipt PDA-1", "2026-04-07")
+    result = expense(ledger, "export", trip_id=TRIP)
+    assert result["totals"] == {"USD": {"charges": "840", "refunds": "0", "net": "840"}}
+    assert result["count"] == 2 and result["matched_receipts"] == 0
+    with Path(result["csv"]).open(newline="") as handle:
+        assert [r["receipt"] for r in csv.DictReader(handle)] == ["missing", ""]
+    assert "Receipts matched to card lines:" not in Path(result["markdown"]).read_text()
+
+
+@pytest.mark.parametrize("receipt_kind", ["refund", "charge"])
+def test_export_refund_matching_requires_same_kind(ledger, receipt_kind):
+    line = trip_purchase(ledger, "statement refund", "2026-04-02", kind="refund")
+    receipt = trip_purchase(ledger, "Refund receipt", "2026-04-03", kind=receipt_kind, category="fees")
+    result = expense(ledger, "export", trip_id=TRIP)
+    matched = receipt_kind == "refund"
+    assert result["totals"] == {"USD": {"charges": "0" if matched else "420", "refunds": "420",
+                                          "net": "-420" if matched else "0"}}
+    assert result["count"] == 2 and result["matched_receipts"] == int(matched)
+    with Path(result["csv"]).open(newline="") as handle:
+        cells = {r["expense_id"]: r for r in csv.DictReader(handle)}
+    assert cells[line["action_id"]]["receipt"] == ("matched:Refund receipt" if matched else "")
+    assert cells[receipt["action_id"]]["receipt"] == ("counted on " + line["action_id"] if matched else "")
+    markdown = Path(result["markdown"]).read_text()
+    assert "  - transport: -420" in markdown
+    assert ("  - fees:" in markdown) == (not matched)
+
+
+def test_trip_monthly_and_tax_pack_expense_totals_agree(ledger):
+    trip_purchase(ledger, "statement charge", "2026-04-02")
+    trip_purchase(ledger, "Charge receipt", "2026-04-03", category="other")
+    trip_purchase(ledger, "statement refund", "2026-04-05", kind="refund", amount="20")
+    trip_purchase(ledger, "Refund receipt", "2026-04-06", kind="refund", amount="20", category="other")
+    trip_purchase(ledger, "Cash receipt", "2026-04-10", amount="10", merchant="Synthetic Cafe", category="food")
+    trip = expense(ledger, "export", trip_id=TRIP)
+    monthly, tax = [dispatch(ledger.root, {"operation": "finance", "data": data}) for data in (
+        {"action": "monthly", "month": "2026-04"},
+        {"action": "tax_pack", "period_start": "2026-04-01", "period_end": "2026-04-30"})]
+    assert trip["totals"]["USD"] == {"charges": "430", "refunds": "20", "net": "410"}
+    assert trip["totals"]["USD"]["net"] == monthly["currencies"]["USD"]["expenses"]["total"] == tax["currencies"]["USD"]["expenses"]["total"]
+    assert monthly["currencies"]["USD"]["expenses"] == tax["currencies"]["USD"]["expenses"] == {
+        "total": "410", "by_category": {"food": "10", "transport": "400"}}
+
+
+@pytest.mark.parametrize("excluded", ["other_trip", "void"])
+@pytest.mark.parametrize("excluded_statement", [True, False])
+def test_export_matches_only_its_own_nonvoid_rows(ledger, excluded, excluded_statement):
+    line = trip_purchase(ledger, "statement charge", "2026-04-02")
+    receipt = trip_purchase(ledger, "Charge receipt", "2026-04-03")
+    row = line if excluded_statement else receipt
+    if excluded == "other_trip":
+        ledger.put("trip", "other-trip", {}, title="Other synthetic trip")
+        ledger.put("action", row["action_id"], {"trip_ref": "other-trip"})
+    else:
+        expense(ledger, "void", expense_id=row["action_id"], reason="synthetic void")
+    result = expense(ledger, "export", trip_id=TRIP)
+    assert result["totals"] == {"USD": {"charges": "420", "refunds": "0", "net": "420"}}
+    assert result["count"] == 1 and result["matched_receipts"] == 0
+    with Path(result["csv"]).open(newline="") as handle:
+        cells = list(csv.DictReader(handle))
+    assert len(cells) == 1 and cells[0]["expense_id"] != row["action_id"]
+    assert cells[0]["receipt"] == ("" if excluded_statement else "missing")
+
+
+def test_export_same_day_duplicate_group_keeps_only_counted_rows(ledger):
+    line = trip_purchase(ledger, "statement first", "2026-04-02")
+    receipt = trip_purchase(ledger, "Charge receipt", "2026-04-02")
+    other = trip_purchase(ledger, "Separate cash receipt", "2026-04-02", merchant="Synthetic Cafe")
+    result = expense(ledger, "export", trip_id=TRIP)
+    assert result["totals"] == {"USD": {"charges": "840", "refunds": "0", "net": "840"}}
+    assert result["count"] == 3 and result["matched_receipts"] == 1
+    assert result["possible_duplicates"] == [sorted([line["action_id"], other["action_id"]])]
+    assert receipt["action_id"] not in result["possible_duplicates"][0]
 
 
 @pytest.mark.parametrize("prefix", ["=", "+", "-", "@", "\t", "\r"])
