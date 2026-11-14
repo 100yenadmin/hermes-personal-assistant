@@ -70,7 +70,9 @@ def test_nested_fields_hint_through_entry_without_write(tmp_path):
 
 
 def test_profile_wire_schema_copy_preserves_strict_storage_validation(tmp_path):
-    wired = SCHEMA["parameters"]["allOf"][-1]["then"]["properties"]["data"]
+    # Find the profile branch by its operation: other operations may be wired after it (#265 added one).
+    wired = next(b["then"]["properties"]["data"] for b in SCHEMA["parameters"]["allOf"]
+                 if b.get("if", {}).get("properties", {}).get("operation", {}).get("const") == "profile")
     assert "additionalProperties" not in wired
     assert PROFILE_SCHEMA["additionalProperties"] is False
     assert {**wired, "additionalProperties": False} == PROFILE_SCHEMA
