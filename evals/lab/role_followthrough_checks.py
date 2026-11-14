@@ -60,11 +60,11 @@ def evaluate(root, scenario, index, messages, tools):
             stamp(result["at"])
         except (KeyError, TypeError, ValueError, AttributeError):
             bounded = False
-        # Follow-through wake notes name the action id and ladder step (or approval timeout).
+        # Follow-through wake notes name the action id and chase step (or approval timeout).
         note = args.get("note", "")
         loops = [s["data"]["action_id"] for s in scenario.get("seed", []) if s["data"]["action_id"] in note]
-        chase_steps = re.findall(r"\b(?:day2|day5|day10|escalate|approval[ _-]timeout)\b", note, re.I)
-        keys = {(loop, chase.casefold()) for loop in loops for chase in chase_steps}
+        chase_steps = re.findall(r"\b(?:owner[ _-]time|day2|day5|day10|escalate|approval[ _-]timeout)\b", note, re.I)
+        keys = {(loop, re.sub(r"[ _-]", "_", chase.casefold())) for loop in loops for chase in chase_steps}
         if call.get("step") == index and keys & seen:
             bounded = False
         seen.update(keys)

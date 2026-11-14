@@ -175,10 +175,19 @@ def validate(s):
                 require(isinstance(data, dict) and data.get("action") == "remember"
                         and data.get("kind") in {"sop", "person", "preference"}, f"seed[{i}].data")
                 continue
-            if lab and s["lab"].get("kind") == "invoice" and isinstance(item, dict) and item.get("operation") == "invoice":
+            if lab and s["lab"].get("kind") in {"invoice", "tax_pack"} and isinstance(item, dict) and item.get("operation") == "invoice":
                 data = item.get("data")
-                require(isinstance(data, dict) and data.get("action") == "record" and isinstance(data.get("reference"), str)
-                        and data.get("direction") in ("receivable", "payable"), f"seed[{i}].data")
+                require(isinstance(data, dict) and (data.get("action") == "record" and isinstance(data.get("reference"), str)
+                         and data.get("direction") in ("receivable", "payable")
+                         or s["lab"]["kind"] == "tax_pack" and data.get("action") == "paid"
+                         and all(isinstance(data.get(k), str) and data[k] for k in ("invoice_id", "paid_on", "evidence"))), f"seed[{i}].data")
+                continue
+            if lab and s["lab"].get("kind") == "tax_pack" and isinstance(item, dict) and item.get("operation") == "expense":
+                from personal_assistant.expenses import OP_SCHEMA
+                from jsonschema import Draft7Validator
+                data = item.get("data")
+                require(isinstance(data, dict) and data.get("action") in {"record", "void"}
+                        and not list(Draft7Validator(OP_SCHEMA).iter_errors(data)), f"seed[{i}].data")
                 continue
             if lab and s["lab"].get("kind") in {"booking", "approvals", "disruption", "expense"} and isinstance(item, dict) and item.get("operation") == "trip_import":
                 data = item.get("data", {})
@@ -199,7 +208,7 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "tax_pack", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
         if s["lab"]["kind"] == "owner_documents":
             drive = s["lab"].get("drive")
             require(isinstance(drive, dict) and drive.get("crm") == {"Acme Demo": {"stage": "Qualified", "owner": "Riley Demo"}}, "lab.drive.crm")
@@ -242,7 +251,7 @@ def validate(s):
                 if seeded[ref]["direction"] == "payable":
                     require(expected == {"payable": True}, f"lab.invoices.{ref}")
                 else:
-                    require(expected.get("chase") in ("none", "day2", "day5", "day10", "escalate")
+                    require(expected.get("chase") in ("none", "owner_time", "day2", "day5", "day10", "escalate")
                             and set(expected) <= {"chase", "courtesy"}, f"lab.invoices.{ref}")
             require(sum(v.get("chase") == "escalate" for v in oracle.values()) == 1, "lab.invoices.escalate")
             require(isinstance(remittance, dict) and remittance.get("reference") in seeded
