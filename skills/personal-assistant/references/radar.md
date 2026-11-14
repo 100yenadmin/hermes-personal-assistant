@@ -32,7 +32,8 @@ numbers.
 `pa(operation="next_action", data={"radar":true})` lists surfaced items
 (`surface_at`, the date or renewal `decide_by` minus `lead_days`, has passed), trip offers still
 `offered` after `offer_days` (default 3), and Chief of Staff notes still
-`unknown` past `review_at`. `include_upcoming: true` adds items not yet due;
+`unknown` past `review_at`. Notes unknown more than 14 days past `review_at` are counted in
+`stale_recommendations` instead; offer to retire them as in `personal-assistant:cos-weekly`. `include_upcoming: true` adds items not yet due;
 `next_surface_at` is the earliest coming one. Until it surfaces, a radar item
 is left out of the ordinary `next_action` list. Keep a yearly item `pending`;
 set `completed` or `cancelled` only when it should leave the radar for good.
