@@ -40,8 +40,81 @@ def test_remember_update_correction_confirm_forget(tmp_path):
     assert call(tmp_path, "forget", identity=confirmed["action_id"])["fields"]["state"] == "retired"
     with pytest.raises(ValueError, match="lifecycle-owned"):
         Ledger(tmp_path).put("action", "pref:guard", {"confirmed_at": "2026-10-21T00:00:00+00:00"}, action_type="preference")
-    with pytest.raises(ValueError, match="unsupported profile fields"):
+    with pytest.raises(ValueError, match="not accepted: confirmed_at"):
         dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference", "text": "Brief", "confirmed_at": "x"}})
+
+
+def test_nested_fields_hint_through_entry_without_write(tmp_path):
+    pref(tmp_path, "Existing preference")
+    ledger = Ledger(tmp_path)
+    before = ledger.list("action")
+    database = tmp_path / "state/travel-ledger/travel.sqlite"
+    before_bytes = database.read_bytes()
+    with pytest.raises(ValueError) as exc:
+        dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference",
+                 "fields": {"text": "Synthetic nested value"}}})
+    message = str(exc.value)
+    assert "fields is for action_upsert" in message and "text" in message
+    assert "Synthetic nested value" not in message and len(message) <= 600
+    assert ledger.list("action") == before
+    assert database.read_bytes() == before_bytes
+    example = json.loads(message.split(". Example: ", 1)[1])
+    assert example == {"action": "remember", "kind": "preference", "text": "Prefers aisle seats",
+                       "category": "travel", "source": "said", "evidence": "Owner said so"}
+    assert dispatch(tmp_path, {"operation": "profile", "data": example})["fields"]["text"] == example["text"]
+
+
+def test_many_unknown_keys_are_bounded_and_sorted(tmp_path):
+    unknown = {f"unknown_{i:02}": "Synthetic value" for i in reversed(range(30))}
+    with pytest.raises(ValueError) as exc:
+        dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference", **unknown}})
+    message = str(exc.value)
+    assert len(message) <= 600 and "Synthetic value" not in message
+    assert "; not accepted: unknown_00, unknown_01, unknown_02, unknown_03, unknown_04; plus 25 other keys not accepted" in message
+    assert sum(key in message for key in unknown) == 5
+    assert Ledger(tmp_path).list("action") == []
+
+
+def test_unknown_value_privacy_runs_before_shape_hint(tmp_path):
+    value = "ghp_synthetic1234567890"
+    with pytest.raises(ValueError, match="profile records prohibit") as exc:
+        dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference",
+                 "unknown": {"nested": value}}})
+    assert value not in str(exc.value) and "Example:" not in str(exc.value)
+    assert Ledger(tmp_path).list("action") == []
+
+
+@pytest.mark.parametrize("kind", ["preference", "person", "sop", "trust"])
+@pytest.mark.parametrize("pathological", [False, True])
+def test_each_kind_hint_example_validates(tmp_path, kind, pathological):
+    data = {"kind": kind, "fields": {"nested": "Synthetic value"}}
+    if pathological:
+        data.update({f"long_{i}_" + "x" * 1000: "Synthetic value" for i in range(30)})
+    ledger = Ledger(tmp_path)
+    with pytest.raises(ValueError) as exc:
+        remember(ledger, data)
+    message = str(exc.value)
+    assert len(message) <= 600 and ("…" in message) == pathological
+    if pathological:
+        assert "; plus 26 other keys not accepted" in message
+    assert "fields is for action_upsert" in message and "Synthetic value" not in message
+    assert ledger.list("action") == []
+    accepted = message.split(" takes flat data: ", 1)[1].split(";", 1)[0].split(", ")
+    assert accepted == sorted(accepted)
+    example = json.loads(message.split(". Example: ", 1)[1])
+    validate({"operation": "profile", "data": example}, SCHEMA["parameters"])
+    assert example.pop("action") == "remember" and example["kind"] == kind
+    assert remember(ledger, example)["action_type"] == kind
+
+
+@pytest.mark.parametrize("kind", [None, "unknown", "x" * 1000, [], {}])
+def test_invalid_kind_hint_names_accepted_kinds(tmp_path, kind):
+    with pytest.raises(ValueError) as exc:
+        remember(Ledger(tmp_path), {"kind": kind})
+    message = str(exc.value)
+    assert message.startswith("profile kind must be preference, person, sop or trust")
+    assert message.endswith("accepted kinds: person, preference, sop, trust") and len(message) <= 600
+    assert Ledger(tmp_path).list("action") == []
 
 
 @pytest.mark.parametrize("data", [
@@ -51,7 +124,7 @@ def test_remember_update_correction_confirm_forget(tmp_path):
     {"text": "Safe", "password": "synthetic-only"}, {"text": "Safe", "raw_message": "synthetic body"},
 ])
 def test_private_values_rejected_without_write(tmp_path, data):
-    with pytest.raises(ValueError, match="prohibit"):
+    with pytest.raises(ValueError, match="not accepted: raw_message" if "raw_message" in data else "prohibit"):
         dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference", **data}})
     assert Ledger(tmp_path).list("action") == []
 
@@ -124,7 +197,7 @@ def test_filed_text_changed_before_review_is_still_removed(tmp_path, retire):
 
 
 def test_filed_text_is_lifecycle_owned(tmp_path):
-    with pytest.raises(ValueError, match="unsupported profile fields"):
+    with pytest.raises(ValueError, match="not accepted: filed_text"):
         pref(tmp_path, filed_text="Prefer short replies")
     assert Ledger(tmp_path).list("action") == []
 
@@ -149,7 +222,7 @@ def test_forgotten_records_leave_lookups_and_since_is_lifecycle_owned(tmp_path):
     assert call(tmp_path, "list", name="Alex") == []  # A forgotten rule no longer guides drafts.
     assert [r["identity"] for r in call(tmp_path, "list", name="Alex", state="retired")] == [alex]
     trust = call(tmp_path, kind="trust", task_type="inbox triage")
-    with pytest.raises(ValueError, match="unsupported profile fields"):
+    with pytest.raises(ValueError, match="not accepted: since"):
         call(tmp_path, kind="trust", task_type="inbox triage", since="2020-01-01T00:00:00+00:00")
     assert call(tmp_path, kind="trust", task_type="inbox triage", level="own")["fields"]["since"] == trust["fields"]["since"]
 
@@ -467,7 +540,7 @@ def test_identity_scope_and_supersedes_cycle(tmp_path):
 def test_filed_state_is_set_only_by_mark_filed(tmp_path):
     with pytest.raises(ValueError, match="only by mark_filed"):
         call(tmp_path, kind="person", name="Synthetic Alex", state="filed")
-    with pytest.raises(ValueError, match="unsupported profile fields"):
+    with pytest.raises(ValueError, match="not accepted: remove_from_files"):
         pref(tmp_path, remove_from_files=True)
 
 
@@ -517,7 +590,7 @@ def test_delimiter_free_credentials_are_rejected(tmp_path, text):
 
 def test_review_round_three_lifecycle(tmp_path):
     assert pref(tmp_path, "Keep the launch date secret")["fields"]["state"] == "active"
-    with pytest.raises(ValueError, match="unsupported profile fields"):
+    with pytest.raises(ValueError, match="not accepted: owner_confirmed_at"):
         pref(tmp_path, "Prefer calls", source="inferred", owner_confirmed_at="2026-10-21T00:00:00+00:00")
     alex = call(tmp_path, kind="person", name="Synthetic Alex", rules=["Formal greeting"])
     sam = call(tmp_path, kind="person", name="Synthetic Sam")
