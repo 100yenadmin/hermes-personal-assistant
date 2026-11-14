@@ -64,11 +64,16 @@ def variables(timezone, moment=None, hour=12, day=0):
     current = (moment or dt.datetime.now(dt.timezone.utc)).astimezone(ZoneInfo(timezone))
     # Default local noon, or the scenario step's explicit hour on the same local date.
     current = current.replace(hour=hour, minute=0, second=0, microsecond=0) + dt.timedelta(days=day)
+    month_start = current.date().replace(day=1)
+    last_month_end = month_start - dt.timedelta(days=1)
+    last_month_start = last_month_end.replace(day=1)
     past = current - dt.timedelta(days=7)
     next_weekday = current + dt.timedelta(days=1)
     while next_weekday.weekday() >= 5:
         next_weekday += dt.timedelta(days=1)
     values = {"now": current.isoformat(), "today": current.date().isoformat(),
+            "last_month": last_month_start.strftime("%Y-%m"), "this_month": month_start.strftime("%Y-%m"),
+            "last_month_start": last_month_start.isoformat(), "last_month_end": last_month_end.isoformat(),
             "next_weekday": next_weekday.date().isoformat(),
             "last_year": str(current.year - 1), "this_year": str(current.year),
             "tomorrow": (current.date() + dt.timedelta(days=1)).isoformat(),
@@ -92,6 +97,10 @@ def expand(value, values):
                 month += 1
                 return dt.date(year, month, min(today.day, calendar.monthrange(year, month)[1])).isoformat()
             return (today + dt.timedelta(days=-int(ago) if ago else int(days))).isoformat()
+        def previous_day(match):
+            end = dt.date.fromisoformat(values["today"]).replace(day=1) - dt.timedelta(days=1)
+            return end.replace(day=min(int(match[1]), end.day)).isoformat()
+        value = re.sub(r"@last_month_day_([1-9]|[12][0-9]|3[01])@", previous_day, value)
         value = re.sub(r"@(?:days_ago_(\d+)|in_(\d+)_days|in_(\d+)_months)@", relative, value)
         for key, replacement in values.items():
             value = value.replace("@" + key + "@", replacement)

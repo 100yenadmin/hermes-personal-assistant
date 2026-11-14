@@ -175,14 +175,14 @@ def validate(s):
                 require(isinstance(data, dict) and data.get("action") == "remember"
                         and data.get("kind") in {"sop", "person", "preference"}, f"seed[{i}].data")
                 continue
-            if lab and s["lab"].get("kind") in {"invoice", "tax_pack", "invoice_prep"} and isinstance(item, dict) and item.get("operation") == "invoice":
+            if lab and s["lab"].get("kind") in {"invoice", "tax_pack", "invoice_prep", "month_end"} and isinstance(item, dict) and item.get("operation") == "invoice":
                 data = item.get("data")
                 require(isinstance(data, dict) and (data.get("action") == "record" and isinstance(data.get("reference"), str)
                          and data.get("direction") in ("receivable", "payable")
-                         or s["lab"]["kind"] == "tax_pack" and data.get("action") == "paid"
+                         or s["lab"]["kind"] in {"tax_pack", "month_end"} and data.get("action") == "paid"
                          and all(isinstance(data.get(k), str) and data[k] for k in ("invoice_id", "paid_on", "evidence"))), f"seed[{i}].data")
                 continue
-            if lab and s["lab"].get("kind") == "tax_pack" and isinstance(item, dict) and item.get("operation") == "expense":
+            if lab and s["lab"].get("kind") in {"tax_pack", "month_end"} and isinstance(item, dict) and item.get("operation") == "expense":
                 from personal_assistant.expenses import OP_SCHEMA
                 from jsonschema import Draft7Validator
                 data = item.get("data")
@@ -208,13 +208,46 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "contracts", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "tax_pack", "invoice_prep", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "contracts", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "tax_pack", "invoice_prep", "month_end", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
         if s["lab"]["kind"] == "invoice_prep":
             expected = s["lab"].get("expected")
             require(isinstance(expected, dict), "lab.expected")
             for key in ("counterparty", "reference", "currency", "subtotal", "tax", "total"):
                 require(isinstance(expected.get(key), str), "lab.expected." + key)
             require(type(expected.get("terms_days")) is int, "lab.expected.terms_days")
+        if s["lab"]["kind"] == "month_end":
+            expected = s["lab"].get("expected")
+            require(isinstance(expected, dict), "lab.expected")
+            # runner.one expands non-step scenario tokens before seeding; saved runs may
+            # instead retain tokens. The checker expands both with the seed's variables.
+            for key in ("period_start", "period_end"):
+                value = expected.get(key)
+                valid = isinstance(value, str) and value == "@last_month_" + key.split("_")[1] + "@"
+                if isinstance(value, str) and not valid:
+                    try:
+                        valid = dt.date.fromisoformat(value).isoformat() == value
+                    except ValueError:
+                        pass
+                require(valid, "lab.expected." + key)
+            require(isinstance(expected.get("net"), str)
+                    and bool(re.fullmatch(r"-?[0-9]+\.[0-9]{2}", expected["net"])), "lab.expected.net")
+            for key in ("questions", "overdue"):
+                value = expected.get(key)
+                require(isinstance(value, list) and bool(value)
+                        and all(isinstance(v, str) and v.strip() for v in value), "lab.expected." + key)
+            require(set(expected["questions"]) <= {"receipts_missing", "uncategorised", "possible_duplicate",
+                    "unpaid_at_end", "several_currencies"}, "lab.expected.questions")
+            require(isinstance(expected.get("renewal"), str) and bool(expected["renewal"].strip()), "lab.expected.renewal")
+            require(any(item.get("data", {}).get("action_id") == expected["renewal"]
+                        for item in s.get("seed", [])), "lab.expected.renewal")
+            retainer = expected.get("retainer")
+            require(isinstance(retainer, dict), "lab.expected.retainer")
+            for key in ("counterparty", "reference", "total"):
+                require(isinstance(retainer.get(key), str) and bool(retainer[key].strip()), "lab.expected.retainer." + key)
+            require(bool(re.fullmatch(r"[0-9]+\.[0-9]{2}", retainer["total"])), "lab.expected.retainer.total")
+            require(type(retainer.get("terms_days")) is int and 0 <= retainer["terms_days"] <= 120,
+                    "lab.expected.retainer.terms_days")
+            require(len(s["steps"]) == 1, "steps")
         if s["lab"]["kind"] == "owner_documents":
             drive = s["lab"].get("drive")
             require(isinstance(drive, dict) and drive.get("crm") == {"Acme Demo": {"stage": "Qualified", "owner": "Riley Demo"}}, "lab.drive.crm")

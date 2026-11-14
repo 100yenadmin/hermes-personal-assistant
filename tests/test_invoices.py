@@ -720,3 +720,12 @@ def test_finance_admin_skill_prepares_then_records_after_the_yes():
     assert "run `prepare` again with that `reference`" in section
     assert "give each later\n   draft its `reference` explicitly" in section
     assert "never type bank or account numbers" in section
+
+
+def test_month_end_skill_text_and_placement():
+    text = (Path(__file__).resolve().parents[1] / "skills/finance-admin/SKILL.md").read_text()
+    section = text.split("## Month-end close\n", 1)[1].split("\n## ", 1)[0]
+    assert text.index("## Cash position and monthly summary") < text.index("## Month-end close") < text.index("## Card statements")
+    for required in ("action `tax_pack`", "action `list` with direction `receivable` and status `open`",
+                     "`radar: true, contracts: true`", "Never send, record, pay or categorise anything on PA's own."):
+        assert required in section

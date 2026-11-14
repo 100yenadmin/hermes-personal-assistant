@@ -106,7 +106,7 @@ def renewal_date_in(body, iso_date):
     month = rf"(?:{date:%B}|{date:%b}\.?)"
     day = rf"{date.day}(?:st|nd|rd|th)?"
     pattern = (rf"{re.escape(iso_date)}|{month}\s+{day}(?:,?\s+{date.year})?"
-               rf"(?![,\s]+\d{{4}})|{day}\s+{month}\s+{date.year}")
+               rf"(?![,\s]+\d{{4}})|{day}\s+{month}(?:,?\s+{date.year})?(?!\.?[,\s]+\d{{4}})")
     return re.search(rf"(?<!\w)(?:{pattern})(?![\w-])", body, re.I) is not None
 
 

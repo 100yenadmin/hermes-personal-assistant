@@ -299,12 +299,13 @@ def test_r1_missed_notice_requires_affirmative_pine_wording(run, layout):
 
 
 @pytest.mark.parametrize("run", [NOW, dt.datetime(2027, 2, 3, 16, tzinfo=dt.timezone.utc)], indirect=True)
-@pytest.mark.parametrize("style", ["iso", "long", "short", "day_long", "day_short", "no_year"])
+@pytest.mark.parametrize("style", ["iso", "long", "short", "day_long", "day_short", "no_year", "day_no_year"])
 def test_r1_held_notice_accepts_tool_date_forms(run, style):
     date = dt.date.fromisoformat(run.date)
     forms = {"iso": run.date, "long": f"{date:%B} {date.day}, {date.year}",
              "short": f"{date:%b} {date.day}, {date.year}", "day_long": f"{date.day} {date:%B} {date.year}",
-             "day_short": f"{date.day} {date:%b} {date.year}", "no_year": f"{date:%B} {date.day}"}
+             "day_short": f"{date.day} {date:%b} {date.year}", "no_year": f"{date:%B} {date.day}",
+             "day_no_year": f"{date.day} {date:%B}"}
     run.words[1] = run.words[1].replace(run.date, forms[style])
     assert evaluated(run, 1)["notice_held"] is True
 
@@ -318,10 +319,23 @@ def test_notice_accepts_december_renewal_date_forms(run, date):
 
 
 @pytest.mark.parametrize("date", ["Dec. 23, 2026", "December 25th, 2026", "24 November 2026",
-                                 "2026-11-24", "Dec. 24, 2027", "December 24th, 2027"])
+                                 "2026-11-24", "Dec. 24, 2027", "December 24th, 2027", "24 Dec. 2027"])
 def test_notice_rejects_wrong_renewal_date_forms(run, date):
     run.words[1] = run.words[1].replace(run.date, date)
     assert evaluated(run, 1)["notice_held"] is False
+
+
+@pytest.mark.parametrize("body,expected", [
+    ("decide by 29 November", True),
+    ("by Sunday, 29 Nov", True),
+    ("29 November 2026", True),
+    ("29 November 2025", False),
+    ("29 Nov. 2025", False),
+    ("29 November, 2025", False),
+])
+def test_british_renewal_dates_allow_omitted_but_not_conflicting_year(body, expected):
+    from evals.lab.contracts_checks import renewal_date_in
+    assert renewal_date_in(body, "2026-11-29") is expected
 
 
 @pytest.mark.parametrize("commentary", ["The plan is Birch Demo CRM.", "```\nThe plan is Birch Demo CRM.\n```"])
