@@ -175,7 +175,7 @@ def validate(s):
                 require(isinstance(data, dict) and data.get("action") == "remember"
                         and data.get("kind") in {"sop", "person", "preference"}, f"seed[{i}].data")
                 continue
-            if lab and s["lab"].get("kind") in {"invoice", "tax_pack"} and isinstance(item, dict) and item.get("operation") == "invoice":
+            if lab and s["lab"].get("kind") in {"invoice", "tax_pack", "invoice_prep"} and isinstance(item, dict) and item.get("operation") == "invoice":
                 data = item.get("data")
                 require(isinstance(data, dict) and (data.get("action") == "record" and isinstance(data.get("reference"), str)
                          and data.get("direction") in ("receivable", "payable")
@@ -208,7 +208,13 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "contracts", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "tax_pack", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "contracts", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "tax_pack", "invoice_prep", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
+        if s["lab"]["kind"] == "invoice_prep":
+            expected = s["lab"].get("expected")
+            require(isinstance(expected, dict), "lab.expected")
+            for key in ("counterparty", "reference", "currency", "subtotal", "tax", "total"):
+                require(isinstance(expected.get(key), str), "lab.expected." + key)
+            require(type(expected.get("terms_days")) is int, "lab.expected.terms_days")
         if s["lab"]["kind"] == "owner_documents":
             drive = s["lab"].get("drive")
             require(isinstance(drive, dict) and drive.get("crm") == {"Acme Demo": {"stage": "Qualified", "owner": "Riley Demo"}}, "lab.drive.crm")

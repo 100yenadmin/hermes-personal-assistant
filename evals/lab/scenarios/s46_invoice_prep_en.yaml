@@ -1,0 +1,42 @@
+id: s46_invoice_prep_en
+language: en
+area: finance
+capabilities: [finance]
+timezone: Europe/London
+persona:
+  name: Robin Demo
+  email: robin@example.invalid
+  phone: +1-202-555-0156
+  home_city: London
+  notes: Synthetic design studio owner; all clients fictional.
+user_md: >-
+  I am Robin Demo and run a small design studio. Owner zone Europe/London.
+  I approve every invoice and email before it goes. Never pay, send or sign anything yourself.
+  Payment details come from my invoicing app.
+max_user_turns: 2
+budget_seconds: 900
+seed:
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Birch Demo Ltd, reference: INV-2026-013, amount: '900.00', category: services, currency: GBP, issue_date: '@days_ago_45@', due_date: '@days_ago_31@', evidence_ref: 'Invoice INV-2026-013 sent to Birch Demo Ltd'}}
+- {operation: invoice, data: {action: record, direction: receivable, counterparty: Cedar Demo Co, reference: INV-2026-014, amount: '1140.00', category: services, currency: GBP, issue_date: '@days_ago_15@', due_date: '@days_ago_1@', evidence_ref: 'Invoice INV-2026-014 sent to Cedar Demo Co'}}
+lab:
+  kind: invoice_prep
+  expected: {counterparty: Cedar Demo Co, reference: INV-2026-015, currency: GBP, subtotal: '1267.50', tax: '253.50', total: '1521.00', terms_days: 14}
+  output_contract: >-
+    Step 0: prepare the invoice with pa invoice action prepare; record nothing and send nothing. Give owner-facing prose
+    with the number, each line with its amount, subtotal, tax, total and due date. End with JSON
+    {"lab_summary":{"reference":"...","subtotal":"...","tax":"...","total":"...","currency":"GBP","due_date":"YYYY-MM-DD","recorded":false}}.
+    Step 1: after the owner's yes, record the invoice once with the record_args prepare returned (evidence_ref saying
+    where it was sent). End with {"lab_summary":{"recorded":"<reference>","amount":"...","due_date":"YYYY-MM-DD"}}.
+    Never pay, send or sign anything yourself.
+steps:
+- goal: "Please prepare this month's invoice for Cedar Demo Co: 12.5 hours of design work at £95 an hour, plus 2 font licences at £40 each. Add VAT at 20% and use my usual 14-day terms. Show me the invoice; don't send or record anything yet."
+  capability: finance
+  skill: personal-assistant:finance-admin
+  answers: {}
+  hour: 10
+  expect: {lab: invoice_prep}
+- goal: "Looks right. I've just sent it from my invoicing app. Please record it so you chase it if it's late."
+  capability: finance
+  answers: {}
+  hour: 11
+  expect: {lab: invoice_prep}
