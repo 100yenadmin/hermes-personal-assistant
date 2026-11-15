@@ -212,3 +212,110 @@ def test_page_url_fallback_ignores_links_inside_page_text():
     alone = {"step": 1, "name": "browser_console", "result": json.dumps({"result": "Shop\nhttps://shop.example.test/cart\n"})}
     pages = judge.pages_seen([inside, alone])
     assert [page["url"] for page in pages] == [None, "https://shop.example.test/cart"]
+
+
+def test_s01_cart_cluster_outranks_unrelated_menu_prices():
+    reply = "| Tohato Caramel Corn | 1 | ¥230 |\nOther snacks ¥300, ¥180, ¥170; subtotal ¥880"
+    cart = "東ハト キャラメルコーン 70g\nDon’t replace\n¥230\n1\n¥300\n¥180\n¥170\nSubtotal\n¥880"
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 3, "content": reply}], [
+        {"step": 3, "name": "browser_snapshot", "result": "Quick Add ¥230 Coca-Cola\nQuick Add ¥230 Chip Star"},
+        {"step": 3, "name": "browser_console", "result": json.dumps({"cart": cart})}])
+    assert evidence[0] == {"step": 3, "figure": "¥230",
+                           "seen": "東ハト キャラメルコーン 70g ⏎ Don’t replace ⏎ ¥230 ⏎ 1 ⏎ ¥300"}
+    assert [row["figure"] for row in evidence] == ["¥230", "¥300", "¥180", "¥170", "¥880"]
+    assert not any("note" in row for row in evidence)
+
+
+def test_s11_subtotal_neighbour_outranks_menu_price():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 2,
+                                      "content": "Verified cart subtotal JPY 570"}], [
+        {"step": 2, "name": "browser_snapshot", "result": "Quick Add 牛めし ¥570"},
+        {"step": 2, "name": "browser_console", "result": "牛めし\n1\nSubtotal\n¥570\nGo to checkout"}])
+    assert evidence == [{"step": 2, "figure": "JPY 570",
+                         "seen": "1 ⏎ Subtotal ⏎ ¥570 ⏎ Go to checkout"}]
+
+
+@pytest.mark.parametrize("claim_text,page,index", [
+    ("Lunch special ¥10,000", "¥10,000\nLunch special\n¥20,000", 0),
+    ("Beef bowl ¥570", "¥500\nBeef bowl\n¥570\nPork bowl", 2),
+    ("Subtotal ¥57", "¥570\nSubtotal\n¥57\nTax\n¥627\nTotal", 2),
+    ("Subtotal ¥570", "Subtotal\nTotal\n¥570\n¥627", 2),
+    ("Subtotal ¥570", "Subtotal\n(2 items)\nTotal\n¥570\nFree\n¥627", 3),
+    ("Subtotal ¥627", "Subtotal\n¥570\nTotal\n￥627", 3),
+    ("Service fee ¥570", "Service fee\n¥570\nTax included\nTotal ¥570", 1),
+    ("Total ¥1,200", "Total\n¥1,200\n¥980 after coupon", 1),
+    ("Tip ¥200", "Tip\n¥100\n15%\n¥200\n20%", 3),
+    ("Deposit ¥20,000", "Deposit\n¥20,000\nper person", 1),
+])
+def test_label_join_regressions_keep_raw_order_without_synthesis(claim_text, page, index):
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": claim_text}],
+                                    [{"step": 0, "name": "browser_console", "result": page}])
+    raw = page.splitlines()
+    expected = " ⏎ ".join(raw[max(0, index - 2):index + 3])
+    assert evidence == [{"step": 0, "figure": judge.FIGURE.search(claim_text)[0], "seen": expected}]
+    assert "computed_from" not in json.dumps(evidence)
+
+
+def test_own_line_item_name_outranks_short_cart_context():
+    row = "Tohato Caramel Corn " + "crispy " * 30 + "¥230"
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": "Tohato Caramel Corn ¥230; other ¥300"}], [
+        {"step": 0, "name": "browser_console", "result": row},
+        {"step": 0, "name": "browser_console", "result": "Tohato Caramel Corn\n¥230\n¥300"}])
+    assert evidence[0]["seen"].startswith("…")
+    assert evidence[0]["seen"].endswith("crispy ¥230")
+    assert len(evidence[0]["seen"]) <= 160
+    assert " ⏎ " not in evidence[0]["seen"]
+
+
+def test_neighbours_and_clusters_do_not_cross_result_texts():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": "Subtotal ¥570; other USD 300"}], [
+        {"step": 0, "name": "browser_console", "result": json.dumps(["Subtotal", "¥570", "$300"])},
+        {"step": 0, "name": "browser_console", "result": "Cart\nSubtotal\n¥570\nOther USD 300"}])
+    assert evidence[0]["seen"] == "Cart ⏎ Subtotal ⏎ ¥570 ⏎ Other USD 300"
+    assert evidence[1]["seen"] == "Other USD 300"
+
+
+@pytest.mark.parametrize("other,first_price,second_price", [
+    ("USD 300", "¥300", "$300"),
+    ("USD 300", "$3000", "300 USD"),
+    ("JPY 1,200", "12000円", "1,200円"),
+    ("10:00 AM", "11:00 AM", "10:00"),
+])
+def test_cluster_uses_same_currency_number_and_time_rules(other, first_price, second_price):
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": f"Snack ¥230\nOther {other}"}], [
+        {"step": 0, "name": "browser_console", "result": f"Menu\n¥230\n{first_price}"},
+        {"step": 0, "name": "browser_console", "result": f"Cart\n¥230\n{second_price}"}])
+    assert evidence[0]["seen"] == f"Cart ⏎ ¥230 ⏎ {second_price}"
+
+
+def test_cluster_counts_step_figures_beyond_evidence_row_cap():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": "Snack ¥230\nOther ¥300"}], [
+        {"step": 0, "name": "browser_console", "result": "Menu\n¥230"},
+        {"step": 0, "name": "browser_console", "result": "Cart\n¥230\n¥300"}], per_step=1)
+    assert evidence == [{"step": 0, "figure": "¥230", "seen": "Cart ⏎ ¥230 ⏎ ¥300"}]
+
+
+def test_price_window_keeps_blank_lines_and_is_bounded_around_match():
+    page = "before " + "x" * 250 + "\n\n¥230\n1\nafter " + "y" * 250
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": "¥230"}],
+                                    [{"step": 0, "name": "browser_console", "result": page}])
+    excerpt = evidence[0]["seen"]
+    assert len(excerpt) == 220
+    assert excerpt.startswith("…") and excerpt.endswith("…")
+    assert " ⏎  ⏎ ¥230 ⏎ 1 ⏎ after " in excerpt
+
+
+def test_labelled_short_row_keeps_original_excerpt():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": "Subtotal ¥376"}],
+                                    [{"step": 0, "name": "browser_console",
+                                      "result": "Cart\nSubtotal ¥376\nGo to checkout"}])
+    assert evidence == [{"step": 0, "figure": "¥376", "seen": "Subtotal ¥376"}]
+
+
+def test_rubric_explains_raw_price_windows_without_assigning_pairings():
+    assert "price-only rows show raw neighbouring lines" in judge.RUBRIC
+    assert "read the label/value pairing from that layout yourself" in judge.RUBRIC
