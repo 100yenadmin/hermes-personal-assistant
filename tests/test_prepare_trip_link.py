@@ -82,3 +82,25 @@ def test_a_refused_trip_leaves_an_earlier_prepare_and_its_link_unchanged(profile
         prepare(profile, trip_id="trip-ghost")
     kept = Ledger(profile).get("action", "demo-booking")
     assert kept["trip_id"] == TRIP and kept["updated_at"] == first["updated_at"]
+
+
+@pytest.mark.parametrize("governed", [False, True])
+def test_a_stored_link_that_names_no_trip_is_not_inherited(profile, governed):
+    # Offers, calls and trip watches may link a trip that was never imported (#281).
+    Ledger(profile).put("action", "demo-booking", {"title": "Hotel offer"}, action_type="offer", trip_id="trip-ghost")
+    row = prepare(profile, governed)
+    assert row["trip_id"] is None
+    assert Ledger(profile).get("action", "demo-booking")["trip_id"] is None
+
+
+def test_a_trip_offer_reservation_for_an_unimported_trip_leaves_the_prepare_unlinked(profile):
+    identity = "pa:offer:trip-ghost:hotel"
+    assert dispatch(profile, {"operation": "trip_offer", "data": {"action": "check", "trip_id": "trip-ghost", "offer_type": "hotel"}})["allowed"]
+    assert Ledger(profile).get("action", identity)["trip_id"] == "trip-ghost"
+    row = dispatch(profile, {"operation": "action_prepare", "data": {"action_id": identity, "summary": SUMMARY}})
+    assert row["trip_id"] is None
+
+
+def test_a_stored_link_to_an_existing_trip_is_still_inherited(profile):
+    Ledger(profile).put("action", "demo-booking", {"title": "Hotel offer"}, action_type="offer", trip_id=TRIP)
+    assert prepare(profile)["trip_id"] == TRIP

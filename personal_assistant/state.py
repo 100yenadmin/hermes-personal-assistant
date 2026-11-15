@@ -245,8 +245,13 @@ class Ledger:
             for key in ("confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest", "loop_cancelled"):
                 data.pop(key, None)
             stamp = now()
-            # A prepare names the trip it serves (#273); one without a trip keeps the stored link.
-            link = trip_id if trip_id is not None else (old["trip_id"] if old else None)
+            # A prepare names the trip it serves (#273); one without a trip keeps the stored link, but only a link that
+            # names a stored trip: booking follow-through refuses any other after the yes (#281). Offers, calls and
+            # trip watches may be linked to a trip that was never imported.
+            inherited = old["trip_id"] if old else None
+            if inherited is not None and not conn.execute("select 1 from trips where trip_id=?", (inherited,)).fetchone():
+                inherited = None
+            link = trip_id if trip_id is not None else inherited
             conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set trip_id=excluded.trip_id,action_type=excluded.action_type,provider=excluded.provider,status=excluded.status,fields_json=excluded.fields_json,updated_at=excluded.updated_at", (identity, link, "transaction", safe["provider"], target_status, json.dumps(data), old["created_at"] if old else stamp, stamp))
         return self.get("action", identity)
 
