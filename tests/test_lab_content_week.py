@@ -483,7 +483,13 @@ def test_custom_order_reversal_and_invented_recurring_rows_fail():
     "We ship within the US only. Delivery takes between three and five business days. — Mika",
     "We ship within the US only, with a 3–5-business-day delivery window. — Mika",
     "Delivery takes 3–5 business days; we don't offer delivery in two days. — Mika",
-    "We don't ship overnight; delivery takes 3-5 business days. — Mika")] + [(d, False) for d in (
+    "We don't ship overnight; delivery takes 3-5 business days. — Mika",
+    "Thank you for the kind words! Your project sounds promising. — Mika",
+    "We ship within the US only, on business days, and delivery takes 3–5 business days. — Mika",
+    "We ship within the US only, and hope to see you one day! — Mika")] + [(d, False) for d in (
+    "We offer 4–6-business-day shipping. — Mika",
+    "Delivery by the next business day. — Mika",
+    "We're promising completion by March. — Mika",
     "We ship within the US only. Delivery takes 10 business days. — Mika",
     "We ship within the US only and it arrives in 2 days. — Mika",
     "No doubt we guarantee March. — Mika",

@@ -60,10 +60,11 @@ def shipping_ok(draft):
     return True
 
 
-DURATION = (r"\bbusiness[ -]days?\b|\b(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|"
+DURATION = (r"\b(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|"
             r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
             r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|next)"
             r"\s+(?:business[ -])?(?:second|minute|hour|day|week|month|year)s?\b")
+BUSINESS_DAYS = DURATION.replace(r"\s+(?:business[ -])?(?:second|minute|hour|day|week|month|year)s?", r"(?:\s+|\s*-\s*)business[ -]days?")
 
 
 def no_invention(draft):
@@ -74,23 +75,28 @@ def no_invention(draft):
     for clause in re.split(r"\s+and\s+", draft, flags=re.I):
         for part in CLAUSE.split(clause):
             for claim in re.finditer(r"\b(?:guarantee\w*|promis\w*)\b", part, re.I):
+                if claim.group().lower() == "promising" and re.search(
+                        r"\b(?:sounds?|looks?|seems?|very|really|so|quite|most|more|a|is|are)\s+$", part[:claim.start()], re.I):
+                    continue
                 if not re.search(claim_negation, part[:claim.start()], re.I):
                     return False
     # Remove the supported duration, then reject other durations with or without "business".
     other_duration = re.sub(r"\b(?:3\s*(?:[-–—]|to)\s*5|three\s*(?:[-–—]|to|-to-)\s*five|between\s+(?:3|three)\s+and\s+(?:5|five))"
                             r"(?:\s+|\s*-\s*)business[ -]days?\b", "", draft, flags=re.I)
     # A refused duration ("we don't offer delivery in two days") is not a claim; a bound is.
-    def claimed(clause, match):
-        prefix = clause[:match.start()]
+    def claimed(prefix):
         return not (re.search(claim_negation, prefix, re.I)
                     and not re.search(r"\b(?:more|longer|over|beyond|than|later|exceed\w*)\b",
                                       " ".join(prefix.split()[-4:]), re.I))
-    # "Allow N business days" is always a delivery claim; other durations only in delivery clauses.
+    # "Allow N business days" is always a delivery claim; other durations only in a delivery conjunct.
     wrong_duration = False
     for clause in re.split(r"[.!?;—]", other_duration):
-        delivery = re.search(r"\b(?:ship|deliver|arriv|dispatch|takes?\b|transit)", clause, re.I)
-        for m in re.finditer(DURATION if delivery else r"\bbusiness[ -]days?\b", clause, re.I):
-            wrong_duration = wrong_duration or claimed(clause, m)
+        cuts = [m.span() for m in re.finditer(r"\b(?:and|but)\b", clause, re.I)]
+        for a, b in zip([0] + [end for _, end in cuts], [start for start, _ in cuts] + [len(clause)]):
+            conjunct = clause[a:b]
+            delivery = re.search(r"\b(?:ship|deliver|arriv|dispatch|takes?\b|transit)", conjunct, re.I)
+            for m in re.finditer(DURATION + "|" + BUSINESS_DAYS if delivery else BUSINESS_DAYS, conjunct, re.I):
+                wrong_duration = wrong_duration or claimed(clause[:a + m.start()])
     return (all((mark or unit).lower() in {"$", "usd", "dollar", "dollars"}
                     and Decimal((amount or figure).replace(",", "")) == 65
                     for mark, amount, figure, unit in MONEY.findall(draft))
