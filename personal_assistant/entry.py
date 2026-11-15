@@ -336,6 +336,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
                 and (not existing or not existing.get("trip_id") or existing["trip_id"] == source_id)
                 and ledger.get("trip", source_id)):
             data["trip_id"] = source_id
+        # A link must name a stored trip; booking follow-through later refuses any other (#276).
+        if data.get("trip_id") is not None and (not isinstance(data["trip_id"], str) or not ledger.get("trip", data["trip_id"])):
+            raise ValueError("trip_id must name an existing trip")
         return _call_with_supported_data(ledger.put, "action", identity, fields, data=data)
     identity = data.pop("action_id")
     if str(identity).startswith("pa:browser-session:"):  # Every remaining op here mutates the action row.
