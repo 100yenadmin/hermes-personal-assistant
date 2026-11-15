@@ -17,7 +17,7 @@ seed:
 - {operation: action_upsert, data: {action_id: 'lab:renewal', action_type: commitment, status: open, fields: {title: Passport renewal, radar_kind: renewal, document: Travel document, expires_on: '@in_7_months@', lead_days: 270, recurs: none, source_ref: 'synthetic:owner'}}}
 - {operation: action_upsert, data: {action_id: 'lab:birthday', action_type: commitment, status: open, fields: {title: Spouse birthday, radar_kind: important_date, document: Family date, event_date: '@in_21_days@', lead_days: 30, recurs: yearly, source_ref: 'synthetic:owner'}}}
 - {operation: action_upsert, data: {action_id: 'lab:service', action_type: commitment, status: open, fields: {title: Car service, radar_kind: deadline, document: Car service, event_date: '@in_5_days@', lead_days: 14, recurs: none, source_ref: 'synthetic:owner'}}}
-- {operation: action_upsert, data: {action_id: 'pa:offer:synthetic:service', action_type: offer, status: open, trip_id: synthetic, fields: {title: Unanswered service offer, outcome: offered, offered_at: '@days_ago_5@T12:00:00+08:00', history: [{outcome: offered, at: '@days_ago_5@T12:00:00+08:00'}], offer_type: service, trip_id: synthetic}}}
+- {operation: action_upsert, data: {action_id: 'pa:offer:synthetic:service', action_type: offer, status: open, fields: {title: Unanswered service offer, outcome: offered, offered_at: '@days_ago_5@T12:00:00+08:00', history: [{outcome: offered, at: '@days_ago_5@T12:00:00+08:00'}], offer_type: service, trip_id: synthetic}}}
 lab:
   kind: radar
   output_contract: 'End with JSON {"lab_summary": {...}} (a code fence is fine). Keep owner-facing prose above it. radar is a list of {action_id, lead_days, next_step}; gift_shortlist and service_slot are proposals.'
