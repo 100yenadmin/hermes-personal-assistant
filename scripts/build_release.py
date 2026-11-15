@@ -84,6 +84,15 @@ def validate_version(version: str) -> None:
         raise ValueError("release manifest source_commit must be meaningful and non-null")
 
 
+def is_packaged(relative: str) -> bool:
+    """Return whether a repository path is eligible for the release archive."""
+    path = Path(relative)
+    # Tests and provider doubles are repository-only fixtures, as are local configs.
+    if "tests" in path.parts or path.name in LOCAL_CONFIG_NAMES:
+        return False
+    return relative in ROOT_FILES or relative in RELEASE_CONFIG_FILES or relative.startswith(PREFIXES)
+
+
 def selected_files() -> list[str]:
     tracked = [item for item in git("ls-files", "-z").split("\0") if item]
     selected = []
@@ -91,13 +100,7 @@ def selected_files() -> list[str]:
         path = ROOT / relative
         if not path.is_file() or path.is_symlink():
             continue
-        if "tests" in Path(relative).parts:
-            # Tests and provider doubles are repository-only fixtures.  They
-            # must not enter the shipped archive or its privacy scan.
-            continue
-        if Path(relative).name in LOCAL_CONFIG_NAMES:
-            continue
-        if relative in ROOT_FILES or relative in RELEASE_CONFIG_FILES or relative.startswith(PREFIXES):
+        if is_packaged(relative):
             selected.append(relative)
     required = {
         "VERSION", "__init__.py", "after-install.md", "plugin.yaml",

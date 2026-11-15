@@ -10,11 +10,52 @@ from pathlib import Path
 import re
 import subprocess
 
+if __package__:
+    from .build_release import is_packaged
+else:
+    from build_release import is_packaged
+
 
 ROOT = Path(__file__).resolve().parents[1]
 IMPACT = re.compile(r"(?im)^Release impact:\s*(none|publish)\s*$")
 LINK = re.compile(r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|related)\s+#\d+\b")
 NOTES = re.compile(r"(?ims)^## Release notes\s*$\n(.*?)(?=^##\s|\Z)")
+VERSION_FILES = {
+    "plugin.yaml", "openclaw.plugin.json", "codex-plugin.json", "personal_assistant/__init__.py",
+    "skills/travel-action-pack-manifest/openclaw.plugin.json",
+    "skills/travel-action-pack-manifest/codex-plugin.json",
+}
+
+
+def check_reviewed_implementation(revision: str, version: str) -> None:
+    """Reject packaged implementation changes since the scorecard's commit."""
+    manifest = json.loads(text_at(revision, f"releases/{version}/manifest.json"))
+    reviewed = manifest.get("reviewed_implementation_commit") if isinstance(manifest, dict) else None
+    if not isinstance(reviewed, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", reviewed):
+        raise ValueError("reviewed_implementation_commit must be a 40-hex string")
+    try:
+        git("merge-base", "--is-ancestor", reviewed, revision)
+    except ValueError as exc:
+        raise ValueError(f"reviewed commit {reviewed} is not an available ancestor of {revision}") from exc
+    new_version = text_at(revision, "VERSION")
+    old_version = text_at(reviewed, "VERSION")
+    offending = []
+    # Disable rename detection so removing a packaged path cannot hide behind
+    # its rename to a repository-only path. NUL delimiters preserve path names.
+    for path in git("diff", "--no-renames", "--name-only", "-z", reviewed, revision).split("\0"):
+        if not path or not is_packaged(path):
+            continue
+        if path in {"VERSION", "CHANGELOG.md", "ROADMAP.md", "VISION.md"} or path.startswith(("releases/", "docs/")):
+            continue
+        if path in VERSION_FILES:
+            try:
+                if text_at(revision, path).replace(new_version, old_version) == text_at(reviewed, path):
+                    continue
+            except ValueError:
+                pass  # Added/deleted version-bearing files are implementation changes.
+        offending.append(path)
+    if offending:
+        raise ValueError(f"packaged implementation differs from reviewed commit {reviewed}: {sorted(offending)}")
 
 
 def git(*arguments: str) -> str:
@@ -118,6 +159,8 @@ def validate_pull_request(event: dict[str, object], *, require_merged: bool = Fa
         if missing:
             raise ValueError(f"release PR does not change required release files: {missing}")
         validate_release_files(head_sha, head_version)
+        if require_merged:
+            check_reviewed_implementation(head_sha, head_version)
     return {
         "ok": True,
         "impact": impact,

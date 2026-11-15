@@ -16,7 +16,8 @@ def git(repo, *args):
 
 def commit(repo, message):
     git(repo, "add", ".")
-    git(repo, "commit", "-q", "-m", message)
+    git(repo, "-c", "user.name=Release contract fixture", "-c", "user.email=release-contract@example.invalid",
+        "commit", "-q", "-m", message)
     return git(repo, "rev-parse", "HEAD")
 
 
@@ -24,8 +25,6 @@ def make_repo(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     git(repo, "init", "-q")
-    git(repo, "config", "user.name", "Release contract fixture")
-    git(repo, "config", "user.email", "release-contract@example.invalid")
     (repo / "VERSION").write_text("0.3.0\n")
     (repo / "plugin.yaml").write_text("name: personal-assistant\nversion: 0.3.0\n")
     (repo / "CHANGELOG.md").write_text("# Changelog\n")
@@ -59,7 +58,9 @@ def test_ordinary_pr_links_issue_and_cannot_change_version(tmp_path):
     assert result["publish"] is False and result["version"] == "0.3.0"
 
 
-def test_release_pr_requires_version_manifest_changelog_and_notes(tmp_path):
+@pytest.mark.parametrize("merged", [False, True])
+@pytest.mark.parametrize("implementation_changed", [False, True])
+def test_release_pr_requires_version_manifest_changelog_and_notes(tmp_path, merged, implementation_changed):
     repo, base = make_repo(tmp_path)
     (repo / "VERSION").write_text("0.4.0-rc.1\n")
     (repo / "plugin.yaml").write_text("name: personal-assistant\nversion: 0.4.0-rc.1\n")
@@ -67,15 +68,23 @@ def test_release_pr_requires_version_manifest_changelog_and_notes(tmp_path):
     release = repo / "releases" / "0.4.0-rc.1"
     release.mkdir()
     (release / "manifest.json").write_text(json.dumps({
-        "version": "0.4.0-rc.1", "native_id": "personal-assistant", "source_commit": "release-merge"
+        "version": "0.4.0-rc.1", "native_id": "personal-assistant", "source_commit": "release-merge",
+        "reviewed_implementation_commit": base,
     }))
+    if implementation_changed:
+        (repo / "scripts").mkdir()
+        (repo / "scripts" / "implementation.py").write_text("unreviewed = True\n")
     head = commit(repo, "release")
     body = (
         "## Tracking\nCloses #30\n\n## Release impact\nRelease impact: publish\n\n"
         "## Release notes\nAdds explicit native pinned installation and verified release assets.\n"
     )
     with mock.patch.object(release_contract, "ROOT", repo):
-        result = release_contract.validate_pull_request(event(base, head, body, merged=True), require_merged=True)
+        if merged and implementation_changed:
+            with pytest.raises(ValueError, match="scripts/implementation.py"):
+                release_contract.validate_pull_request(event(base, head, body, merged=True), require_merged=True)
+            return
+        result = release_contract.validate_pull_request(event(base, head, body, merged=merged), require_merged=merged)
     assert result["publish"] is True and result["version"] == "0.4.0-rc.1"
 
 
@@ -219,3 +228,124 @@ def test_scorecard_commit_compares_case_insensitively(release_files):
     card["commit"] = "A" * 40
     release_files["releases/0.10.0-rc.1/scorecard.json"] = json.dumps(card)
     release_contract.validate_release_files("candidate", "0.10.0-rc.1")
+
+
+@pytest.fixture
+def reviewed_repo(tmp_path):
+    repo, _ = make_repo(tmp_path)
+    for path in release_contract.VERSION_FILES - {"plugin.yaml"}:
+        destination = repo / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text('version = "0.3.0"\n')
+    (repo / "personal_assistant" / "state.py").write_text("reviewed = True\n")
+    reviewed = commit(repo, "reviewed implementation")
+    return repo, reviewed
+
+
+def release_candidate(repo, reviewed):
+    version = "0.4.0-rc.1"
+    (repo / "VERSION").write_text(version + "\n")
+    for path in release_contract.VERSION_FILES:
+        destination = repo / path
+        destination.write_text(destination.read_text().replace("0.3.0", version))
+    for path in ("CHANGELOG.md", "ROADMAP.md", "VISION.md", "docs/release.md"):
+        destination = repo / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("Release documents\n")
+    release = repo / "releases" / version
+    release.mkdir()
+    (release / "manifest.json").write_text(json.dumps({"reviewed_implementation_commit": reviewed}))
+    return version
+
+
+def test_reviewed_guard_allows_release_documents_and_version_bumps(reviewed_repo):
+    repo, reviewed = reviewed_repo
+    version = release_candidate(repo, reviewed)
+    revision = commit(repo, "release metadata")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        release_contract.check_reviewed_implementation(revision, version)
+
+
+def test_reviewed_guard_rejects_packaged_implementation_changes(reviewed_repo):
+    repo, reviewed = reviewed_repo
+    version = release_candidate(repo, reviewed)
+    (repo / "personal_assistant" / "state.py").write_text("reviewed = False\n")
+    revision = commit(repo, "unreviewed implementation")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        with pytest.raises(ValueError, match="personal_assistant/state.py"):
+            release_contract.check_reviewed_implementation(revision, version)
+
+
+@pytest.mark.parametrize("path", sorted(release_contract.VERSION_FILES))
+def test_reviewed_guard_rejects_extra_version_file_changes(reviewed_repo, path):
+    repo, reviewed = reviewed_repo
+    version = release_candidate(repo, reviewed)
+    destination = repo / path
+    destination.write_text(destination.read_text() + "extra non-version change\n")
+    revision = commit(repo, "unreviewed version file change")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        with pytest.raises(ValueError, match=re.escape(path)):
+            release_contract.check_reviewed_implementation(revision, version)
+
+
+def test_reviewed_guard_rejects_non_ancestor(reviewed_repo):
+    repo, base = reviewed_repo
+    (repo / "side.txt").write_text("side branch\n")
+    reviewed = commit(repo, "not an ancestor of release")
+    git(repo, "checkout", "--detach", base)
+    version = release_candidate(repo, reviewed)
+    revision = commit(repo, "release on another lineage")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        with pytest.raises(ValueError) as error:
+            release_contract.check_reviewed_implementation(revision, version)
+    assert "ancestor" in str(error.value)
+    assert reviewed in str(error.value) and revision in str(error.value)
+
+
+@pytest.mark.parametrize("reviewed", [None, "not-hex", "a" * 39, 123])
+def test_reviewed_guard_rejects_missing_or_invalid_reviewed_commit(reviewed_repo, reviewed):
+    repo, _ = reviewed_repo
+    version = release_candidate(repo, reviewed)
+    if reviewed is None:
+        (repo / "releases" / version / "manifest.json").write_text("{}")
+    revision = commit(repo, "invalid reviewed identity")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        with pytest.raises(ValueError, match="reviewed_implementation_commit must be a 40-hex string"):
+            release_contract.check_reviewed_implementation(revision, version)
+
+
+def test_reviewed_guard_fails_loudly_when_reviewed_commit_is_unavailable(reviewed_repo):
+    repo, _ = reviewed_repo
+    reviewed = "f" * 40
+    version = release_candidate(repo, reviewed)
+    revision = commit(repo, "unavailable reviewed commit")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        with pytest.raises(ValueError, match=f"{reviewed}.*{revision}"):
+            release_contract.check_reviewed_implementation(revision, version)
+
+
+@pytest.mark.parametrize("path", ["tests/test_state.py", "personal_assistant/tests/double.py",
+                                  "personal_assistant/clients.json"])
+def test_reviewed_guard_ignores_unpackaged_changes(reviewed_repo, path):
+    repo, reviewed = reviewed_repo
+    version = release_candidate(repo, reviewed)
+    destination = repo / path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("synthetic repository-only fixture\n")
+    revision = commit(repo, "unpackaged change")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        release_contract.check_reviewed_implementation(revision, version)
+
+
+def test_reviewed_guard_accepts_real_026_release_history():
+    revision = "c15fb31841f07f58c9e8980adda4457e29060c55"
+    reviewed = "631626a06eded0345a2e939e540101f13fddae21"
+    for sha in (revision, reviewed):
+        try:
+            release_contract.git("cat-file", "-e", f"{sha}^{{commit}}")
+        except ValueError:
+            pytest.skip(f"historical commit {sha} is not available locally")
+    assert json.loads(release_contract.text_at(revision, "releases/0.26.0-rc.1/manifest.json"))[
+        "reviewed_implementation_commit"
+    ] == reviewed
+    release_contract.check_reviewed_implementation(revision, "0.26.0-rc.1")
