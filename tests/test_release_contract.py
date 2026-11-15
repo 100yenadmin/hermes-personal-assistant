@@ -267,7 +267,18 @@ def test_reviewed_guard_allows_release_documents_and_version_bumps(reviewed_repo
         release_contract.check_reviewed_implementation(revision, version)
 
 
-@pytest.mark.parametrize("path", ["README.md", "AGENTS.md", "CONTRIBUTING.md", "LICENSE", "after-install.md"])
+def test_reviewed_guard_rejects_after_install_changes(reviewed_repo):
+    # Hermes shows after-install.md at install and runs it as instructions, so it is guarded like a skill.
+    repo, reviewed = reviewed_repo
+    version = release_candidate(repo, reviewed, version="0.4.0")
+    (repo / "after-install.md").write_text("Unreviewed install steps\n")
+    revision = commit(repo, "release with changed install steps")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        with pytest.raises(ValueError, match=re.escape("after-install.md")):
+            release_contract.check_reviewed_implementation(revision, version)
+
+
+@pytest.mark.parametrize("path", ["README.md", "AGENTS.md", "CONTRIBUTING.md", "LICENSE"])
 @pytest.mark.parametrize("skill_changed", [False, True])
 def test_reviewed_guard_allows_root_documents_but_rejects_skill_changes(reviewed_repo, path, skill_changed):
     repo, reviewed = reviewed_repo

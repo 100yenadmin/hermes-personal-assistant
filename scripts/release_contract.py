@@ -47,7 +47,7 @@ def check_reviewed_implementation(revision: str, version: str) -> None:
             continue
         if path in {
             "VERSION", "CHANGELOG.md", "ROADMAP.md", "VISION.md", "README.md",
-            "AGENTS.md", "CONTRIBUTING.md", "LICENSE", "after-install.md",
+            "AGENTS.md", "CONTRIBUTING.md", "LICENSE",
         } or path.startswith(("releases/", "docs/")):
             continue
         if path in VERSION_FILES:
