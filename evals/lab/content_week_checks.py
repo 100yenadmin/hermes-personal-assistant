@@ -85,9 +85,9 @@ def no_invention(draft):
                             r"(?:\s+|\s*-\s*)business[ -]days?\b", "", draft, flags=re.I)
     # A refused duration ("we don't offer delivery in two days") is not a claim; a bound is.
     def claimed(prefix):
-        return not (re.search(claim_negation, prefix, re.I)
-                    and not re.search(r"\b(?:more|longer|over|beyond|than|later|exceed\w*)\b",
-                                      " ".join(prefix.split()[-4:]), re.I))
+        refusal = re.search(claim_negation, prefix, re.I)
+        # Bound words count only inside the refusal itself ("won't take more than").
+        return not (refusal and not re.search(r"\b(?:more|longer|over|beyond|than|later|exceed\w*)\b", refusal.group(), re.I))
     # "Allow N business days" is always a delivery claim; other durations only in a delivery conjunct.
     wrong_duration = False
     for clause in re.split(r"[.!?;—]", other_duration):
