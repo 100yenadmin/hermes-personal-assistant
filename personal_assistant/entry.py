@@ -359,9 +359,12 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         store.cancel_governed(identity, at=data.get("at"))
         return ledger.get("action", identity)
     if op == "action_prepare":
+        trip_id = data.get("trip_id")
+        if trip_id is not None and (not isinstance(trip_id, str) or not trip_id.strip()):
+            raise ValueError("trip_id must be a trip ID string")
         enforcement_profile = data.pop("enforcement_profile", None)
         if enforcement_profile is None:
-            return ledger.prepare(identity, data["summary"])
+            return ledger.prepare(identity, data["summary"], trip_id=trip_id)
         if enforcement_profile != "exact_action":
             raise ValueError("unsupported action enforcement profile")
         missing = [key for key in GOVERNED_PREPARE_KEYS if key not in data]
@@ -412,7 +415,7 @@ def dispatch(profile_root, args, *, runtime_scope=None):
             "expected_readback": data["expected_readback"],
             "gateway_scope_ref": authorization["action_id"],
         }
-        return ledger.prepare(identity, data["summary"], governed=governed)
+        return ledger.prepare(identity, data["summary"], governed=governed, trip_id=trip_id)
     if op == "action_confirm":
         action = ledger.get("action", identity)
         if action and action["fields"].get("enforcement_profile") == "exact_action":
