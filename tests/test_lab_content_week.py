@@ -480,10 +480,17 @@ def test_custom_order_reversal_and_invented_recurring_rows_fail():
     "Thanks! Hope to see you next week at the workshop. — Mika",
     "Custom orders open in January — one month to go! — Mika",
     "Hope to see you one day! — Mika",
-    "We ship within the US only. Delivery takes between three and five business days. — Mika")] + [(d, False) for d in (
+    "We ship within the US only. Delivery takes between three and five business days. — Mika",
+    "We ship within the US only, with a 3–5-business-day delivery window. — Mika",
+    "Delivery takes 3–5 business days; we don't offer delivery in two days. — Mika",
+    "We don't ship overnight; delivery takes 3-5 business days. — Mika")] + [(d, False) for d in (
     "We ship within the US only. Delivery takes 10 business days. — Mika",
     "We ship within the US only and it arrives in 2 days. — Mika",
-    "No doubt we guarantee March. — Mika")])
+    "No doubt we guarantee March. — Mika",
+    "Please allow 7–10 business days. — Mika",
+    "We ship within the US only. Allow 4–6 business days. — Mika",
+    "Delivery won't take more than 10 days. — Mika",
+    "We don't ship on weekends, delivery takes 2 days. — Mika")])
 def test_durations_only_in_delivery_clauses(draft, ok):
     from evals.lab import content_week_checks
     assert content_week_checks.no_invention(draft) is ok

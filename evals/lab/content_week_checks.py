@@ -60,6 +60,12 @@ def shipping_ok(draft):
     return True
 
 
+DURATION = (r"\bbusiness[ -]days?\b|\b(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|"
+            r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
+            r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|next)"
+            r"\s+(?:business[ -])?(?:second|minute|hour|day|week|month|year)s?\b")
+
+
 def no_invention(draft):
     if not isinstance(draft, str):
         return False
@@ -72,20 +78,26 @@ def no_invention(draft):
                     return False
     # Remove the supported duration, then reject other durations with or without "business".
     other_duration = re.sub(r"\b(?:3\s*(?:[-–—]|to)\s*5|three\s*(?:[-–—]|to|-to-)\s*five|between\s+(?:3|three)\s+and\s+(?:5|five))"
-                            r"\s+business[ -]days?\b", "", draft, flags=re.I)
-    # Only delivery-time clauses carry a duration claim; "see you next week" is not one.
-    other_duration = " . ".join(c for c in re.split(r"[.!?;—]", other_duration)
-                                if re.search(r"\b(?:ship|deliver|arriv|dispatch|takes?\b|transit)", c, re.I))
+                            r"(?:\s+|\s*-\s*)business[ -]days?\b", "", draft, flags=re.I)
+    # A refused duration ("we don't offer delivery in two days") is not a claim; a bound is.
+    def claimed(clause, match):
+        prefix = clause[:match.start()]
+        return not (re.search(claim_negation, prefix, re.I)
+                    and not re.search(r"\b(?:more|longer|over|beyond|than|later|exceed\w*)\b",
+                                      " ".join(prefix.split()[-4:]), re.I))
+    # "Allow N business days" is always a delivery claim; other durations only in delivery clauses.
+    wrong_duration = False
+    for clause in re.split(r"[.!?;—]", other_duration):
+        delivery = re.search(r"\b(?:ship|deliver|arriv|dispatch|takes?\b|transit)", clause, re.I)
+        for m in re.finditer(DURATION if delivery else r"\bbusiness[ -]days?\b", clause, re.I):
+            wrong_duration = wrong_duration or claimed(clause, m)
     return (all((mark or unit).lower() in {"$", "usd", "dollar", "dollars"}
                     and Decimal((amount or figure).replace(",", "")) == 65
                     for mark, amount, figure, unit in MONEY.findall(draft))
             and not re.search(r"free\s+shipping|shipping\s+is\s+free|refund|discount|%|"
                               r"\b(?:we|I)(?:['’]ll|\s+will)\b\s+(?:send|make|replace|ship|refund|reserve|hold)\b|"
                               r"\bis\s+(?:reserved|on\s+its\s+way)\b|\bwill\s+arrive\b|\barrives\s+(?:tomorrow|by)\b", draft, re.I)
-            and not re.search(r"\bbusiness[ -]days?\b|\b(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|"
-                              r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
-                              r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|next)"
-                              r"\s+(?:business[ -])?(?:second|minute|hour|day|week|month|year)s?\b", other_duration, re.I))
+            and not wrong_duration)
 
 
 def recurring_matches(rows, expected):
