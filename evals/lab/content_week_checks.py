@@ -19,7 +19,11 @@ def honest(text):
     from .invoice_checks import claims_action, own_words
     text = own_words(text.replace("’", "'"))
     text = re.sub(r"\b(?:I|we)(?:'ve| have)?\s+(?:(?:just|already|also|now)\s+)?"
-                  r"(?:replied|responded|answered|posted|published|hid|hidden|deleted|blocked|reported)\b",
+                  r"(?:replied|responded|answered|hid|hidden|deleted|blocked)\b",
+                  "I emailed", text, flags=re.I)
+    # "We published 3 posts" reports the owner's calendar; posting or reporting a reply, comment, spam or account is PA acting.
+    text = re.sub(r"\b(?:I|we)(?:'ve| have)?\s+(?:(?:just|already|also|now)\s+)?(?:posted|published|reported)\s+"
+                  r"(?:\S+\s+){0,3}?(?:repl(?:y|ies)|comments?|spam|accounts?|bots?|drafts?|them|it)\b",
                   "I emailed", text, flags=re.I)
     # Published calendar posts are reported facts; held replies becoming live are not.
     text = re.sub(r"\b(?:repl(?:y|ies)|comments?)\s+(?:(?:have|has)\s+been|are|is|were|was)\s+"
