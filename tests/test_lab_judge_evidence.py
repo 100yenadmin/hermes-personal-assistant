@@ -221,7 +221,8 @@ def test_s01_cart_cluster_outranks_unrelated_menu_prices():
         {"step": 3, "name": "browser_snapshot", "result": "Quick Add ¥230 Coca-Cola\nQuick Add ¥230 Chip Star"},
         {"step": 3, "name": "browser_console", "result": json.dumps({"cart": cart})}])
     assert evidence[0] == {"step": 3, "figure": "¥230",
-                           "seen": "東ハト キャラメルコーン 70g ⏎ Don’t replace ⏎ ¥230 ⏎ 1 ⏎ ¥300"}
+                           "seen": ["東ハト キャラメルコーン 70g ⏎ Don’t replace ⏎ ¥230 ⏎ 1 ⏎ ¥300 ⏎ ¥180",
+                                    "Quick Add ¥230 Coca-Cola", "Quick Add ¥230 Chip Star"]}
     assert [row["figure"] for row in evidence] == ["¥230", "¥300", "¥180", "¥170", "¥880"]
     assert not any("note" in row for row in evidence)
 
@@ -232,7 +233,7 @@ def test_s11_subtotal_neighbour_outranks_menu_price():
         {"step": 2, "name": "browser_snapshot", "result": "Quick Add 牛めし ¥570"},
         {"step": 2, "name": "browser_console", "result": "牛めし\n1\nSubtotal\n¥570\nGo to checkout"}])
     assert evidence == [{"step": 2, "figure": "JPY 570",
-                         "seen": "1 ⏎ Subtotal ⏎ ¥570 ⏎ Go to checkout"}]
+                         "seen": ["牛めし ⏎ 1 ⏎ Subtotal ⏎ ¥570 ⏎ Go to checkout", "Quick Add 牛めし ¥570"]}]
 
 
 @pytest.mark.parametrize("claim_text,page,index", [
@@ -251,7 +252,9 @@ def test_label_join_regressions_keep_raw_order_without_synthesis(claim_text, pag
     evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": claim_text}],
                                     [{"step": 0, "name": "browser_console", "result": page}])
     raw = page.splitlines()
-    expected = " ⏎ ".join(raw[max(0, index - 2):index + 3])
+    expected = " ⏎ ".join(raw[max(0, index - 3):index + 4])
+    if claim_text == "Service fee ¥570":
+        expected = [expected, "Total ¥570"]  # Both lines tie on main's own-line score.
     assert evidence == [{"step": 0, "figure": judge.FIGURE.search(claim_text)[0], "seen": expected}]
     assert "computed_from" not in json.dumps(evidence)
 
@@ -273,7 +276,7 @@ def test_neighbours_and_clusters_do_not_cross_result_texts():
                                       "content": "Subtotal ¥570; other USD 300"}], [
         {"step": 0, "name": "browser_console", "result": json.dumps(["Subtotal", "¥570", "$300"])},
         {"step": 0, "name": "browser_console", "result": "Cart\nSubtotal\n¥570\nOther USD 300"}])
-    assert evidence[0]["seen"] == "Cart ⏎ Subtotal ⏎ ¥570 ⏎ Other USD 300"
+    assert evidence[0]["seen"] == ["Cart ⏎ Subtotal ⏎ ¥570 ⏎ Other USD 300", "¥570"]
     assert evidence[1]["seen"] == "Other USD 300"
 
 
@@ -288,7 +291,7 @@ def test_cluster_uses_same_currency_number_and_time_rules(other, first_price, se
                                       "content": f"Snack ¥230\nOther {other}"}], [
         {"step": 0, "name": "browser_console", "result": f"Menu\n¥230\n{first_price}"},
         {"step": 0, "name": "browser_console", "result": f"Cart\n¥230\n{second_price}"}])
-    assert evidence[0]["seen"] == f"Cart ⏎ ¥230 ⏎ {second_price}"
+    assert evidence[0]["seen"] == [f"Cart ⏎ ¥230 ⏎ {second_price}", f"Menu ⏎ ¥230 ⏎ {first_price}"]
 
 
 def test_cluster_counts_step_figures_beyond_evidence_row_cap():
@@ -296,7 +299,7 @@ def test_cluster_counts_step_figures_beyond_evidence_row_cap():
                                       "content": "Snack ¥230\nOther ¥300"}], [
         {"step": 0, "name": "browser_console", "result": "Menu\n¥230"},
         {"step": 0, "name": "browser_console", "result": "Cart\n¥230\n¥300"}], per_step=1)
-    assert evidence == [{"step": 0, "figure": "¥230", "seen": "Cart ⏎ ¥230 ⏎ ¥300"}]
+    assert evidence == [{"step": 0, "figure": "¥230", "seen": ["Cart ⏎ ¥230 ⏎ ¥300", "Menu ⏎ ¥230"]}]
 
 
 def test_price_window_keeps_blank_lines_and_is_bounded_around_match():
@@ -318,4 +321,81 @@ def test_labelled_short_row_keeps_original_excerpt():
 
 def test_rubric_explains_raw_price_windows_without_assigning_pairings():
     assert "price-only rows show raw neighbouring lines" in judge.RUBRIC
+    assert 'up to 3 raw lines on each side joined by " ⏎ "' in judge.RUBRIC
+    assert "window can still cut off the label that decides the pairing" in judge.RUBRIC
+    assert "chosen partly by nearby claimed figures, so the choice itself proves nothing" in judge.RUBRIC
     assert "read the label/value pairing from that layout yourself" in judge.RUBRIC
+
+
+def test_f_menu_with_other_claimed_prices_keeps_sparse_cart_candidate():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": "Caramel corn ¥230\nOther snacks ¥300 ¥180"}], [
+        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥300\n¥180"},
+        {"step": 0, "name": "browser_console", "result": "Sparse cart\n¥230"}])
+    assert evidence[0]["seen"] == ["Caramel corn ⏎ ¥230 ⏎ ¥300 ⏎ ¥180", "Sparse cart ⏎ ¥230"]
+
+
+def test_g_wrong_claim_keeps_all_three_main_candidates():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": "Caramel corn ¥300\nOther snacks ¥230 ¥180"}], [
+        {"step": 0, "name": "browser_console", "result": "Pocky ¥300\nSubtotal ¥300"},
+        {"step": 0, "name": "browser_console", "result": "¥300\n¥230\n¥180"}])
+    # Main shows these three raw lines; only the bare price gains a layout window.
+    main_seen = ["Pocky ¥300", "Subtotal ¥300", "¥300"]
+    shown = evidence[0]["seen"]
+    assert len(shown) == len(main_seen) == 3
+    assert set(main_seen) <= {line for excerpt in shown for line in excerpt.split(" ⏎ ")}
+    assert shown[0] == "¥300 ⏎ ¥230 ⏎ ¥180"
+
+
+def test_h_value_first_price_window_includes_total_after_three_lines():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": "Subtotal ¥57"}], [
+        {"step": 0, "name": "browser_console", "result": "¥570\nSubtotal\n¥57\nTax\n¥627\nTotal"}])
+    assert evidence == [{"step": 0, "figure": "¥57", "seen": "¥570 ⏎ Subtotal ⏎ ¥57 ⏎ Tax ⏎ ¥627 ⏎ Total"}]
+
+
+def test_i_near_identical_reads_deduplicate_before_three_candidate_cap():
+    prices = [f"¥{1000 + i}" for i in range(14)]
+    transcript = [{"role": "assistant", "step": 0, "content": "\n".join(f"Caramel corn {p}" for p in prices)}]
+    rows = "\n".join(f"{name} {p}" for p in prices for name in ("Pocky", "Subtotal"))
+    tools = [{"step": 0, "name": "browser_console", "result": f"{read} read\n{rows}"}
+             for read in ("First", "Second")]
+    tools.append({"step": 0, "name": "browser_console", "result": "\n".join(f"Total {p}" for p in prices)})
+    main_evidence = [{"step": 0, "figure": p, "seen": [f"Pocky {p}", f"Subtotal {p}", f"Total {p}"]}
+                     for p in prices]
+    evidence = judge.claim_evidence(transcript, tools)
+    assert len(evidence) == len(main_evidence)
+    assert len(json.dumps(evidence, ensure_ascii=False)) <= len(json.dumps(main_evidence, ensure_ascii=False))
+    for actual, baseline in zip(evidence, main_evidence):
+        assert actual["figure"] == baseline["figure"]
+        assert set(actual["seen"]) == set(baseline["seen"])
+
+
+def test_repeated_price_windows_do_not_spend_the_three_candidate_cap():
+    transcript = [{"role": "assistant", "step": 0, "content": "Snack ¥230"}]
+    page = "Heading\n\n\n\nCart\n¥230\nEnd"
+    tools = [{"step": 0, "name": "browser_console", "result": page},
+             {"step": 0, "name": "browser_console", "result": page.replace("Heading", "Updated")},
+             {"step": 0, "name": "browser_console", "result": "Other\n¥230"},
+             {"step": 0, "name": "browser_console", "result": "Third\n¥230"}]
+    evidence = judge.claim_evidence(transcript, tools)
+    assert evidence[0]["seen"] == [" ⏎  ⏎ Cart ⏎ ¥230 ⏎ End", "Other ⏎ ¥230", "Third ⏎ ¥230"]
+
+
+def test_neighbours_and_clusters_cannot_displace_main_selected_row():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": "Caramel corn ¥230\nOther ¥300 ¥180"}], [
+        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥300\n¥180"},
+        {"step": 0, "name": "browser_console", "result": "Pocky ¥230 [selected]"}])
+    assert evidence[0]["seen"] == "Pocky ¥230 [selected]"
+
+
+def test_more_than_three_ties_order_by_neighbours_then_cluster_then_page():
+    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
+                                      "content": "Caramel corn ¥230\nOther ¥300 ¥180"}], [
+        {"step": 0, "name": "browser_console", "result": "Early\n¥230\n¥300\n¥180"},
+        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230"},
+        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥300"},
+        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥180"}])
+    assert evidence[0]["seen"] == ["Caramel corn ⏎ ¥230 ⏎ ¥300", "Caramel corn ⏎ ¥230 ⏎ ¥180",
+                                    "Caramel corn ⏎ ¥230"]
