@@ -123,3 +123,19 @@ def test_tool_and_skill_explain_exact_trip_source_linking():
         "for an errand that belongs to a trip, "
         'pass `"trip_id": "<trip id>"` as well.'
     ) in " ".join(text.split())
+
+
+@pytest.mark.parametrize("bad", ["trip-ghost", f" {TRIP} ", "", 7, {"trip_id": TRIP}])
+def test_a_trip_id_that_names_no_trip_is_refused_with_no_write(ledger, bad):
+    # #276: an unknown link would be inherited by a later prepare and refused by follow-through.
+    with pytest.raises(ValueError, match="trip_id must name an existing trip"):
+        upsert(ledger, source_id="errand-dentist", trip_id=bad)
+    assert ledger.list("action") == []
+
+
+def test_a_refused_trip_leaves_an_earlier_record_and_its_link_unchanged(ledger):
+    first = upsert(ledger, trip_id=OTHER_TRIP)
+    with pytest.raises(ValueError, match="trip_id must name an existing trip"):
+        upsert(ledger, trip_id="trip-ghost", fields={**LOOP, "next_step": "Changed"})
+    kept = ledger.get("action", first["action_id"])
+    assert kept["trip_id"] == OTHER_TRIP and kept["fields"]["next_step"] == LOOP["next_step"]
