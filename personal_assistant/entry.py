@@ -360,8 +360,9 @@ def dispatch(profile_root, args, *, runtime_scope=None):
         return ledger.get("action", identity)
     if op == "action_prepare":
         trip_id = data.get("trip_id")
-        if trip_id is not None and (not isinstance(trip_id, str) or not trip_id.strip()):
-            raise ValueError("trip_id must be a trip ID string")
+        # The link must name a stored trip: booking follow-through later refuses any other (#273).
+        if trip_id is not None and (not isinstance(trip_id, str) or not ledger.get("trip", trip_id)):
+            raise ValueError("trip_id must name an existing trip")
         enforcement_profile = data.pop("enforcement_profile", None)
         if enforcement_profile is None:
             return ledger.prepare(identity, data["summary"], trip_id=trip_id)

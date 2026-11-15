@@ -68,8 +68,17 @@ def test_no_trip_stays_unlinked(profile, governed):
     assert prepare(profile, governed)["trip_id"] is None
 
 
-@pytest.mark.parametrize("bad", ["", 7, {"trip_id": TRIP}])
-def test_a_trip_id_that_is_not_an_id_is_refused_before_any_write(profile, bad):
-    with pytest.raises(ValueError, match="trip_id"):
-        prepare(profile, trip_id=bad)
+@pytest.mark.parametrize("governed", [False, True])
+@pytest.mark.parametrize("bad", ["", 7, {"trip_id": TRIP}, "trip-ghost", f" {TRIP} "])
+def test_a_trip_id_that_names_no_trip_is_refused_before_the_action_is_written(profile, governed, bad):
+    with pytest.raises(ValueError, match="trip_id must name an existing trip"):
+        prepare(profile, governed, trip_id=bad)
     assert Ledger(profile).get("action", "demo-booking") is None
+
+
+def test_a_refused_trip_leaves_an_earlier_prepare_and_its_link_unchanged(profile):
+    first = prepare(profile, trip_id=TRIP)
+    with pytest.raises(ValueError, match="trip_id must name an existing trip"):
+        prepare(profile, trip_id="trip-ghost")
+    kept = Ledger(profile).get("action", "demo-booking")
+    assert kept["trip_id"] == TRIP and kept["updated_at"] == first["updated_at"]
