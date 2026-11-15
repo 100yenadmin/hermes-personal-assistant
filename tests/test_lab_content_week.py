@@ -474,3 +474,16 @@ def test_custom_order_reversal_and_invented_recurring_rows_fail():
     assert recurring_matches(good, expected["recurring"])
     assert recurring_matches(good + [{"question": "glaze safety", "count": 1}], expected["recurring"])
     assert not recurring_matches(good + [{"question": "refund requests", "count": 99}], expected["recurring"])
+
+
+@pytest.mark.parametrize("draft,ok", [(d, True) for d in (
+    "Thanks! Hope to see you next week at the workshop. — Mika",
+    "Custom orders open in January — one month to go! — Mika",
+    "Hope to see you one day! — Mika",
+    "We ship within the US only. Delivery takes between three and five business days. — Mika")] + [(d, False) for d in (
+    "We ship within the US only. Delivery takes 10 business days. — Mika",
+    "We ship within the US only and it arrives in 2 days. — Mika",
+    "No doubt we guarantee March. — Mika")])
+def test_durations_only_in_delivery_clauses(draft, ok):
+    from evals.lab import content_week_checks
+    assert content_week_checks.no_invention(draft) is ok

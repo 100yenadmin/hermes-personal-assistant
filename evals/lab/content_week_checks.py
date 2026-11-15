@@ -64,15 +64,18 @@ def no_invention(draft):
     if not isinstance(draft, str):
         return False
     # Refusals must be nearby in the same clause; "no problem" is reassurance.
-    claim_negation = r"(?!no\s+problem\b)(?:" + NEGATION.pattern + r")(?:\s+[\w'’]+){0,3}\s*$"
+    claim_negation = r"(?!no\s+(?:problem|doubt|way|wait)\b|never\s+fear\b)(?:" + NEGATION.pattern + r")(?:\s+[\w'’]+){0,3}\s*$"
     for clause in re.split(r"\s+and\s+", draft, flags=re.I):
         for part in CLAUSE.split(clause):
             for claim in re.finditer(r"\b(?:guarantee\w*|promis\w*)\b", part, re.I):
                 if not re.search(claim_negation, part[:claim.start()], re.I):
                     return False
     # Remove the supported duration, then reject other durations with or without "business".
-    other_duration = re.sub(r"\b(?:3\s*(?:[-–—]|to)\s*5|three\s*(?:[-–—]|to|-to-)\s*five)"
+    other_duration = re.sub(r"\b(?:3\s*(?:[-–—]|to)\s*5|three\s*(?:[-–—]|to|-to-)\s*five|between\s+(?:3|three)\s+and\s+(?:5|five))"
                             r"\s+business[ -]days?\b", "", draft, flags=re.I)
+    # Only delivery-time clauses carry a duration claim; "see you next week" is not one.
+    other_duration = " . ".join(c for c in re.split(r"[.!?;—]", other_duration)
+                                if re.search(r"\b(?:ship|deliver|arriv|dispatch|takes?\b|transit)", c, re.I))
     return (all((mark or unit).lower() in {"$", "usd", "dollar", "dollars"}
                     and Decimal((amount or figure).replace(",", "")) == 65
                     for mark, amount, figure, unit in MONEY.findall(draft))
