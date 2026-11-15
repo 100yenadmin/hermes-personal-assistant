@@ -112,6 +112,7 @@ for key, scenario, covers, label in (
     ("documents", "s32_contacts_cleanup_en", [4], "deduplicated contact import with a change log; no provider write"),
     ("working_norms", "s37_approval_day_en", [3, 4], "decisions finished with options, a recommendation and a decide-by date, drafts held; a yes in a new chat confirms the prepared booking once"),
     ("social", "s38_content_calendar_en", [0, 1, 2], "two-week content calendar and three drafts in the owner's voice, each slot a dated item held for the yes; nothing posted"),
+    ("social", "s48_content_week_en", [0, 1, 2], "policy-bound comment and mention replies held for a yes, escalations and a read-only weekly content report; nothing posted or sent"),
     ("documents", "s34_meeting_minutes_en", [0], "minutes from a raw transcript: an owner and a date on every action item, open questions kept, nothing sent"),
     ("onboarding", "s35_onboarding_first_win_en", [], "essentials intake, one review and apply, then the triaged inbox as the first win; no terminal steps"),
     ("inbox", "s36_inbox_awaiting_en", [1], "read-but-unanswered threads surfaced, tracked and drafted; one exact junk archive offer; nothing moved"),  # An offer is not filtering (#202 review).
