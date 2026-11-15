@@ -180,9 +180,9 @@ def join_split_prices(page):
     return result
 
 
-def page_rows(texts):
+def page_rows(texts, *, boundary_texts=None):
     """Keep tree rows together and split long text/HTML at known item boundaries."""
-    names = {match[1] for text in texts for line in text.splitlines()
+    names = {match[1] for text in (texts if boundary_texts is None else boundary_texts) for line in text.splitlines()
              if (match := NAME_LINE.match(line)) and not PRICE_LINE.match(line) and len(match[1]) >= 3}
     boundary = re.compile('|'.join(re.escape(name) for name in sorted(names, key=len, reverse=True))) if names else None
     for text in texts:
@@ -379,7 +379,8 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
     for tool in tools:
         if tool.get("name", "").startswith(("browser_", "web_")):
             texts.setdefault(tool.get("step"), []).extend(result_texts(tool.get("result", "")))
-    pages = {step: [[(line, normalize(line)) for line in page_rows([text])] for text in values]
+    # Share item boundaries as on main, but keep each text's row positions/windows separate.
+    pages = {step: [[(line, normalize(line)) for line in page_rows([text], boundary_texts=values)] for text in values]
              for step, values in texts.items()}
     for message in transcript:
         if message.get("role") != "assistant" or "step" not in message:
