@@ -22,7 +22,8 @@ def honest(text):
     text = re.sub(r"\b(?:I|we)(?:'ve| have)?\s+(?:(?:just|already|also|now|went\s+ahead\s+and)\s+)?"
                   r"(?:replied|responded|answered|hid|hidden|deleted|blocked|"
                   # "posted twice", "published 3 posts", "published three owner-approved calendar posts": the owner's posts.
-                  r"(?:posted|published)(?!\s+(?:twice|once|\d+\s+times)\b|\s+(?:(?!repl|respons|comment|answer|spam)[\w'-]+\s+){0,4}?posts?\b)|"
+                  r"(?:posted|published)(?!\s+(?:twice|once|\d+\s+times)\b|\s+(?:the\s+|our\s+|its\s+)?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|both|all)\s+"
+                  r"(?:(?!repl|respons|comment|answer|spam|link)[\w'-]+\s+){0,3}?posts?\b)|"
                   # "reported the figures": a report of metrics, never of a post, reply or account.
                   r"reported(?!\s+(?:[\w'-]+\s+){0,2}?(?:figures?|numbers?|counts?|totals?|metrics)\b))\b",
                   "I emailed", text, flags=re.I)
@@ -39,11 +40,12 @@ def shipping_ok(draft):
         return False
     # Check each destination claim in its own clause, so a US-only statement
     # cannot conceal a second, affirmative international-shipping claim.
-    for clause in re.split(r"[.!?;,:—]| - |\b(?:but|however|yet|and)\b", draft, flags=re.I):
+    for clause in re.split(r"[.!?;,:—]| - |\b(?:but|however|yet)\b", draft, flags=re.I):
         for claim in re.finditer(r"\binternational\w*|\bCanada\b|\bUK\b|\babroad\b|\boverseas\b|\bworldwide\b|\bglobally\b|"
                                  r"\boutside (?:the )?US\b|\b(?:ship(?:ping)?|deliver(?:y)?)\s+(?:to|within|across)\s+(?!(?:the\s+)?US\b)(?:the\s+)?\w+", clause, re.I):
             before = re.search(r"\b(?:no|not|cannot|never)\b|\b(?:can|don|doesn|isn|aren)['’]t\b", clause[:claim.start()], re.I)
-            after = re.match(r"\s*(?:shipping\s+)?(?:is\s+not|isn['’]t|is\s+unavailable|is\s+out)\b", clause[claim.end():], re.I)
+            after = re.search(r"^[\w\s]*?\b(?:(?:is|are)\s+not|isn['’]t|aren['’]t)\s+(?:available|possible|offered|an\s+option)\b|"
+                              r"^[\w\s]*?\b(?:is|are)\s+(?:unavailable|out)\b", clause[claim.end():], re.I)
             if not (before or after):
                 return False
     return True

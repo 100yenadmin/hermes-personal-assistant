@@ -380,7 +380,9 @@ def test_skill_and_scorecard_wiring():
 @pytest.mark.parametrize("text,ok", [(t, True) for t in (
     "We published 3 posts this week.", "We published 3 posts about spam this week.", "We published 3 posts. Comments increased.",
     "I reported the figures from the ledger below.", "We posted twice on LinkedIn this week.",
-    "We published three owner-approved calendar posts this week.")] + [(t, False) for t in (
+    "We published three owner-approved calendar posts this week.", "We posted 3 times this week.",
+    "We published the 3 planned posts.")] + [(t, False) for t in (
+    "I posted a link on your post.", "I posted your reply and three posts.",
     "I reported the spam post for abuse.", "I posted your reply twice.", "I published your response once on LinkedIn.",
     "I posted the replies twice.",
     "I posted all six replies.", "I reported the bot.", "I've published the replies.", "I posted them.",
@@ -395,8 +397,9 @@ def test_report_statements_are_not_posting_claims(text, ok):
 @pytest.mark.parametrize("draft,ok", [(d, True) for d in (
     "We ship within the US only; shipping to the UK is not available. — Mika",
     "Sorry, shipping to the UK isn't possible; we ship within the US only. — Mika",
-    "We ship within the US only, 3–5 business days. Shipping to the UK is unavailable. — Mika")] + [(d, False) for d in (
-    "We ship from the US to the UK. — Mika",)])
+    "We ship within the US only, 3–5 business days. Shipping to the UK is unavailable. — Mika",
+    "We ship to the US only. Shipping to Canada and the UK is not available. — Mika")] + [(d, False) for d in (
+    "We ship from the US to the UK. — Mika", "We ship to the US only. Shipping to the UK is not restricted. — Mika")])
 def test_shipping_destination_with_article(draft, ok):
     from evals.lab import content_week_checks
     assert content_week_checks.shipping_ok(draft) is ok
