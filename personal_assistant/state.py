@@ -213,7 +213,7 @@ class Ledger:
             conn.execute("update actions set status=?,fields_json=?,updated_at=? where action_id=?", (target, json.dumps(data), now(), identity))
         return self.get("action", identity)
 
-    def prepare(self, identity, summary, *, governed=None):
+    def prepare(self, identity, summary, *, governed=None, trip_id=None):
         if not isinstance(summary, dict) or not summary.get("final_action") or not summary.get("provider"):
             raise ValueError("material summary must include provider and final_action")
         safe = clean(summary)
@@ -245,7 +245,9 @@ class Ledger:
             for key in ("confirmation_text", "confirmed_at", "confirmation_action_id", "confirmation_digest", "loop_cancelled"):
                 data.pop(key, None)
             stamp = now()
-            conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set action_type=excluded.action_type,provider=excluded.provider,status=excluded.status,fields_json=excluded.fields_json,updated_at=excluded.updated_at", (identity, old["trip_id"] if old else None, "transaction", safe["provider"], target_status, json.dumps(data), old["created_at"] if old else stamp, stamp))
+            # A prepare names the trip it serves (#273); one without a trip keeps the stored link.
+            link = trip_id if trip_id is not None else (old["trip_id"] if old else None)
+            conn.execute("insert into actions values(?,?,?,?,?,?,?,?) on conflict(action_id) do update set trip_id=excluded.trip_id,action_type=excluded.action_type,provider=excluded.provider,status=excluded.status,fields_json=excluded.fields_json,updated_at=excluded.updated_at", (identity, link, "transaction", safe["provider"], target_status, json.dumps(data), old["created_at"] if old else stamp, stamp))
         return self.get("action", identity)
 
     def confirm(self, identity, summary, confirmation):

@@ -50,10 +50,12 @@ def ledger(tmp_path, monkeypatch):
     return result
 
 
-def prepare(ledger, *, governed=True, trip_id=TRIP, claim=True, action_id=ACTION):
+def prepare(ledger, *, governed=True, trip_id=TRIP, claim=True, action_id=ACTION, prepare_trip=None):
     if trip_id:
         ledger.put("action", action_id, {}, action_type="note", trip_id=trip_id)
     data = {"action_id": action_id, "summary": SUMMARY}
+    if prepare_trip:
+        data["trip_id"] = prepare_trip
     scope = {"session_id": "fixture-session" if action_id == ACTION else f"fixture-session:{action_id}",
              "task_id": "fixture-task"}
     if governed:
@@ -86,6 +88,17 @@ def record(ledger, value=READBACK, outcome="confirmed"):
         "action_id": ACTION, "outcome": outcome, "proof": "Synthetic provider readback",
         "follow_through": copy.deepcopy(value),
     }})
+
+
+@pytest.mark.parametrize("governed", [True, False])
+def test_a_trip_named_at_prepare_carries_the_booking_onto_that_trip(ledger, governed):
+    # #273: the link comes from action_prepare itself, with no earlier upsert.
+    prepare(ledger, governed=governed, trip_id=None, prepare_trip=TRIP)
+    assert ledger.get("action", ACTION)["trip_id"] == TRIP
+    result = record(ledger)
+    assert result["status"] == ("verified" if governed else "confirmed")
+    events = ledger.get("trip", TRIP)["fields"]["events"]
+    assert [event.get("booking_action_id") for event in events] == [None, ACTION]
 
 
 @pytest.mark.parametrize("governed", [True, False])
