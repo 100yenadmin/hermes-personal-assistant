@@ -233,6 +233,8 @@ def test_scorecard_commit_compares_case_insensitively(release_files):
 @pytest.fixture
 def reviewed_repo(tmp_path):
     repo, _ = make_repo(tmp_path)
+    for path in ("README.md", "AGENTS.md", "CONTRIBUTING.md", "LICENSE", "after-install.md"):
+        (repo / path).write_text("Reviewed document\n")
     for path in release_contract.VERSION_FILES - {"plugin.yaml"}:
         destination = repo / path
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -242,8 +244,7 @@ def reviewed_repo(tmp_path):
     return repo, reviewed
 
 
-def release_candidate(repo, reviewed):
-    version = "0.4.0-rc.1"
+def release_candidate(repo, reviewed, version="0.4.0-rc.1"):
     (repo / "VERSION").write_text(version + "\n")
     for path in release_contract.VERSION_FILES:
         destination = repo / path
@@ -264,6 +265,52 @@ def test_reviewed_guard_allows_release_documents_and_version_bumps(reviewed_repo
     revision = commit(repo, "release metadata")
     with mock.patch.object(release_contract, "ROOT", repo):
         release_contract.check_reviewed_implementation(revision, version)
+
+
+@pytest.mark.parametrize("path", ["README.md", "AGENTS.md", "CONTRIBUTING.md", "LICENSE", "after-install.md"])
+@pytest.mark.parametrize("skill_changed", [False, True])
+def test_reviewed_guard_allows_root_documents_but_rejects_skill_changes(reviewed_repo, path, skill_changed):
+    repo, reviewed = reviewed_repo
+    version = release_candidate(repo, reviewed, version="0.4.0")
+    (repo / path).write_text("Updated release document\n")
+    skill_path = "skills/example/SKILL.md"
+    if skill_changed:
+        destination = repo / skill_path
+        destination.parent.mkdir(parents=True)
+        destination.write_text("Unreviewed skill implementation\n")
+    revision = commit(repo, "stable release documents")
+    with mock.patch.object(release_contract, "ROOT", repo):
+        if skill_changed:
+            with pytest.raises(ValueError, match=re.escape(skill_path)):
+                release_contract.check_reviewed_implementation(revision, version)
+        else:
+            release_contract.check_reviewed_implementation(revision, version)
+
+
+def test_main_merge_returns_one_on_reviewed_guard_failure(reviewed_repo, capsys):
+    repo, reviewed = reviewed_repo
+    version = release_candidate(repo, reviewed, version="0.4.0")
+    (repo / "README.md").write_text("Updated release document\n")
+    destination = repo / "skills" / "example" / "SKILL.md"
+    destination.parent.mkdir(parents=True)
+    destination.write_text("Unreviewed skill implementation\n")
+    (repo / "releases" / version / "manifest.json").write_text(json.dumps({
+        "version": version, "native_id": "personal-assistant", "source_commit": "release-merge",
+        "reviewed_implementation_commit": reviewed,
+    }))
+    revision = commit(repo, "unreviewed stable release")
+    body = "Related #285\nRelease impact: publish\n## Release notes\nUpdates stable release documentation.\n"
+    event_path = repo.parent / "event.json"
+    event_path.write_text(json.dumps(event(reviewed, revision, body, merged=True)))
+    with mock.patch.object(release_contract, "ROOT", repo):
+        with mock.patch("sys.argv", ["release_contract.py", "merge", "--event", str(event_path)]):
+            assert release_contract.main() == 1
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert result["ok"] is False
+    assert "packaged implementation differs from reviewed commit" in result["error"]
+    assert "skills/example/SKILL.md" in result["error"]
+    assert captured.err == ""
 
 
 def test_reviewed_guard_rejects_packaged_implementation_changes(reviewed_repo):

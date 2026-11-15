@@ -45,7 +45,10 @@ def check_reviewed_implementation(revision: str, version: str) -> None:
     for path in git("diff", "--no-renames", "--name-only", "-z", reviewed, revision).split("\0"):
         if not path or not is_packaged(path):
             continue
-        if path in {"VERSION", "CHANGELOG.md", "ROADMAP.md", "VISION.md"} or path.startswith(("releases/", "docs/")):
+        if path in {
+            "VERSION", "CHANGELOG.md", "ROADMAP.md", "VISION.md", "README.md",
+            "AGENTS.md", "CONTRIBUTING.md", "LICENSE", "after-install.md",
+        } or path.startswith(("releases/", "docs/")):
             continue
         if path in VERSION_FILES:
             try:
