@@ -339,3 +339,27 @@ def test_page_span_boundaries_shortest_window_step_order_and_truncation():
     rows = layout_evidence("¥300 ¥180 ¥170", ["¥300 [ref=abc]\n¥180\n¥170"])
     assert rows[-1] == {"step": 0, "page_span": "¥300 ⏎ ¥180 ⏎ ¥170"}
     assert not any("page_span" in row for row in layout_evidence("¥300 ¥180 ¥170", ["¥300\n¥180", "¥170"]))
+
+
+def test_spare_budget_goes_to_the_span_with_most_figures_not_the_first_step():
+    # r002 shape: a 3-figure fare block in step 0 must not crowd out step 3's 5-figure cart.
+    transcript = [{"role": "assistant", "step": 0, "content": "KRW 183,400 at 10:50 PM, arrives 12:55 AM"},
+                  {"role": "assistant", "step": 3, "content": "Salad ¥300, Potage ¥180, Popcorn ¥170, Caramel Corn ¥230. Subtotal ¥880."}]
+    fare = "\n".join(["ICN", "10:50 PM", "HND", "12:55 AM", "KRW 183,400"] + ["filler " + "f" * 40] * 8)
+    cart = "\n".join(["じゃがりこ", "Don’t replace", "¥300", "1", "リスカ", "Don’t replace", "¥180", "1", "三菱", "Don’t replace",
+                      "¥170", "1", "東ハト キャラメルコーン", "Don’t replace", "¥230", "1", "Subtotal", "¥880"])
+    tools = [{"step": 0, "name": "browser_console", "result": fare}, {"step": 3, "name": "browser_console", "result": cart}]
+    whole = judge.claim_evidence(transcript, tools, budget=float("inf"))
+    spans = [row for row in whole if "page_span" in row]
+    assert [row["step"] for row in spans] == [0, 3]  # Both qualify, in step order.
+    figures = figure_rows(whole)
+    room = len(json.dumps(figures + [spans[1]], ensure_ascii=False))
+    assert room < len(json.dumps(figures + spans, ensure_ascii=False))
+    rows = judge.claim_evidence(transcript, tools, budget=room)
+    assert figure_rows(rows) == figures
+    assert [row for row in rows if "page_span" in row] == [spans[1]]
+
+
+def test_no_page_span_when_one_line_holds_as_many_figures_as_any_block():
+    rows = layout_evidence("¥300 ¥180 ¥170", ["Cart ¥300 ¥180 ¥170\nlater ¥300"])
+    assert not any("page_span" in row for row in rows)

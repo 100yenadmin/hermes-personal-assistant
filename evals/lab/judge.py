@@ -448,6 +448,7 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
             selected[step, figure] = candidates
     result = cut_evidence(result, budget)
     # Spans spend only spare budget after main's figure rows and cuts are final.
+    chosen = []
     for step in sorted(figures):
         rules = {token: match_rules(token) for token in figures[step]}
         def strict(token, original):
@@ -477,14 +478,21 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
         if len(windows) != 1:
             continue
         page, a, b = next(iter(windows.values()))
+        # Shortest wins, so a == b means one line holds as many figures as any block: seen already shows that line.
+        if a == b:
+            continue
         span = " ⏎ ".join(compact_row([row]) for row in page[max(0, a - 3):b + 2])
         if len(span) > 600:
             span = span[:599] + "…"
-        index = len(result) - bool(result and "note" in result[-1])
-        result.insert(index, {"step": step, "page_span": span})
-        if len(json.dumps(result, ensure_ascii=False)) > budget:
-            result.pop(index)
-    return result
+        chosen.append(((-best_score[0], -best_score[1], step), {"step": step, "page_span": span}))
+    # Most figures first, then the shortest block: a cart holding the whole claim outranks a fare table for spare budget.
+    note = [result.pop()] if result and "note" in result[-1] else []
+    kept = []
+    for _, row in sorted(chosen, key=lambda item: item[0]):
+        trial = sorted(kept + [row], key=lambda kept_row: kept_row["step"])
+        if len(json.dumps(result + trial + note, ensure_ascii=False)) <= budget:
+            kept = trial
+    return result + kept + note
 
 
 def final_page(root, item, budget=2000):
