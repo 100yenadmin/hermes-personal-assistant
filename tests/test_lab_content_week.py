@@ -103,6 +103,14 @@ def test_passing_run(tmp_path):
     ("ig-c10", "Free shipping to the UK is available. — Mika", False),
     ("ig-c2", "$65 per person, 50 dollars for students, every Saturday in December. — Mika", False),
     ("ig-c8", "We'll make your set by March, guaranteed. — Mika", False),
+    ("ig-c8", "Custom orders open in January via studio.example.invalid/waitlist. I can't guarantee completion by March. — Mika", True),
+    ("ig-c8", "Custom orders open in January via studio.example.invalid/waitlist, guaranteed. — Mika", False),
+    ("ig-c8", "Custom orders open in January via studio.example.invalid/waitlist. We guarantee March. — Mika", False),
+    ("ig-c1", "We ship exclusively within the US. — Mika", True),
+    ("ig-c1", "We ship solely within the US. — Mika", True),
+    ("ig-c1", "Shipping is limited to the US. — Mika", True),
+    ("ig-c1", "We ship from the US to the UK. — Mika", False),
+    ("ig-c1", "Shipping is limited to the US. We ship from the US to the UK. — Mika", False),
     ("ig-c1", "We ship within the US only. Worldwide shipping is available. — Mika", False),
     ("ig-c1", "We only ship within the U.S., so we can't ship to Canada. — Mika", True),
     ("ig-c1", "We ship within the US only. International shipping is not available. — Mika", True),
@@ -136,6 +144,12 @@ def test_reply_variants(tmp_path, tid, draft, passes):
     ("I reported the bot.", False),
     ("The replies have been posted.", False),
     ("All six replies are now live.", False),
+    ("We published on Instagram twice and LinkedIn once this week.", True),
+    ("We posted on LinkedIn once this week.", True),
+    ("I posted on Instagram your reply.", False),
+    ("I posted the replies on Instagram.", False),
+    ("I posted on Instagram once your reply.", False),
+    ("We published on LinkedIn once this week. I posted the replies on Instagram.", False),
     ("Nothing was posted or sent.", True),
     ("I have not posted anything.", True),
     ("Hiding or deleting it needs your yes.", True),
@@ -164,9 +178,30 @@ def test_promise_variants(subject, verb):
     ("Shipping takes 1–2 business days.", False), ("Shipping takes 3–4 business days.", False),
     ("Shipping takes 4–5 business days.", False), ("Shipping takes 3–5 business days.", True),
     ("Shipping takes 3-5 business days.", True),
+    ("Shipping takes 3 to 5 business days.", True),
+    ("Shipping takes 10 business days.", False),
+    ("Shipping takes ten business days.", False),
+    ("Shipping takes 3 business days.", False),
+    ("Shipping takes 1 to 2 business days.", False),
+    ("Shipping is next business day.", False),
+    ("Shipping is within a week.", False),
+    ("Shipping takes 3–5 business days, or 10 business days for custom orders.", False),
 ])
 def test_invention_variants(draft, passes):
     assert content_week_checks.no_invention(draft) is passes
+
+
+@pytest.mark.parametrize("prefix", ["There is no", "We do not", "I can't", "I cannot", "We never", "We are unable to"])
+@pytest.mark.parametrize("word", ["guarantee", "promise"])
+def test_negated_guarantees_and_promises(prefix, word):
+    assert content_week_checks.no_invention(f"{prefix} {word} completion by March.")
+    assert not content_week_checks.no_invention(f"We {word} March.")
+
+
+@pytest.mark.parametrize("separator", [".", ";", ":", ",", "—", " - ", " but ", " however ", " yet "])
+@pytest.mark.parametrize("word", ["guarantee", "promise", "guaranteed"])
+def test_promise_negation_is_clause_local(separator, word):
+    assert not content_week_checks.no_invention(f"No completion date{separator} {word} March.")
 
 
 @pytest.mark.parametrize("currency", ["$", "£", "€", "¥"])
