@@ -61,13 +61,16 @@ lab:
     decisions: {ig-c1: reply, ig-c2: reply, li-c3: reply, ig-c4: escalate, ig-c5: ignore, li-m6: escalate, ig-m7: reply, ig-c8: reply, ig-c9: escalate, ig-c10: reply}
     required_facts:
       ig-c1: ['\b(?:U\.S\.|US\b|USA\b|United States\b)']
-      ig-c2: ['(?:\$\s*65(?:\.00)?\b|\b65(?:\.00)?\s*(?:dollars|USD)\b|\bUSD\s+65(?:\.00)?\b)']
+      ig-c2: ['(?:\$\s*65(?:\.00)?|\b(?:65(?:\.00)?|sixty-five)\s*(?:dollars|USD)\b|\bUSD\s+65(?:\.00)?)']
       li-c3: [thank]
       ig-m7: [thank]
       ig-c8: [January, 'studio\.example\.invalid/waitlist']
       ig-c10: ['\b(?:U\.S\.|US\b|USA\b|United States\b)']
+    shipping_policy: [ig-c1, ig-c10]
     recurring:
-    - keywords: [international, Canada, UK, abroad, overseas, shipping outside the US]
+    - question: international shipping
+      keywords: [international, internationally, Canada, UK, abroad, overseas, shipping outside the US]
+      count: 2
     report:
       published: 3
       dropped: 1

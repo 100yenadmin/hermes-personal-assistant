@@ -223,6 +223,15 @@ def validate(s):
                     and all(d in {"reply", "escalate", "ignore"} for d in decisions.values()), "lab.expected.decisions")
             require(isinstance(facts, dict) and set(facts) == {k for k, d in decisions.items() if d == "reply"}
                     and all(isinstance(v, list) and v and all(isinstance(f, str) and f for f in v) for v in facts.values()), "lab.expected.required_facts")
+            shipping = expected.get("shipping_policy")
+            require(isinstance(shipping, list) and all(isinstance(tid, str) and tid in facts for tid in shipping),
+                    "lab.expected.shipping_policy")
+            recurring = expected.get("recurring")
+            require(isinstance(recurring, list) and all(isinstance(r, dict)
+                    and isinstance(r.get("question"), str) and r["question"]
+                    and isinstance(r.get("keywords"), list) and r["keywords"]
+                    and all(isinstance(k, str) and k for k in r["keywords"])
+                    and type(r.get("count")) is int and r["count"] >= 2 for r in recurring), "lab.expected.recurring")
             for patterns in facts.values():
                 for pattern in patterns:
                     try:
