@@ -11,7 +11,7 @@ work.
 - A milestone is done when its exit test passes, not when its code is merged.
 - The order is committed; dates are not.
 
-## Where we are (0.25.0-rc.1, 15 November 2026)
+## Where we are (0.26.0-rc.1, 15 November 2026)
 
 **Live proof.** PA is live on one internal pilot agent, which serves the owner.
 That pilot has shown:
@@ -94,12 +94,14 @@ In the 0.16.0-rc.1 wave (93 runs on real Hermes, 87 passing), priorities (s39), 
 
 0.25.0-rc.1 adds the monthly invoicing a remote VA does: PA prepares an invoice with exact totals, the next number in the owner's series and the due date, holds it for the yes and records it once it has gone out, sent by PA through the governed send path on the yes or by the owner (#259, lab s46 3 of 3). A month-end close runs the month's tax pack, open invoices and chases, upcoming renewals and the recurring invoices to prepare; chases and recurring invoices are prepared and held, the rest is reported (#261, lab s47 3 of 3). It fixes two problems the owner's own agent reported in daily use and works around a third (#264, #265, #266), and a matched receipt now counts once in the trip expense export (#268). In its wave (135 runs on real Hermes, one at a time, 131 passing), 41 of 45 scenarios passed 3 of 3. Two misses were PA errors: a booking prepared for a trip was not stored on that trip, so an approval in a new chat was prepared again (s37; the fix, #274, merges after the release), and a taxi fare taken from a search result instead of the opened route page (s03). The other two were lab misses on correct replies: a judge shown the wrong lines (s11, #275) and a skipped machine-readable summary (s45).
 
+0.26.0-rc.1 fixes the two PA errors in the 0.25.0-rc.1 wave. A booking prepared for a trip stays on that trip through the yes, so an approval in a new chat can find it there (#274; lab s37 passed 3 of 3, and in one run the yes found the booking through its trip), and the rideshare skill now tells PA to open a page before quoting its fare (#278; lab s03 3 of 3, with Uber's route page opened in every run). action_upsert no longer stores a trip link that names no stored trip (#279). In its wave (135 runs on real Hermes, one at a time, 129 passing; 131 in 0.25.0-rc.1), 43 of 45 scenarios passed 3 of 3. The six misses were in two scenarios, and none booked, paid or sent anything. Seoul to Tokyo (s01) passed 0 of 3: in two runs the judge's evidence matched the snack cart's prices to other products at the same price on the store page (#275, not yet fixed), and in one the model endpoint rejected the taxi step's request twice. The contracts review (s45) passed 0 of 3: PA listed a renewal that is not due among the decisions; on the 0.25 wording the same code did this in 1 of 3 runs, too few runs to say #280's new wording caused the rise (#284).
+
 **Strong:**
-- travel prep (hotels and restaurants on real sites up to the final review page; in 0.25.0-rc.1 Seoul to Tokyo (s01) and Tokyo to Seoul (s02) passed 3 of 3, and San Francisco to Tokyo (s03) 2 of 3; in its miss Uber's pickup search returned the wrong places, and PA took the route fare from a search result instead of opening the page, labelled as not a quote);
+- travel prep (hotels and restaurants on real sites up to the final review page; in 0.26.0-rc.1 Tokyo to Seoul (s02) and San Francisco to Tokyo (s03, with the opened-page fare rule from #278) passed 3 of 3, and Seoul to Tokyo (s01) 0 of 3: two runs were judge misses on carts PA had read correctly (#275), and in one the model endpoint rejected the taxi step's request twice);
 - the safe-action gateway and the durable ledger;
 - quiet-by-default reporting;
 - Japan and Korea provider routing;
-- simulated phone calls in Korean and Japanese (s04 to s08, 15 of 15 in each wave from 0.20.0-rc.1 to 0.25.0-rc.1).
+- simulated phone calls in Korean and Japanese (s04 to s08, 15 of 15 in each wave from 0.20.0-rc.1 to 0.26.0-rc.1).
 
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
 - attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1) and passes a two-day lab scenario (s42, with a stand-in for HB2's `pulse`); in 0.22.0-rc.1 an owner's chase time fired on a real HeartBeat 2.0 v0.2.0 wake in an isolated lab home with loopback Telegram, but not yet on a live profile;
@@ -120,7 +122,7 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2 (check), M3 (daily and weekly), M6 (monthly, quarterly, licences and contracts) |
 | Research | partial: adopt-or-build research only | M2 |
 | Travel | partial: prep up to the final page, nothing completed | M0 (real trip), M5 (completion) |
-| Personal life admin | partial: renewal and birthday radar (lab s21); contracts, subscriptions and licences surfaced before the notice deadline with annual cost and a keep-or-cancel decision (0.24.0-rc.1; lab s45 2 of 3 in 0.24.0-rc.1 and 0.25.0-rc.1); family appointments, household vendors and a year at a glance with gift ideas, every booking and send held for the yes (0.16.0-rc.1, lab s41 3 of 3) | M3 (radar), M6 (the rest) |
+| Personal life admin | partial: renewal and birthday radar (lab s21); contracts, subscriptions and licences surfaced before the notice deadline with annual cost and a keep-or-cancel decision (0.24.0-rc.1; lab s45 2 of 3 in 0.24.0-rc.1 and 0.25.0-rc.1, 0 of 3 in 0.26.0-rc.1, where PA listed a renewal that is not due among the decisions); family appointments, household vendors and a year at a glance with gift ideas, every booking and send held for the yes (0.16.0-rc.1, lab s41 3 of 3) | M3 (radar), M6 (the rest) |
 | Follow-up, reporting, escalation | missing or partial | M3 |
 | Inbox | missing | M4 |
 | Calendar | partial: reads and conflict checks | M4 |
@@ -150,7 +152,7 @@ A code inventory, an adversarial cross-model plan review and the live lab result
 
 **How it is measured.**
 - An approval-workload test (#160): every decision arrives finished, and an approval survives an interruption. Built in 0.15.0-rc.1 (lab s37: a yes in a new chat confirms the prepared booking once).
-- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161). First version built: each release scorecard strings run N of every scenario a persona meets into week N, and the simulated owner fires PA at the first failing run. These are separate lab sessions, not one continuous week (8 of 12 weeks kept in 0.20.0-rc.1, 11 of 12 in 0.21.0-rc.1 and 0.22.0-rc.1, 8 of 12 in 0.23.0-rc.1, where one weekly-closeout miss ended three personas' second week, 6 of 12 in 0.24.0-rc.1, where two weekly-closeout runs failed lab checks too narrow for correct replies (checked again with the widened checks, those runs keep 11 of 12), and 11 of 12 in 0.25.0-rc.1, where the approval-day miss ended the executive's week 3). A continuous week is built too (#216): a persona's days run in one lab home on a shifted clock, and PA carries its ledger from day to day. The first such week (w01, a chase the owner timed for the next morning) found #215, fixed in 0.21.0-rc.1, and passed 3 of 3 at the release commit. In 0.22.0-rc.1 the owner's chase time ran on a real HeartBeat 2.0 wake in the lab (#161 phase 2, 11 of 11 checks in both rounds). Next: the same on a live profile.
+- A scripted "fire-me week" per persona each release, plus one cross-model plan review at the start of each milestone (#161). First version built: each release scorecard strings run N of every scenario a persona meets into week N, and the simulated owner fires PA at the first failing run. These are separate lab sessions, not one continuous week (8 of 12 weeks kept in 0.20.0-rc.1, 11 of 12 in 0.21.0-rc.1 and 0.22.0-rc.1, 8 of 12 in 0.23.0-rc.1, where one weekly-closeout miss ended three personas' second week, 6 of 12 in 0.24.0-rc.1, where two weekly-closeout runs failed lab checks too narrow for correct replies (checked again with the widened checks, those runs keep 11 of 12), 11 of 12 in 0.25.0-rc.1, where the approval-day miss ended the executive's week 3, and 9 of 12 in 0.26.0-rc.1, where the Seoul to Tokyo misses ended the family user's three weeks). A continuous week is built too (#216): a persona's days run in one lab home on a shifted clock, and PA carries its ledger from day to day. The first such week (w01, a chase the owner timed for the next morning) found #215, fixed in 0.21.0-rc.1, and passed 3 of 3 at the release commit. In 0.22.0-rc.1 the owner's chase time ran on a real HeartBeat 2.0 wake in the lab (#161 phase 2, 11 of 11 checks in both rounds). Next: the same on a live profile.
 
 **Trimmed.**
 - More travel specialisation waits until the office loop is proven.
@@ -419,7 +421,7 @@ In the release wave, replies under policy (s31) passed 2 of 3; the miss came fro
 
 Since then, meeting minutes with an owner and a date on every action item (M6-d, #145; lab s34 3 of 3) and card statement import (M6-e, #146; unit tests) have been built.
 
-In 0.23.0-rc.1, documents in the owner's Google account (#156, lab s43) and the tax pack (#235, unit tests) were built too. In 0.24.0-rc.1, the tax pack passed its lab scenario (s44 3 of 3) and contract renewals with notice deadlines were added (#248, lab s45 2 of 3). In 0.25.0-rc.1, invoice preparation (#255, lab s46 3 of 3) and a month-end close (lab s47 3 of 3) were added.
+In 0.23.0-rc.1, documents in the owner's Google account (#156, lab s43) and the tax pack (#235, unit tests) were built too. In 0.24.0-rc.1, the tax pack passed its lab scenario (s44 3 of 3) and contract renewals with notice deadlines were added (#248, lab s45 2 of 3). In 0.25.0-rc.1, invoice preparation (#255, lab s46 3 of 3) and a month-end close (lab s47 3 of 3) were added. In 0.26.0-rc.1, the contracts review fell to 0 of 3 in its lab scenario (s45): PA listed a renewal that is not due among the decisions.
 
 Still missing: live proof of the week-one VA core (#152; #151 and #153 to #155 are built), a live run in the owner's own systems, the voice test and the parity evidence.
 
