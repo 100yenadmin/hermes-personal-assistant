@@ -1396,3 +1396,13 @@ def test_previous_calendar_month_tokens_and_day_clamping(date, last_month, end):
         date, (dt.date.fromisoformat(date) - dt.timedelta(days=9)).isoformat(),
         (dt.date.fromisoformat(date) + dt.timedelta(days=45)).isoformat(),
         date[:5] + f"{int(date[5:7]) + 1:02d}" + date[7:], date[:4]])
+
+
+def test_write_and_append_survive_lone_surrogates(tmp_path):
+    # s01 r003 in the 0.27.0-rc.1 wave: a lone surrogate in page text left history-step-2.json empty and aborted the run.
+    from evals.lab import common
+    value = {"page": "Tabelog \ud83c menu", "pair": "🍣"}
+    common.write(tmp_path / "h.json", value)
+    common.append(tmp_path / "t.jsonl", value)
+    assert common.read(tmp_path / "h.json") == {"page": "Tabelog � menu", "pair": "🍣"}
+    assert common.lines(tmp_path / "t.jsonl") == [{"page": "Tabelog � menu", "pair": "🍣"}]
