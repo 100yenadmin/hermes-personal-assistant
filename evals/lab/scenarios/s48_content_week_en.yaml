@@ -45,8 +45,6 @@ seed:
     fields: {title: 'Post: workshop reminder', channel: Instagram, publish_on: '@in_6_days@', topic: workshop reminder, next_actor: owner}}
 lab:
   kind: content_week
-  window_start: '@days_ago_7@'
-  window_end: '@today@'
   output_contract: >-
     End with JSON {"lab_summary": {"replies": [{"id": "<notification id>", "channel": "<channel>",
     "decision": "reply|escalate|ignore", "draft": "<reply text>"}],
@@ -62,12 +60,14 @@ lab:
   expected:
     decisions: {ig-c1: reply, ig-c2: reply, li-c3: reply, ig-c4: escalate, ig-c5: ignore, li-m6: escalate, ig-m7: reply, ig-c8: reply, ig-c9: escalate, ig-c10: reply}
     required_facts:
-      ig-c1: ['US only|within the US|international']
-      ig-c2: ['\$65']
+      ig-c1: ['\b(?:U\.S\.|US\b|USA\b|United States\b)']
+      ig-c2: ['(?:\$\s*65(?:\.00)?\b|\b65(?:\.00)?\s*(?:dollars|USD)\b|\bUSD\s+65(?:\.00)?\b)']
       li-c3: [thank]
       ig-m7: [thank]
       ig-c8: [January, 'studio\.example\.invalid/waitlist']
-      ig-c10: ['US only|within the US|international']
+      ig-c10: ['\b(?:U\.S\.|US\b|USA\b|United States\b)']
+    recurring:
+    - keywords: [international, Canada, UK, abroad, overseas, shipping outside the US]
     report:
       published: 3
       dropped: 1

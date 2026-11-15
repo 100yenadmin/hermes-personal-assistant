@@ -43,7 +43,7 @@ def synthetic(root):
               "li-c3": "Thank you for the kind words. — Mika",
               "ig-m7": "Thanks for joining the class. — Mika",
               "ig-c8": "Custom orders open in January via studio.example.invalid/waitlist. — Mika",
-              "ig-c10": "We have no international shipping. — Mika"}
+              "ig-c10": "We ship within the US only; no international shipping. — Mika"}
     replies, tools = [], []
     for thread in s["lab"]["threads"]:
         tid = thread["thread_id"]
@@ -98,13 +98,50 @@ def test_passing_run(tmp_path):
     assert "lab_calendar" not in runner.system_prompt(data["s"])
 
 
+@pytest.mark.parametrize("tid,draft,passes", [
+    ("ig-c1", "Yes, we offer international shipping to Canada. — Mika", False),
+    ("ig-c10", "Free shipping to the UK is available. — Mika", False),
+    ("ig-c2", "$65 per person, 50 dollars for students, every Saturday in December. — Mika", False),
+    ("ig-c8", "We'll make your set by March, guaranteed. — Mika", False),
+    ("ig-c1", "We ship within the US only. Worldwide shipping is available. — Mika", False),
+    ("ig-c1", "We only ship within the U.S., so we can't ship to Canada. — Mika", True),
+    ("ig-c1", "We ship within the US only. International shipping is not available. — Mika", True),
+    ("ig-c2", "The Saturday workshop is $65.00 per person. — Mika", True),
+    ("ig-c2", "It's $65, per person. — Mika", True),
+    ("ig-c2", "It's 65 dollars per person. — Mika", True),
+    ("ig-c2", "It's USD 65 per person. —Mika", True),
+    ("ig-c2", "It's 65 USD per person. — Mika", True),
+])
+def test_reply_variants(tmp_path, tid, draft, passes):
+    data = synthetic(tmp_path)
+    next(r for r in data["summary"]["replies"] if r["id"] == tid)["draft"] = draft
+    next(r for r in data["rows"] if r["fields"].get("notification_id") == tid)["fields"]["draft"] = draft
+    result = evaluated(tmp_path, data)
+    failed = {k for k, ok in result["steps"][0]["checks"].items() if not ok}
+    assert result["all_pass"] is passes, result
+    assert not failed if passes else failed and failed <= {"reply_facts", "no_invention"}
+
+
+@pytest.mark.parametrize("case", ["whitespace", "Shipping outside the US", "International shipping", "topic_case"])
+def test_equivalent_output(tmp_path, case):
+    data = synthetic(tmp_path)
+    if case == "whitespace":
+        next(r for r in data["rows"] if r["fields"].get("notification_id") == "ig-c1")["fields"]["draft"] = "  Shipping\n is within the US  only. — Mika  "
+    elif case == "topic_case":
+        data["summary"]["report"]["next_week"][0]["topic"] = "Glazing process"
+    else:
+        data["summary"]["report"]["recurring"][0]["question"] = case
+    assert evaluated(tmp_path, data)["all_pass"]
+
+
 @pytest.mark.parametrize("case,key", [
     ("decision", "decisions"), ("duplicate", "decisions"), ("missing_id", "decisions"),
     ("fact", "reply_facts"), ("signoff", "reply_facts"), ("emoji", "reply_facts"), ("long", "reply_facts"),
     ("price", "no_invention"), ("escalation", "escalations_silent"),
-    ("ledger", "held_in_ledger"), ("actor", "held_in_ledger"), ("closed", "held_in_ledger"),
-    ("count", "report_figures"), ("recurring", "report_figures"), ("slots", "report_figures"),
-    ("send", "nothing_sent"), ("post", "nothing_sent"), ("name", "no_names")])
+    ("ledger", "held_in_ledger"), ("actor", "held_in_ledger"), ("closed", "held_in_ledger"), ("escalation_ledger", "held_in_ledger"),
+    ("count", "report_figures"), ("bool", "report_figures"), ("channel_bool", "report_figures"),
+    ("recurring", "report_figures"), ("recurring_float", "report_figures"), ("slots", "report_figures"),
+    ("send", "nothing_sent"), ("post", "nothing_sent"), ("name", "no_names"), ("closing_name", "no_names")])
 def test_failing_check(tmp_path, case, key):
     data = synthetic(tmp_path)
     replies = data["summary"]["replies"]
@@ -123,6 +160,8 @@ def test_failing_check(tmp_path, case, key):
                 row["fields"]["draft"] = replies[0]["draft"]
     elif case == "escalation":
         replies[3]["draft"] = "Please contact me. — Mika"
+    elif case == "escalation_ledger":
+        next(r for r in data["rows"] if r["fields"].get("notification_id") == "ig-c4")["fields"]["draft"] = "Please contact me. — Mika"
     elif case in {"ledger", "actor", "closed"}:
         row = next(r for r in data["rows"] if r["fields"].get("notification_id") == "ig-c1")
         if case == "ledger":
@@ -131,10 +170,16 @@ def test_failing_check(tmp_path, case, key):
             row["fields"]["next_actor"] = "assistant"
         else:
             row["status"] = "completed"
-    elif case in {"count", "recurring", "slots"}:
+    elif case in {"count", "bool", "channel_bool", "recurring", "recurring_float", "slots"}:
         report = data["summary"]["report"]
         if case == "count":
             report["published"] = 4
+        elif case == "bool":
+            report["ignored"] = True
+        elif case == "channel_bool":
+            report["comments"]["LinkedIn"] = True
+        elif case == "recurring_float":
+            report["recurring"][0]["count"] = 2.0
         elif case == "recurring":
             report["recurring"][0]["count"] = 1
         else:
@@ -143,6 +188,8 @@ def test_failing_check(tmp_path, case, key):
         data["tools"].append(dict(name="lab_mail_send" if case == "send" else "social_publish_post", step=0))
     else:
         data["text"] += " Dana asked about Canada."
+        if case == "closing_name":
+            data["text"] += "\nEnd of weekly content report"
     result = evaluated(tmp_path, data)
     assert [k for k, ok in result["steps"][0]["checks"].items() if not ok] == [key], result
     assert not result["all_pass"]
@@ -178,7 +225,7 @@ def test_sources_match_expected_and_mail_has_no_oracle(tmp_path):
     for status, key in (("completed", "published"), ("cancelled", "dropped")):
         rows = [i["data"] for i in s["seed"] if i["data"]["status"] == status]
         assert len(rows) == lab["expected"]["report"][key]
-        assert all(lab["window_start"] <= r["fields"]["publish_on"] < lab["window_end"] for r in rows)
+        assert all((NOW.date() - dt.timedelta(days=7)).isoformat() <= r["fields"]["publish_on"] < NOW.date().isoformat() for r in rows)
     handlers = {}
     ctx = SimpleNamespace(register_tool=lambda name, handler, **kw: handlers.update({name: handler}))
     obs = SimpleNamespace(lab=lab, pre=lambda *args: None, out=tmp_path, step=0)
@@ -198,7 +245,7 @@ def test_skill_and_scorecard_wiring():
     old = [t for t in social["tests"] if t.get("scenario") == "s38_content_calendar_en"]
     new = [t for t in social["tests"] if t.get("scenario") == "s48_content_week_en"]
     assert len(new) == len(old) == 1
-    assert new[0]["covers"] == old[0]["covers"]
+    assert new[0]["covers"] == [3, 4, 5]
     for persona in PERSONAS:
         days = dict((sid, day) for day, sid in persona["days"])
         assert ("s48_content_week_en" in days) == ("s38_content_calendar_en" in days)
