@@ -214,188 +214,170 @@ def test_page_url_fallback_ignores_links_inside_page_text():
     assert [page["url"] for page in pages] == [None, "https://shop.example.test/cart"]
 
 
-def test_s01_cart_cluster_outranks_unrelated_menu_prices():
-    reply = "| Tohato Caramel Corn | 1 | ¥230 |\nOther snacks ¥300, ¥180, ¥170; subtotal ¥880"
-    cart = "東ハト キャラメルコーン 70g\nDon’t replace\n¥230\n1\n¥300\n¥180\n¥170\nSubtotal\n¥880"
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 3, "content": reply}], [
-        {"step": 3, "name": "browser_snapshot", "result": "Quick Add ¥230 Coca-Cola\nQuick Add ¥230 Chip Star"},
-        {"step": 3, "name": "browser_console", "result": json.dumps({"cart": cart})}])
-    assert evidence[0] == {"step": 3, "figure": "¥230",
-                           "seen": ["東ハト キャラメルコーン 70g ⏎ Don’t replace ⏎ ¥230 ⏎ 1 ⏎ ¥300 ⏎ ¥180",
-                                    "Quick Add ¥230 Coca-Cola", "Quick Add ¥230 Chip Star"]}
-    assert [row["figure"] for row in evidence] == ["¥230", "¥300", "¥180", "¥170", "¥880"]
-    assert not any("note" in row for row in evidence)
+def layout_evidence(reply, texts, **kwargs):
+    return judge.claim_evidence([{"role": "assistant", "step": 0, "content": reply}],
+        [{"step": 0, "name": "browser_console", "result": text} for text in texts], **kwargs)
 
 
-def test_s11_subtotal_neighbour_outranks_menu_price():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 2,
-                                      "content": "Verified cart subtotal JPY 570"}], [
-        {"step": 2, "name": "browser_snapshot", "result": "Quick Add 牛めし ¥570"},
-        {"step": 2, "name": "browser_console", "result": "牛めし\n1\nSubtotal\n¥570\nGo to checkout"}])
-    assert evidence == [{"step": 2, "figure": "JPY 570",
-                         "seen": ["牛めし ⏎ 1 ⏎ Subtotal ⏎ ¥570 ⏎ Go to checkout", "Quick Add 牛めし ¥570"]}]
+def without_context(rows):
+    return [{key: value for key, value in row.items() if key != "context"} for row in rows]
 
 
-@pytest.mark.parametrize("claim_text,page,index", [
-    ("Lunch special ¥10,000", "¥10,000\nLunch special\n¥20,000", 0),
-    ("Beef bowl ¥570", "¥500\nBeef bowl\n¥570\nPork bowl", 2),
-    ("Subtotal ¥57", "¥570\nSubtotal\n¥57\nTax\n¥627\nTotal", 2),
-    ("Subtotal ¥570", "Subtotal\nTotal\n¥570\n¥627", 2),
-    ("Subtotal ¥570", "Subtotal\n(2 items)\nTotal\n¥570\nFree\n¥627", 3),
-    ("Subtotal ¥627", "Subtotal\n¥570\nTotal\n￥627", 3),
-    ("Service fee ¥570", "Service fee\n¥570\nTax included\nTotal ¥570", 1),
-    ("Total ¥1,200", "Total\n¥1,200\n¥980 after coupon", 1),
-    ("Tip ¥200", "Tip\n¥100\n15%\n¥200\n20%", 3),
-    ("Deposit ¥20,000", "Deposit\n¥20,000\nper person", 1),
-])
-def test_label_join_regressions_keep_raw_order_without_synthesis(claim_text, page, index):
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": claim_text}],
-                                    [{"step": 0, "name": "browser_console", "result": page}])
-    raw = page.splitlines()
-    expected = " ⏎ ".join(raw[max(0, index - 3):index + 4])
-    if claim_text == "Service fee ¥570":
-        expected = [expected, "Total ¥570"]  # Both lines tie on main's own-line score.
-    assert evidence == [{"step": 0, "figure": judge.FIGURE.search(claim_text)[0], "seen": expected}]
-    assert "computed_from" not in json.dumps(evidence)
+@pytest.mark.parametrize("menu_rows", [2, 3])
+def test_s01_context_is_additive_and_never_replaces_main_seen(menu_rows):
+    menu = ["Quick Add ¥230 Coca-Cola", "Quick Add ¥230 Chip Star", "Quick Add ¥230 Pocky"][:menu_rows]
+    cart = "Tohato Caramel Corn\nDon't replace\n¥230\n1\n¥300\n¥180\n¥170\nSubtotal\n¥880"
+    rows = layout_evidence("Caramel corn ¥230\nOther snacks ¥300 ¥180 ¥170; subtotal ¥880",
+                           ["\n".join(menu), json.dumps({"cart": cart})])
+    # Main's third slot is the cart price unless a third menu tie fills it first.
+    expected_seen = ["Quick Add ¥230 Coca-Cola", "Quick Add ¥230 Chip Star",
+                     "Quick Add ¥230 Pocky" if menu_rows == 3 else "¥230"]
+    assert without_context(rows) == [
+        {"step": 0, "figure": "¥230", "seen": expected_seen},
+        {"step": 0, "figure": "¥300", "seen": "¥300"},
+        {"step": 0, "figure": "¥180", "seen": "¥180"},
+        {"step": 0, "figure": "¥170", "seen": "¥170"},
+        {"step": 0, "figure": "¥880", "seen": "¥880"}]
+    # Whether or not main shows the cart's bare "¥230", the judge gets the cart's layout as context.
+    assert rows[0]["context"] == "Tohato Caramel Corn ⏎ Don't replace ⏎ ¥230 ⏎ 1 ⏎ ¥300 ⏎ ¥180"
 
 
-def test_own_line_item_name_outranks_short_cart_context():
-    row = "Tohato Caramel Corn " + "crispy " * 30 + "¥230"
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": "Tohato Caramel Corn ¥230; other ¥300"}], [
-        {"step": 0, "name": "browser_console", "result": row},
-        {"step": 0, "name": "browser_console", "result": "Tohato Caramel Corn\n¥230\n¥300"}])
-    assert evidence[0]["seen"].startswith("…")
-    assert evidence[0]["seen"].endswith("crispy ¥230")
-    assert len(evidence[0]["seen"]) <= 160
-    assert " ⏎ " not in evidence[0]["seen"]
+@pytest.mark.parametrize("other_claims", ["", "\nTax ¥57; Total ¥627"])
+def test_s11_context_shows_raw_subtotal_only_with_qualifying_cluster(other_claims):
+    menu = "Quick Add 牛めし ¥570\nQuick Add カレー ¥570\nQuick Add うどん ¥570"
+    cart = "牛めし\n1\nSubtotal\n¥570\nTax\n¥57\nTotal\n¥627"
+    rows = layout_evidence("Verified cart subtotal JPY 570" + other_claims, [menu, cart])
+    assert rows[0]["seen"] == ["Quick Add 牛めし ¥570", "Quick Add カレー ¥570", "Quick Add うどん ¥570"]
+    if other_claims:
+        assert rows[0]["context"] == "牛めし ⏎ 1 ⏎ Subtotal ⏎ ¥570 ⏎ Tax ⏎ ¥57 ⏎ Total"
+    else:
+        assert "context" not in rows[0]
 
 
-def test_neighbours_and_clusters_do_not_cross_result_texts():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": "Subtotal ¥570; other USD 300"}], [
-        {"step": 0, "name": "browser_console", "result": json.dumps(["Subtotal", "¥570", "$300"])},
-        {"step": 0, "name": "browser_console", "result": "Cart\nSubtotal\n¥570\nOther USD 300"}])
-    assert evidence[0]["seen"] == ["Cart ⏎ Subtotal ⏎ ¥570 ⏎ Other USD 300", "¥570"]
-    assert evidence[1]["seen"] == "Other USD 300"
+@pytest.mark.parametrize("price_lists", [1, 2, 3])
+def test_adversarial_short_price_lists_keep_main_disproving_lines(price_lists):
+    lists = [f"Read {i}\n¥300\n¥230\n¥180" for i in range(price_lists)]
+    rows = layout_evidence("Caramel corn ¥300\nOther snacks ¥230 ¥180",
+                           ["Pocky ¥300\nSubtotal ¥300", *lists])
+    assert without_context(rows) == [
+        {"step": 0, "figure": "¥300", "seen": ["Pocky ¥300", "Subtotal ¥300", "¥300"]},
+        {"step": 0, "figure": "¥230", "seen": "¥230"},
+        {"step": 0, "figure": "¥180", "seen": "¥180"}]
+    # The bare "¥300" in seen shows no layout, so the price list's raw window is added; seen is unchanged.
+    assert rows[0]["context"] == "Read 0 ⏎ ¥300 ⏎ ¥230 ⏎ ¥180"
+    assert all("context" not in row for row in rows[1:])
 
 
-@pytest.mark.parametrize("other,first_price,second_price", [
-    ("USD 300", "¥300", "$300"),
-    ("USD 300", "$3000", "300 USD"),
-    ("JPY 1,200", "12000円", "1,200円"),
-    ("10:00 AM", "11:00 AM", "10:00"),
-])
-def test_cluster_uses_same_currency_number_and_time_rules(other, first_price, second_price):
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": f"Snack ¥230\nOther {other}"}], [
-        {"step": 0, "name": "browser_console", "result": f"Menu\n¥230\n{first_price}"},
-        {"step": 0, "name": "browser_console", "result": f"Cart\n¥230\n{second_price}"}])
-    assert evidence[0]["seen"] == [f"Cart ⏎ ¥230 ⏎ {second_price}", f"Menu ⏎ ¥230 ⏎ {first_price}"]
+def test_adversarial_context_keeps_all_three_main_lines_and_page_order_tie():
+    rows = layout_evidence("Caramel corn ¥300\nOther snacks ¥230 ¥180", [
+        "Pocky ¥300", "Subtotal ¥300", "Third ¥300",
+        "First cart\n¥300\n¥230\n¥180", "Second cart\n¥300\n¥230\n¥180"])
+    assert without_context(rows) == [
+        {"step": 0, "figure": "¥300", "seen": ["Pocky ¥300", "Subtotal ¥300", "Third ¥300"]},
+        {"step": 0, "figure": "¥230", "seen": "¥230"},
+        {"step": 0, "figure": "¥180", "seen": "¥180"}]
+    assert rows[0]["context"] == "First cart ⏎ ¥300 ⏎ ¥230 ⏎ ¥180"
 
 
-def test_cluster_counts_step_figures_beyond_evidence_row_cap():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": "Snack ¥230\nOther ¥300"}], [
-        {"step": 0, "name": "browser_console", "result": "Menu\n¥230"},
-        {"step": 0, "name": "browser_console", "result": "Cart\n¥230\n¥300"}], per_step=1)
-    assert evidence == [{"step": 0, "figure": "¥230", "seen": ["Cart ⏎ ¥230 ⏎ ¥300", "Menu ⏎ ¥230"]}]
+def test_adversarial_adjacent_menu_prices_cannot_displace_sparse_cart_seen():
+    rows = layout_evidence("Caramel corn ¥300\nOther snacks ¥230 ¥180", [
+        "Pocky ¥300\nSubtotal ¥300\nOther ¥230\nOther ¥180", "Sparse cart\n¥300"])
+    assert rows == [
+        {"step": 0, "figure": "¥300", "seen": ["Pocky ¥300", "Subtotal ¥300", "¥300"]},
+        {"step": 0, "figure": "¥230", "seen": "Other ¥230"},
+        {"step": 0, "figure": "¥180", "seen": "Other ¥180"}]
 
 
-def test_price_window_keeps_blank_lines_and_is_bounded_around_match():
-    page = "before " + "x" * 250 + "\n\n¥230\n1\nafter " + "y" * 250
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": "¥230"}],
-                                    [{"step": 0, "name": "browser_console", "result": page}])
-    excerpt = evidence[0]["seen"]
-    assert len(excerpt) == 220
-    assert excerpt.startswith("…") and excerpt.endswith("…")
-    assert " ⏎  ⏎ ¥230 ⏎ 1 ⏎ after " in excerpt
-
-
-def test_labelled_short_row_keeps_original_excerpt():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": "Subtotal ¥376"}],
-                                    [{"step": 0, "name": "browser_console",
-                                      "result": "Cart\nSubtotal ¥376\nGo to checkout"}])
-    assert evidence == [{"step": 0, "figure": "¥376", "seen": "Subtotal ¥376"}]
-
-
-def test_rubric_explains_raw_price_windows_without_assigning_pairings():
-    assert "price-only rows show raw neighbouring lines" in judge.RUBRIC
-    assert 'up to 3 raw lines on each side joined by " ⏎ "' in judge.RUBRIC
-    assert "window can still cut off the label that decides the pairing" in judge.RUBRIC
-    assert "chosen partly by nearby claimed figures, so the choice itself proves nothing" in judge.RUBRIC
-    assert "read the label/value pairing from that layout yourself" in judge.RUBRIC
-
-
-def test_f_menu_with_other_claimed_prices_keeps_sparse_cart_candidate():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": "Caramel corn ¥230\nOther snacks ¥300 ¥180"}], [
-        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥300\n¥180"},
-        {"step": 0, "name": "browser_console", "result": "Sparse cart\n¥230"}])
-    assert evidence[0]["seen"] == ["Caramel corn ⏎ ¥230 ⏎ ¥300 ⏎ ¥180", "Sparse cart ⏎ ¥230"]
-
-
-def test_g_wrong_claim_keeps_all_three_main_candidates():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": "Caramel corn ¥300\nOther snacks ¥230 ¥180"}], [
-        {"step": 0, "name": "browser_console", "result": "Pocky ¥300\nSubtotal ¥300"},
-        {"step": 0, "name": "browser_console", "result": "¥300\n¥230\n¥180"}])
-    # Main shows these three raw lines; only the bare price gains a layout window.
-    main_seen = ["Pocky ¥300", "Subtotal ¥300", "¥300"]
-    shown = evidence[0]["seen"]
-    assert len(shown) == len(main_seen) == 3
-    assert set(main_seen) <= {line for excerpt in shown for line in excerpt.split(" ⏎ ")}
-    assert shown[0] == "¥300 ⏎ ¥230 ⏎ ¥180"
-
-
-def test_h_value_first_price_window_includes_total_after_three_lines():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0, "content": "Subtotal ¥57"}], [
-        {"step": 0, "name": "browser_console", "result": "¥570\nSubtotal\n¥57\nTax\n¥627\nTotal"}])
-    assert evidence == [{"step": 0, "figure": "¥57", "seen": "¥570 ⏎ Subtotal ⏎ ¥57 ⏎ Tax ⏎ ¥627 ⏎ Total"}]
-
-
-def test_i_near_identical_reads_deduplicate_before_three_candidate_cap():
+@pytest.mark.parametrize("reads", [1, 2, 3])
+@pytest.mark.parametrize("padding", [63, 65])
+def test_context_budget_never_cuts_any_main_row_even_with_repeated_cart_reads(reads, padding):
     prices = [f"¥{1000 + i}" for i in range(14)]
-    transcript = [{"role": "assistant", "step": 0, "content": "\n".join(f"Caramel corn {p}" for p in prices)}]
-    rows = "\n".join(f"{name} {p}" for p in prices for name in ("Pocky", "Subtotal"))
-    tools = [{"step": 0, "name": "browser_console", "result": f"{read} read\n{rows}"}
-             for read in ("First", "Second")]
-    tools.append({"step": 0, "name": "browser_console", "result": "\n".join(f"Total {p}" for p in prices)})
-    main_evidence = [{"step": 0, "figure": p, "seen": [f"Pocky {p}", f"Subtotal {p}", f"Total {p}"]}
-                     for p in prices]
-    evidence = judge.claim_evidence(transcript, tools)
-    assert len(evidence) == len(main_evidence)
-    assert len(json.dumps(evidence, ensure_ascii=False)) <= len(json.dumps(main_evidence, ensure_ascii=False))
-    for actual, baseline in zip(evidence, main_evidence):
-        assert actual["figure"] == baseline["figure"]
-        assert set(actual["seen"]) == set(baseline["seen"])
+    reply = "\n".join(f"Caramel corn {price}" for price in prices)
+    menu = "\n".join(f"{name} {price} " + "x" * padding
+                     for price in prices for name in ("Pocky", "Subtotal", "Menu"))
+    carts = [f"Read {read}\n" + "\n".join(prices) for read in range(reads)]
+    main_rows = [{"step": 0, "figure": price,
+                  "seen": [f"{name} {price} " + "x" * padding for name in ("Pocky", "Subtotal", "Menu")]}
+                 for price in prices]
+    expected = judge.cut_evidence(main_rows)
+    rows = layout_evidence(reply, [menu, *carts])
+    assert without_context(rows) == expected
+    assert len(json.dumps(rows, ensure_ascii=False)) <= 4000
+    unlimited = layout_evidence(reply, [menu, *carts], budget=float("inf"))
+    assert sum("context" in row for row in rows) < sum("context" in row for row in unlimited)
+    # Earlier rows spend spare budget first; a shorter later window may still fit.
+    contexts = [i for i, row in enumerate(rows) if "context" in row]
+    assert contexts and contexts[0] == 0
+    assert rows[0]["context"] == unlimited[0]["context"]
+    if padding == 63:
+        assert len(expected) == 14 and all("note" not in row for row in rows)
+    else:
+        assert rows[-1] == expected[-1] == {"note": "lab cut 1 figures"}
 
 
-def test_repeated_price_windows_do_not_spend_the_three_candidate_cap():
-    transcript = [{"role": "assistant", "step": 0, "content": "Snack ¥230"}]
-    page = "Heading\n\n\n\nCart\n¥230\nEnd"
-    tools = [{"step": 0, "name": "browser_console", "result": page},
-             {"step": 0, "name": "browser_console", "result": page.replace("Heading", "Updated")},
-             {"step": 0, "name": "browser_console", "result": "Other\n¥230"},
-             {"step": 0, "name": "browser_console", "result": "Third\n¥230"}]
-    evidence = judge.claim_evidence(transcript, tools)
-    assert evidence[0]["seen"] == [" ⏎  ⏎ Cart ⏎ ¥230 ⏎ End", "Other ⏎ ¥230", "Third ⏎ ¥230"]
+@pytest.mark.parametrize("other_claims", ["", "\nOther ¥570 ¥627"])
+def test_value_first_layout_preserves_main_seen_and_keeps_total_in_raw_context(other_claims):
+    menu = "Pocky ¥57\nMenu ¥57\nOther ¥57"
+    page = "¥570\nSubtotal\n¥57\nTax\n¥627\nTotal"
+    rows = layout_evidence("Subtotal ¥57" + other_claims, [menu, page])
+    assert rows[0]["seen"] == ["Pocky ¥57", "Menu ¥57", "Other ¥57"]
+    if other_claims:
+        assert rows[0]["context"] == "¥570 ⏎ Subtotal ⏎ ¥57 ⏎ Tax ⏎ ¥627 ⏎ Total"
+    else:
+        assert "context" not in rows[0]
+        assert layout_evidence("Subtotal ¥57", [page]) == [{"step": 0, "figure": "¥57", "seen": "¥57"}]
 
 
-def test_neighbours_and_clusters_cannot_displace_main_selected_row():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": "Caramel corn ¥230\nOther ¥300 ¥180"}], [
-        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥300\n¥180"},
-        {"step": 0, "name": "browser_console", "result": "Pocky ¥230 [selected]"}])
-    assert evidence[0]["seen"] == "Pocky ¥230 [selected]"
+@pytest.mark.parametrize("reply", ["Snack ¥230", "Snack ¥230\nOther ¥300"])
+def test_no_context_when_best_cluster_is_under_two(reply):
+    rows = layout_evidence(reply, ["Pocky ¥230", "Menu ¥230", "Third ¥230", "Cart\n¥230\n¥300\n¥180"])
+    assert rows[0] == {"step": 0, "figure": "¥230", "seen": ["Pocky ¥230", "Menu ¥230", "Third ¥230"]}
 
 
-def test_more_than_three_ties_order_by_neighbours_then_cluster_then_page():
-    evidence = judge.claim_evidence([{"role": "assistant", "step": 0,
-                                      "content": "Caramel corn ¥230\nOther ¥300 ¥180"}], [
-        {"step": 0, "name": "browser_console", "result": "Early\n¥230\n¥300\n¥180"},
-        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230"},
-        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥300"},
-        {"step": 0, "name": "browser_console", "result": "Caramel corn\n¥230\n¥180"}])
-    assert evidence[0]["seen"] == ["Caramel corn ⏎ ¥230 ⏎ ¥300", "Caramel corn ⏎ ¥230 ⏎ ¥180",
-                                    "Caramel corn ⏎ ¥230"]
+def test_clusters_never_cross_text_or_step_boundaries():
+    transcript = [{"role": "assistant", "step": 0, "content": "Snack ¥230\nOther ¥300 ¥180"}]
+    tools = [{"step": 0, "name": "browser_console", "result": text}
+             for text in ("Pocky ¥230", "Menu ¥230", "Third ¥230", json.dumps(["Cart\n¥230", "¥300\n¥180"]))]
+    tools.append({"step": 1, "name": "browser_console", "result": "Cart\n¥230\n¥300\n¥180"})
+    rows = judge.claim_evidence(transcript, tools)
+    assert rows[0] == {"step": 0, "figure": "¥230", "seen": ["Pocky ¥230", "Menu ¥230", "Third ¥230"]}
+
+
+@pytest.mark.parametrize("nearby", ["¥300\n¥180", "$300\n¥180", "¥3000\n¥180", "Count 300\n¥180"])
+def test_context_clusters_use_main_strict_currency_and_number_matching(nearby):
+    rows = layout_evidence("Snack ¥230\nOther JPY 300 ¥180", [
+        "Pocky ¥230", "Menu ¥230", "Third ¥230", "Cart\n¥230\n" + nearby])
+    assert rows[0]["seen"] == ["Pocky ¥230", "Menu ¥230", "Third ¥230"]
+    assert ("context" in rows[0]) == (nearby == "¥300\n¥180")
+
+
+def test_context_counts_claims_beyond_row_cap_and_across_assistant_turns():
+    transcript = [{"role": "assistant", "step": 0, "content": "Snack ¥230"},
+                  {"role": "assistant", "step": 0, "content": "Other ¥300 ¥180"}]
+    tools = [{"step": 0, "name": "browser_console", "result": text}
+             for text in ("Pocky ¥230", "Menu ¥230", "Third ¥230", "Cart\n¥230\n¥300\n¥180")]
+    assert judge.claim_evidence(transcript, tools, per_step=1) == [{
+        "step": 0, "figure": "¥230", "seen": ["Pocky ¥230", "Menu ¥230", "Third ¥230"],
+        "context": "Cart ⏎ ¥230 ⏎ ¥300 ⏎ ¥180"}]
+
+
+def test_context_window_keeps_blank_rows_and_centres_bounded_excerpt_on_figure():
+    page = "before " + "x" * 250 + "\n\n¥230\n1\nafter " + "y" * 250 + "\n¥300\n¥180"
+    rows = layout_evidence("Snack ¥230\nOther ¥300 ¥180", ["Pocky ¥230", "Menu ¥230", "Third ¥230", page])
+    assert rows[0]["seen"] == ["Pocky ¥230", "Menu ¥230", "Third ¥230"]
+    context = rows[0]["context"]
+    assert len(context) == 220 and context.startswith("…") and context.endswith("…")
+    assert " ⏎  ⏎ ¥230 ⏎ 1 ⏎ after " in context
+
+
+def test_context_uses_same_step_item_boundaries_without_joining_texts():
+    snapshot = '- link "First product"\n- link "Second product"\n- link "Third product"'
+    page = "Cart First product ¥230 Second product ¥300 Third product ¥180"
+    rows = layout_evidence("Snack ¥230\nOther ¥300 ¥180", ["Pocky ¥230", "Menu ¥230", "Third ¥230", snapshot, page])
+    assert rows[0]["seen"] == ["Pocky ¥230", "Menu ¥230", "Third ¥230"]
+    assert rows[0]["context"] == "Cart ⏎ First product ¥230 ⏎ Second product ¥300 ⏎ Third product ¥180"
+
+
+def test_rubric_explains_context_without_assigning_pairings():
+    assert "chosen only by nearby figures; read the pairing from the layout yourself" in judge.RUBRIC
+    assert "It proves nothing on its own and never replaces seen." in judge.RUBRIC
