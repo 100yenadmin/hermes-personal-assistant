@@ -85,9 +85,10 @@ def test_a_refused_trip_leaves_an_earlier_prepare_and_its_link_unchanged(profile
 
 
 @pytest.mark.parametrize("governed", [False, True])
-def test_a_stored_link_that_names_no_trip_is_not_inherited(profile, governed):
-    # Offers, calls and trip watches may link a trip that was never imported (#281).
-    Ledger(profile).put("action", "demo-booking", {"title": "Hotel offer"}, action_type="offer", trip_id="trip-ghost")
+@pytest.mark.parametrize("writer_type", ["offer", "call", "observe_watch", "trip_watch"])
+def test_a_stored_link_that_names_no_trip_is_not_inherited(profile, governed, writer_type):
+    # trip_offer, pa_call prepare and trip-watch rows may link a trip that was never imported (#281).
+    Ledger(profile).put("action", "demo-booking", {"title": "Earlier row"}, action_type=writer_type, trip_id="trip-ghost")
     row = prepare(profile, governed)
     assert row["trip_id"] is None
     assert Ledger(profile).get("action", "demo-booking")["trip_id"] is None
