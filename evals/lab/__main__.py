@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+from .common import encodable
 from .scenario import CATALOG
 
 
@@ -47,7 +48,7 @@ def main(argv=None):
     else:
         from .runner import wave, one as run_one
         result = wave(args) if args.command == "run" else run_one(args)
-    print(json.dumps(result, ensure_ascii=False))
+    print(encodable(json.dumps(result, ensure_ascii=False)))
     return 1 if isinstance(result, dict) and result.get("status") in ("error", "timeout") else 0
 
 

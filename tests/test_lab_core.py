@@ -1406,3 +1406,17 @@ def test_write_and_append_survive_lone_surrogates(tmp_path):
     common.append(tmp_path / "t.jsonl", value)
     assert common.read(tmp_path / "h.json") == {"page": "Tabelog � menu", "pair": "🍣"}
     assert common.lines(tmp_path / "t.jsonl") == [{"page": "Tabelog � menu", "pair": "🍣"}]
+
+
+def test_observer_capture_survives_a_lone_surrogate_in_the_snapshot(tmp_path, monkeypatch):
+    import sys
+    bt = SimpleNamespace(_last_session_key=lambda task: task, _active_sessions={'task': {}})
+    def command(task, verb, args):
+        if verb == 'screenshot':
+            raise OSError('synthetic screenshot unavailable')
+        return {'success': True, 'data': {'snapshot': '- heading "Tabelog \ud83c menu" [ref=e1]'}}
+    monkeypatch.setitem(sys.modules, 'tools', SimpleNamespace(browser_tool=bt, browser_tool_session=SimpleNamespace(_run_browser_command=command)))
+    o = Observer(tmp_path)
+    o.post('browser_navigate', {'url': 'https://example.invalid'}, json.dumps({'url': 'https://example.invalid'}), task_id='task')
+    evidence = o.capture(0)
+    assert (tmp_path / evidence[0]['snapshot']).read_text(encoding='utf-8') == '- heading "Tabelog � menu" [ref=e1]'
