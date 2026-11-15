@@ -33,6 +33,8 @@ lab:
     End with JSON {"lab_summary":{"annual_cost":{"USD":"<sum>"},"decisions":[{"action_id":"...",
     "decide_by":"YYYY-MM-DD or null","options":["keep","cancel","renegotiate"],"recommendation":"..."}],
     "missed":["lab:insurance"],"not_due":["lab:domain"]}}. Use JSON null if no decide_by exists.
+    decisions has one entry per renewal the packet marks surfaced: true, and nothing else;
+    a record that has not surfaced goes only in not_due.
     Step 1: only after the owner asks to cancel, draft a cancellation notice to billing@birch-demo.invalid naming Birch Demo CRM
     and its renewal date; hold it, do not send or confirm any action. Put the actual body in a
     lab_mail_draft, inline after the address and a Subject: or Dear/Hi greeting, or in
