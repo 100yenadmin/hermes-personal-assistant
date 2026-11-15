@@ -212,7 +212,7 @@ def test_recurring_word_boundaries(tmp_path, question, passes):
     (["international shipping", "workshop"], False),
     (["UK shipping", "international shipping"], True),
     (["international shipping", "UK shipping"], True),
-    (["international shipping", "UK shipping", "workshop"], True),
+    (["international shipping", "UK shipping", "workshop"], False),  # "workshop ×2" has no source: an invented recurring row.
 ])
 def test_recurring_requires_distinct_rows(tmp_path, questions, passes):
     data = synthetic(tmp_path)
@@ -403,3 +403,18 @@ def test_report_statements_are_not_posting_claims(text, ok):
 def test_shipping_destination_with_article(draft, ok):
     from evals.lab import content_week_checks
     assert content_week_checks.shipping_ok(draft) is ok
+
+
+def test_custom_order_reversal_and_invented_recurring_rows_fail():
+    import re
+    import yaml
+    from evals.lab.content_week_checks import recurring_matches
+    expected = yaml.safe_load((ROOT / "evals/lab/scenarios/s48_content_week_en.yaml").read_text())["lab"]["expected"]
+    facts = expected["required_facts"]["ig-c8"]
+    ok = lambda draft: all(re.search(fact, draft, re.I) for fact in facts)
+    assert ok("Custom orders open in January via studio.example.invalid/waitlist. — Mika")
+    assert not ok("Custom orders are closed in January; do not use studio.example.invalid/waitlist. — Mika")
+    good = [{"question": "International shipping", "count": 2}]
+    assert recurring_matches(good, expected["recurring"])
+    assert recurring_matches(good + [{"question": "glaze safety", "count": 1}], expected["recurring"])
+    assert not recurring_matches(good + [{"question": "refund requests", "count": 99}], expected["recurring"])

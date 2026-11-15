@@ -64,7 +64,7 @@ lab:
       ig-c2: ['(?:\$\s*65(?:\.00)?|\b(?:65(?:\.00)?|sixty-five)\s*(?:dollars|USD)\b|\bUSD\s+65(?:\.00)?)']
       li-c3: [thank]
       ig-m7: [thank]
-      ig-c8: [January, 'studio\.example\.invalid/waitlist']
+      ig-c8: [January, '\bopen', 'studio\.example\.invalid/waitlist', '^(?!.*\b(?:closed|not\s+open|do\s*n.t\s+use|do\s+not\s+use)\b)']
       ig-c10: ['\b(?:U\.S\.|US\b|USA\b|United States\b)']
     shipping_policy: [ig-c1, ig-c10]
     recurring:

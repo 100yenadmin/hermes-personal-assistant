@@ -81,7 +81,11 @@ def recurring_matches(rows, expected):
                     return True
         return False
 
-    return all(assign(item, set()) for item in range(len(expected)))
+    if not all(assign(item, set()) for item in range(len(expected))):
+        return False
+    # Every row reported as recurring (asked 2+ times) must be a source-backed one; an invented row fails.
+    return all(i in matched for i, row in enumerate(rows)
+               if not (isinstance(row, dict) and type(row.get("count")) is int and row["count"] < 2))
 
 
 def evaluate(root, scenario, index, messages, tools):
