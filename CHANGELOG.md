@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.25.0-rc.1 — 2026-11-15
+
+This release candidate adds the invoicing a remote VA does every month. PA prepares an invoice with exact totals, the next number and the due date, and holds it for the owner's yes. It then runs a month-end close over the books. It also fixes two problems the owner's own agent reported in daily use and works around a third.
+- **Invoice preparation (#259, for #255; run on lab stand-ins only, not yet on a live account).** `invoice` action `prepare` takes the client, currency, issue date, lines and either a due date or payment terms, plus an optional reference, tax and category. It computes each line, the subtotal, the tax and the total in exact decimals, and gives the next reference in the owner's series and the due date. It writes nothing. The owner sees the draft; on the owner's yes PA sends it through the governed send path, or the owner sends it. PA records the receivable only once it has gone out, using the returned `record_args`.
+- **Month-end close (#261).** One skill flow over the last month: the tax pack for that month (missing receipts, uncategorised spending, invoices unpaid at month end), open invoices and chases, renewals coming up, and the recurring invoices to prepare. Chases and recurring invoices are prepared and held, never sent; the rest is reported.
+- **Fixes from the owner's agent in daily use:**
+  - **Trip links (#264, Fixes #256).** An `action_upsert` whose `source_id` is an existing trip ID now links the record to that trip. Before, the errand was saved but did not appear in the trip's next actions. Other source IDs never link; pass `trip_id` to link an errand.
+  - **Retiring old recommendations (#265, Fixes #257).** A Chief of Staff recommendation still unanswered more than 14 days after its review date leaves the radar list and is counted in `stale_recommendations`. A new operation, `recommendations` with action `retire`, previews by default and retires on the owner's yes. Retiring records who retired it and when, and never invents an outcome.
+  - **A short hint instead of a 33 KB error (#266, for #258).** Profile `remember` with nested `fields` used to hit Hermes' deferred tool-call validation, which echoes the whole `pa` schema, about 33 KB. That call now reaches PA, which answers with a flat-shape example of at most 600 characters and writes nothing. Other deferred-path misses still return the full schema until Hermes bounds that error (NousResearch/hermes-agent#155742).
+- **A matched receipt counts once in the trip expense export (#268, Fixes #267).** This is the same pairing the tax pack and the monthly figures use (#246). Before, one purchase with both a card line and a receipt counted twice in the trip's totals.
+- **Lab:**
+  - s46 prepares an invoice and holds it, then records it once after the owner's send (#260).
+  - s47 runs the month-end close (#261).
+  - Three checks that failed correct replies in the 0.24.0-rc.1 wave now accept them, and no wider (#262).
+
+PA's skills still stop every booking, payment, cancellation, share, send and invoice for the owner's yes.
+
+It ships `releases/0.25.0-rc.1/scorecard.md`. It is built from 135 Capability Lab runs: 45 scenarios (the 0.24.0-rc.1 set plus s46 and s47), 3 runs each, pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. 131 of 135 runs pass (125 of 129 in 0.24.0-rc.1). The continuous week (w01) passes 3 of 3 in the same wave. No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations).
+
+- **41 of 45 scenarios pass 3 of 3** (40 of 43 in 0.24.0-rc.1). They include the new invoice preparation (s46) and month-end close (s47), the tax pack (s44), the weekly closeout (s16, with the checks widened in #262), Seoul to Tokyo (s01), Tokyo to Seoul (s02), the Japanese multi-errand day (s12) and every simulated call (s04 to s08).
+- **Two of the four misses are PA errors:**
+  - **The approval day (s37) passes 2 of 3.** In run 3, PA prepared a dinner booking for the trip, but `action_prepare` never stored the trip. When the owner's yes came in a new chat, PA looked for the pending approval under the trip, found nothing, and prepared and confirmed a second booking; the first stayed waiting for approval. #274 (for #273) stores the trip on prepare, so the pending booking is found there; it merges after this release.
+  - **San Francisco to Tokyo (s03) passes 2 of 3** (2 of 3 in 0.24.0-rc.1). In the miss, Uber's pickup search returned US places for Haneda twice. PA then quoted Uber's route average to Ginza (¥8,898) from a search result without opening the route page, which the rideshare skill does not allow: a fare not shown on a page PA opened is unknown. The figure was labelled not a quote, PA noted that the flight lands after the requested pickup and requested nothing, and the judge passed the run. In 0.24.0-rc.1, the passing runs opened the route page.
+- **The other two are lab misses; PA's owner-facing replies were correct.**
+  - **Failure handling (s11) passes 2 of 3.** Every check passed, and the judge failed run 2 on two figures PA had read correctly. PA had read the cart ("Subtotal ¥570") through the browser console, but the judge was shown only menu rows. The deposit PA gave (¥10,000 per person, ¥20,000 for two) is the booking form's; the judge compared "¥20,000 for two" with another restaurant's ¥20,000-per-person deposit from a web search. Lab follow-up #275.
+  - **The contracts review (s45) passes 2 of 3.** PA held a correct notice of non-renewal and said it was not sent, but skipped the scenario's required machine-readable summary, which the check reads. The judge passed it.
+- **Fire-me week (stitched):** 11 of 12 persona weeks kept (6 of 12 in 0.24.0-rc.1). The s37 miss ends the executive's week 3; the solo founder, the agency owner and the family user keep 3 of 3.
+- **Scorecard:**
+  - 1 area passing.
+  - 9 areas with partial checks passing.
+  - 4 areas with partial checks failing, each from one run above: travel (s03), errands and bookings (s11), personal life admin (s45) and working norms (s37).
+  - 13 areas unproven.
+  - In 0.24.0-rc.1, 10 areas had partial checks passing and 3 had partial checks failing. Recurring ops passes again with #262's checks.
+
 ## 0.24.0-rc.1 — 2026-11-14
 
 This release candidate adds a job a remote VA is hired for: tracking the owner's contracts, subscriptions and licences, and raising each one in time to cancel or renegotiate. PA also notices when its timezone no longer matches where the owner is.
