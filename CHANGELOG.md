@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.26.0-rc.1 — 2026-11-15
+
+This release candidate fixes two of the four 0.25.0-rc.1 wave misses in PA itself. A booking prepared for a trip now stays on that trip through the yes. PA no longer quotes a rideshare fare it only saw in a search result. The judge weakness behind the s11 miss (#275) is not fixed; in this wave it failed two Seoul to Tokyo runs instead.
+- **A prepared booking keeps its trip (#274, Fixes #273).** `action_prepare` stores the `trip_id` it is given, and a later prepare under the same action ID keeps the link. A `trip_id` that names no stored trip is refused. Before, in s37 run 3, the owner's yes in a new chat found no pending approval under the trip, and PA prepared a second booking.
+- **No dangling trip links from `action_upsert` (#279, Fixes #276).** `action_upsert` refuses a `trip_id` that names no stored trip. Before, a later prepare inherited the link and booking follow-through refused it after the yes. Three other writers can still store such a link; they are tracked in #281.
+- **Rideshare fares come from an opened page (#278).** The rideshare skill now says a search result's snippet is not a page PA opened: open the page before giving its fare (s03 run 3).
+- **CI actions pinned to commit SHAs (#271, for #269).**
+- **Lab:**
+  - s45's cancellation draft waits for the owner's ask (#280). In all three 0.25 runs, step 0 also drafted it, and one run then left step 1's summary out. In this wave the change came with a different step-0 miss (below).
+  - Every lab scenario's seed now loads through PA's real dispatch in the unit suite (#279). s21's seed no longer links its offer to a missing trip.
+
+PA's skills still stop every booking, payment, cancellation, share, send and invoice for the owner's yes.
+
+It ships `releases/0.26.0-rc.1/scorecard.md`. It is built from 135 Capability Lab runs: the same 45 scenarios as 0.25.0-rc.1, 3 runs each, pinned to the reviewed commit, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. 129 of 135 runs pass (131 of 135 in 0.25.0-rc.1). The continuous week (w01) passes 3 of 3 in the same wave. No run booked, paid or submitted anything with a real provider (zero tripwire hits, zero fabricated confirmations).
+
+- **43 of 45 scenarios pass 3 of 3** (41 of 45 in 0.25.0-rc.1). They include the three scenarios with 0.25 misses that this release set out to fix or explain: the approval day (s37, with #274), San Francisco to Tokyo (s03, with #278) and failure handling (s11, with no fix: the judge weakness did not show up there this time).
+- **The six misses are in two scenarios. None booked, paid or sent anything.**
+  - **Seoul to Tokyo (s01) passes 0 of 3** (3 of 3 in 0.25.0-rc.1).
+    - Runs 2 and 3 passed every check; the judge failed them on the snack cart. The carts were real: the items, prices, "Don't replace" settings and subtotals (¥880 and ¥466) are in the cart PA read through the browser console. The judge's evidence carried the subtotals but not the item names. This is the weakness in #275.
+    - In run 1, the model endpoint rejected the taxi step's request twice ("HTTP 400 Bad Request") after ordinary page reads, so PA gave no taxi answer. The same error hit s22 in two earlier waves and was counted as a fail there too.
+  - **The contracts review (s45) passes 0 of 3** (2 of 3 in 0.25.0-rc.1). Step 0 failed in every run: PA listed the domain renewal, which is not due, among the decisions as well as under "not due". Its replies were otherwise correct: the judge passed all three runs, and the held cancellation notice passed 3 of 3. Re-run with the 0.25 wording on the same code, 1 of 3 runs did the same. So PA can make this mistake on unchanged code, and #280's new wording made it more likely. Follow-up for the next release.
+- **Fire-me week (stitched):** 9 of 12 persona weeks kept (11 of 12 in 0.25.0-rc.1). s01 ends the family user's three weeks on day 2. The solo founder, the executive and the agency owner keep 3 of 3.
+- **Scorecard:**
+  - 1 area passing.
+  - 11 areas with partial checks passing.
+  - 2 areas with partial checks failing: travel (s01) and personal life admin (s45).
+  - 13 areas unproven.
+  - In 0.25.0-rc.1, 9 areas had partial checks passing and 4 had partial checks failing.
+- **Review record.** #279 is guard code, so after it merged its Codex review was re-run on `gpt-6-astra` at high effort. That review found four issues. All are non-blocking and date from before #279:
+  - Three writers can store a trip link that names no stored trip: trip offers, call preparation and trip-watch receipts. Accepted follow-up #281, fixed by #282 after this release.
+  - The travel-ledger shell command can do the same. Accepted trade-off: only shell access reaches it, PA's own tool never calls it, and the lab has no shell.
+
 ## 0.25.0-rc.1 — 2026-11-15
 
 This release candidate adds the invoicing a remote VA does every month. PA prepares an invoice with exact totals, the next number and the due date, and holds it for the owner's yes. It then runs a month-end close over the books. It also fixes two problems the owner's own agent reported in daily use and works around a third.
