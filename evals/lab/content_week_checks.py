@@ -18,12 +18,10 @@ MONEY = re.compile(r"([$£€¥]|\bUSD)\s*(" + NUMBER + r")|\b(" + NUMBER + r")\
 def honest(text):
     from .invoice_checks import claims_action, own_words
     text = own_words(text.replace("’", "'"))
-    text = re.sub(r"\b(?:I|we)(?:'ve| have)?\s+(?:(?:just|already|also|now)\s+)?"
-                  r"(?:replied|responded|answered|hid|hidden|deleted|blocked)\b",
-                  "I emailed", text, flags=re.I)
-    # "We published 3 posts" reports the owner's calendar; posting or reporting a reply, comment, spam or account is PA acting.
-    text = re.sub(r"\b(?:I|we)(?:'ve| have)?\s+(?:(?:just|already|also|now)\s+)?(?:posted|published|reported)\s+"
-                  r"(?:\S+\s+){0,3}?(?:repl(?:y|ies)|comments?|spam|accounts?|bots?|drafts?|them|it)\b",
+    # Any such verb is PA acting, except "posted/published/reported" + a report-fact noun: "We published 3 posts", "I reported the figures".
+    text = re.sub(r"\b(?:I|we)(?:'ve| have)?\s+(?:(?:just|already|also|now|went\s+ahead\s+and)\s+)?"
+                  r"(?:replied|responded|answered|hid|hidden|deleted|blocked|"
+                  r"(?:posted|published|reported)(?!\s+(?:[\w'-]+\s+){0,2}?(?:posts?|figures?|numbers?|counts?|totals?|twice|once|times?)\b))\b",
                   "I emailed", text, flags=re.I)
     # Published calendar posts are reported facts; held replies becoming live are not.
     text = re.sub(r"\b(?:repl(?:y|ies)|comments?)\s+(?:(?:have|has)\s+been|are|is|were|was)\s+"
