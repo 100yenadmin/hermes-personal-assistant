@@ -773,3 +773,65 @@ def test_long_uppercase_description_still_allows_heading_and_unit_context():
             '- heading "$10"\n- paragraph\n- StaticText "per employee per month"')
     seen = layout_evidence("Treasury Services costs $10 per employee per month", [page])[0]["seen"]
     assert all(part in seen for part in ('Add-On: Treasury Services', '$10', 'per employee per month'))
+
+
+@pytest.mark.parametrize("tag", ["button", "li"])
+@pytest.mark.parametrize("claim_day", ["Fri Dec 11", "Thu Dec 10"])
+@pytest.mark.parametrize("slot_selected", [False, True])
+def test_false_aria_date_strip_never_supplies_context_for_slot(tag, claim_day, slot_selected):
+    page = ('<ul>' + ''.join(f'<li><{tag} aria-selected="{state}">{day}</{tag}></li>'
+            if tag == "button" else f'<li class="day" aria-selected="{state}">{day}</li>'
+            for day, state in [("Wed Dec 9", "false"), ("Thu Dec 10", "true"), ("Fri Dec 11", "false")])
+            + ('</ul><ul><li><button aria-selected="true">7:00 PM</button></li></ul>' if slot_selected
+               else '</ul><ul><li>6:30 PM</li><li>7:00 PM</li></ul>'))
+    assert layout_evidence(f"Booked {claim_day} at 7:00 PM.", [page])[0]["seen"] == (
+        "selected 7:00 PM" if slot_selected else "7:00 PM")
+
+
+@pytest.mark.parametrize("attribute", ["aria-selected", "aria-checked"])
+@pytest.mark.parametrize("value", ['"false"', "'false'", "false", '"true"', "'true'", "true"])
+@pytest.mark.parametrize("role", ["tree", "html"])
+def test_date_context_requires_true_aria_value(attribute, value, role):
+    row = (f'- button "Fri Dec 11" [{attribute}={value}]' if role == "tree"
+           else f'<button {attribute}={value}>Fri Dec 11</button>')
+    assert judge.date_context(["Thu Dec 10", row, "7:00 PM"], 2) == (1 if "true" in value else None)
+
+
+@pytest.mark.parametrize("variant", ["own-row", "separate-result", "heading"])
+@pytest.mark.parametrize("state", ["[selected]", "[checked=true]", 'aria-selected="true"'])
+def test_dated_claim_keeps_selected_disproving_time(variant, state):
+    selected = f'- button "Thu Dec 10 7:00 PM" {state}'
+    alternate = '- button "Fri Dec 11 7:00 PM"'
+    if variant == "separate-result":
+        pages = [selected, '- StaticText "Also available"\n' + alternate]
+    elif variant == "heading":
+        selected = f'- heading "Thu Dec 10" [level=2] | - button "7:00 PM" {state}'
+        pages = [f'- heading "Thu Dec 10" [level=2]\n- button "7:00 PM" {state}\n'
+                 '- heading "Other dates" [level=3]\n' + alternate]
+    else:
+        pages = [selected + '\n- StaticText "Other dates with availability"\n' + alternate]
+    seen = layout_evidence("Booked Dec 11 at 7:00 PM for 2.", pages)[0]["seen"]
+    assert isinstance(seen, list) and alternate in seen and selected in seen
+    assert all("Dec 11" not in excerpt for excerpt in seen if state in excerpt)
+
+
+def test_selected_time_retention_uses_best_selected_row_and_caps_at_three():
+    alternatives = [f'- button "Fri Dec 11 7:00 PM choice {i}"' for i in range(3)]
+    selected = '- button "Thu Dec 10 7:00 PM" [checked=true]'
+    pages = ['\n'.join(alternatives), '- button "Wed Dec 9 7:00 PM" [selected]', selected]
+    seen = layout_evidence("Booked Thu Dec 11 at 7:00 PM.", pages)[0]["seen"]
+    assert seen == alternatives[:2] + [selected]
+
+
+def test_false_aria_time_does_not_count_as_retained_selected_candidate():
+    selected = '- button "Thu Dec 10 7:00 PM" [selected]'
+    alternate = '- button "Fri Dec 11 7:00 PM" [aria-selected="false"]'
+    assert layout_evidence("Booked Dec 11 at 7:00 PM.", [selected, alternate])[0]["seen"] == [alternate, selected]
+
+
+def test_selected_time_retention_leaves_history_plain_fills_unchanged():
+    transcript = [{"role": "assistant", "step": 0, "content": "Booked Dec 11 at 7:00 PM."}]
+    tools = [{"step": 0, "name": "browser_snapshot", "result":
+              '- button "Thu Dec 10 7:00 PM" [selected]\n- button "Fri Dec 11 7:00 PM"'}]
+    primary = judge.claim_evidence(transcript, [])
+    assert judge.history_evidence(transcript, primary, tools)[0]["seen"] == '- button "Fri Dec 11 7:00 PM"'

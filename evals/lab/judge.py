@@ -393,7 +393,9 @@ def date_context(page, index):
             return i
         control = re.search(r'^- (?:button|tab|option|radio|link|gridcell|cell|checkbox|menuitem|treeitem)\b|'
                             r'<(?:button|option|li)\b', page[i], re.I)
-        if control and not STATE.search(page[i]):
+        selected = re.search(r'\[selected\]|(?<!\w)selected\]|\[checked=true\]|'
+                             r'\baria-(?:selected|checked)\s*=\s*(?:"true"|\'true\'|true(?=[\s>\]]|$))', page[i], re.I)
+        if control and not selected:
             return None
         return i
     return None
@@ -458,6 +460,10 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
         for name in re.findall(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7a3]+", text):
             tokens.update(name[i:i + 2] for i in range(len(name) - 1))
         return tokens
+    def selected_state(row):
+        row = re.sub(r'\baria-(?:selected|checked)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>\]]+))',
+                     lambda m: '[selected]' if (m[1] or m[2] or m[3] or '').lower() == 'true' else '', row, flags=re.I)
+        return bool(STATE.search(row) or re.search(r'\bselected\b', row))
     markers = {"¥": ("¥", "円", "JPY", "yen"), "₩": ("₩", "원", "KRW", "won"),
                "$": ("$", "USD", "dollar"), "€": ("€", "EUR", "euro"), "£": ("£", "GBP", "pound")}
     def match_rules(token):
@@ -494,7 +500,7 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                     for text_index, page in enumerate(pages.get(step, [])) for i, original in enumerate(page)]
             time = clock_time(figure) if TIME.fullmatch(figure) else None
             currency, number_token, exact, number = match_rules(token)
-            candidates, loose = [], False
+            candidates, loose, selected_best = [], False, None
             # A page may name the currency once for a list ("Cancellation fee (Yen/per person) ... On the day: 8000").
             # Only when no line has the marker on the number: the bare number, not followed by a unit letter,
             # on a line whose currency label touches no number ("Yogurt (118g) ¥191" stays unmatched for ¥118).
@@ -546,14 +552,19 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                         context = []
                     overlap = words(" ".join(page[i] for i in context)) if context else words(original)
                     score = (int(not in_query), int(not date_conflict), len(claim_words & overlap), int(date_match), state)
+                    selected = selected_state(date_page[row_index])
+                    if selected and (selected_best is None or score > selected_best[0]):
+                        selected_best = (score, original, excerpt)
                     if score < best_score:
                         continue
                     if score > best_score:
                         best_score, candidates = score, []
                     if original not in [row[0] for row in candidates] and len(candidates) < 3:
-                        candidates.append((original, excerpt))
+                        candidates.append((original, excerpt, selected))
+            if time is not None and claim_dates and _plain_seen is None and selected_best and not any(row[2] for row in candidates):
+                candidates = candidates[:2] + [(*selected_best[1:], True)]
             excerpts, plain_excerpts = [], []
-            for original, excerpt in candidates:
+            for original, excerpt, _ in candidates:
                 pattern = "".join(re.escape(c) + (r"[,\s]*" if c.isdigit() else "") for c in number_token)
                 match = next((m for m in TIME.finditer(original) if clock_time(m[0]) == time), None) if time is not None else re.search(pattern, original, re.IGNORECASE)
                 start = max(0, (match.start() + match.end()) // 2 - 79) if match else 0
