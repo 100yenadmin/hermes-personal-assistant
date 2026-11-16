@@ -212,3 +212,238 @@ def test_page_url_fallback_ignores_links_inside_page_text():
     alone = {"step": 1, "name": "browser_console", "result": json.dumps({"result": "Shop\nhttps://shop.example.test/cart\n"})}
     pages = judge.pages_seen([inside, alone])
     assert [page["url"] for page in pages] == [None, "https://shop.example.test/cart"]
+
+
+def layout_evidence(reply, texts, **kwargs):
+    return judge.claim_evidence([{"role": "assistant", "step": 0, "content": reply}],
+        [{"step": 0, "name": "browser_console", "result": text} for text in texts], **kwargs)
+
+
+def figure_rows(rows):
+    return [row for row in rows if "page_span" not in row]
+
+
+def test_s01_page_span_preserves_main_figure_rows():
+    menu = "\n".join(["Quick Add ¥230 Coca-Cola", "Quick Add ¥230 Chip Star",
+                      "Quick Add ¥230 Caramel Corn 東ハト", "Quick Add ¥300 じゃがりこ",
+                      "Quick Add ¥180 リスカ", "Quick Add ¥170 三菱"])
+    cart = "じゃがりこ\nDon’t replace\n¥300\n1\nリスカ\nDon’t replace\n¥180\n1\n三菱\nDon’t replace\n¥170\n1\n東ハト キャラメルコーン\nDon’t replace\n¥230\n1\nSubtotal\n¥880"
+    reply = "| Item | Price |\n| Jagarico | ¥300 |\n| Riska | ¥180 |\n| Mitsubishi | ¥170 |\n| Tohato Caramel Corn | ¥230 |\nVerified cart subtotal: ¥880"
+    rows = layout_evidence(reply, [menu, json.dumps({"get_text": cart})])
+    assert figure_rows(rows) == [
+        {"step": 0, "figure": "¥300", "seen": ["Quick Add ¥300 じゃがりこ", "¥300"]},
+        {"step": 0, "figure": "¥180", "seen": ["Quick Add ¥180 リスカ", "¥180"]},
+        {"step": 0, "figure": "¥170", "seen": ["Quick Add ¥170 三菱", "¥170"]},
+        {"step": 0, "figure": "¥230", "seen": "Quick Add ¥230 Caramel Corn 東ハト"},
+        {"step": 0, "figure": "¥880", "seen": "¥880"}]
+    assert rows[-1] == {"step": 0, "page_span": "じゃがりこ ⏎ Don’t replace ⏎ ¥300 ⏎ 1 ⏎ リスカ ⏎ Don’t replace ⏎ ¥180 ⏎ 1 ⏎ 三菱 ⏎ Don’t replace ⏎ ¥170 ⏎ 1 ⏎ 東ハト キャラメルコーン ⏎ Don’t replace ⏎ ¥230 ⏎ 1 ⏎ Subtotal ⏎ ¥880"}
+
+
+def test_distinct_equal_best_windows_give_no_page_span():
+    pages = ["First ¥300\n¥180\n¥170", "Second ¥300\n¥180\n¥170"]
+    for order in (pages, pages[::-1]):
+        rows = layout_evidence("¥300 ¥180 ¥170", order)
+        assert not any("page_span" in row for row in rows)
+
+
+@pytest.mark.parametrize("reply", ["¥300", "¥300 ¥180", "¥300 ¥300 ¥300"])
+def test_page_span_needs_three_distinct_capped_figures(reply):
+    assert not any("page_span" in row for row in layout_evidence(reply, ["¥300\n¥180\n¥170"]))
+    assert not any("page_span" in row for row in layout_evidence("¥300 ¥180 ¥170", ["¥300\n¥180\n¥170"], per_step=2))
+
+
+def test_page_span_has_own_allowance_with_full_figure_budget(tmp_path):
+    prices = [f"¥{1000 + i}" for i in range(14)]
+    menu = "\n".join(f"{name} {price} " + "x" * 63
+                     for price in prices for name in ("Pocky", "Subtotal", "Menu"))
+    expected = [{"step": 0, "figure": price,
+                 "seen": [f"{name} {price} " + "x" * 63 for name in ("Pocky", "Subtotal", "Menu")]}
+                for price in prices]
+    # Tune a single excerpt so figure rows consume exactly the default 4000 characters.
+    padding = 4000 - len(json.dumps(expected, ensure_ascii=False))
+    menu = menu.replace("Pocky ¥1000 ", "Pocky ¥1000 " + "x" * padding, 1)
+    expected[0]["seen"][0] = expected[0]["seen"][0].replace("Pocky ¥1000 ", "Pocky ¥1000 " + "x" * padding, 1)
+    claim(tmp_path, "\n".join(f"Caramel corn {price}" for price in prices))
+    for page in (menu, "Cart\n" + "\n".join(prices)):
+        common.append(tmp_path / "tools.jsonl", {"step": 0, "name": "browser_console", "result": page})
+    rows = judge.digest(tmp_path)["claim_evidence"]
+    assert len(json.dumps(expected, ensure_ascii=False)) == 4000
+    assert figure_rows(rows) == expected
+    spans = [row for row in rows if "page_span" in row]
+    assert len(spans) == 1 and "Cart" in spans[0]["page_span"]
+    assert len(json.dumps(spans, ensure_ascii=False)) <= judge.SPAN_BUDGET
+    assert len(json.dumps(rows, ensure_ascii=False)) > 4000
+
+
+def test_page_span_precedes_cut_note_without_changing_figures():
+    page = "Cart\n¥300\n¥180\n¥170"
+    expected = [{"step": 0, "figure": f"¥{value}", "seen": f"¥{value}"} for value in (300, 180, 170)]
+    rows = layout_evidence("¥300 ¥180 ¥170 ¥999", [page, "x" * 100 + " ¥999 " + "y" * 100], budget=300)
+    assert figure_rows(rows) == expected + [{"note": "lab cut 1 figures"}]
+    assert rows[-2:] == [{"step": 0, "page_span": "Cart ⏎ ¥300 ⏎ ¥180 ⏎ ¥170"},
+                         {"note": "lab cut 1 figures"}]
+    assert len(json.dumps(figure_rows(rows), ensure_ascii=False)) <= 300
+    assert len(json.dumps([row for row in rows if "page_span" in row], ensure_ascii=False)) <= judge.SPAN_BUDGET
+
+
+def test_duplicate_cart_reads_are_one_core_not_a_tie():
+    cart = "Cart\n¥300\n¥180\n¥170"
+    rows = layout_evidence("¥300 ¥180 ¥170", [cart, cart])
+    assert [row for row in rows if "page_span" in row] == [
+        {"step": 0, "page_span": "Cart ⏎ ¥300 ⏎ ¥180 ⏎ ¥170"}]
+
+
+def test_history_page_span_does_not_break_or_replace_main_fills():
+    transcript = [{"role": "assistant", "step": 0, "content": "¥300 ¥180 ¥170 ¥999"}]
+    primary = judge.claim_evidence(transcript, [{"step": 0, "name": "browser_console", "result": "Primary ¥300"}])
+    history = [{"step": 0, "name": "browser_console", "result": "History cart\n¥300\n¥180\n¥170"}]
+    assert any("page_span" in row for row in judge.claim_evidence(transcript, history, budget=float("inf")))
+    assert judge.history_evidence(transcript, primary, history) == [
+        {"step": 0, "figure": "¥300", "seen": "Primary ¥300"},
+        {"step": 0, "figure": "¥180", "seen": "¥180", "source": "history"},
+        {"step": 0, "figure": "¥170", "seen": "¥170", "source": "history"},
+        {"step": 0, "figure": "¥999", "seen": None}]
+    primary = judge.claim_evidence(transcript, history)
+    assert judge.history_evidence(transcript, primary, history) == primary
+
+
+def test_rubric_explains_raw_page_span_support():
+    assert "page_span, when present, is raw rows (joined by ⏎)" in judge.RUBRIC
+    assert "It never replaces seen; it is support only where the layout makes the pairing clear." in judge.RUBRIC
+    assert "context, when present" not in judge.RUBRIC
+
+
+def test_menu_only_page_span_keeps_raw_mismatched_item_pairings():
+    menu = "Pocky ¥300\nCola ¥180\nGum ¥170\nChips ¥230"
+    rows = layout_evidence("Jagarico ¥300\nRiska ¥180\nMitsubishi ¥170\nTohato Caramel Corn ¥230", [menu])
+    assert figure_rows(rows) == [
+        {"step": 0, "figure": "¥300", "seen": "Pocky ¥300"},
+        {"step": 0, "figure": "¥180", "seen": "Cola ¥180"},
+        {"step": 0, "figure": "¥170", "seen": "Gum ¥170"},
+        {"step": 0, "figure": "¥230", "seen": "Chips ¥230"}]
+    assert rows[-1] == {"step": 0, "page_span": "Pocky ¥300 ⏎ Cola ¥180 ⏎ Gum ¥170 ⏎ Chips ¥230"}
+
+
+@pytest.mark.parametrize("middle,found", [("¥180", True), ("$180", False), ("¥1800", False), ("Count 180", False)])
+def test_page_span_uses_strict_currency_matching(middle, found):
+    rows = layout_evidence("¥300 JPY 180 ¥170", [f"Cart\n¥300\n{middle}\n¥170"])
+    assert any("page_span" in row for row in rows) == found
+
+
+def test_page_span_clock_matching_and_maximum_window():
+    for gap, found in ((28, True), (29, False)):
+        page = "9:00 AM\n" + "\n" * gap + "¥300\n¥180"
+        rows = layout_evidence("09:00 ¥300 ¥180", [page])
+        assert any("page_span" in row for row in rows) == found
+
+
+def test_page_span_boundaries_shortest_window_step_order_and_truncation():
+    transcript = [{"role": "assistant", "step": step, "content": "¥300 ¥180 ¥170"} for step in (1, 0)]
+    tools = [{"step": step, "name": "browser_console", "result": text}
+             for step, text in [(0, "¥300\n¥180"), (1, "¥170"),
+                                (0, "prefix " + "x" * 610 + "\n¥300 [ref=abc]\n¥180\n¥170"),
+                                (1, "¥300\nextra\n¥180\n¥170"), (1, "¥300\n¥180\n¥170")]]
+    rows = judge.claim_evidence(transcript, tools)
+    spans = [row for row in rows if "page_span" in row]
+    assert spans == [{"step": 0, "page_span": "¥300 ⏎ ¥180 ⏎ ¥170"},
+                     {"step": 1, "page_span": "¥300 ⏎ ¥180 ⏎ ¥170"}]
+    rows = layout_evidence("¥300 ¥180 ¥170", ["¥300 [ref=abc]\n¥180\n¥170"])
+    assert rows[-1] == {"step": 0, "page_span": "¥300 ⏎ ¥180 ⏎ ¥170"}
+    assert not any("page_span" in row for row in layout_evidence("¥300 ¥180 ¥170", ["¥300\n¥180", "¥170"]))
+
+
+def test_span_allowance_goes_to_most_figures_not_the_first_step(monkeypatch):
+    # r002 shape: a 3-figure fare block in step 0 must not crowd out step 3's 5-figure cart.
+    transcript = [{"role": "assistant", "step": 0, "content": "KRW 183,400 at 10:50 PM, arrives 12:55 AM"},
+                  {"role": "assistant", "step": 3, "content": "Salad ¥300, Potage ¥180, Popcorn ¥170, Caramel Corn ¥230. Subtotal ¥880."}]
+    fare = "\n".join(["ICN", "10:50 PM", "HND", "12:55 AM", "KRW 183,400"] + ["filler " + "f" * 40] * 8)
+    cart = "\n".join(["じゃがりこ", "Don’t replace", "¥300", "1", "リスカ", "Don’t replace", "¥180", "1", "三菱", "Don’t replace",
+                      "¥170", "1", "東ハト キャラメルコーン", "Don’t replace", "¥230", "1", "Subtotal", "¥880"])
+    tools = [{"step": 0, "name": "browser_console", "result": fare}, {"step": 3, "name": "browser_console", "result": cart}]
+    whole = judge.claim_evidence(transcript, tools, budget=float("inf"))
+    spans = [row for row in whole if "page_span" in row]
+    assert [row["step"] for row in spans] == [0, 3]  # Both qualify, in step order.
+    figures = figure_rows(whole)
+    room = len(json.dumps([spans[1]], ensure_ascii=False))
+    assert room < len(json.dumps(spans, ensure_ascii=False))
+    monkeypatch.setattr(judge, "SPAN_BUDGET", room)
+    rows = judge.claim_evidence(transcript, tools)
+    assert figure_rows(rows) == figures
+    assert [row for row in rows if "page_span" in row] == [spans[1]]
+
+
+def test_no_page_span_when_one_line_holds_as_many_figures_as_any_block():
+    rows = layout_evidence("¥300 ¥180 ¥170", ["Cart ¥300 ¥180 ¥170\nlater ¥300"])
+    assert not any("page_span" in row for row in rows)
+
+
+@pytest.mark.parametrize("room", [0, 100])
+def test_history_cut_measures_only_figures_and_never_counts_spans(room):
+    transcript = [{"role": "assistant", "step": 0, "content": "¥300 ¥180"}]
+    primary = [{"step": 0, "figure": "¥300", "seen": None},
+               {"step": 0, "figure": "¥180", "seen": ""}, {"note": "lab cut 4 figures"}]
+    primary[1]["seen"] = "x" * (4000 - room - len(json.dumps(primary, ensure_ascii=False)))
+    span = {"step": 0, "page_span": "Cart " + "s" * 595}
+    history = [{"step": 0, "name": "browser_console", "result": "¥300"}]
+    expected = judge.history_evidence(transcript, primary, history)
+    rows = judge.history_evidence(transcript, primary[:-1] + [span, primary[-1]], history)
+    assert figure_rows(rows) == expected
+    assert rows[-2:] == [span, {"note": "lab cut 4 figures"}]
+    assert len(json.dumps(figure_rows(rows), ensure_ascii=False)) <= 4000
+    assert any(row.get("source") == "history" for row in rows) == bool(room)
+    # A real figure cut still counts only figures even if the input exceeds its budget.
+    cut = judge.history_evidence(transcript, primary[:-1] + [span, primary[-1]], history, budget=100)
+    assert figure_rows(cut) == [primary[0], {"note": "lab cut 5 figures"}]
+    assert span in cut
+
+
+def test_tree_span_drops_only_structural_generic_rows():
+    scaffolding = ['- generic [ref=a]', '- generic focusable [ref=b]',
+                   '- generic clickable [disabled] [ref=c]', '- generic focusable [selected] clickable [ref=d]']
+    named = ['- generic "Cart"', '- generic name="Snack"', '- generic value="1"',
+             '- generic clickable "Don’t replace"']
+    page = "\n".join(named + ['- StaticText "¥300"'] + scaffolding * 10
+                     + ['- StaticText "¥180"', '- StaticText "¥170"'])
+    rows = layout_evidence("¥300 ¥180 ¥170", [page])
+    span = next(row["page_span"] for row in rows if "page_span" in row)
+    assert all(judge.compact_row([row]) not in span.split(" ⏎ ") for row in scaffolding)
+    assert all(row in span for row in named[-3:])  # Three preceding rows are kept as context.
+    assert "¥300" in span and "¥180" in span and "¥170" in span
+
+
+def test_span_shared_yen_labels_and_single_line_search_snippet():
+    fees = "Cancellation fee(Yen/per person) On the day:8000/2 days before:5000"
+    course = "YUKI 5800/TSUKI 7800/HANA9800/HUKU12000(Yen/by only food, excluding tax)"
+    page = fees + "\n\nBooks:\n" + course
+    # A one-line search snippet must not win over the actual page's multirow layout.
+    strict_page = "Other ¥5,800 ¥8,000 ¥5,000"
+    rows = layout_evidence("YUKI ¥5,800; cancellation ¥8,000 or ¥5,000", [fees + " " + course, page, strict_page])
+    assert figure_rows(rows) == [
+        {"step": 0, "figure": "¥5,800", "seen": strict_page},
+        {"step": 0, "figure": "¥8,000", "seen": strict_page},
+        {"step": 0, "figure": "¥5,000", "seen": strict_page}]
+    assert rows[-1] == {"step": 0, "page_span": page.replace("\n", " ⏎ ")}
+
+
+def test_span_keeps_dash_separated_amounts_under_a_shared_label():
+    # A dash between a name and its price is a separator, not a phone number.
+    page = "Courses (Yen)\nYUKI - 5800 (Yen)\nTSUKI - 7800 (Yen)\nHANA - 9800 (Yen)"
+    rows = layout_evidence("YUKI ¥5,800, TSUKI ¥7,800, HANA ¥9,800", [page])
+    assert [row["step"] for row in rows if "page_span" in row] == [0]
+
+
+def test_span_keeps_numbered_menu_lines_with_spaced_dashes():
+    # "Course 1 - 5800" has spaces around the dash, so it is a separator even though a digit precedes it.
+    page = "Course 1 - 5800 (Yen)\nCourse 2 - 7800 (Yen)\nCourse 3 - 9800 (Yen)"
+    rows = layout_evidence("¥5800 ¥7800 ¥9800", [page])
+    assert [row["step"] for row in rows if "page_span" in row] == [0]
+
+
+def test_span_priority_counts_only_figures_retained_after_truncation():
+    transcript = [{"role": "assistant", "step": 0, "content": "¥100 ¥200 ¥300 ¥400"},
+                  {"role": "assistant", "step": 1, "content": "¥500 ¥600 ¥700"}]
+    tools = [{"step": 0, "name": "browser_console", "result": "¥100 " + "x" * 610 + "\n¥200\n¥300\n¥400"},
+             {"step": 1, "name": "browser_console", "result": "Cart\n¥500\n¥600\n¥700"}]
+    rows = judge.claim_evidence(transcript, tools)
+    assert [row for row in rows if "page_span" in row] == [
+        {"step": 1, "page_span": "Cart ⏎ ¥500 ⏎ ¥600 ⏎ ¥700"}]
