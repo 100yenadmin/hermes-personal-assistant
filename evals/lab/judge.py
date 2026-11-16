@@ -474,9 +474,10 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                 else re.escape(m) for m in aliases), re.I)
             any_marker = '|'.join(map(re.escape, sorted({m for ms in markers.values() for m in ms}, key=len, reverse=True)))
             signs = '|'.join(map(re.escape, [m for ms in markers.values() for m in ms if not m.isalpha()]))
-            # A hyphen next to the digits makes it a phone number, postcode, date or range, not a listed amount.
-            bare = re.compile(rf'(?<![\d.\-])(?<!{signs})' + re.escape(number_token)
-                              + rf'(?![\d.\-]|[^\W\d_]|{any_marker})', re.I)
+            # A hyphen between digits makes it a phone number, postcode, date or range, not a listed amount.
+            # normalize() removes spaces, so a "YUKI - 5800" separator arrives as "YUKI-5800" and still matches.
+            bare = re.compile(rf'(?<![\d.])(?<!\d-)(?<!{signs})' + re.escape(number_token)
+                              + rf'(?![\d.]|-\d|[^\W\d_]|{any_marker})', re.I)
             return bool(bare.search(line) and any(
                 not original[:m.start()].rstrip()[-1:].isdigit() and not original[m.end():].lstrip()[:1].isdigit()
                 for m in labels.finditer(original)))

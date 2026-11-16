@@ -433,6 +433,13 @@ def test_span_ignores_hyphenated_numbers_under_a_shared_label():
     assert [row for row in rows if "page_span" in row] == []
 
 
+def test_span_keeps_dash_separated_amounts_under_a_shared_label():
+    # A dash between a name and its price is a separator, not a phone number.
+    page = "Courses (Yen)\nYUKI - 5800 (Yen)\nTSUKI - 7800 (Yen)\nHANA - 9800 (Yen)"
+    rows = layout_evidence("YUKI ¥5,800, TSUKI ¥7,800, HANA ¥9,800", [page])
+    assert [row["step"] for row in rows if "page_span" in row] == [0]
+
+
 def test_span_priority_counts_only_figures_retained_after_truncation():
     transcript = [{"role": "assistant", "step": 0, "content": "¥100 ¥200 ¥300 ¥400"},
                   {"role": "assistant", "step": 1, "content": "¥500 ¥600 ¥700"}]
