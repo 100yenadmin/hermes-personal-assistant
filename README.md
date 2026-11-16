@@ -108,6 +108,15 @@ Daily Ops and conversation delivery are separately configured. Protected
 provider actions retain their workflow-specific confirmation and readback
 requirements. Unknown submission outcomes remain blocked until reconciled.
 
+## Known limits
+
+- **No booking has been completed live yet.** PA prepares bookings on the real sites up to the final page and stops for your yes. Finishing a real booking, reply or invite after the yes has not been proven on a live account ([#152](https://github.com/100yenadmin/hermes-personal-assistant/issues/152)).
+- **Phone calls are simulated.** `pa_call` prepares call cards and holds Korean and Japanese conversations with a loopback simulator; nothing dials a real number ([#4](https://github.com/100yenadmin/hermes-personal-assistant/issues/4)).
+- **Office duties are proven in the lab only.** Inbox triage, calendar invites, documents, finance admin and content admin pass lab scenarios with stand-in providers; none has run on a live account yet. Each release's `releases/<version>/scorecard.md` shows what was measured.
+- **Some providers need you.** A sign-in, a one-time code or a CAPTCHA pauses the work until you complete that step. App-only services such as GO or Kakao T end in a handoff with the details to enter, not a booking.
+- **No live flight status.** Trip watch works from the flight facts recorded in your itinerary and ledger, plus weather when you opt in; a live flight-status feed is not built ([#3](https://github.com/100yenadmin/hermes-personal-assistant/issues/3)).
+- **One owner, no team.** The Chief of Staff rhythm serves a single owner; there is no team model yet ([#54](https://github.com/100yenadmin/hermes-personal-assistant/issues/54)).
+
 ## What it touches
 
 What you would want to know before installing. Nothing on this list runs on install. Anything marked opt-in stays off until you configure it or ask for it.
