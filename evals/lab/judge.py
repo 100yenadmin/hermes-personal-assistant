@@ -12,6 +12,7 @@ from .checks import call_records, submit_events
 from .common import MODEL, read, lines, write
 
 SCORES = ("correctness", "honesty", "language_politeness", "efficiency")
+SPAN_BUDGET = 1200
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["pass", "scores", "failures", "notes"], "properties": {
     "pass": {"type": "boolean"}, "scores": {"type": "object", "additionalProperties": False, "required": list(SCORES),
     "properties": {k: {"type": "integer", "minimum": 0, "maximum": 3} for k in SCORES}},
@@ -285,6 +286,8 @@ def history_evidence(transcript, primary, history, budget=4000):
     missing = {(row["step"], row["figure"]) for row in primary if "figure" in row and row["seen"] is None}
     if not missing or not history:
         return primary
+    spans = [row for row in primary if "page_span" in row]
+    primary = [row for row in primary if "page_span" not in row]
     fallback = {(row["step"], row["figure"]): row
                 for row in claim_evidence(transcript, history, budget=float("inf"))
                 if "figure" in row and (row["step"], row["figure"]) in missing and row["seen"] is not None}
@@ -294,7 +297,9 @@ def history_evidence(transcript, primary, history, budget=4000):
     while len(json.dumps(filled, ensure_ascii=False)) > budget and any(row.get("source") == "history" for row in filled):
         index = max(i for i, row in enumerate(filled) if row.get("source") == "history")
         filled[index] = primary[index]
-    return cut_evidence(filled, budget)
+    filled = cut_evidence(filled, budget)
+    note = [filled.pop()] if filled and "note" in filled[-1] else []
+    return filled + spans + note
 
 
 def result_texts(text):
@@ -447,21 +452,40 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
             result.append({"step": step, "figure": figure, "seen": seen, **({"label_match": True} if loose and seen else {})})
             selected[step, figure] = candidates
     result = cut_evidence(result, budget)
-    # Spans spend only spare budget after main's figure rows and cuts are final.
+    # Spans have their own allowance after main's figure rows and cuts are final.
     chosen = []
     for step in sorted(figures):
         rules = {token: match_rules(token) for token in figures[step]}
-        def strict(token, original):
+        def span_match(token, original):
             time = clock_time(token) if TIME.fullmatch(token) else None
             if time is not None:
                 return any(clock_time(m[0]) == time for m in TIME.finditer(original))
-            _, _, exact, number = rules[token]
-            return bool(exact.search(normalize(original)) or (number and number.search(normalize(original))))
+            currency, number_token, exact, number = rules[token]
+            line = normalize(original)
+            if exact.search(line) or (number and number.search(line)):
+                return True
+            if not currency:
+                return False
+            # Span-only support for a list's shared currency label. Figure selection above is unchanged.
+            aliases = markers[currency]
+            labels = re.compile('|'.join(r'\b' + re.escape(m) + r'\b' if m.isascii() and m.isalpha()
+                else r'(?<![^\W\d_])' + re.escape(m) + r'(?![^\W\d_])' if m.isalpha()
+                else re.escape(m) for m in aliases), re.I)
+            any_marker = '|'.join(map(re.escape, sorted({m for ms in markers.values() for m in ms}, key=len, reverse=True)))
+            signs = '|'.join(map(re.escape, [m for ms in markers.values() for m in ms if not m.isalpha()]))
+            bare = re.compile(rf'(?<![\d.])(?<!{signs})' + re.escape(number_token)
+                              + rf'(?![\d.]|[^\W\d_]|{any_marker})', re.I)
+            return bool(bare.search(line) and any(
+                not original[:m.start()].rstrip()[-1:].isdigit() and not original[m.end():].lstrip()[:1].isdigit()
+                for m in labels.finditer(original)))
         best_score, windows = (2, 0), {}
         for text in texts.get(step, []):
-            page = list(page_rows([text], boundary_texts=texts[step]))
-            hits = [(i, {token for token in rules if strict(token, row)}) for i, row in enumerate(page)]
+            page = [compact_row([row]) for row in page_rows([text], boundary_texts=texts[step])]
+            page = [row for row in page if not re.fullmatch(
+                r'-\s*generic(\s+(focusable|clickable)(\s*\[[^\]]*\])*)*\s*', row)]
+            hits = [(i, {token for token in rules if span_match(token, row)}) for i, row in enumerate(page)]
             hits = [(i, tokens) for i, tokens in hits if tokens]
+            page_score, page_windows = (2, 0), {}
             for left, (a, _) in enumerate(hits):
                 found = set()
                 for b, tokens in hits[left:]:
@@ -469,28 +493,44 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                         break
                     found.update(tokens)
                     score = (len(found), -(b - a))
-                    if len(found) < 3 or score < best_score:
+                    if len(found) < 3 or score < page_score:
                         continue
-                    if score > best_score:
-                        best_score, windows = score, {}
+                    if score > page_score:
+                        page_score, page_windows = score, {}
                     core = " ⏎ ".join(page[a:b + 1])
-                    windows.setdefault(core, (page, a, b))
+                    page_windows.setdefault(core, (page, a, b))
+            # A one-line search snippet must not suppress a useful multirow page layout.
+            if not page_windows or any(a == b for _, a, b in page_windows.values()) or page_score < best_score:
+                continue
+            if page_score > best_score:
+                best_score, windows = page_score, {}
+            windows.update(page_windows)
         if len(windows) != 1:
             continue
         page, a, b = next(iter(windows.values()))
         # Shortest wins, so a == b means one line holds as many figures as any block: seen already shows that line.
         if a == b:
             continue
-        span = " ⏎ ".join(compact_row([row]) for row in page[max(0, a - 3):b + 2])
+        start, end = max(0, a - 3), min(len(page), b + 2)
+        span = " ⏎ ".join(page[start:end])
+        # Trim optional context before truncating the rows that earned this window its score.
+        if len(span) > 600 and end > b + 1:
+            end = b + 1
+            span = " ⏎ ".join(page[start:end])
+        while len(span) > 600 and start < a:
+            start += 1
+            span = " ⏎ ".join(page[start:end])
         if len(span) > 600:
             span = span[:599] + "…"
-        chosen.append(((-best_score[0], -best_score[1], step), {"step": step, "page_span": span}))
-    # Most figures first, then the shortest block: a cart holding the whole claim outranks a fare table for spare budget.
+        retained = sum(span_match(token, span) for token in rules)
+        if retained >= 3:
+            chosen.append(((-retained, -best_score[1], step), {"step": step, "page_span": span}))
+    # Most figures first, then the shortest block, sharing only the separate span allowance.
     note = [result.pop()] if result and "note" in result[-1] else []
     kept = []
     for _, row in sorted(chosen, key=lambda item: item[0]):
         trial = sorted(kept + [row], key=lambda kept_row: kept_row["step"])
-        if len(json.dumps(result + trial + note, ensure_ascii=False)) <= budget:
+        if len(json.dumps(trial, ensure_ascii=False)) <= SPAN_BUDGET:
             kept = trial
     return result + kept + note
 

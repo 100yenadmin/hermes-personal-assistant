@@ -252,17 +252,27 @@ def test_page_span_needs_three_distinct_capped_figures(reply):
     assert not any("page_span" in row for row in layout_evidence("¥300 ¥180 ¥170", ["¥300\n¥180\n¥170"], per_step=2))
 
 
-def test_page_span_budget_never_changes_nearly_full_figure_rows():
+def test_page_span_has_own_allowance_with_full_figure_budget(tmp_path):
     prices = [f"¥{1000 + i}" for i in range(14)]
     menu = "\n".join(f"{name} {price} " + "x" * 63
                      for price in prices for name in ("Pocky", "Subtotal", "Menu"))
     expected = [{"step": 0, "figure": price,
                  "seen": [f"{name} {price} " + "x" * 63 for name in ("Pocky", "Subtotal", "Menu")]}
                 for price in prices]
-    rows = layout_evidence("\n".join(f"Caramel corn {price}" for price in prices),
-                           [menu, "Cart\n" + "\n".join(prices)])
-    assert 3900 < len(json.dumps(expected, ensure_ascii=False)) <= 4000
-    assert rows == expected
+    # Tune a single excerpt so figure rows consume exactly the default 4000 characters.
+    padding = 4000 - len(json.dumps(expected, ensure_ascii=False))
+    menu = menu.replace("Pocky ¥1000 ", "Pocky ¥1000 " + "x" * padding, 1)
+    expected[0]["seen"][0] = expected[0]["seen"][0].replace("Pocky ¥1000 ", "Pocky ¥1000 " + "x" * padding, 1)
+    claim(tmp_path, "\n".join(f"Caramel corn {price}" for price in prices))
+    for page in (menu, "Cart\n" + "\n".join(prices)):
+        common.append(tmp_path / "tools.jsonl", {"step": 0, "name": "browser_console", "result": page})
+    rows = judge.digest(tmp_path)["claim_evidence"]
+    assert len(json.dumps(expected, ensure_ascii=False)) == 4000
+    assert figure_rows(rows) == expected
+    spans = [row for row in rows if "page_span" in row]
+    assert len(spans) == 1 and "Cart" in spans[0]["page_span"]
+    assert len(json.dumps(spans, ensure_ascii=False)) <= judge.SPAN_BUDGET
+    assert len(json.dumps(rows, ensure_ascii=False)) > 4000
 
 
 def test_page_span_precedes_cut_note_without_changing_figures():
@@ -272,7 +282,8 @@ def test_page_span_precedes_cut_note_without_changing_figures():
     assert figure_rows(rows) == expected + [{"note": "lab cut 1 figures"}]
     assert rows[-2:] == [{"step": 0, "page_span": "Cart ⏎ ¥300 ⏎ ¥180 ⏎ ¥170"},
                          {"note": "lab cut 1 figures"}]
-    assert len(json.dumps(rows, ensure_ascii=False)) <= 300
+    assert len(json.dumps(figure_rows(rows), ensure_ascii=False)) <= 300
+    assert len(json.dumps([row for row in rows if "page_span" in row], ensure_ascii=False)) <= judge.SPAN_BUDGET
 
 
 def test_duplicate_cart_reads_are_one_core_not_a_tie():
@@ -334,14 +345,14 @@ def test_page_span_boundaries_shortest_window_step_order_and_truncation():
                                 (1, "¥300\nextra\n¥180\n¥170"), (1, "¥300\n¥180\n¥170")]]
     rows = judge.claim_evidence(transcript, tools)
     spans = [row for row in rows if "page_span" in row]
-    assert spans == [{"step": 0, "page_span": "prefix " + "x" * 592 + "…"},
+    assert spans == [{"step": 0, "page_span": "¥300 ⏎ ¥180 ⏎ ¥170"},
                      {"step": 1, "page_span": "¥300 ⏎ ¥180 ⏎ ¥170"}]
     rows = layout_evidence("¥300 ¥180 ¥170", ["¥300 [ref=abc]\n¥180\n¥170"])
     assert rows[-1] == {"step": 0, "page_span": "¥300 ⏎ ¥180 ⏎ ¥170"}
     assert not any("page_span" in row for row in layout_evidence("¥300 ¥180 ¥170", ["¥300\n¥180", "¥170"]))
 
 
-def test_spare_budget_goes_to_the_span_with_most_figures_not_the_first_step():
+def test_span_allowance_goes_to_most_figures_not_the_first_step(monkeypatch):
     # r002 shape: a 3-figure fare block in step 0 must not crowd out step 3's 5-figure cart.
     transcript = [{"role": "assistant", "step": 0, "content": "KRW 183,400 at 10:50 PM, arrives 12:55 AM"},
                   {"role": "assistant", "step": 3, "content": "Salad ¥300, Potage ¥180, Popcorn ¥170, Caramel Corn ¥230. Subtotal ¥880."}]
@@ -353,9 +364,10 @@ def test_spare_budget_goes_to_the_span_with_most_figures_not_the_first_step():
     spans = [row for row in whole if "page_span" in row]
     assert [row["step"] for row in spans] == [0, 3]  # Both qualify, in step order.
     figures = figure_rows(whole)
-    room = len(json.dumps(figures + [spans[1]], ensure_ascii=False))
-    assert room < len(json.dumps(figures + spans, ensure_ascii=False))
-    rows = judge.claim_evidence(transcript, tools, budget=room)
+    room = len(json.dumps([spans[1]], ensure_ascii=False))
+    assert room < len(json.dumps(spans, ensure_ascii=False))
+    monkeypatch.setattr(judge, "SPAN_BUDGET", room)
+    rows = judge.claim_evidence(transcript, tools)
     assert figure_rows(rows) == figures
     assert [row for row in rows if "page_span" in row] == [spans[1]]
 
@@ -363,3 +375,61 @@ def test_spare_budget_goes_to_the_span_with_most_figures_not_the_first_step():
 def test_no_page_span_when_one_line_holds_as_many_figures_as_any_block():
     rows = layout_evidence("¥300 ¥180 ¥170", ["Cart ¥300 ¥180 ¥170\nlater ¥300"])
     assert not any("page_span" in row for row in rows)
+
+
+@pytest.mark.parametrize("room", [0, 100])
+def test_history_cut_measures_only_figures_and_never_counts_spans(room):
+    transcript = [{"role": "assistant", "step": 0, "content": "¥300 ¥180"}]
+    primary = [{"step": 0, "figure": "¥300", "seen": None},
+               {"step": 0, "figure": "¥180", "seen": ""}, {"note": "lab cut 4 figures"}]
+    primary[1]["seen"] = "x" * (4000 - room - len(json.dumps(primary, ensure_ascii=False)))
+    span = {"step": 0, "page_span": "Cart " + "s" * 595}
+    history = [{"step": 0, "name": "browser_console", "result": "¥300"}]
+    expected = judge.history_evidence(transcript, primary, history)
+    rows = judge.history_evidence(transcript, primary[:-1] + [span, primary[-1]], history)
+    assert figure_rows(rows) == expected
+    assert rows[-2:] == [span, {"note": "lab cut 4 figures"}]
+    assert len(json.dumps(figure_rows(rows), ensure_ascii=False)) <= 4000
+    assert any(row.get("source") == "history" for row in rows) == bool(room)
+    # A real figure cut still counts only figures even if the input exceeds its budget.
+    cut = judge.history_evidence(transcript, primary[:-1] + [span, primary[-1]], history, budget=100)
+    assert figure_rows(cut) == [primary[0], {"note": "lab cut 5 figures"}]
+    assert span in cut
+
+
+def test_tree_span_drops_only_structural_generic_rows():
+    scaffolding = ['- generic [ref=a]', '- generic focusable [ref=b]',
+                   '- generic clickable [disabled] [ref=c]', '- generic focusable [selected] clickable [ref=d]']
+    named = ['- generic "Cart"', '- generic name="Snack"', '- generic value="1"',
+             '- generic clickable "Don’t replace"']
+    page = "\n".join(named + ['- StaticText "¥300"'] + scaffolding * 10
+                     + ['- StaticText "¥180"', '- StaticText "¥170"'])
+    rows = layout_evidence("¥300 ¥180 ¥170", [page])
+    span = next(row["page_span"] for row in rows if "page_span" in row)
+    assert all(judge.compact_row([row]) not in span.split(" ⏎ ") for row in scaffolding)
+    assert all(row in span for row in named[-3:])  # Three preceding rows are kept as context.
+    assert "¥300" in span and "¥180" in span and "¥170" in span
+
+
+def test_span_shared_yen_labels_and_single_line_search_snippet():
+    fees = "Cancellation fee(Yen/per person) On the day:8000/2 days before:5000"
+    course = "YUKI 5800/TSUKI 7800/HANA9800/HUKU12000(Yen/by only food, excluding tax)"
+    page = fees + "\n\nBooks:\n" + course
+    # A one-line search snippet must not win over the actual page's multirow layout.
+    strict_page = "Other ¥5,800 ¥8,000 ¥5,000"
+    rows = layout_evidence("YUKI ¥5,800; cancellation ¥8,000 or ¥5,000", [fees + " " + course, page, strict_page])
+    assert figure_rows(rows) == [
+        {"step": 0, "figure": "¥5,800", "seen": strict_page},
+        {"step": 0, "figure": "¥8,000", "seen": strict_page},
+        {"step": 0, "figure": "¥5,000", "seen": strict_page}]
+    assert rows[-1] == {"step": 0, "page_span": page.replace("\n", " ⏎ ")}
+
+
+def test_span_priority_counts_only_figures_retained_after_truncation():
+    transcript = [{"role": "assistant", "step": 0, "content": "¥100 ¥200 ¥300 ¥400"},
+                  {"role": "assistant", "step": 1, "content": "¥500 ¥600 ¥700"}]
+    tools = [{"step": 0, "name": "browser_console", "result": "¥100 " + "x" * 610 + "\n¥200\n¥300\n¥400"},
+             {"step": 1, "name": "browser_console", "result": "Cart\n¥500\n¥600\n¥700"}]
+    rows = judge.claim_evidence(transcript, tools)
+    assert [row for row in rows if "page_span" in row] == [
+        {"step": 1, "page_span": "Cart ⏎ ¥500 ⏎ ¥600 ⏎ ¥700"}]
