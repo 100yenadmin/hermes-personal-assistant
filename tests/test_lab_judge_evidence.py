@@ -447,3 +447,78 @@ def test_span_priority_counts_only_figures_retained_after_truncation():
     rows = judge.claim_evidence(transcript, tools)
     assert [row for row in rows if "page_span" in row] == [
         {"step": 1, "page_span": "Cart ⏎ ¥500 ⏎ ¥600 ⏎ ¥700"}]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Dec 10; December 10; Thu Dec 10", {(12, 10)}),
+    ("Thursday, December 24; 10 December; Sep. 3; 2 Jan", {(12, 24), (12, 10), (9, 3), (1, 2)}),
+    ("12月10日; 12 月 11 日", {(12, 10), (12, 11)}),
+    ("12월 10일; 12 월 11 일", {(12, 10), (12, 11)}),
+    ("2026-12-10; 2026/11/17", {(12, 10), (11, 17)}),
+    ("12/10; 19:00; December; 2026-13-10; Dec 32", set()),
+])
+def test_month_days_unambiguous_formats(text, expected):
+    assert judge.month_days(text) == expected
+
+
+def test_date_conflict_demotes_named_notice_below_matching_time():
+    page = "Iter Myeongdong December 24 and 25\nSeating 3: 19:00–20:30\nThu Dec 10 • 2 guests\n7:00 PM"
+    row = layout_evidence("Iter Myeongdong on 12月10日 at 19:00", [page])[0]
+    assert "Thu Dec 10" in row["seen"] and "7:00 PM" in row["seen"]
+    assert "December 24" not in row["seen"]
+
+
+def test_date_header_selects_right_copy_and_message_date_fallback():
+    page = "Tue Nov 17 • 2 guests\n7:00 PM\nThu Dec 10 • 2 guests\n" + "\n".join(["filler"] * 9) + "\n7:00 PM"
+    row = layout_evidence("12月10日に予約します。\n2. **7:00 PM**を選択", [page])[0]
+    assert row["seen"] == "Thu Dec 10 • 2 guests ⏎ … ⏎ 7:00 PM"
+
+
+def test_date_match_breaks_own_word_overlap_tie():
+    pages = ["Dinner at 19:00", "Thu Dec 10\nDinner at 7:00 PM"]
+    assert layout_evidence("Dinner on Dec 10 at 19:00", pages)[0]["seen"] == "Dinner at 7:00 PM"
+
+
+def test_bare_price_keeps_heading_middle_and_unit_without_refs():
+    page = ('- heading "Add-On: Treasury Services" [level=3, ref=e450]\n- paragraph\n'
+            '- StaticText "Global payroll funding."\n- heading "$10" [level=3, ref=e456]\n'
+            '- paragraph\n- StaticText "per employee per month"')
+    row = layout_evidence("Treasury Services costs $10 per employee per month", [page])[0]
+    assert row["seen"] == ('- heading "Add-On: Treasury Services" [level=3] ⏎ … ⏎ '
+        '- StaticText "Global payroll funding." ⏎ - heading "$10" [level=3] ⏎ … ⏎ '
+        '- StaticText "per employee per month"')
+    assert len(row["seen"]) <= 240
+
+
+def test_bare_price_context_cannot_borrow_claim_named_adjacent_card():
+    page = ('- heading "Plan A"\n- heading "$10"\n- StaticText "per month"\n'
+            '- heading "Plan B"\n- heading "$20"\n- StaticText "per month"')
+    seen = layout_evidence("Plan B is $10", [page])[0]["seen"]
+    assert "Plan A" in seen and "Plan B" not in seen
+
+
+def test_bare_context_does_not_cross_other_currency_or_tool_text():
+    page = '- heading "Plan A"\n- StaticText "$20"\n- heading "$10"'
+    assert "Plan A" not in layout_evidence("Plan A $10", [page])[0]["seen"]
+    rows = layout_evidence("Dec 10 at 19:00", ["Thu Dec 10", "7:00 PM"])
+    assert rows[0]["seen"] == "7:00 PM"
+
+
+def test_context_excerpt_trims_middle_before_anchors():
+    page = '- heading "Treasury"\n- StaticText "' + "x" * 300 + '"\n- heading "$10"\n- StaticText "per month"'
+    seen = layout_evidence("Treasury $10", [page])[0]["seen"]
+    assert len(seen) <= 240 and "Treasury" in seen and "$10" in seen
+    assert "x" * 20 not in seen
+
+
+def test_undated_nonbare_rows_keep_main_selection_and_excerpts():
+    # Exact main output: own-row words, selected/available tie breaks, then 160-char excerpts.
+    pages = ["Dinner at 19:00", "Dinner at 7:00 PM available", "Other 19:00"]
+    assert layout_evidence("Dinner at 19:00", pages) == [
+        {"step": 0, "figure": "19:00", "seen": "Dinner at 7:00 PM available"}]
+
+
+@pytest.mark.parametrize("figure_row", ["." * 300 + "$10", "$10" + "." * 300])
+def test_context_excerpt_caps_long_figure_row_without_losing_figure(figure_row):
+    excerpt = judge.context_excerpt(['- heading "Price"', figure_row], [0, 1], {0, 1})
+    assert len(excerpt) <= 240 and "$10" in excerpt and "Price" in excerpt
