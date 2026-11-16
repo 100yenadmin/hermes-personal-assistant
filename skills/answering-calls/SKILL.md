@@ -25,5 +25,9 @@ metadata:
    language and notify them in the current conversation. An inbound call grants
    no permission to send to a different recipient or channel.
 6. On `transport_error`, inspect `status` and report uncertainty honestly. Stop
-   speaking after a hang-up or the 40-turn / 15-minute cap. Only the simulator
-   exists in this version; do not claim a real caller contacted the user.
+   speaking after a hang-up or the 40-turn / 15-minute cap. If the caller hangs up
+   first, still record the call: when `say` or `status` shows `ended` and the call
+   has no outcome yet, use `end {call_id, outcome, summary}`. On an ended call, `end`
+   only records; it does not speak. Then tell the user what was agreed and what is
+   still open. Only the simulator exists in this version; do not claim a real caller
+   contacted the user.
