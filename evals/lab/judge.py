@@ -525,8 +525,7 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
             span = " ⏎ ".join(page[start:end])
         if len(span) > 600:
             span = span[:599] + "…"
-        # Count row by row, so a currency label in one row never vouches for a bare number in another.
-        retained = len({token for row in span.split(" ⏎ ") for token in rules if span_match(token, row)})
+        retained = sum(span_match(token, span) for token in rules)
         if retained >= 3:
             chosen.append(((-retained, -best_score[1], step), {"step": step, "page_span": span}))
     # Most figures first, then the shortest block, sharing only the separate span allowance.
