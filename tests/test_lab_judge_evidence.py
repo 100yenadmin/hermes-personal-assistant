@@ -468,6 +468,22 @@ def test_date_conflict_demotes_named_notice_below_matching_time():
     assert "December 24" not in row["seen"]
 
 
+def test_unselected_button_own_date_demotes_notice_below_matching_time():
+    page = ('- button "Iter Myeongdong Christmas December 24 and 25 Seating 3: 19:00–20:30"\n'
+            'Thu Dec 10 • 2 guests\n- button "7:00 PM" [selected]')
+    row = layout_evidence("Iter Myeongdong on 12月10日 at 19:00", [page])[0]
+    assert row["seen"] == 'Thu Dec 10 • 2 guests ⏎ - button "7:00 PM" [selected]'
+
+
+@pytest.mark.parametrize("role", ["button", "tab", "option", "radio", "link", "gridcell",
+                                  "cell", "checkbox", "menuitem", "treeitem"])
+@pytest.mark.parametrize("state", ["", " [selected]", " [checked=true]"])
+def test_own_row_date_counts_regardless_of_control_role_or_state(role, state):
+    row = f'- {role} "Dinner Dec 10 at 7:00 PM"{state}'
+    assert judge.date_context([row], 0) == 0
+    assert layout_evidence("Dinner Dec 10 at 7:00 PM", [row])[0]["seen"] == row
+
+
 def test_date_header_selects_right_copy_and_message_date_fallback():
     page = "Tue Nov 17 • 2 guests\n7:00 PM\nThu Dec 10 • 2 guests\n" + "\n".join(["filler"] * 9) + "\n7:00 PM"
     row = layout_evidence("12月10日に予約します。\n2. **7:00 PM**を選択", [page])[0]
@@ -479,15 +495,12 @@ def test_date_match_breaks_own_word_overlap_tie():
     assert layout_evidence("Dinner on Dec 10 at 19:00", pages)[0]["seen"] == "Dinner at 7:00 PM"
 
 
-def test_bare_price_keeps_heading_middle_and_unit_without_refs():
+def test_short_uppercase_text_blocks_bare_price_heading_and_unit_context():
     page = ('- heading "Add-On: Treasury Services" [level=3, ref=e450]\n- paragraph\n'
             '- StaticText "Global payroll funding."\n- heading "$10" [level=3, ref=e456]\n'
             '- paragraph\n- StaticText "per employee per month"')
     row = layout_evidence("Treasury Services costs $10 per employee per month", [page])[0]
-    assert row["seen"] == ('- heading "Add-On: Treasury Services" [level=3] ⏎ … ⏎ '
-        '- StaticText "Global payroll funding." ⏎ - heading "$10" [level=3] ⏎ … ⏎ '
-        '- StaticText "per employee per month"')
-    assert len(row["seen"]) <= 240
+    assert row["seen"] == '- heading "$10" [level=3, ref=e456]'
 
 
 def test_bare_price_context_cannot_borrow_claim_named_adjacent_card():
@@ -568,7 +581,7 @@ def test_context_extras_preserve_main_figure_rows_and_cut_note_near_4000(overflo
 @pytest.mark.parametrize("selected", [True, False])
 @pytest.mark.parametrize("scaffolding", [False, True])
 @pytest.mark.parametrize("day", ["Thu Dec 10", "Fri Dec 11"])
-def test_date_strip_uses_only_selected_date_or_no_date(selected, scaffolding, day):
+def test_nearer_unselected_date_blocks_selected_strip_context(selected, scaffolding, day):
     rows = ['- button "Wed Dec 9"', '- button "Thu Dec 10"' + (' [selected]' if selected else ''),
         '- button "Fri Dec 11"', '- button "6:30 PM"',
         '- button "7:00 PM" [selected]', '- button "7:30 PM"']
@@ -578,19 +591,16 @@ def test_date_strip_uses_only_selected_date_or_no_date(selected, scaffolding, da
     page = "\n".join(rows)
     seen = layout_evidence(f"Booked {day} at 7:00 PM.", [page])[0]["seen"]
     assert "Fri Dec 11" not in seen and "Wed Dec 9" not in seen
-    if selected:
-        assert seen == '- button "Thu Dec 10" [selected] ⏎ … ⏎ - button "7:00 PM" [selected]'
-    else:
-        assert seen == '- button "7:00 PM" [selected]'
+    assert seen == '- button "7:00 PM" [selected]'
 
 
-def test_reviewer_selected_date_strip_beats_undated_other_result():
+def test_blocked_selected_date_strip_keeps_plain_selected_time_over_undated_result():
     strip = '\n'.join(['- button "Wed Dec 9"', '- button "Thu Dec 10" [selected]',
         '- button "Fri Dec 11"', '- button "6:30 PM"', '- button "7:00 PM" [selected]',
         '- button "7:30 PM"'])
     seen = layout_evidence("Booked Thu Dec 10 at 7:00 PM.",
         [strip, '- StaticText "Popular times: 7:00 PM is busiest"'])[0]["seen"]
-    assert 'Thu Dec 10' in seen and 'Fri Dec 11' not in seen and 'Popular times' not in seen
+    assert seen == '- button "7:00 PM" [selected]'
 
 
 @pytest.mark.parametrize("tail", [
@@ -694,3 +704,72 @@ def test_overlong_date_context_still_scores_but_uses_plain_time_excerpt():
 def test_figure_between_date_headers_prevents_strip_detection(separator):
     page = f"Thu Dec 10\n{separator}\nFri Dec 11\n7:30 PM"
     assert layout_evidence("Booked Fri Dec 11 at 7:30 PM", [page])[0]["seen"] == "Fri Dec 11 ⏎ 7:30 PM"
+
+
+@pytest.mark.parametrize("days", [
+    ['- button "Wed Dec 9"', '- StaticText "¥12,000"',
+     '- button "Thu Dec 10" [selected]', '- StaticText "¥9,800"',
+     '- button "Fri Dec 11"', '- StaticText "¥11,000"'],
+    ['- button "Dec 9"', '- StaticText "Wed"', '- StaticText "few left"',
+     '- StaticText "open"', '- StaticText "book"', '- button "Dec 10" [selected]',
+     '- StaticText "Thu"', '- StaticText "few left"', '- StaticText "open"',
+     '- StaticText "book"', '- button "Dec 11"', '- StaticText "Fri"',
+     '- StaticText "few left"', '- StaticText "open"', '- StaticText "book"'],
+])
+def test_reviewer_fare_and_spaced_day_controls_never_supply_unselected_date(days):
+    page = '\n'.join(days + ['- button "6:30 PM"', '- button "7:00 PM" [selected]'])
+    assert layout_evidence("Booked Fri Dec 11 at 7:00 PM.", [page])[0]["seen"] == (
+        '- button "7:00 PM" [selected]')
+
+
+def test_nearest_selected_date_in_strip_still_provides_correct_claim_context():
+    page = '\n'.join(['- button "Wed Dec 9"', '- StaticText "¥12,000"',
+        '- button "Fri Dec 11"', '- StaticText "¥11,000"',
+        '- button "Thu Dec 10" [selected]', '- StaticText "¥9,800"',
+        '- button "6:30 PM"', '- button "7:00 PM" [selected]'])
+    assert layout_evidence("Booked Thu Dec 10 at 7:00 PM.", [page])[0]["seen"] == (
+        '- button "Thu Dec 10" [selected] ⏎ … ⏎ - button "7:00 PM" [selected]')
+
+
+@pytest.mark.parametrize("role", ["button", "tab", "option", "radio", "link", "gridcell",
+                                  "cell", "checkbox", "menuitem", "treeitem"])
+@pytest.mark.parametrize("state", ["", " [pressed]", " [selected]", " [checked=true]"])
+def test_date_control_requires_state_and_blocks_earlier_usable_date(role, state):
+    page = ['Thu Dec 10', f'- {role} "Fri Dec 11"{state}', '7:00 PM']
+    assert judge.date_context(page, 2) == (1 if state in (' [selected]', ' [checked=true]') else None)
+
+
+@pytest.mark.parametrize("tag", ["button", "option", "li"])
+@pytest.mark.parametrize("state", ["", ' aria-selected="true"'])
+def test_html_date_control_identity_survives_visible_row_conversion(tag, state):
+    page = f'Thu Dec 10\n<{tag}{state}>Fri Dec 11</{tag}>\n7:00 PM'
+    seen = layout_evidence("Booked Fri Dec 11 at 7:00 PM", [page])[0]["seen"]
+    assert ('Fri Dec 11' in seen) == bool(state)
+    assert 'Thu Dec 10' not in seen
+
+
+@pytest.mark.parametrize("name", ['- StaticText "Momiji Lodge"', 'Momiji Lodge',
+                                 '- StaticText "もみじ荘"', '모미지 숙소'])
+def test_short_named_text_blocks_backward_price_context(name):
+    page = '\n'.join(['- heading "Sakura Inn"', name, '- StaticText "4.8"', '- StaticText "$30"'])
+    assert layout_evidence("Sakura Inn costs $30", [page])[0]["seen"] == '- StaticText "$30"'
+
+
+@pytest.mark.parametrize("role", ["gridcell", "listitem", "option"])
+def test_additional_named_roles_block_backward_price_context(role):
+    page = f'- heading "Sakura Inn"\n- {role} "Momiji Lodge"\n- StaticText "4.8"\n- StaticText "$30"'
+    assert layout_evidence("Sakura Inn costs $30", [page])[0]["seen"] == '- StaticText "$30"'
+
+
+def test_gridcell_column_major_table_price_has_no_context():
+    page = '\n'.join(['- heading "Plans" [level=2]', '- gridcell "Basic"', '- gridcell "Pro"',
+                      '- gridcell "$10"', '- gridcell "$20"'])
+    assert layout_evidence("The Pro plan is $10.", [page])[0]["seen"] == '- gridcell "$10"'
+
+
+def test_long_uppercase_description_still_allows_heading_and_unit_context():
+    page = ('- heading "Add-On: Treasury Services"\n- paragraph\n'
+            '- StaticText "Best for companies wanting Deel to manage global payroll funding and disbursement."\n'
+            '- heading "$10"\n- paragraph\n- StaticText "per employee per month"')
+    seen = layout_evidence("Treasury Services costs $10 per employee per month", [page])[0]["seen"]
+    assert all(part in seen for part in ('Add-On: Treasury Services', '$10', 'per employee per month'))

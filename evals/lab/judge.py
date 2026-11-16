@@ -182,7 +182,7 @@ def join_split_prices(page):
     return result
 
 
-def page_rows(texts, boundary_texts=None):
+def page_rows(texts, boundary_texts=None, date_controls=False):
     """Keep tree rows together and split long text/HTML at known item boundaries."""
     names = {match[1] for text in (texts if boundary_texts is None else boundary_texts) for line in text.splitlines()
              if (match := NAME_LINE.match(line)) and not PRICE_LINE.match(line) and len(match[1]) >= 3}
@@ -195,6 +195,9 @@ def page_rows(texts, boundary_texts=None):
                 continue
             for part in re.split(r'(?=</?(?:tr|li)\b)', line, flags=re.I):
                 if re.search(r'<(?:tr|li)\b', part, re.I):
+                    if date_controls and re.search(r'<(?:button|option|li)\b', part, re.I):
+                        yield part
+                        continue
                     # Keep visible text and the timetable/control states, not verbose markup.
                     part = re.sub(r'<[^>]+>', lambda m: ' ' + ' '.join(re.findall(
                         r'\b(?:available|selected|disabled)\b', m[0], re.I)) + ' ', part)
@@ -382,34 +385,24 @@ def month_days(text):
 
 
 def date_context(page, index):
-    """Only a date strip without intervening figures needs a selected date."""
-    nearest = next((i for i in range(index, max(-1, index - 41), -1) if month_days(page[i])), None)
-    if nearest is None or FIGURE.search(page[nearest]):
-        return nearest
-    strip = [nearest]
-    for direction in (-1, 1):
-        gap = 0
-        for i in range(nearest + direction, len(page) if direction > 0 else -1, direction):
-            if SCAFFOLD.fullmatch(page[i]):
-                continue
-            if FIGURE.search(page[i]):
-                break
-            gap += 1
-            if gap > 3:
-                break
-            if month_days(page[i]):
-                strip.append(i)
-                gap = 0
-    if len(strip) > 1:
-        selected = [i for i in strip if STATE.search(page[i])]
-        return selected[0] if len(selected) == 1 else None
-    return nearest
+    """Own-row dates stand alone; nearer unselected controls block earlier dates."""
+    for i in range(index, max(-1, index - 41), -1):
+        if not month_days(page[i]):
+            continue
+        if i == index:
+            return i
+        control = re.search(r'^- (?:button|tab|option|radio|link|gridcell|cell|checkbox|menuitem|treeitem)\b|'
+                            r'<(?:button|option|li)\b', page[i], re.I)
+        if control and not STATE.search(page[i]):
+            return None
+        return i
+    return None
 
 
 def bare_context(page, index, currency, date_index):
     """Choose neighbours by page structure only, never by the claim's words."""
     indices, protected = {index}, {index}
-    if re.match(r'^- (?:cell|row)\b', page[index]):
+    if re.match(r'^- (?:cell|gridcell|row)\b', page[index]):
         return [index], protected
     if date_index is not None:
         indices.add(date_index)
@@ -417,7 +410,10 @@ def bare_context(page, index, currency, date_index):
     if currency:
         heading_found = False
         for i in range(index - 1, max(-1, index - 7), -1):
-            if re.match(r'^- (?:link|button|cell|row|columnheader|rowheader)\s+"[^"\n]+"', page[i]):
+            if re.match(r'^- (?:link|button|cell|gridcell|row|columnheader|rowheader|listitem|option)\s+"[^"\n]+"', page[i]):
+                break
+            name = re.sub(r'^- StaticText "([^"\n]*)".*$', r'\1', page[i])
+            if len(name) <= 40 and re.match(r'^[A-Z\u3040-\u30ff\u3400-\u9fff\uac00-\ud7a3]', name) and not FIGURE.search(page[i]):
                 break
             if any(re.search(r"[¥$€£₩]|(?i:JPY|USD|EUR|KRW|GBP|円|원|yen|won)", m[0])
                    for m in FIGURE.finditer(page[i])):
@@ -532,7 +528,9 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                     state = int(bool(STATE.search(original) or re.search(r'\bselected\b', original)))
                     state += int(bool(re.search(r'\bavailable\b', original)))
                     page = pages[step][text_index]
-                    date_index = date_context(page, row_index) if time is not None else None
+                    date_page = list(page_rows([texts[step][text_index]], boundary_texts=texts[step],
+                        date_controls=True)) if time is not None and "<" in texts[step][text_index] else page
+                    date_index = date_context(date_page, row_index) if time is not None else None
                     dates = month_days(page[date_index]) if date_index is not None else set()
                     date_match = bool(claim_dates & dates)
                     date_conflict = bool(claim_dates and dates and not date_match)
