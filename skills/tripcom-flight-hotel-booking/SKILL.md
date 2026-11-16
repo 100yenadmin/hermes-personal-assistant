@@ -39,7 +39,7 @@ Collect or infer:
 
 Do without asking when safe:
 
-- Search Trip.com.
+- Search Trip.com. For a one-way economy flight for adults only, open the results page directly instead of the search form: `https://www.trip.com/flights/showfarefirst?dcity=<code>&acity=<code>&ddate=<YYYY-MM-DD>&triptype=ow&class=y&quantity=<adults>&curr=<currency>` (city or airport codes). The same path works on the user's locale site, such as `jp.trip.com` or `us.trip.com`. `/flights/list` URLs do not load results (Trip.com's 404 page). If the page times out, take one snapshot. If it does not show the requested route, date, travellers and cabin with fares listed, or the trip has children, infants or another cabin, use the search form (`references/tripcom-playbook.md`).
 - Filter and sort results.
 - Compare at least three reasonable options when available.
 - Open fare or room details.

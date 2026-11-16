@@ -2,7 +2,7 @@
 
 Start at `https://www.trip.com/` and continue only on a Trip.com-owned domain.
 
-For flights: enter origin, destination, dates, travelers, cabin, and stops. Compare at least three options when available. Normalize taxes, baggage, seat fees, and payment fees. Prefer options matching the user's constraints over cheaper options that violate bags, stops, timing, or refund preferences.
+For flights: a one-way economy search for adults only starts from the direct results URL in `SKILL.md`. Otherwise, or when that page does not show the requested search, enter origin, destination, dates, travelers, cabin, and stops. Compare at least three options when available. Normalize taxes, baggage, seat fees, and payment fees. Prefer options matching the user's constraints over cheaper options that violate bags, stops, timing, or refund preferences.
 
 For hotels: enter city or meeting location, dates, guests, room count, and budget. Compare total stay price, taxes, resort fees, cancellation window, location, room type, bed type, and check-in time.
 
