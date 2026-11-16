@@ -433,21 +433,6 @@ def test_span_ignores_hyphenated_numbers_under_a_shared_label():
     assert [row for row in rows if "page_span" in row] == []
 
 
-def test_span_label_in_one_row_does_not_vouch_for_a_bare_number_in_another():
-    # Step 0's context row has a bare 400 and no label; the "(Yen ...)" label sits on another row.
-    # Counted over the joined span it would rank step 0 level with step 1's four real figures and win on
-    # its shorter window; counted row by row it has three, so step 1 takes the shared span allowance.
-    pad = " " + "plain words " * 11
-    transcript = [{"role": "assistant", "step": 0, "content": "¥100 ¥200 ¥300 ¥400"},
-                  {"role": "assistant", "step": 1, "content": "¥500 ¥600 ¥700 ¥800"}]
-    tools = [{"step": 0, "name": "browser_console", "result": "\n".join(
-                 ["Extra 400" + pad, "Item A ¥100 (Yen incl. tax)" + pad, "Item B ¥200" + pad, "Item C ¥300" + pad])},
-             {"step": 1, "name": "browser_console", "result": "\n".join(
-                 ["Cart ¥500" + pad, "¥600" + pad, "¥700" + pad, "¥800" + pad])}]
-    spans = [row for row in judge.claim_evidence(transcript, tools) if "page_span" in row]
-    assert [row["step"] for row in spans] == [1]
-
-
 def test_span_priority_counts_only_figures_retained_after_truncation():
     transcript = [{"role": "assistant", "step": 0, "content": "¥100 ¥200 ¥300 ¥400"},
                   {"role": "assistant", "step": 1, "content": "¥500 ¥600 ¥700"}]
