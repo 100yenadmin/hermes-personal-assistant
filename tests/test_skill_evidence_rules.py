@@ -46,8 +46,11 @@ def test_content_slots_never_make_up_an_action_id():
 
 
 def test_tripcom_flight_search_opens_the_results_url():
-    # 0.28.0-rc.1 wave: /flights/list returned Trip.com's 404 page all 59 times it was opened, and
-    # showfarefirst loaded results all 55 times; s03 run 1 ran out of time after ~30 calls on the search form.
+    # 0.28.0-rc.1 wave, distinct opens: /flights/list 16 (14 Trip.com 404 pages, 1 timeout, 1 redirect home),
+    # showfarefirst 15 (14 loaded results, 1 timeout). s03 run 1 ran out of time after the list page and the form.
     body = text("tripcom-flight-hotel-booking")
     assert "https://www.trip.com/flights/showfarefirst?dcity=<code>&acity=<code>&ddate=<YYYY-MM-DD>&triptype=ow" in body
-    assert "`/flights/list` URLs return Trip.com's 404 page on every site" in body
+    assert "`/flights/list` URLs do not load results (Trip.com's 404 page)" in body
+    assert "or the trip has children, infants or another cabin, use the search form (`references/tripcom-playbook.md`)" in body
+    playbook = " ".join((SKILLS / "tripcom-flight-hotel-booking" / "references" / "tripcom-playbook.md").read_text().split())
+    assert "starts from the direct results URL in `SKILL.md`" in playbook
