@@ -425,14 +425,6 @@ def test_span_shared_yen_labels_and_single_line_search_snippet():
     assert rows[-1] == {"step": 0, "page_span": page.replace("\n", " ⏎ ")}
 
 
-def test_span_ignores_hyphenated_numbers_under_a_shared_label():
-    # Phone numbers and postcodes on a "JPY" row are not listed amounts, so they never form a span.
-    snippet = "Set A ¥5,800 Set B ¥1,234 cancellation ¥3,000"
-    sister = "Sister shop (JPY cash only)\nTel 03-1234-5800 (JPY)\nPostcode 150-3000 (yen accepted)\nSince 2026"
-    rows = layout_evidence("Set A ¥5,800, Set B ¥1,234, cancellation ¥3,000", [snippet, sister])
-    assert [row for row in rows if "page_span" in row] == []
-
-
 def test_span_keeps_dash_separated_amounts_under_a_shared_label():
     # A dash between a name and its price is a separator, not a phone number.
     page = "Courses (Yen)\nYUKI - 5800 (Yen)\nTSUKI - 7800 (Yen)\nHANA - 9800 (Yen)"

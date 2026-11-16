@@ -476,12 +476,9 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
             signs = '|'.join(map(re.escape, [m for ms in markers.values() for m in ms if not m.isalpha()]))
             bare = re.compile(rf'(?<![\d.])(?<!{signs})' + re.escape(number_token)
                               + rf'(?![\d.]|[^\W\d_]|{any_marker})', re.I)
-            # A hyphen tight between digits makes it a phone number, postcode, date or range, not a listed amount.
-            # Check the row with its spaces kept: normalize() drops them, so "Course 1 - 5800" would read "1-5800".
-            spaced = unicodedata.normalize("NFKC", original).replace(",", "")
-            token = re.escape(number_token)
-            tight = re.search(rf'\d-{token}(?!\d)|(?<![\d.]){token}-\d', spaced)
-            return bool(bare.search(line) and not tight and any(
+            # A phone number or postcode on a labelled row can still match here; spans are support only and
+            # figure rows are unchanged, so that noise is accepted (#275 review) rather than risk dropping real prices.
+            return bool(bare.search(line) and any(
                 not original[:m.start()].rstrip()[-1:].isdigit() and not original[m.end():].lstrip()[:1].isdigit()
                 for m in labels.finditer(original)))
         best_score, windows = (2, 0), {}
