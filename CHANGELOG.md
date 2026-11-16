@@ -2,17 +2,17 @@
 
 ## 0.27.0-rc.1 — 2026-11-16
 
-This release candidate adds the social-content admin a remote VA does every week. PA answers routine comments and mentions under the owner's reply policy. It escalates anything sensitive to a named role, ignores spam and gives a weekly content report. It also fixes the s45 miss from 0.26.0-rc.1 and a trip-link gap left open there. The release itself now refuses to ship code its scorecard did not measure.
+This release candidate adds the social-content admin a remote VA does every week. PA drafts replies to routine comments and mentions under the owner's reply policy. It escalates anything sensitive to the owner in a one-line packet that names the sender's role, never the person, ignores spam and gives a weekly content report. It also fixes the s45 miss from 0.26.0-rc.1 and a trip-link gap left open there. The release itself now refuses to ship code its scorecard did not measure.
 - **Comment and mention replies, and a weekly content report (#290, for #289; run on lab stand-ins only, not yet on a live account).**
   - The content-admin skill drafts replies to routine comments and mentions under the owner's reply policy, using facts from the policy only, with no invented dates, prices or delivery times.
-  - Anything sensitive becomes an escalation packet that names a role, never a person.
+  - Anything sensitive becomes a one-line escalation packet to the owner that names the sender's role, never the person.
   - Spam is ignored, and any hide, delete or block is held for the owner's yes.
   - A read-only weekly report gives the counts, the recurring questions and the held items.
   - Nothing is posted, hidden or deleted without the yes.
 - **No inherited dangling trip link (#282, Fixes #281).** `action_prepare` inherits a stored trip link only when it names a stored trip. Trip offers, call preparation and trip-watch receipts may still store a link to a trip that was never imported, since they legitimately run on such trips. A later booking no longer fails after the owner's yes because of one.
-- **The release refuses unmeasured code (#288, for #285).** Before packaging, the release contract compares the merge commit with the commit the release wave measured (`reviewed_implementation_commit`). Only release documents and version strings may differ.
+- **The release refuses unmeasured code (#288, for #285).** Before packaging, the release contract compares the merge commit with the commit the release wave measured (`reviewed_implementation_commit`). In the packaged files, only release documents and version strings may differ.
 - **Lab:**
-  - New kind `content_week` and scenario s48. Its 10 notifications are 6 to answer, 3 to escalate and 1 spam message carrying an injection. Deterministic checks cover decisions, reply facts, no invented commitments, silent escalations, held actions, report figures, nothing sent and no names. The scorecard credits social duties 3–5.
+  - New kind `content_week` and scenario s48. Its 10 notifications are 6 to answer, 3 to escalate and 1 spam message carrying an injection. Deterministic checks cover decisions, reply facts, no invented commitments, silent escalations, held actions, report figures, nothing sent and no names. The scorecard credits the social duties to answer comments, monitor mentions and report weekly.
   - After a gpt-6-astra @ high review of #290, the s48 checks were tightened (#291). Correct replies that failed now pass: negated guarantees, restrictive US-only wording, report sentences about the owner's posts, thank-you replies that mention a time, praise, and refused delivery times. Wrong delivery times such as "10 business days" now fail.
   - s45's summary contract defines `decisions` as surfaced renewals only (#286, for #284).
 
@@ -28,7 +28,7 @@ It ships `releases/0.27.0-rc.1/scorecard.md`, built from 138 Capability Lab runs
   - **Seoul to Tokyo (s01) passes 2 of 3** (0 of 3 in 0.26.0-rc.1).
     - Run 3 was a lab-harness crash, not a PA reply. A lone UTF-16 surrogate in page text during the dinner step made the lab's artifact write fail after it had already emptied `history-step-2.json`, so the runner aborted the run. PA had done the step: its TableCheck action is in the tool log. Steps 2–4 and the judge therefore scored as failures.
     - The fix is #293 (for #292), reviewed. It changes `evals/`, so it merges after this release.
-    - In runs 1 and 2 the judge passed the snack cart. The judge weakness behind #275 did not show up in this wave and is not fixed.
+    - In run 1 the judge passed the staged snack cart. In run 2, Uber Eats returned US addresses, so PA staged no cart and disclosed that, and the judge passed the run on that handoff. The judge weakness behind #275 had one chance to show and did not; it is not fixed.
   - **San Francisco to Tokyo (s03) passes 2 of 3** (3 of 3 in 0.26.0-rc.1).
     - In run 3's Uber step, Uber's web search kept placing the Haneda pickup in the US, and switching the city reset the route, so no fare was shown. PA said it could not get a verified estimate and requested no ride.
     - The judge passed the run. The deterministic `final_or_handoff` check failed it, because the reply names no handoff and no next step, such as the Uber app or GO. That check decides the run.
@@ -43,7 +43,7 @@ It ships `releases/0.27.0-rc.1/scorecard.md`, built from 138 Capability Lab runs
   - 13 areas unproven.
   - In 0.26.0-rc.1, 11 areas had partial checks passing and 2 had partial checks failing. Personal life admin now passes its partial checks with s45.
 - **Review record.**
-  - **gpt-6-astra @ high review of #290** (714080a..7fc5f8a), five findings. Astra rated all five merge-blocking. PA's split: a false fail on a correct reply fails a run by itself, while a wrong reply that passes a check is still caught by the judge.
+  - **gpt-6-astra @ high review of #290** (714080a..7fc5f8a), five findings. Astra rated all five merge-blocking. PA's split: a false fail on a correct reply fails a run by itself, while a wrong reply that passes a check still has to pass the judge, which reads the reply against the sources. That is a second gate, not a guaranteed catch.
     - A1: a negated guarantee failed `no_invention`. MERGE_BLOCKING, FIXED NOW in #291.
     - A2: restrictive US-only wording failed `reply_facts`. MERGE_BLOCKING, FIXED NOW in #291.
     - A3: "10 business days" passed. Reclassified NON_BLOCKING, because the judge gates every run. FIXED NOW in #291 anyway.
@@ -51,7 +51,7 @@ It ships `releases/0.27.0-rc.1/scorecard.md`, built from 138 Capability Lab runs
     - A5: the report's prose figures are unchecked (`report_figures` reads the JSON only). Reclassified NON_BLOCKING, because the judge reads the prose against the sources, as in the s40 customer-report pattern. ACCEPTED TRADEOFF; revisit if a wave run passes with wrong prose figures.
   - **#291 was reviewed in five rounds**, by a fresh Claude reviewer and gpt-6-astra @ high on each delta, plus the bot threads.
     - Every false fail found was fixed.
-    - Rounds 4 and 5 were limited to turning fails into passes. A comparison of 2,532 replies found no correct reply that went from pass to fail.
+    - Rounds 4 and 5 were meant only to turn fails into passes. Round 4 broke that once, Astra caught it, and round 5 fixed it. A comparison over 2,532 strings then found nothing that went from pass to fail. The strings were probe replies, test cases, review examples and smoke drafts.
     - Eight wrong-pass limits are NON_BLOCKING and ACCEPTED FOLLOW-UP on #147:
       1. a negation reaching across "and";
       2. a negating opener with no comma;
