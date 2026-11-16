@@ -288,9 +288,11 @@ def history_evidence(transcript, primary, history, budget=4000):
         return primary
     spans = [row for row in primary if "page_span" in row]
     primary = [row for row in primary if "page_span" not in row]
+    plain_seen = {}
     fallback = {(row["step"], row["figure"]): row
-                for row in claim_evidence(transcript, history, budget=float("inf"))
+                for row in claim_evidence(transcript, history, budget=float("inf"), _plain_seen=plain_seen)
                 if "figure" in row and (row["step"], row["figure"]) in missing and row["seen"] is not None}
+    fallback = {key: {**row, "seen": plain_seen.get(key, row["seen"])} for key, row in fallback.items()}
     filled = [{**row, **fallback[key], "source": "history"} if (key := (row.get("step"), row.get("figure"))) in fallback
               else row for row in primary]
     # History fills are extras: undo them, newest first, before the cut could evict a primary match.
@@ -358,7 +360,9 @@ def pages_seen(tools, budget=3000):
 MONTHS = {name: i for i, name in enumerate(("january", "february", "march", "april", "may", "june",
           "july", "august", "september", "october", "november", "december"), 1)}
 MONTHS.update({name[:3]: i for name, i in list(MONTHS.items())})
-MONTH_NAME = "|".join(sorted(MONTHS, key=len, reverse=True))
+MONTHS["sept"] = 9
+MONTH_NAME = "|".join(variant for name in sorted(MONTHS, key=len, reverse=True)
+                      for variant in (name.title(), name.upper()))
 SCAFFOLD = re.compile(r'^- (?:paragraph|generic|image)(?:\s*\[[^]]*\])*\s*$')
 
 
@@ -367,8 +371,8 @@ def month_days(text):
     text = unicodedata.normalize("NFKC", text)
     found = set()
     for pattern, reverse in ((rf'\b({MONTH_NAME})\.?\s+(\d{{1,2}})(?!\d)', False),
-                             (rf'(?<!\d)(\d{{1,2}})\s+({MONTH_NAME})\b', True)):
-        for match in re.finditer(pattern, text, re.I):
+                             (rf'(?<![\d:])(\d{{1,2}})\s+({MONTH_NAME})\b', True)):
+        for match in re.finditer(pattern, text):
             name, day = (match[2], match[1]) if reverse else (match[1], match[2])
             found.add((MONTHS[name.lower()], int(day)))
     for pattern in (r'(?<!\d)(\d{1,2})\s*[月월]\s*(\d{1,2})\s*[日일]',
@@ -377,15 +381,44 @@ def month_days(text):
     return {(month, day) for month, day in found if 1 <= month <= 12 and 1 <= day <= 31}
 
 
+def date_context(page, index):
+    """Only a date strip without intervening figures needs a selected date."""
+    nearest = next((i for i in range(index, max(-1, index - 41), -1) if month_days(page[i])), None)
+    if nearest is None or FIGURE.search(page[nearest]):
+        return nearest
+    strip = [nearest]
+    for direction in (-1, 1):
+        gap = 0
+        for i in range(nearest + direction, len(page) if direction > 0 else -1, direction):
+            if SCAFFOLD.fullmatch(page[i]):
+                continue
+            if FIGURE.search(page[i]):
+                break
+            gap += 1
+            if gap > 3:
+                break
+            if month_days(page[i]):
+                strip.append(i)
+                gap = 0
+    if len(strip) > 1:
+        selected = [i for i in strip if STATE.search(page[i])]
+        return selected[0] if len(selected) == 1 else None
+    return nearest
+
+
 def bare_context(page, index, currency, date_index):
     """Choose neighbours by page structure only, never by the claim's words."""
     indices, protected = {index}, {index}
+    if re.match(r'^- (?:cell|row)\b', page[index]):
+        return [index], protected
     if date_index is not None:
         indices.add(date_index)
         protected.add(date_index)
     if currency:
         heading_found = False
         for i in range(index - 1, max(-1, index - 7), -1):
+            if re.match(r'^- (?:link|button|cell|row|columnheader|rowheader)\s+"[^"\n]+"', page[i]):
+                break
             if any(re.search(r"[¥$€£₩]|(?i:JPY|USD|EUR|KRW|GBP|円|원|yen|won)", m[0])
                    for m in FIGURE.finditer(page[i])):
                 break
@@ -397,7 +430,8 @@ def bare_context(page, index, currency, date_index):
         for i in range(index + 1, min(len(page), index + 4)) if heading_found else []:
             if SCAFFOLD.fullmatch(page[i]):
                 continue
-            if len(page[i]) <= 40 and not FIGURE.search(page[i]):
+            unit = re.sub(r'^- StaticText "([^"\n]*)".*$', r'\1', page[i])
+            if len(unit) <= 40 and re.match(r'^[a-z/(+*]', unit) and not FIGURE.search(page[i]):
                 indices.add(i)
             break
     indices = sorted(i for i in indices if not SCAFFOLD.fullmatch(page[i]))
@@ -405,27 +439,16 @@ def bare_context(page, index, currency, date_index):
 
 
 def context_excerpt(page, indices, protected):
-    """Keep anchors, discard middle context before shortening retained rows."""
+    """Show all selected context or fall back to the candidate's plain excerpt."""
     rows = {i: compact_row([page[i]]) for i in indices}
     def joined():
         return " ⏎ ".join(("… ⏎ " if n and i > indices[n - 1] + 1 else "") + rows[i]
                           for n, i in enumerate(indices))
-    while len(joined()) > 240:
-        middle = next((i for i in indices if i not in protected), None)
-        if middle is not None:
-            indices.remove(middle)
-            continue
-        # Oversized anchors remain present; shorten their text, not the figure.
-        i = max(indices, key=lambda i: len(rows[i]))
-        match = FIGURE.search(rows[i])
-        excess = len(joined()) - 240
-        width = max(16, len(rows[i]) - excess - 2)
-        start = max(0, match.end() - width) if match else 0
-        rows[i] = ("…" if start else "") + rows[i][start:start + width] + "…"
-    return joined()
+    excerpt = joined()
+    return excerpt if len(excerpt) <= 240 else None
 
 
-def claim_evidence(transcript, tools, per_step=14, budget=4000):
+def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None):
     """Decode JSON string values into same-step page lines; normalize NFKC/spaces/commas.
     Prefix/suffix amounts match exact tokens or complete numbers with same-currency
     markers; times match either clock form, flights match exactly. Keep row context.
@@ -509,8 +532,7 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                     state = int(bool(STATE.search(original) or re.search(r'\bselected\b', original)))
                     state += int(bool(re.search(r'\bavailable\b', original)))
                     page = pages[step][text_index]
-                    date_index = next((i for i in range(row_index, max(-1, row_index - 41), -1)
-                                       if month_days(page[i])), None) if time is not None else None
+                    date_index = date_context(page, row_index) if time is not None else None
                     dates = month_days(page[date_index]) if date_index is not None else set()
                     date_match = bool(claim_dates & dates)
                     date_conflict = bool(claim_dates and dates and not date_match)
@@ -521,13 +543,15 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                     is_bare = not words(remainder)
                     context, protected = bare_context(page, row_index, currency,
                         date_index if claim_dates else None) if is_bare else ([], set())
+                    excerpt = context_excerpt(page, context, protected) if is_bare and len(context) > 1 else None
+                    if excerpt is None:
+                        context = []
                     overlap = words(" ".join(page[i] for i in context)) if context else words(original)
                     score = (int(not in_query), int(not date_conflict), len(claim_words & overlap), int(date_match), state)
                     if score < best_score:
                         continue
                     if score > best_score:
                         best_score, candidates = score, []
-                    excerpt = context_excerpt(page, context, protected) if is_bare and len(context) > 1 else None
                     if original not in [row[0] for row in candidates] and len(candidates) < 3:
                         candidates.append((original, excerpt))
             excerpts, plain_excerpts = [], []
@@ -542,6 +566,8 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
             plain = plain_excerpts if len(plain_excerpts) > 1 else plain_excerpts[0] if plain_excerpts else None
             if seen != plain:
                 plain_seen[len(result)] = plain
+                if _plain_seen is not None:
+                    _plain_seen[(step, figure)] = plain
             result.append({"step": step, "figure": figure, "seen": seen, **({"label_match": True} if loose and seen else {})})
     # Context is extra: undo it, last figure first, before cutting any figure row.
     while len(json.dumps(result, ensure_ascii=False)) > budget and plain_seen:

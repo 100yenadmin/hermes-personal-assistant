@@ -504,11 +504,10 @@ def test_bare_context_does_not_cross_other_currency_or_tool_text():
     assert rows[0]["seen"] == "7:00 PM"
 
 
-def test_context_excerpt_trims_middle_before_anchors():
+def test_overlong_context_uses_plain_excerpt_without_middle_trim():
     page = '- heading "Treasury"\n- StaticText "' + "x" * 300 + '"\n- heading "$10"\n- StaticText "per month"'
     seen = layout_evidence("Treasury $10", [page])[0]["seen"]
-    assert len(seen) <= 240 and "Treasury" in seen and "$10" in seen
-    assert "x" * 20 not in seen
+    assert seen == '- heading "$10"'
 
 
 def test_undated_nonbare_rows_keep_main_selection_and_excerpts():
@@ -519,9 +518,13 @@ def test_undated_nonbare_rows_keep_main_selection_and_excerpts():
 
 
 @pytest.mark.parametrize("figure_row", ["." * 300 + "$10", "$10" + "." * 300])
-def test_context_excerpt_caps_long_figure_row_without_losing_figure(figure_row):
-    excerpt = judge.context_excerpt(['- heading "Price"', figure_row], [0, 1], {0, 1})
-    assert len(excerpt) <= 240 and "$10" in excerpt and "Price" in excerpt
+def test_long_figure_row_drops_context_and_keeps_main_plain_excerpt(figure_row):
+    assert judge.context_excerpt(['- heading "Price"', figure_row], [0, 1], {0, 1}) is None
+    start = max(0, figure_row.index("$10") + 2 - 79)
+    expected = ("…" if start else "") + figure_row[start:start + 160 - bool(start)]
+    if figure_row.startswith("$10."):
+        expected = None  # Main rejects an amount immediately followed by a decimal point.
+    assert layout_evidence("Price is $10", ['- heading "Price"\n' + figure_row])[0]["seen"] == expected
 
 
 def test_currency_ignores_long_unrelated_date_context_and_date_scores():
@@ -560,3 +563,134 @@ def test_context_extras_preserve_main_figure_rows_and_cut_note_near_4000(overflo
     rows = figure_rows(judge.claim_evidence(transcript, tools))
     assert rows == expected
     assert len(json.dumps(rows, ensure_ascii=False)) <= 4000
+
+
+@pytest.mark.parametrize("selected", [True, False])
+@pytest.mark.parametrize("scaffolding", [False, True])
+@pytest.mark.parametrize("day", ["Thu Dec 10", "Fri Dec 11"])
+def test_date_strip_uses_only_selected_date_or_no_date(selected, scaffolding, day):
+    rows = ['- button "Wed Dec 9"', '- button "Thu Dec 10"' + (' [selected]' if selected else ''),
+        '- button "Fri Dec 11"', '- button "6:30 PM"',
+        '- button "7:00 PM" [selected]', '- button "7:30 PM"']
+    if scaffolding:
+        rows.insert(1, "- paragraph")
+        rows.insert(3, "- generic")
+    page = "\n".join(rows)
+    seen = layout_evidence(f"Booked {day} at 7:00 PM.", [page])[0]["seen"]
+    assert "Fri Dec 11" not in seen and "Wed Dec 9" not in seen
+    if selected:
+        assert seen == '- button "Thu Dec 10" [selected] ⏎ … ⏎ - button "7:00 PM" [selected]'
+    else:
+        assert seen == '- button "7:00 PM" [selected]'
+
+
+def test_reviewer_selected_date_strip_beats_undated_other_result():
+    strip = '\n'.join(['- button "Wed Dec 9"', '- button "Thu Dec 10" [selected]',
+        '- button "Fri Dec 11"', '- button "6:30 PM"', '- button "7:00 PM" [selected]',
+        '- button "7:30 PM"'])
+    seen = layout_evidence("Booked Thu Dec 10 at 7:00 PM.",
+        [strip, '- StaticText "Popular times: 7:00 PM is busiest"'])[0]["seen"]
+    assert 'Thu Dec 10' in seen and 'Fri Dec 11' not in seen and 'Popular times' not in seen
+
+
+@pytest.mark.parametrize("tail", [
+    ['- heading "Beta Inn" [level=3]', '- StaticText "$45"'],
+    ['- heading "Beta Inn" [level=3]', '- StaticText "4.5"', '- StaticText "$45"'],
+])
+def test_reviewer_next_card_heading_never_becomes_price_unit(tail):
+    page = '\n'.join(['- heading "Alpha Hotel" [level=3]', '- StaticText "4.8"',
+                      '- StaticText "$30"'] + tail)
+    seen = layout_evidence("Beta Inn is $30.", [page])[0]["seen"]
+    assert 'Alpha Hotel' in seen and 'Beta Inn' not in seen
+
+
+@pytest.mark.parametrize("heading,following,tail,claim", [
+    ('Results', '- StaticText "Beta Inn"', ['- StaticText "$45"'], 'Beta Inn is $30.'),
+    ('Kyoto stays', '- link "Momiji Lodge"',
+     ['- StaticText "4.5"', '- StaticText "$50"', '- link "Sakura Inn"'], 'Sakura Inn in Kyoto is $30.'),
+])
+def test_reviewer_next_card_text_or_link_never_becomes_price_unit(heading, following, tail, claim):
+    page = '\n'.join([f'- heading "{heading}" [level=2]', '- StaticText "4.8"',
+        '- StaticText "$30"', following] + tail)
+    seen = layout_evidence(claim, [page])[0]["seen"]
+    assert following not in seen and 'Sakura Inn' not in seen
+
+
+def test_reviewer_named_link_blocks_context_and_preserves_disproving_price():
+    page = '\n'.join(['- link "Momiji Lodge from $30 per night"',
+        '- heading "Sakura Inn" [level=3]',
+        '- StaticText "Sold out for your dates. Check back later or join the waitlist"',
+        '- link "Momiji Lodge"',
+        '- StaticText "Riverside rooms with private onsen and breakfast included every morning of your stay in Kyoto, five minutes from the station and the old town"',
+        '- StaticText "4.8"', '- StaticText "$30"'])
+    assert layout_evidence("Sakura Inn has rooms for $30 a night.", [page])[0]["seen"] == (
+        '- link "Momiji Lodge from $30 per night"')
+
+
+@pytest.mark.parametrize("role", ["link", "button", "cell", "row", "columnheader", "rowheader"])
+def test_named_structural_row_blocks_backward_price_context(role):
+    page = f'- heading "Sakura Inn"\n- {role} "Momiji Lodge"\n- StaticText "4.8"\n- StaticText "$30"'
+    assert layout_evidence("Sakura Inn costs $30", [page])[0]["seen"] == '- StaticText "$30"'
+
+
+@pytest.mark.parametrize("role", ["cell", "row"])
+def test_reviewer_column_major_table_price_has_no_context(role):
+    page = '\n'.join(['- heading "Plans" [level=2]', '- cell "Basic"', '- cell "Pro"',
+                      f'- {role} "$10"', '- cell "$20"'])
+    assert layout_evidence("The Pro plan is $10.", [page])[0]["seen"] == f'- {role} "$10"'
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("a party of 4 may arrive", set()), ("19:30 may be full", set()),
+    ("10:30 dec 5", set()), ("10:30 Dec 5", {(12, 5)}),
+    ("You may 2 guests", set()), ("mar 3", set()), ("Gate 5 may change", set()),
+    ("Tables for 2 may open", set()), ("Sept 10", {(9, 10)}),
+    ("MAY 4; May 4; DEC 5; Dec 5", {(5, 4), (12, 5)}),
+])
+def test_reviewer_month_names_do_not_parse_lowercase_words_or_time_minutes(text, expected):
+    assert judge.month_days(text) == expected
+
+
+@pytest.mark.parametrize("time,claim", [
+    ("7:00 PM", "Your 7:00 PM table is held; a party of 4 may arrive late."),
+    ("7:30 PM", "19:30 may be full, so I booked 7:30 PM."),
+])
+def test_reviewer_lowercase_may_does_not_demote_dated_slot(time, claim):
+    pages = [f'- heading "Thu Dec 10" [level=3]\n- button "{time}" [selected]',
+             f'- StaticText "Popular times: {time} is busiest"']
+    for row in figure_rows(layout_evidence(claim, pages)):
+        assert row['seen'] == [
+            f'- heading "Thu Dec 10" [level=3] | - button "{time}" [selected]',
+            f'- button "{time}" [selected]']
+
+
+@pytest.mark.parametrize("tight", [False, True])
+@pytest.mark.parametrize("description_repeats", [1, 2])
+def test_reviewer_history_fill_always_uses_plain_excerpt_under_tight_budget(tight, description_repeats):
+    filler = "\n".join(f'- StaticText "Option {i} costs ${100+i} with a long description of features included in the plan for everyone {"x"*90}"' for i in range(12))
+    hist_page = "\n".join(['- heading "Sakura Inn Kyoto Station Annex" [level=3]',
+        '- StaticText "' + 'Quiet rooms near the river, free breakfast and late checkout for members '*description_repeats + '"',
+        '- StaticText "4.8"', '- StaticText "$30"'])
+    claim = " ".join(f"Option {i} is ${100+i}." for i in range(12)) + " Sakura Inn Kyoto Station Annex is $30."
+    transcript = [{"role": "assistant", "step": 0, "content": claim}]
+    primary = judge.claim_evidence(transcript, [{"name": "browser_snapshot", "step": 0, "result": filler}])
+    history = [{"name": "browser_snapshot", "step": 0, "result": hist_page}]
+    if description_repeats == 1:
+        candidate = next(row for row in judge.claim_evidence(transcript, history) if row.get("figure") == "$30")
+        assert "Sakura Inn Kyoto Station Annex" in candidate["seen"]
+    expected = [{**row, "seen": '- StaticText "$30"', "source": "history"}
+                if row.get("figure") == "$30" else row for row in primary]
+    budget = len(json.dumps(figure_rows(expected), ensure_ascii=False)) + 5 if tight else 10**6
+    assert judge.history_evidence(transcript, primary, history, budget=budget) == expected
+
+
+def test_overlong_date_context_still_scores_but_uses_plain_time_excerpt():
+    dated = 'Thu Dec 10 ' + 'long description ' * 30
+    seen = layout_evidence('Dinner on Dec 10 at 19:00', ['Dinner Dec 11 at 19:00', dated + '\n7:00 PM'])[0]['seen']
+    assert seen == '7:00 PM'
+
+
+@pytest.mark.parametrize("separator", ["7:00 PM", "$30"])
+def test_figure_between_date_headers_prevents_strip_detection(separator):
+    page = f"Thu Dec 10\n{separator}\nFri Dec 11\n7:30 PM"
+    assert layout_evidence("Booked Fri Dec 11 at 7:30 PM", [page])[0]["seen"] == "Fri Dec 11 ⏎ 7:30 PM"
