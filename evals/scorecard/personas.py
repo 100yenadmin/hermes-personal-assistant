@@ -11,7 +11,7 @@ PERSONAS = [
     {"key": "solo_founder", "title": "Solo founder", "days": [
         (1, "s35_onboarding_first_win_en"), (1, "s24_inbox_triage_en"),
         (2, "s36_inbox_awaiting_en"), (2, "s33_invoice_chase_en"),
-        (3, "s20_follow_through_chase_en"), (3, "s38_content_calendar_en"),
+        (3, "s20_follow_through_chase_en"), (3, "s38_content_calendar_en"), (3, "s48_content_week_en"),
         (4, "s42_role_two_days_en"), (4, "s22_eod_note_en"),
         (5, "s16_cos_weekly_en")]},
     {"key": "executive", "title": "Executive", "days": [
@@ -23,7 +23,7 @@ PERSONAS = [
     {"key": "agency_owner", "title": "Agency owner", "days": [
         (1, "s24_inbox_triage_en"), (1, "s31_customer_policy_en"),
         (2, "s28_vendor_request_en"), (2, "s33_invoice_chase_en"),
-        (3, "s32_contacts_cleanup_en"), (3, "s38_content_calendar_en"),
+        (3, "s32_contacts_cleanup_en"), (3, "s38_content_calendar_en"), (3, "s48_content_week_en"),
         (4, "s40_customer_report_en"),
         (5, "s22_eod_note_en"), (5, "s16_cos_weekly_en")]},
     {"key": "family_user", "title": "Family user", "days": [

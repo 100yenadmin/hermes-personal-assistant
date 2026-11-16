@@ -147,7 +147,8 @@ def test_skill_contract_and_registration():
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == front["metadata"]["openclaw"]["skillKey"] == "content-admin"
     assert front["metadata"]["hermes"] == {"category": "productivity", "tags": ["personal-assistant", "content", "social"]}
-    assert len(text.splitlines()) <= 70
+    # 115 since #289 added comment and mention replies and the weekly report; keep the skill short.
+    assert len(text.splitlines()) <= 115
     for name, key, value in [("openclaw.plugin.json", "skills", "skills/content-admin"),
         ("skills/travel-action-pack-manifest/openclaw.plugin.json", "skills", "../content-admin"),
         ("support-control/component.json", "required_skills", "content-admin")]:

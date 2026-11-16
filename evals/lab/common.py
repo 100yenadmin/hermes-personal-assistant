@@ -20,8 +20,16 @@ def scrub(value):
     return DEVTOOLS_URL.sub("[REDACTED]", CONNECT_KEYS.sub(r"\1[REDACTED]", text))
 
 
+LONE_SURROGATE = re.compile(r"[\ud800-\udfff]")
+
+
+def encodable(text):
+    """Page text can carry a lone UTF-16 surrogate; UTF-8 cannot encode it, and write_text would leave an empty file."""
+    return LONE_SURROGATE.sub("\ufffd", text)
+
+
 def write(path, value):
-    Path(path).write_text(scrub(json.dumps(value, ensure_ascii=False, indent=2)), encoding="utf-8")
+    Path(path).write_text(encodable(scrub(json.dumps(value, ensure_ascii=False, indent=2))), encoding="utf-8")
 
 
 def read(path, default=None):
@@ -37,4 +45,4 @@ def lines(path):
 
 def append(path, value):
     with Path(path).open("a", encoding="utf-8") as f:
-        f.write(scrub(json.dumps(value, ensure_ascii=False)) + "\n")
+        f.write(encodable(scrub(json.dumps(value, ensure_ascii=False))) + "\n")

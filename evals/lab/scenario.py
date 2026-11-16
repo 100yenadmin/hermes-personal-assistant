@@ -208,7 +208,50 @@ def validate(s):
             require(data.get("action_type") in (("note", "commitment", "offer", "notification") if lab else ("note", "commitment")) and isinstance(data.get("fields"), dict)
                     and isinstance(data.get("action_id"), str) and bool(data["action_id"]), f"seed[{i}].data")
     if lab:
-        require(s["lab"].get("kind") in {"chase", "radar", "contracts", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "tax_pack", "invoice_prep", "month_end", "minutes", "content", "onboarding", "customer_report", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
+        require(s["lab"].get("kind") in {"chase", "radar", "contracts", "eod", "health", "inbox", "invite", "meetings", "booking", "approvals", "vendor_request", "disruption", "expense", "owner_documents", "documents", "invoice", "tax_pack", "invoice_prep", "month_end", "minutes", "content", "onboarding", "customer_report", "content_week", "priorities", "family", "role_followthrough", "week"}, "lab.kind")
+        if s["lab"]["kind"] == "content_week":
+            lab = s["lab"]
+            expected = lab.get("expected")
+            require(isinstance(expected, dict), "lab.expected")
+            decisions, facts = expected.get("decisions"), expected.get("required_facts")
+            threads = lab.get("threads")
+            require(isinstance(threads, list) and bool(threads) and all(isinstance(t, dict)
+                    and all(isinstance(t.get(k), str) and t[k] for k in ("thread_id", "channel", "type", "name", "body"))
+                    and t["channel"] in {"Instagram", "LinkedIn", "X"} and t["type"] in {"comment", "mention"} for t in threads), "lab.threads")
+            require(isinstance(decisions, dict) and len(decisions) == len(threads)
+                    and set(decisions) == {t["thread_id"] for t in threads}
+                    and all(d in {"reply", "escalate", "ignore"} for d in decisions.values()), "lab.expected.decisions")
+            require(isinstance(facts, dict) and set(facts) == {k for k, d in decisions.items() if d == "reply"}
+                    and all(isinstance(v, list) and v and all(isinstance(f, str) and f for f in v) for v in facts.values()), "lab.expected.required_facts")
+            shipping = expected.get("shipping_policy")
+            require(isinstance(shipping, list) and all(isinstance(tid, str) and tid in facts for tid in shipping),
+                    "lab.expected.shipping_policy")
+            recurring = expected.get("recurring")
+            require(isinstance(recurring, list) and all(isinstance(r, dict)
+                    and isinstance(r.get("question"), str) and r["question"]
+                    and isinstance(r.get("keywords"), list) and r["keywords"]
+                    and all(isinstance(k, str) and k for k in r["keywords"])
+                    and type(r.get("count")) is int and r["count"] >= 2 for r in recurring), "lab.expected.recurring")
+            for patterns in facts.values():
+                for pattern in patterns:
+                    try:
+                        re.compile(pattern)
+                    except re.error:
+                        raise ValueError("lab.expected.required_facts: invalid regex") from None
+            figures = expected.get("report")
+            require(isinstance(figures, dict), "lab.expected.report")
+            require(all(type(figures.get(k)) is int and figures[k] >= 0 for k in
+                    ("published", "dropped", "drafted", "escalated", "ignored")), "lab.expected.report.counts")
+            require(all(isinstance(figures.get(k), dict) and figures[k] and all(isinstance(c, str)
+                    and type(n) is int and n >= 0 for c, n in figures[k].items()) for k in ("comments", "mentions")), "lab.expected.report.channels")
+            require(isinstance(figures.get("recurring"), list) and bool(figures["recurring"])
+                    and all(isinstance(r, dict) and isinstance(r.get("question"), str) and r["question"]
+                            and type(r.get("count")) is int and r["count"] >= 2 for r in figures["recurring"]), "lab.expected.report.recurring")
+            slots = figures.get("next_week")
+            seeded = [i["data"]["fields"] for i in s.get("seed", []) if i["data"].get("source_id") == "content-calendar"
+                      and i["data"].get("status") == "open"]
+            require(isinstance(slots, list) and bool(slots) and slots == [dict(date=f.get("publish_on"), channel=f.get("channel"), topic=f.get("topic"))
+                    for f in seeded] and all(isinstance(v, str) and v for r in slots for v in r.values()), "lab.expected.report.next_week")
         if s["lab"]["kind"] == "invoice_prep":
             expected = s["lab"].get("expected")
             require(isinstance(expected, dict), "lab.expected")
