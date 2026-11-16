@@ -425,6 +425,21 @@ def test_span_shared_yen_labels_and_single_line_search_snippet():
     assert rows[-1] == {"step": 0, "page_span": page.replace("\n", " ⏎ ")}
 
 
+def test_span_ignores_hyphenated_numbers_under_a_shared_label():
+    # Phone numbers and postcodes on a "JPY" row are not listed amounts, so they never form a span.
+    snippet = "Set A ¥5,800 Set B ¥1,234 cancellation ¥3,000"
+    sister = "Sister shop (JPY cash only)\nTel 03-1234-5800 (JPY)\nPostcode 150-3000 (yen accepted)\nSince 2026"
+    rows = layout_evidence("Set A ¥5,800, Set B ¥1,234, cancellation ¥3,000", [snippet, sister])
+    assert [row for row in rows if "page_span" in row] == []
+
+
+def test_span_label_in_one_row_does_not_vouch_for_a_bare_number_in_another():
+    # Only one row names the currency; the bare numbers on the other rows are not counted for it.
+    page = "Prices (Yen) 5800\nRoom 7800\nFloor 9800\nSuite 12000"
+    rows = layout_evidence("¥5,800, ¥7,800 and ¥9,800", [page])
+    assert [row for row in rows if "page_span" in row] == []
+
+
 def test_span_priority_counts_only_figures_retained_after_truncation():
     transcript = [{"role": "assistant", "step": 0, "content": "¥100 ¥200 ¥300 ¥400"},
                   {"role": "assistant", "step": 1, "content": "¥500 ¥600 ¥700"}]

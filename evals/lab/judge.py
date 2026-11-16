@@ -359,6 +359,7 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
     """Decode JSON string values into same-step page lines; normalize NFKC/spaces/commas.
     Prefix/suffix amounts match exact tokens or complete numbers with same-currency
     markers; times match either clock form, flights match exactly. Keep row context.
+    `budget` bounds the figure rows and the cut note; page spans use SPAN_BUDGET on top of it.
     """
     normalize = lambda text: "".join(unicodedata.normalize("NFKC", text).split()).replace(",", "")
     def words(text):
@@ -473,8 +474,9 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                 else re.escape(m) for m in aliases), re.I)
             any_marker = '|'.join(map(re.escape, sorted({m for ms in markers.values() for m in ms}, key=len, reverse=True)))
             signs = '|'.join(map(re.escape, [m for ms in markers.values() for m in ms if not m.isalpha()]))
-            bare = re.compile(rf'(?<![\d.])(?<!{signs})' + re.escape(number_token)
-                              + rf'(?![\d.]|[^\W\d_]|{any_marker})', re.I)
+            # A hyphen next to the digits makes it a phone number, postcode, date or range, not a listed amount.
+            bare = re.compile(rf'(?<![\d.\-])(?<!{signs})' + re.escape(number_token)
+                              + rf'(?![\d.\-]|[^\W\d_]|{any_marker})', re.I)
             return bool(bare.search(line) and any(
                 not original[:m.start()].rstrip()[-1:].isdigit() and not original[m.end():].lstrip()[:1].isdigit()
                 for m in labels.finditer(original)))
@@ -522,7 +524,8 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
             span = " ⏎ ".join(page[start:end])
         if len(span) > 600:
             span = span[:599] + "…"
-        retained = sum(span_match(token, span) for token in rules)
+        # Count row by row, so a currency label in one row never vouches for a bare number in another.
+        retained = len({token for row in span.split(" ⏎ ") for token in rules if span_match(token, row)})
         if retained >= 3:
             chosen.append(((-retained, -best_score[1], step), {"step": step, "page_span": span}))
     # Most figures first, then the shortest block, sharing only the separate span allowance.
