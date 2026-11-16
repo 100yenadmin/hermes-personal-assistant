@@ -834,4 +834,70 @@ def test_selected_time_retention_leaves_history_plain_fills_unchanged():
     tools = [{"step": 0, "name": "browser_snapshot", "result":
               '- button "Thu Dec 10 7:00 PM" [selected]\n- button "Fri Dec 11 7:00 PM"'}]
     primary = judge.claim_evidence(transcript, [])
-    assert judge.history_evidence(transcript, primary, tools)[0]["seen"] == '- button "Fri Dec 11 7:00 PM"'
+    assert judge.history_evidence(transcript, primary, tools)[0]["seen"] == '- button "Thu Dec 10 7:00 PM" [selected]'
+
+
+@pytest.mark.parametrize("control", ['<li>Dec&nbsp;11</li>', '<button><span>Dec</span> 11</button>'])
+def test_html_visible_date_control_blocks_earlier_selected_day(control):
+    page = '<li aria-selected="true">Thu Dec 10</li>\n' + control + '\n7:00 PM'
+    assert layout_evidence('Booked Dec 10 at 7:00 PM.', [page])[0]['seen'] == '7:00 PM'
+
+
+@pytest.mark.parametrize("control", ['<li aria-selected="true">Dec&nbsp;11</li>',
+                                      '<button aria-selected="true"><span>Dec</span> 11</button>'])
+def test_html_visible_selected_date_keeps_its_attributes(control):
+    page = 'Thu Dec 10\n' + control + '\n7:00 PM'
+    rows = list(judge.page_rows([page], date_controls=True))
+    index = judge.date_context(rows, len(rows) - 1)
+    assert index is not None and 'aria-selected="true"' in rows[index]
+    assert judge.month_days(judge.date_text(rows[index])) == {(12, 11)}
+
+
+def test_html_date_control_view_built_once_per_step_and_result(monkeypatch):
+    original = judge.page_rows
+    calls = []
+    def counted(texts, *args, **kwargs):
+        if kwargs.get('date_controls'):
+            calls.append(tuple(texts))
+        return original(texts, *args, **kwargs)
+    monkeypatch.setattr(judge, 'page_rows', counted)
+    page = '<ul>' + ''.join(f'<li><button>Dec 11 7:00 PM option {i}</button></li>' for i in range(600)) + '</ul>'
+    transcript = [{'role': 'assistant', 'step': i, 'content': 'Booked Dec 11 at 7:00 PM and 19:00.'}
+                  for i in (0, 1)]
+    tools = [{'step': i, 'name': 'browser_snapshot', 'result': text}
+             for i in (0, 1) for text in (page, page.replace('option', 'choice'))]
+    judge.claim_evidence(transcript, tools)
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize("heading", ['- heading "Beta"'] + [f'<h{i}>Beta</h{i}>' for i in range(1, 7)])
+def test_date_context_stops_at_another_item_heading(heading):
+    page = '- heading "Alpha"\n- StaticText "Thu Dec 10"\n- button "6:00 PM"\n' + heading + '\n- button "7:00 PM"'
+    assert layout_evidence('Beta at 7:00 PM on Dec 10', [page])[0]['seen'] == '- button "7:00 PM"'
+
+
+@pytest.mark.parametrize("claim,page,expected", [
+    ('Booked Dec 11 at 7:00 PM.', '- button "Thu Dec 10 7:00 PM" [selected]\n- button "Fri Dec 11 7:00 PM"',
+     '- button "Thu Dec 10 7:00 PM" [selected]'),
+    ('Treasury costs $10 per employee per month.', '- StaticText "Other plan $10"\n- heading "Treasury"\n- paragraph\n- heading "$10"\n- paragraph\n- StaticText "per employee per month"',
+     ['- StaticText "Other plan $10"', '- heading "$10"']),
+])
+def test_history_selection_uses_main_date_and_bare_row_scores(claim, page, expected):
+    transcript = [{'role': 'assistant', 'step': 0, 'content': claim}]
+    history = [{'step': 0, 'name': 'browser_snapshot', 'result': page}]
+    primary = judge.claim_evidence(transcript, [])
+    assert judge.history_evidence(transcript, primary, history)[0]['seen'] == expected
+
+
+def test_selected_time_extra_rolls_back_before_figure_cut():
+    page = '- button "Thu Dec 10 7:00 PM" [selected]\n- button "Fri Dec 11 7:00 PM"'
+    assert layout_evidence('Booked Dec 11 at 7:00 PM.', [page], budget=120) == [
+        {'step': 0, 'figure': '7:00 PM', 'seen': '- button "Fri Dec 11 7:00 PM"'}]
+
+
+def test_selected_time_extra_rollback_restores_third_candidate_and_context():
+    choices = [f'Fri Dec 11 choice {i}\n7:00 PM' for i in range(3)]
+    selected = '- button "Thu Dec 10 7:00 PM" [selected]'
+    expected = layout_evidence('Booked Dec 11 at 7:00 PM.', choices)
+    budget = len(json.dumps(expected, ensure_ascii=False))
+    assert layout_evidence('Booked Dec 11 at 7:00 PM.', choices + [selected], budget=budget) == expected

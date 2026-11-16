@@ -384,10 +384,16 @@ def month_days(text):
     return {(month, day) for month, day in found if 1 <= month <= 12 and 1 <= day <= 31}
 
 
+def date_text(row):
+    return " ".join(unescape(re.sub(r'<[^>]+>', ' ', row)).split())
+
+
 def date_context(page, index):
     """Own-row dates stand alone; nearer unselected controls block earlier dates."""
     for i in range(index, max(-1, index - 41), -1):
-        if not month_days(page[i]):
+        if not month_days(date_text(page[i])):
+            if re.search(r'^- heading\b|<h[1-6]\b', page[i], re.I):
+                return None
             continue
         if i == index:
             return i
@@ -492,9 +498,12 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                 figure = match.group().strip()
                 if len(step_figures) < per_step:
                     step_figures.setdefault(normalize(figure), (figure, claim_line, month_days(claim_line) or month_days(message.get("content") or "")))
-    result, plain_seen = [], {}
+    result, plain_seen, selected_seen, date_pages = [], {}, {}, {}
+    plain_mode = _plain_seen is not None
     for step, step_figures in figures.items():
         for token, (figure, claim_line, claim_dates) in step_figures.items():
+            if plain_mode:
+                claim_dates = set()
             claim_words, best_score = words(claim_line), (-1,) * 5
             rows = [(text_index, i, original, normalize(original))
                     for text_index, page in enumerate(pages.get(step, [])) for i, original in enumerate(page)]
@@ -534,17 +543,19 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                     state = int(bool(STATE.search(original) or re.search(r'\bselected\b', original)))
                     state += int(bool(re.search(r'\bavailable\b', original)))
                     page = pages[step][text_index]
-                    date_page = list(page_rows([texts[step][text_index]], boundary_texts=texts[step],
-                        date_controls=True)) if time is not None and "<" in texts[step][text_index] else page
-                    date_index = date_context(date_page, row_index) if time is not None else None
-                    dates = month_days(page[date_index]) if date_index is not None else set()
+                    if time is not None and not plain_mode and (step, text_index) not in date_pages:
+                        date_pages[step, text_index] = list(page_rows([texts[step][text_index]],
+                            boundary_texts=texts[step], date_controls=True)) if "<" in texts[step][text_index] else page
+                    date_page = date_pages.get((step, text_index), page)
+                    date_index = date_context(date_page, row_index) if time is not None and not plain_mode else None
+                    dates = month_days(date_text(date_page[date_index])) if date_index is not None else set()
                     date_match = bool(claim_dates & dates)
                     date_conflict = bool(claim_dates and dates and not date_match)
                     # Tree role/attribute syntax is scaffolding, not visible words on a bare row.
                     remainder = TIME.sub(lambda m: "" if clock_time(m[0]) == time else m[0], original) if time is not None else FIGURE.sub(lambda m: "" if exact.search(normalize(m[0])) or
                         (number and number.search(normalize(m[0]))) else m[0], original)
                     remainder = re.sub(r'\[[^]]*\]|(?:^|\|)\s*- \w+\s*', "", remainder)
-                    is_bare = not words(remainder)
+                    is_bare = not plain_mode and not words(remainder)
                     context, protected = bare_context(page, row_index, currency,
                         date_index if claim_dates else None) if is_bare else ([], set())
                     excerpt = context_excerpt(page, context, protected) if is_bare and len(context) > 1 else None
@@ -561,8 +572,9 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                         best_score, candidates = score, []
                     if original not in [row[0] for row in candidates] and len(candidates) < 3:
                         candidates.append((original, excerpt, selected))
-            if time is not None and claim_dates and _plain_seen is None and selected_best and not any(row[2] for row in candidates):
-                candidates = candidates[:2] + [(*selected_best[1:], True)]
+            extra = bool(time is not None and claim_dates and not plain_mode and selected_best and not any(row[2] for row in candidates))
+            if extra:
+                candidates = candidates + [(*selected_best[1:], True)]
             excerpts, plain_excerpts = [], []
             for original, excerpt, _ in candidates:
                 pattern = "".join(re.escape(c) + (r"[,\s]*" if c.isdigit() else "") for c in number_token)
@@ -571,14 +583,21 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                 plain = ("…" if start else "") + original[start:start + 160 - bool(start)]
                 plain_excerpts.append(plain)
                 excerpts.append(excerpt if excerpt is not None else plain)
-            seen = excerpts if len(excerpts) > 1 else excerpts[0] if excerpts else None
-            plain = plain_excerpts if len(plain_excerpts) > 1 else plain_excerpts[0] if plain_excerpts else None
-            if seen != plain:
+            as_seen = lambda values: values if len(values) > 1 else values[0] if values else None
+            base_seen = as_seen(excerpts[:-1] if extra else excerpts)
+            seen = as_seen(excerpts[:-1][:2] + excerpts[-1:] if extra else excerpts)
+            plain = as_seen(plain_excerpts[:-1] if extra else plain_excerpts)
+            if extra:
+                selected_seen[len(result)] = base_seen
+            if base_seen != plain:
                 plain_seen[len(result)] = plain
                 if _plain_seen is not None:
                     _plain_seen[(step, figure)] = plain
             result.append({"step": step, "figure": figure, "seen": seen, **({"label_match": True} if loose and seen else {})})
-    # Context is extra: undo it, last figure first, before cutting any figure row.
+    # Selected-row retention and context are extras; undo them before cutting figures.
+    while len(json.dumps(result, ensure_ascii=False)) > budget and selected_seen:
+        index = max(selected_seen)
+        result[index] = {**result[index], "seen": selected_seen.pop(index)}
     while len(json.dumps(result, ensure_ascii=False)) > budget and plain_seen:
         index = max(plain_seen)
         result[index] = {**result[index], "seen": plain_seen.pop(index)}
