@@ -43,3 +43,11 @@ def test_content_slots_never_make_up_an_action_id():
     # Cancelling by the listed id avoids rebuilding the occurrence by hand (#207 follow-up review).
     assert 'Send only `"status":"cancelled"`, with its listed `action_id`, for each open slot' in body
     assert '"source_id":"content-calendar", "action_kind":"content", "occurrence":"<channel>-<YYYY-MM-DD>"' in body
+
+
+def test_tripcom_flight_search_opens_the_results_url():
+    # 0.28.0-rc.1 wave: /flights/list returned Trip.com's 404 page all 59 times it was opened, and
+    # showfarefirst loaded results all 55 times; s03 run 1 ran out of time after ~30 calls on the search form.
+    body = text("tripcom-flight-hotel-booking")
+    assert "https://www.trip.com/flights/showfarefirst?dcity=<code>&acity=<code>&ddate=<YYYY-MM-DD>&triptype=ow" in body
+    assert "`/flights/list` URLs return Trip.com's 404 page on every site" in body

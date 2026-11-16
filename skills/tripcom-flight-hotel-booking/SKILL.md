@@ -39,7 +39,7 @@ Collect or infer:
 
 Do without asking when safe:
 
-- Search Trip.com.
+- Search Trip.com. For a one-way flight, open the results page directly instead of the search form: `https://www.trip.com/flights/showfarefirst?dcity=<code>&acity=<code>&ddate=<YYYY-MM-DD>&triptype=ow&class=y&quantity=<adults>&curr=<currency>` (city or airport codes; `class=y` is economy). The same path works on the user's locale site, such as `jp.trip.com` or `us.trip.com`. `/flights/list` URLs return Trip.com's 404 page on every site.
 - Filter and sort results.
 - Compare at least three reasonable options when available.
 - Open fare or room details.
