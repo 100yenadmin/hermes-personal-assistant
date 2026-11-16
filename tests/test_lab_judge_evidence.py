@@ -522,3 +522,41 @@ def test_undated_nonbare_rows_keep_main_selection_and_excerpts():
 def test_context_excerpt_caps_long_figure_row_without_losing_figure(figure_row):
     excerpt = judge.context_excerpt(['- heading "Price"', figure_row], [0, 1], {0, 1})
     assert len(excerpt) <= 240 and "$10" in excerpt and "Price" in excerpt
+
+
+def test_currency_ignores_long_unrelated_date_context_and_date_scores():
+    heading = '- heading "Payroll"'
+    dated = 'December 24: ' + 'unrelated flight description ' * 20
+    page = dated + '\n' + heading + '\n$29'
+    # A matching date on another copy must not demote the structurally named price.
+    row = layout_evidence('Payroll on Dec 10 costs $29', [page, 'Dec 10\n$29'])[0]
+    assert row['seen'] == heading + ' ⏎ $29'
+    snippet = "Deel's payroll prices in 2026: US$29 a month for each employee"
+    row = layout_evidence('Deel payroll on Dec 10 costs $29', [dated + '\n' + snippet, '$29'])[0]
+    assert row['seen'] == snippet
+
+
+@pytest.mark.parametrize("overflow", [False, True])
+def test_context_extras_preserve_main_figure_rows_and_cut_note_near_4000(overflow):
+    prices = [f'${1000 + i}' for i in range(14)]
+    lines = [f'Menu option {k} {price} ' + 'x' * 62 for price in prices[:-1] for k in range(3)]
+    expected = [{'step': 0, 'figure': price, 'seen': lines[i * 3:i * 3 + 3]}
+                for i, price in enumerate(prices[:-1])]
+    expected.append({'step': 0, 'figure': prices[-1], 'seen': prices[-1]})
+    # Main's candidate excerpts consume 3990 characters; context exceeds the spare ten.
+    padding = 3990 - len(json.dumps(expected, ensure_ascii=False))
+    assert 0 < padding < 80
+    lines[0] += 'x' * padding
+    expected[0]['seen'][0] = lines[0]
+    assert len(json.dumps(expected, ensure_ascii=False)) == 3990
+    page = '\n'.join(lines) + '\n- heading "A long optional price context"\n' + prices[-1]
+    transcript = [{'role': 'assistant', 'step': 0, 'content': '\n'.join(prices)}]
+    tools = [{'step': 0, 'name': 'browser_console', 'result': page}]
+    if overflow:
+        transcript.append({'role': 'assistant', 'step': 1, 'content': '$9999'})
+        tools.append({'step': 1, 'name': 'browser_console', 'result': 'Other price $9999'})
+        # Main cuts the final figures, including room for its cut note.
+        expected = expected[:-1] + [{'note': 'lab cut 2 figures'}]
+    rows = figure_rows(judge.claim_evidence(transcript, tools))
+    assert rows == expected
+    assert len(json.dumps(rows, ensure_ascii=False)) <= 4000

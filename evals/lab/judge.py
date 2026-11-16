@@ -467,7 +467,7 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                 figure = match.group().strip()
                 if len(step_figures) < per_step:
                     step_figures.setdefault(normalize(figure), (figure, claim_line, month_days(claim_line) or month_days(message.get("content") or "")))
-    result, selected = [], {}
+    result, plain_seen = [], {}
     for step, step_figures in figures.items():
         for token, (figure, claim_line, claim_dates) in step_figures.items():
             claim_words, best_score = words(claim_line), (-1,) * 5
@@ -510,7 +510,7 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                     state += int(bool(re.search(r'\bavailable\b', original)))
                     page = pages[step][text_index]
                     date_index = next((i for i in range(row_index, max(-1, row_index - 41), -1)
-                                       if month_days(page[i])), None)
+                                       if month_days(page[i])), None) if time is not None else None
                     dates = month_days(page[date_index]) if date_index is not None else set()
                     date_match = bool(claim_dates & dates)
                     date_conflict = bool(claim_dates and dates and not date_match)
@@ -530,18 +530,23 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                     excerpt = context_excerpt(page, context, protected) if is_bare and len(context) > 1 else None
                     if original not in [row[0] for row in candidates] and len(candidates) < 3:
                         candidates.append((original, excerpt))
-            excerpts = []
+            excerpts, plain_excerpts = [], []
             for original, excerpt in candidates:
-                if excerpt is not None:
-                    excerpts.append(excerpt)
-                    continue
                 pattern = "".join(re.escape(c) + (r"[,\s]*" if c.isdigit() else "") for c in number_token)
                 match = next((m for m in TIME.finditer(original) if clock_time(m[0]) == time), None) if time is not None else re.search(pattern, original, re.IGNORECASE)
                 start = max(0, (match.start() + match.end()) // 2 - 79) if match else 0
-                excerpts.append(("…" if start else "") + original[start:start + 160 - bool(start)])
+                plain = ("…" if start else "") + original[start:start + 160 - bool(start)]
+                plain_excerpts.append(plain)
+                excerpts.append(excerpt if excerpt is not None else plain)
             seen = excerpts if len(excerpts) > 1 else excerpts[0] if excerpts else None
+            plain = plain_excerpts if len(plain_excerpts) > 1 else plain_excerpts[0] if plain_excerpts else None
+            if seen != plain:
+                plain_seen[len(result)] = plain
             result.append({"step": step, "figure": figure, "seen": seen, **({"label_match": True} if loose and seen else {})})
-            selected[step, figure] = candidates
+    # Context is extra: undo it, last figure first, before cutting any figure row.
+    while len(json.dumps(result, ensure_ascii=False)) > budget and plain_seen:
+        index = max(plain_seen)
+        result[index] = {**result[index], "seen": plain_seen.pop(index)}
     result = cut_evidence(result, budget)
     # Spans have their own allowance after main's figure rows and cuts are final.
     chosen = []
