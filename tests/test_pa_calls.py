@@ -126,23 +126,21 @@ def test_inbound_ring_answer_message(tmp_path, sim, persona):
     assert len(record['transcript']) == 3
 
 
-def test_end_records_outcome_after_the_caller_hangs_up(tmp_path, sim, monkeypatch):
+def test_end_records_outcome_after_the_caller_hangs_up(tmp_path, sim):
     # s07 run 3 in the 0.28.0-rc.1 wave: the hotel hung up first and the call was left with no outcome.
+    # The scripted inbound persona hangs up on PA's first reply, so this runs the real path.
     import yaml
     sheet = yaml.safe_load((PERSONAS / 'ja_hotel_inbound_confirm.yaml').read_text())
     identity = calls.request(sim['sim_url'], '/ring', {'persona': 'ja_hotel_inbound_confirm', 'reason': sheet['inbound'][0]})['call_id']
     invoke(tmp_path, sim, identity, 'answer')
-    real = calls.request
-    hangup = {'call_id': identity, 'text': '承知いたしました。失礼いたします。', 'ended': True, 'context': ''}
-    monkeypatch.setattr(calls, 'request', lambda url, path, data=None: hangup if path.endswith('/say') else real(url, path, data))
     assert invoke(tmp_path, sim, identity, 'say', text=calls.disclosure('ja'))['ended'] is True
     status = invoke(tmp_path, sim, identity, 'status')
     assert status['status'] == 'ended' and status['outcome'] is None
     record = invoke(tmp_path, sim, identity, 'end', outcome='message_taken', summary='Arrival time given; the date mismatch is still open.')
     assert record['status'] == 'ended' and record['outcome'] == 'message_taken'
     for name in ('answering-calls', 'phone-calls'):
-        skill = (PERSONAS.parents[2] / 'skills' / name / 'SKILL.md').read_text()
-        assert 'only records' in skill and 'hangs up' in skill
+        skill = ' '.join((PERSONAS.parents[2] / 'skills' / name / 'SKILL.md').read_text().split())
+        assert 'still record' in skill and 'only records' in skill
 
 def test_caps_and_privacy(tmp_path, sim):
     identity = prepare(tmp_path)['call_id']
