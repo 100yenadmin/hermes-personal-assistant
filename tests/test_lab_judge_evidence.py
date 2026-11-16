@@ -440,6 +440,13 @@ def test_span_keeps_dash_separated_amounts_under_a_shared_label():
     assert [row["step"] for row in rows if "page_span" in row] == [0]
 
 
+def test_span_keeps_numbered_menu_lines_with_spaced_dashes():
+    # "Course 1 - 5800" has spaces around the dash, so it is a separator even though a digit precedes it.
+    page = "Course 1 - 5800 (Yen)\nCourse 2 - 7800 (Yen)\nCourse 3 - 9800 (Yen)"
+    rows = layout_evidence("¥5800 ¥7800 ¥9800", [page])
+    assert [row["step"] for row in rows if "page_span" in row] == [0]
+
+
 def test_span_priority_counts_only_figures_retained_after_truncation():
     transcript = [{"role": "assistant", "step": 0, "content": "¥100 ¥200 ¥300 ¥400"},
                   {"role": "assistant", "step": 1, "content": "¥500 ¥600 ¥700"}]
