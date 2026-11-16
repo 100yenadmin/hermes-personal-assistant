@@ -7,7 +7,7 @@ import re
 import threading
 import time
 from pathlib import Path
-from evals.lab.common import append, read, scrub
+from evals.lab.common import append, encodable, read, scrub
 
 # Inspect executable tool arguments, never quoted research results or assistant prose.
 INSTALL = re.compile(r"\b(?:hermes\s+plugins\s+install|(?:pip\d*|uv(?:\s+(?:pip|tool))?|npm|pnpm|yarn|bun|brew|apt(?:-get)?|dnf|yum|conda|mamba|gem|cargo|go|poetry)\s+(?:--?[\w=-]+\s+)*(?:install|add)\b|python[\d.]*\s+-m\s+pip\s+install|(?:curl|wget)\b[^\n]*\|\s*(?:ba)?sh\b)", re.I)
@@ -346,7 +346,7 @@ class Observer:
                 except Exception:
                     result = {"success": False}
                 with self.lock:
-                    (self.out / (stem + ".txt")).write_text(snap, encoding="utf-8")
+                    (self.out / (stem + ".txt")).write_text(encodable(snap), encoding="utf-8")
                     self.evidence[stem] = {"step": step, "snapshot": stem + ".txt", "png": image.name if image.exists() else None,
                                            "deviation": None if result.get("success") and image.exists() else "screenshot unavailable; snapshot only"}
             with self.lock:
