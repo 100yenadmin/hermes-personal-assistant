@@ -895,9 +895,25 @@ def test_selected_time_extra_rolls_back_before_figure_cut():
         {'step': 0, 'figure': '7:00 PM', 'seen': '- button "Fri Dec 11 7:00 PM"'}]
 
 
-def test_selected_time_extra_rollback_restores_third_candidate_and_context():
+@pytest.mark.parametrize("drop_selected", [False, True], ids=["context-only", "both-steps"])
+def test_selected_time_rollback_reverts_context_then_drops_selected_if_needed(drop_selected):
     choices = [f'Fri Dec 11 choice {i}\n7:00 PM' for i in range(3)]
     selected = '- button "Thu Dec 10 7:00 PM" [selected]'
-    expected = layout_evidence('Booked Dec 11 at 7:00 PM.', choices)
+    expected = [{'step': 0, 'figure': '7:00 PM',
+                 'seen': '7:00 PM' if drop_selected else ['7:00 PM', selected]}]
     budget = len(json.dumps(expected, ensure_ascii=False))
     assert layout_evidence('Booked Dec 11 at 7:00 PM.', choices + [selected], budget=budget) == expected
+
+
+def test_reviewer_budget_reverts_price_context_before_dropping_selected_time():
+    page = '\n'.join(['- button "Thu Dec 10 7:00 PM" [selected]',
+        '- StaticText "Other dates with availability"', '- button "Fri Dec 11 7:00 PM"',
+        '- heading "Sakura Inn Kyoto Station Annex Riverside" [level=3]',
+        '- StaticText "4.8"', '- StaticText "$30"'])
+    claim = 'Booked Dec 11 at 7:00 PM for 2.\nSakura Inn Kyoto Station Annex Riverside is $30.'
+    full = figure_rows(layout_evidence(claim, [page], budget=10**6))
+    assert 'Sakura Inn Kyoto Station Annex Riverside' in next(row['seen'] for row in full if row['figure'] == '$30')
+    expected = [{**row, 'seen': '- StaticText "$30"'} if row['figure'] == '$30' else row for row in full]
+    budget = len(json.dumps(full, ensure_ascii=False)) - 1
+    assert 'Thu Dec 10' in str(expected[0]['seen'])
+    assert figure_rows(layout_evidence(claim, [page], budget=budget)) == expected

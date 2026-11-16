@@ -584,23 +584,22 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None
                 plain_excerpts.append(plain)
                 excerpts.append(excerpt if excerpt is not None else plain)
             as_seen = lambda values: values if len(values) > 1 else values[0] if values else None
-            base_seen = as_seen(excerpts[:-1] if extra else excerpts)
             seen = as_seen(excerpts[:-1][:2] + excerpts[-1:] if extra else excerpts)
-            plain = as_seen(plain_excerpts[:-1] if extra else plain_excerpts)
+            plain = as_seen(plain_excerpts[:-1][:2] + plain_excerpts[-1:] if extra else plain_excerpts)
             if extra:
-                selected_seen[len(result)] = base_seen
-            if base_seen != plain:
+                selected_seen[len(result)] = as_seen(plain_excerpts[:-1])
+            if seen != plain:
                 plain_seen[len(result)] = plain
                 if _plain_seen is not None:
                     _plain_seen[(step, figure)] = plain
             result.append({"step": step, "figure": figure, "seen": seen, **({"label_match": True} if loose and seen else {})})
-    # Selected-row retention and context are extras; undo them before cutting figures.
-    while len(json.dumps(result, ensure_ascii=False)) > budget and selected_seen:
-        index = max(selected_seen)
-        result[index] = {**result[index], "seen": selected_seen.pop(index)}
+    # Revert context first, retaining selected rows in plain form until they too must go.
     while len(json.dumps(result, ensure_ascii=False)) > budget and plain_seen:
         index = max(plain_seen)
         result[index] = {**result[index], "seen": plain_seen.pop(index)}
+    while len(json.dumps(result, ensure_ascii=False)) > budget and selected_seen:
+        index = max(selected_seen)
+        result[index] = {**result[index], "seen": selected_seen.pop(index)}
     result = cut_evidence(result, budget)
     # Spans have their own allowance after main's figure rows and cuts are final.
     chosen = []
