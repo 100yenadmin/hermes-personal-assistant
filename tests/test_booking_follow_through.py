@@ -427,8 +427,11 @@ def test_yes_in_a_new_chat_finds_a_prepared_action_with_no_trip_link(ledger):
     ids = lambda rows: [row["action_id"] for row in rows]
     assert "unlinked-booking" not in ids(dispatch(ledger.root, {"operation": "next_action", "data": {"trip_id": TRIP}})["candidates"])
     assert "unlinked-booking" in ids(dispatch(ledger.root, {"operation": "next_action", "data": {}})["candidates"])
-    found = dispatch(ledger.root, {"operation": "context", "data": {"kind": "action", "query": "offer-maple-1930"}})
-    assert "unlinked-booking" in ids(found["items"])
+    listed = dispatch(ledger.root, {"operation": "next_action", "data": {"limit": 20}})
+    assert "unlinked-booking" in ids(listed["candidates"])
+    read = dispatch(ledger.root, {"operation": "context", "data": {"kind": "action", "action_id": "unlinked-booking"}})
+    assert read["action"]["fields"]["material_summary"]["item"] == "offer-maple-1930"
     skill = (Path(__file__).parents[1] / "skills/personal-assistant/SKILL.md").read_text()
     assert "with no `trip_id`" in skill and "a trip filter hides it" in skill
-    assert "Prepare a new action only when none is waiting." in skill
+    assert "read each waiting candidate with `pa context` and its `action_id`" in skill
+    assert "none is waiting for that same offer or item, unless its details changed" in skill
