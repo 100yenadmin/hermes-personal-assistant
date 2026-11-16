@@ -179,8 +179,8 @@ binds it to this action. `risk_class` defaults to `external_write`. The shape:
   `action_revision` (a prepared revision cannot change).
 - A rejected prepare names the missing or invalid keys: fix those and retry once.
 
-After a new session, find the prepared action with `pa next_action` (it lists items awaiting approval) before asking again.
-When the owner's yes in this conversation names it, confirm the action you already prepared; never prepare a second one for the same yes.
+After a new session, find the prepared action before asking again or preparing anything. Call `pa next_action` with no `trip_id` (it lists items awaiting approval; a prepared action may have no trip link, and a trip filter hides it), or `pa context` with `kind: action` and the offer or item as the query.
+When the owner's yes names an action you already prepared, confirm that action; never prepare a second one for the same yes. Prepare a new action only when none is waiting.
 If the yes is for something already done, read back the result and do nothing new.
 
 Obtain final confirmation with `action_confirm` and the

@@ -416,3 +416,19 @@ def test_moved_booking_never_pauses_an_attempted_transaction(ledger, status, pau
     if status in {"claimed_once", "provider_result"}:
         # The attempted booking can still record its readback.
         assert ledger.result("fixture-transfer", "confirmed", "Synthetic transfer readback")["status"] == "verified"
+
+
+def test_yes_in_a_new_chat_finds_a_prepared_action_with_no_trip_link(ledger):
+    # s37 run 2 in the 0.28.0-rc.1 wave: the action was prepared without a trip link, a trip-filtered
+    # next_action came back empty, and PA prepared a second action for the same yes.
+    from personal_assistant.entry import dispatch
+    summary = {"provider": "lab_booking", "final_action": "lab_booking_submit", "item": "offer-maple-1930"}
+    dispatch(ledger.root, {"operation": "action_prepare", "data": {"action_id": "unlinked-booking", "summary": summary}})
+    ids = lambda rows: [row["action_id"] for row in rows]
+    assert "unlinked-booking" not in ids(dispatch(ledger.root, {"operation": "next_action", "data": {"trip_id": TRIP}})["candidates"])
+    assert "unlinked-booking" in ids(dispatch(ledger.root, {"operation": "next_action", "data": {}})["candidates"])
+    found = dispatch(ledger.root, {"operation": "context", "data": {"kind": "action", "query": "offer-maple-1930"}})
+    assert "unlinked-booking" in ids(found["items"])
+    skill = (Path(__file__).parents[1] / "skills/personal-assistant/SKILL.md").read_text()
+    assert "with no `trip_id`" in skill and "a trip filter hides it" in skill
+    assert "Prepare a new action only when none is waiting." in skill
