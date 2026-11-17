@@ -169,7 +169,8 @@ def test_heartbeat_epoch_expiry_is_accepted(tmp_path):
         'moment': 'arrival_logistics', 'wake_id': 'w_one', 'expires_at': 1794949200}}, runtime_scope={'session_id': 'real'})
     assert tw.status(Ledger(tmp_path), 'synthetic')['arms']['arrival_logistics']['expires_at'] == '2026-11-17T21:00:00+00:00'
     # Zero is a time, not a missing value; ISO text still works; a boolean is not a time.
-    assert tw._expiry(0).isoformat() == '1970-01-01T00:00:00+00:00'
+    tw.verify(Ledger(tmp_path), 'synthetic', [{**row, 'expires_at': 0}], session_id='session', at=BASE['at'])
+    assert tw.status(Ledger(tmp_path), 'synthetic')['arms']['arrival_logistics']['expires_at'] == '1970-01-01T00:00:00+00:00'
     assert tw._expiry('2026-11-18T08:00:00Z').isoformat() == '2026-11-18T08:00:00+00:00'
     with pytest.raises(ValidationError):
         validate({'operation': 'trip_watch_plan', 'data': {'action': 'verify', 'trip_id': 'synthetic',
