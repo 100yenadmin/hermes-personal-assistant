@@ -90,6 +90,7 @@ wake payload, never from the payload.
   Either respond is this turn's last tool call: then make your final reply
   exactly `[SILENT]`. The offer waits for the owner's next message or
   HeartBeat's "Report back" wake.
+  If a record returns `deferred`, that is expected: do not retry it.
 - Messages can be sent: read status and use `notices`, `leave_by` or
   `at_airport_by`, and the first_commitment moment's `feasibility`. For each notice,
   run `pa trip_offer action=check trip_id=… offer_type=… occurrence=<notice id>`.

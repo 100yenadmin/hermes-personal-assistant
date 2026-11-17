@@ -2,7 +2,7 @@
 import os
 import re
 
-from . import setup
+from . import concierge, setup
 from .state import Ledger
 from .modes import cos_enabled
 
@@ -29,6 +29,18 @@ NOT_A_SETUP_REQUEST = re.compile(r"\b(?:don'?t|do not|not|never|no need to|stop)
                                  r"[\"'‘“`]\s*set me up\b|\b(?:what|how|why)\b[^.?!]{0,40}\bset me up\b", re.I)
 GRILL_ME_COMPLETE = ('The owner said "grill me", but the profile is complete: say so and point to /pa setup review. '
                      'Do not start setup.')
+PULSE_HEADER = re.compile(r"(?:\[[^\n]{0,1024}\] )?⟦pulse o:\S+ a:\d+(?: n:\S+)?⟧ \[HeartBeat 2\.0 · (wake|watcher|role|check-in|keep-warm) w_[A-Za-z0-9_-]+ · .+ · armed by .+ ago\]")
+
+
+def _messages_held(message, first):
+    pulse = PULSE_HEADER.fullmatch(first)
+    if not pulse or pulse[1] != "watcher":
+        return False
+    lines = message.splitlines()
+    boundary = max((i for i, line in enumerate(lines) if line == "</wake-payload>"), default=0)
+    contract = next((i for i, line in enumerate(lines) if i > boundary
+                     and line.startswith("Contract: this turn is yours to act on.")), len(lines))
+    return any(line.startswith("Messages are held right now (") for line in lines[contract + 1:])
 
 
 def _chat_key(kwargs):
@@ -92,6 +104,11 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                                     and p.get("type") == "text" and isinstance(p.get("text"), str))
             history = kwargs.get("conversation_history")
             first = message.split("\n", 1)[0] if isinstance(message, str) else ""
+            if kwargs.get("platform") not in {"cron", "subagent", "curator"} and not kwargs.get("parent_session_id"):
+                try:
+                    concierge.set_messages_held(root, _messages_held(message, first))
+                except Exception:
+                    pass  # Optional turn state must never change the hook's existing behavior on ledger failure.
             if (re.fullmatch(r"(?:\[[^\n]{0,1024}\] )?⟦pulse o:\S+ a:\d+(?: n:\S+)?⟧ \[HeartBeat 2\.0 · (?:wake|watcher) w_[A-Za-z0-9_-]+ · .+ · armed by .+ ago\]", first)
                     and re.search(r"\bpersonal-assistant:cos-[a-z]+\b", message)
                     and not cos_enabled(get_config)):

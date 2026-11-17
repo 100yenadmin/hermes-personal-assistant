@@ -2,9 +2,24 @@
 import json
 import re
 
-from .state import now
+from .state import Ledger, now
 
 OUTCOMES = {"offered", "accepted", "declined", "completed", "useful", "not_useful", "opted_out"}
+HELD_TURN_ACTION = "pa:trip-held-turn"
+
+
+def set_messages_held(root, held):
+    """Only open a writable ledger when the turn's held state changes."""
+    ledger = Ledger(root, timeout=0.1, read_only=True)
+    present = ledger.get("action", HELD_TURN_ACTION) is not None
+    if held == present:
+        return
+    ledger = Ledger(root, timeout=0.1)
+    if held:
+        ledger.put("action", HELD_TURN_ACTION, {"since": now()}, action_type="trip_held_turn")
+    else:
+        with ledger.connect() as conn:
+            conn.execute("delete from actions where action_id=?", (HELD_TURN_ACTION,))
 
 
 def _record(conn, identity, trip_id, outcome):
@@ -72,12 +87,12 @@ def dispatch(ledger, data):
         with ledger.connect() as conn:
             conn.execute("begin immediate")
             seen = {row["action_id"]: json.loads(row["fields_json"]) for row in conn.execute(
-                "select action_id,fields_json from actions where action_id in (?,?,?)", (identity, type_id, opt_out))}
+                "select action_id,fields_json from actions where action_id in (?,?,?,?)", (identity, type_id, opt_out, HELD_TURN_ACTION))}
             # A reservation that never became an outcome is a retry after a failed turn, not a handled offer.
             reason = ("opted_out" if opt_out in seen else "declined" if occurrence and seen.get(type_id, {}).get("outcome") == "declined"
                       else "retry_reserved" if occurrence and seen.get(identity, {}).get("outcome") == "reserved"
                       else "already_recorded" if identity in seen else "new_offer")
-            if reason == "new_offer" and data.get("reserve", True):
+            if reason == "new_offer" and data.get("reserve", True) and not (occurrence and HELD_TURN_ACTION in seen):
                 stamp = now()
                 fields = {"outcome": "reserved", "history": [{"outcome": "reserved", "at": stamp}]}
                 conn.execute("insert into actions values(?,?,?,?,?,?,?,?)",
@@ -92,6 +107,9 @@ def dispatch(ledger, data):
         identity = opt_out
     with ledger.connect() as conn:
         conn.execute("begin immediate")
+        if occurrence and outcome == "offered" and conn.execute(
+                "select 1 from actions where action_id=?", (HELD_TURN_ACTION,)).fetchone():
+            return {"deferred": True, "reason": "messages_held", "note": "Messages are held, so nothing was recorded and the notice stays open for the owner's next message. End this turn with pulse respond needs_attention and the final reply [SILENT]."}
         saved = _record(conn, identity, "*" if identity == opt_out else trip_id, outcome)
         if occurrence and outcome == "accepted" and offer_type == "weather_leave_early":
             _weather_replan(conn, trip_id, occurrence, saved)
