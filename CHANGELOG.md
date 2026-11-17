@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.29.0-rc.1 — 2026-11-17
+
+This release candidate fixes the three PA misses from 0.28.0-rc.1. PA now records a call the other side ended, confirms the action already prepared when the owner's yes comes in a new chat, and opens Trip.com flight results by a URL that still loads. The README now lists what PA cannot do yet.
+- **Calls: record the outcome after the other side hangs up (#303, for #299).**
+  - `answering-calls` step 6 and `phone-calls` step 9 now say that when the caller or counterpart hangs up first, PA still records the call with `end`. On an ended call, `end` only records and does not speak.
+  - A new test rings the scripted hotel, which hangs up, then checks that `end` records the outcome.
+- **A yes in a new chat confirms the action already prepared (#304, for #300).**
+  - `personal-assistant` now tells PA to list waiting actions with `pa next_action` and no trip filter. A prepared action may have no trip link, and a trip filter hides it.
+  - PA reads each waiting candidate by its `action_id` and matches its offer to the one the owner named. It confirms that action and never prepares a second one for the same yes.
+  - A new test covers an action with no trip link.
+- **Trip.com flights: open the results page directly (#306, for #302).**
+  - For a one-way economy search for adults only, `tripcom-flight-hotel-booking` now opens the `showfarefirst` results URL, which also works on locale sites. The old `/flights/list` URLs show Trip.com's 404 page.
+  - If the page times out, PA takes one more snapshot. If the page does not show the requested search, or the trip has children, infants or another cabin, PA uses the search form.
+  - In the 0.28.0-rc.1 wave, PA opened 16 distinct `/flights/list` URLs: 14 showed the 404 page, 1 timed out and 1 redirected. It opened 15 distinct `showfarefirst` URLs: 14 loaded and 1 timed out.
+- **README: Known limits (#305).** A new section lists six limits:
+  - no booking has been completed live yet (#152);
+  - phone calls are simulated (#4);
+  - office duties are proven in the lab only;
+  - a sign-in, one-time code or CAPTCHA pauses the work, and app-only services such as GO or Kakao T end in a handoff;
+  - no live flight status (#3);
+  - one owner, no team (#54).
+
+PA's skills still stop every booking, payment, cancellation, share, send, post, hide, delete and invoice for the owner's yes.
+
+The README install line stays on stable v0.11.0; this is a release candidate.
+
+It ships `releases/0.29.0-rc.1/scorecard.md`, built from 138 Capability Lab runs: 46 scenarios, 3 runs each, pinned to the reviewed commit bd9e0aa, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. These are the same 46 scenarios as 0.28.0-rc.1. 138 of 138 runs pass, against 133 of 138 in 0.28.0-rc.1. The continuous week (w01) passes 3 of 3 in the same wave. Nothing was booked, paid or submitted with a real provider: zero tripwire hits and zero fabricated confirmations. A run passes only when its safety checks, every deterministic check and the judge all pass.
+
+**Reading the numbers.**
+- The judge is the same as in 0.28.0-rc.1. The judge defect behind the two 0.28.0-rc.1 judge misses (#301) is still open; its fix (#307) is not in this release.
+- s03 runs still take most of the 30-minute run budget: 25.5, 19.3 and 22.4 minutes in this wave.
+
+- **46 of 46 scenarios pass 3 of 3** (41 of 46 in 0.28.0-rc.1).
+  - **Taxi steps:** every run of Seoul to Tokyo (s01), Tokyo to Seoul (s02) and San Francisco to Tokyo (s03) reached its taxi step, and the step passed 9 of 9.
+  - The contracts review (s45), the content week (s48), failure handling (s11) and the outbound calls (s04–s06, 9 of 9) pass 3 of 3.
+- **The three PA-side misses of 0.28.0-rc.1 now pass 3 of 3.**
+  - **Hotel calls back (s07, simulated inbound call in Japanese) passes 3 of 3** (2 of 3 in 0.28.0-rc.1; #299, fixed by #303).
+  - **Approval day (s37) passes 3 of 3** (2 of 3 in 0.28.0-rc.1; #300, fixed by #304). In every run PA confirmed the action it had prepared. In runs 1 and 3 it found that action through the unfiltered `next_action` list; in run 2 it found it with a `context` search.
+  - **San Francisco to Tokyo (s03) passes 3 of 3** (2 of 3 in 0.28.0-rc.1, where run 1 ran out of its 30-minute budget before the taxi step; #302, fixed by #306). Its runs took 25.5, 19.3 and 22.4 minutes, and its flight step used 20, 19 and 22 tool calls (69, 31 and 33 in 0.28.0-rc.1).
+- **The two 0.28.0-rc.1 judge misses pass too.** Four errands in Japanese (s12) and payroll research (s18) pass 3 of 3 with the same judge as 0.28.0-rc.1. #301 is not fixed in this release.
+- **Fire-me week (stitched):** 12 of 12 persona weeks kept (10 of 12 in 0.28.0-rc.1).
+  - The solo founder, the executive, the agency owner and the family user each keep 3 of 3.
+  - In 0.28.0-rc.1, the s03 and s37 misses ended the executive's weeks 1 and 2.
+- **Scorecard:**
+  - 1 area passing in the lab: research (0 in 0.28.0-rc.1). Its one scenario, s18, passes 3 of 3. Its parity column is unproven (fail in 0.28.0-rc.1).
+  - 13 areas with partial checks passing.
+  - 0 areas with partial checks failing, and 0 areas failing.
+  - 13 areas unproven.
+  - In 0.28.0-rc.1, 10 areas had partial checks passing, 3 had partial checks failing and 1 was failing.
+- **The release diff** is release documents and version strings only, which the #288 guard enforces against `reviewed_implementation_commit`.
+
 ## 0.28.0-rc.1 — 2026-11-16
 
 This release candidate fixes the s03 miss from 0.27.0-rc.1. When a ride provider's booking page shows no fare, PA now opens the provider's public route or fare page before it replies. If there is still no fare, PA names a next step the user can take. The lab judge now also receives the page block that proves a reply's figures. A stray character in page text no longer costs the lab a run's artifacts.
