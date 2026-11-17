@@ -12,7 +12,7 @@ This release candidate fixes the three PA misses from 0.28.0-rc.1. PA now record
   - A new test covers an action with no trip link.
 - **Trip.com flights: open the results page directly (#306, for #302).**
   - For a one-way economy search for adults only, `tripcom-flight-hotel-booking` now opens the `showfarefirst` results URL, which also works on locale sites. The old `/flights/list` URLs show Trip.com's 404 page.
-  - If the page times out or does not show the requested search, or the trip has children, infants or another cabin, PA uses the search form.
+  - If the page times out, PA takes one more snapshot. If the page does not show the requested search, or the trip has children, infants or another cabin, PA uses the search form.
   - In the 0.28.0-rc.1 wave, PA opened 16 distinct `/flights/list` URLs: 14 showed the 404 page, 1 timed out and 1 redirected. It opened 15 distinct `showfarefirst` URLs: 14 loaded and 1 timed out.
 - **README: Known limits (#305).** A new section lists six limits:
   - no booking has been completed live yet (#152);
@@ -37,14 +37,14 @@ It ships `releases/0.29.0-rc.1/scorecard.md`, built from 138 Capability Lab runs
   - The contracts review (s45), the content week (s48), failure handling (s11) and the outbound calls (s04–s06, 9 of 9) pass 3 of 3.
 - **The three PA-side misses of 0.28.0-rc.1 now pass 3 of 3.**
   - **Hotel calls back (s07, simulated inbound call in Japanese) passes 3 of 3** (2 of 3 in 0.28.0-rc.1; #299, fixed by #303).
-  - **Approval day (s37) passes 3 of 3** (2 of 3 in 0.28.0-rc.1; #300, fixed by #304).
-  - **San Francisco to Tokyo (s03) passes 3 of 3** (2 of 3 in 0.28.0-rc.1, where run 1 ran out of its 30-minute budget before the taxi step; #302, fixed by #306). Its runs took 25.5, 19.3 and 22.4 minutes.
+  - **Approval day (s37) passes 3 of 3** (2 of 3 in 0.28.0-rc.1; #300, fixed by #304). In every run PA confirmed the action it had prepared. In runs 1 and 3 it found that action through the unfiltered `next_action` list; in run 2 it found it with a `context` search.
+  - **San Francisco to Tokyo (s03) passes 3 of 3** (2 of 3 in 0.28.0-rc.1, where run 1 ran out of its 30-minute budget before the taxi step; #302, fixed by #306). Its runs took 25.5, 19.3 and 22.4 minutes, and its flight step used 20, 19 and 22 tool calls (69, 31 and 33 in 0.28.0-rc.1).
 - **The two 0.28.0-rc.1 judge misses pass too.** Four errands in Japanese (s12) and payroll research (s18) pass 3 of 3 with the same judge as 0.28.0-rc.1. #301 is not fixed in this release.
 - **Fire-me week (stitched):** 12 of 12 persona weeks kept (10 of 12 in 0.28.0-rc.1).
   - The solo founder, the executive, the agency owner and the family user each keep 3 of 3.
   - In 0.28.0-rc.1, the s03 and s37 misses ended the executive's weeks 1 and 2.
 - **Scorecard:**
-  - 1 area passing in the lab: research (0 in 0.28.0-rc.1). Its one scenario, s18, passes 3 of 3. Its parity column is still unproven.
+  - 1 area passing in the lab: research (0 in 0.28.0-rc.1). Its one scenario, s18, passes 3 of 3. Its parity column is unproven (fail in 0.28.0-rc.1).
   - 13 areas with partial checks passing.
   - 0 areas with partial checks failing, and 0 areas failing.
   - 13 areas unproven.
