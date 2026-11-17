@@ -39,6 +39,13 @@ def _time(value):
     return parsed
 
 
+def _expiry(value):
+    """A wake's expires_at: HeartBeat 2.0 lists Unix seconds; ISO text with a timezone is also accepted."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return dt.datetime.fromtimestamp(value, dt.timezone.utc)
+    return _time(value)
+
+
 def _quiet(local, window):
     start, end = (dt.time.fromisoformat(window[k]) for k in ("start", "end"))
     clock = local.time().replace(tzinfo=None)
@@ -395,7 +402,7 @@ def record_wake(ledger, trip_id, moment, wake_id, armed=True, expires_at=None, s
         old = next((w for w in current if w["wake_id"] == wake_id), {})
         receipt = {**old, "moment": moment, "wake_id": wake_id, "revision": revision, "armed": armed or old.get("armed", False),
                    "armed_at": old.get("armed_at") or now(), "arm_key": key, "trigger_at": pulse["trigger"].get("at", event["payload"]["inputs"]["departure_at"]),
-                   "session_id": session_id, "expires_at": _time(expires_at).isoformat() if expires_at else old.get("expires_at"), "carried_from": _carry}
+                   "session_id": session_id, "expires_at": _expiry(expires_at).isoformat() if expires_at else old.get("expires_at"), "carried_from": _carry}
         data["wakes"] = [w for w in data["wakes"] if not (w["wake_id"] == wake_id and w["revision"] == revision)] + [receipt]
     _mutate(ledger, "pa:trip-watch:" + trip_id, update)
     current = status(ledger, trip_id)["arms"][moment]
@@ -436,7 +443,7 @@ def verify(ledger, trip_id, wakes, session_id=None, at=None):
             kind = {"active": "verified", "proposed": "pending", "paused": "resume", "done": "verified", "orphaned": "lost", "cancelled": "lost", "expired": "lost", "failed": "lost"}.get(state, "unlisted")
             result[kind].append(w["wake_id"])
             if item.get("expires_at"):
-                w["expires_at"] = _time(item["expires_at"]).isoformat()
+                w["expires_at"] = _expiry(item["expires_at"]).isoformat()
             if kind == "lost":
                 w.update(lost=True, armed=False)
             elif state == "done":

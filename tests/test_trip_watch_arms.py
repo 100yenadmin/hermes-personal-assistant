@@ -152,6 +152,27 @@ def test_verify_statuses_and_epoch(tmp_path, state, category):
         assert changed['stale_wakes'] == []
 
 
+def test_heartbeat_epoch_expiry_is_accepted(tmp_path):
+    # A real HeartBeat 2.0 0.4.16 `pulse list` row, copied as the agent sees it (#310).
+    row = {'id': 'w_one', 'status': 'active', 'expires_at': 1794945600.0}
+    plan(tmp_path)
+    record(tmp_path)
+    validate({'operation': 'trip_watch_plan', 'data': {'action': 'verify', 'trip_id': 'synthetic', 'wakes': [row]}},
+             SCHEMA['parameters'])
+    result = tw.verify(Ledger(tmp_path), 'synthetic', [row], session_id='session', at=BASE['at'])
+    assert result['verified'] == ['w_one']
+    assert result['arms']['arrival_logistics']['expires_at'] == '2026-11-17T20:00:00+00:00'
+    # The receipt from `pulse create` carries the same number; record_wake stores it as ISO text too.
+    dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {'action': 'record_wake', 'trip_id': 'synthetic',
+        'moment': 'arrival_logistics', 'wake_id': 'w_one', 'expires_at': 1794945600}}, runtime_scope={'session_id': 'real'})
+    assert tw.status(Ledger(tmp_path), 'synthetic')['arms']['arrival_logistics']['expires_at'] == '2026-11-17T20:00:00+00:00'
+    # ISO text still works, and a boolean is not a time.
+    assert tw._expiry('2026-11-18T08:00:00Z').isoformat() == '2026-11-18T08:00:00+00:00'
+    with pytest.raises(ValidationError):
+        validate({'operation': 'trip_watch_plan', 'data': {'action': 'verify', 'trip_id': 'synthetic',
+                  'wakes': [{**row, 'expires_at': True}]}}, SCHEMA['parameters'])
+
+
 def test_session_scope_and_five_verified_sessions(tmp_path):
     plan(tmp_path)
     dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {'action': 'record_wake', 'trip_id': 'synthetic',
