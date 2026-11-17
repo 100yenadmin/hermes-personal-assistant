@@ -108,16 +108,16 @@ Never create or update a watch in a watcher wake turn.
 When HeartBeat hands back a held report whose title starts with `Trip "` (a trip
 watch), read status for that trip and check each notice still listed. Skip a
 blocked one (check acknowledged it); for each allowed one, record `outcome=offered`
-and make the offer, including the disruption step below:
+and make the offer, including the disruption step below. The handed-back trip
+report always still matters: pass on its change with its effect and options from
+status, even if its notice is no longer listed. First run `pa trip_offer` with data
+`{"action":"check","trip_id":"…","offer_type":"…","reserve":false}` for its offer
+type, without an occurrence; skip it only if the reason is `opted_out`. Do this:
 - in an owner turn, in that reply; an owner turn has no wake, so call no `pulse` respond;
 - in HeartBeat's "Report back" wake, call `pulse` with
   `{"action":"respond","outcome":"progress","notify":true,"summary":"…"}`, then
   make the offer your final reply, also passing on the list's other items that
-  still matter; without notify true it is not posted. A trip report in the list
-  always still matters: pass on its change with its effect and options from status,
-  even if its notice is no longer listed. First run `pa trip_offer` with data
-  `{"action":"check","trip_id":"…","offer_type":"…","reserve":false}` for its offer
-  type, without an occurrence; skip it only if the reason is `opted_out`. If nothing is left to offer
+  still matter; without notify true it is not posted. If nothing is left to offer
   or pass on, end with `{"action":"respond","outcome":"no_change","notify":false}`.
 A notice the owner never received stays listed until it is offered.
 For flight_change, say whether the first commitment works, name the assumed

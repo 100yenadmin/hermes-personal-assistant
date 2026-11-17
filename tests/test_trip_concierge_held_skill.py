@@ -49,8 +49,9 @@ def test_handed_back_watch_report_gets_the_offer_in_the_owner_turn():
     assert 'in HeartBeat\'s "Report back" wake, call `pulse` with' in wake
     assert "without notify true it is not posted" in wake
     assert "also passing on the list's other items that still matter" in wake
-    # Live P6: the held turn may record early, so a Report back wake must not drop the trip report.
-    assert "A trip report in the list always still matters: pass on its change with its effect and options from status, even if its notice is no longer listed." in wake
+    # Live P6: the held turn may record early, so neither the owner turn nor a Report back wake may drop the trip report.
+    handback = wake.split("When HeartBeat hands back a held report", 1)[1].split("- in an owner turn", 1)[0]
+    assert "The handed-back trip report always still matters: pass on its change with its effect and options from status, even if its notice is no longer listed." in handback
     # A check with no occurrence and reserve false reserves and acks nothing; only an opt-out skips the report,
     # since an earlier type-level row (a no-occurrence record or reservation) also reads as already_recorded.
     assert "for its offer type, without an occurrence; skip it only if the reason is `opted_out`." in wake
