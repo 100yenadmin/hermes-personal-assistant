@@ -101,6 +101,36 @@ def test_existing_tag_must_match_source_commit():
             publish_release.ensure_tag("owner/repo", "v0.4.0-rc.1", "a" * 40)
 
 
+def test_created_tag_readback_retries_a_missing_ref():
+    # 0.29.0-rc.1: the ref read back as missing once, right after the create succeeded (#309).
+    with mock.patch.object(publish_release, "tag_commit", side_effect=[None, None, None, "a" * 40]) as readback, \
+         mock.patch.object(publish_release, "gh_json") as create, \
+         mock.patch.object(publish_release.time, "sleep") as sleep:
+        publish_release.ensure_tag("owner/repo", "v0.4.0-rc.1", "a" * 40)
+    create.assert_called_once()
+    assert readback.call_count == 4  # one check before the create, three read-backs
+    assert sleep.call_count == 2
+
+
+def test_created_tag_that_never_reads_back_fails_after_the_retries():
+    with mock.patch.object(publish_release, "tag_commit", return_value=None) as readback, \
+         mock.patch.object(publish_release, "gh_json"), \
+         mock.patch.object(publish_release.time, "sleep") as sleep:
+        with pytest.raises(publish_release.PublishError, match="did not read back"):
+            publish_release.ensure_tag("owner/repo", "v0.4.0-rc.1", "a" * 40)
+    assert readback.call_count == 1 + publish_release.TAG_READBACK_ATTEMPTS
+    assert sleep.call_count == publish_release.TAG_READBACK_ATTEMPTS - 1
+
+
+def test_created_tag_at_another_commit_fails_without_retrying():
+    with mock.patch.object(publish_release, "tag_commit", side_effect=[None, "b" * 40]), \
+         mock.patch.object(publish_release, "gh_json"), \
+         mock.patch.object(publish_release.time, "sleep") as sleep:
+        with pytest.raises(publish_release.PublishError, match="different commit"):
+            publish_release.ensure_tag("owner/repo", "v0.4.0-rc.1", "a" * 40)
+    sleep.assert_not_called()
+
+
 def test_partial_draft_resumes_only_missing_same_byte_assets(tmp_path):
     names, notes = assets(tmp_path)
     initial = release(names[:1])
