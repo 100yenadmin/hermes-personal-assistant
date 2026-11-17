@@ -110,6 +110,7 @@ def test_created_tag_readback_retries_a_missing_ref():
     create.assert_called_once()
     assert readback.call_count == 4  # one check before the create, three read-backs
     assert sleep.call_count == 2
+    sleep.assert_called_with(publish_release.TAG_READBACK_DELAY_SECONDS)
 
 
 def test_created_tag_that_never_reads_back_fails_after_the_retries():
@@ -124,10 +125,11 @@ def test_created_tag_that_never_reads_back_fails_after_the_retries():
 
 def test_created_tag_at_another_commit_fails_without_retrying():
     with mock.patch.object(publish_release, "tag_commit", side_effect=[None, "b" * 40]), \
-         mock.patch.object(publish_release, "gh_json"), \
+         mock.patch.object(publish_release, "gh_json") as create, \
          mock.patch.object(publish_release.time, "sleep") as sleep:
-        with pytest.raises(publish_release.PublishError, match="different commit"):
+        with pytest.raises(publish_release.PublishError, match="reads back at a different commit"):
             publish_release.ensure_tag("owner/repo", "v0.4.0-rc.1", "a" * 40)
+    create.assert_called_once()
     sleep.assert_not_called()
 
 
