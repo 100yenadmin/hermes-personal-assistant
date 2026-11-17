@@ -78,7 +78,18 @@ def tag_commit(repository: str, tag: str) -> str | None:
     raise PublishError("existing tag does not resolve to a commit")
 
 
-def ensure_tag(repository: str, tag: str, source_sha: str) -> None:
+TAG_READBACK_ATTEMPTS = 5
+TAG_READBACK_DELAY_SECONDS = 2.0
+
+
+def ensure_tag(
+    repository: str,
+    tag: str,
+    source_sha: str,
+    *,
+    attempts: int = TAG_READBACK_ATTEMPTS,
+    delay: float = TAG_READBACK_DELAY_SECONDS,
+) -> None:
     existing = tag_commit(repository, tag)
     if existing and existing != source_sha:
         raise PublishError(f"existing tag {tag} targets a different commit")
@@ -88,8 +99,17 @@ def ensure_tag(repository: str, tag: str, source_sha: str) -> None:
         "api", "--method", "POST", f"repos/{repository}/git/refs",
         "-f", f"ref=refs/tags/{tag}", "-f", f"sha={source_sha}",
     ])
-    if tag_commit(repository, tag) != source_sha:
-        raise PublishError("created tag did not read back at the requested source commit")
+    # The refs API can lag a fresh create, so a missing ref is read again; the
+    # 0.29.0-rc.1 run stopped here on a single read although the tag was right (#309).
+    for attempt in range(attempts):
+        created = tag_commit(repository, tag)
+        if created == source_sha:
+            return
+        if created is not None:
+            raise PublishError(f"created tag {tag} reads back at a different commit")
+        if attempt + 1 < attempts:
+            time.sleep(delay)
+    raise PublishError("created tag did not read back at the requested source commit")
 
 
 def release_for_tag(repository: str, tag: str) -> dict[str, object] | None:
