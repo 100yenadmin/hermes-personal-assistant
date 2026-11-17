@@ -83,21 +83,23 @@ wake payload, never from the payload.
   Do not offer and do not record. If any check was allowed, end with `pulse`
   `{"action":"respond","outcome":"needs_attention","notify":true,"summary":"…"}`:
   one sentence under 160 characters, in the owner's language, that names the
-  change and its effect and invites a reply, such as "Flight JL123 now lands
-  50 min late; your 19:00 dinner is at risk. Reply and I'll send options."
+  change and its effect and invites a reply, such as "JL123 now lands 15:10,
+  seen 09:12; your 19:00 dinner is at risk. Reply and I'll send options."
   If every check was blocked, end with
   `{"action":"respond","outcome":"no_change","notify":false}`.
 - Messages can be sent: read status and use `notices`, `leave_by` or
   `at_airport_by`, and the first_commitment moment's `feasibility`. For each notice,
   run `pa trip_offer action=check trip_id=… offer_type=… occurrence=<notice id>`.
-  If blocked, end with `{"action":"respond","outcome":"no_change","notify":false}`:
-  check acknowledged it. If allowed, record `outcome=offered` with
-  `pa trip_offer action=record` and the same occurrence, call `pulse` with
-  `{"action":"respond","outcome":"progress","notify":true,"summary":"…"}`, the
-  summary one plain sentence naming this change (never fixed text: HeartBeat
-  silences a summary it already delivered for this watch that day), then make the
-  ONE short offer your final reply, covering every allowed notice. Write no text
-  alongside tool calls.
+  A blocked check acknowledged its notice; skip it. If every check was blocked,
+  end with `{"action":"respond","outcome":"no_change","notify":false}`. For each
+  allowed notice, record `outcome=offered` with `pa trip_offer action=record` and
+  the same occurrence, then call `pulse` with
+  `{"action":"respond","outcome":"progress","notify":true,"summary":"…"}` and make
+  the ONE short offer your final reply, covering every allowed notice. Write no
+  text alongside tool calls.
+Every summary you give HeartBeat names the change with its new absolute time and
+when you saw it, such as "JL123 now departs 14:40, seen 09:12": HeartBeat
+silences a summary identical to one it delivered for this watch within 24 hours.
 Never use `"outcome":"done"` on a watcher wake: it ends the watch.
 Never create or update a watch in a watcher wake turn.
 When HeartBeat hands back a held report whose title starts with `Trip "` (a trip
@@ -106,8 +108,10 @@ blocked one (check acknowledged it); for each allowed one, record `outcome=offer
 and make the offer, including the disruption step below:
 - in an owner turn, in that reply; an owner turn has no wake, so call no `pulse` respond;
 - in HeartBeat's "Report back" wake, call `pulse` with
-  `{"action":"respond","outcome":"progress","notify":true,"summary":"…"}` naming
-  the change, then make the offer your final reply; without notify true it is not posted.
+  `{"action":"respond","outcome":"progress","notify":true,"summary":"…"}`, then
+  make the offer your final reply, also passing on the list's other items that
+  still matter; without notify true it is not posted. If nothing is left to offer
+  or pass on, end with `{"action":"respond","outcome":"no_change","notify":false}`.
 A notice the owner never received stays listed until it is offered.
 For flight_change, say whether the first commitment works, name the assumed
 processing, transfer and buffer minutes plainly, and give up to three alternatives.
