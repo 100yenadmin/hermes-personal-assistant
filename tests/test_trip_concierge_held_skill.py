@@ -16,6 +16,9 @@ def test_held_watcher_turn_defers_offer_until_owner_can_receive_it():
     assert '{"action":"respond","outcome":"needs_attention","notify":true,"summary":"…"}' in wake
     assert "one sentence under 160 characters, in the owner's language" in wake
     assert "Reply and I'll send options." in wake
+    # Live P6 r1: with no terminal step the model replayed the sendable tail (check, record) after respond.
+    held = wake.split("Messages are held", 1)[1].split("Messages can be sent", 1)[0]
+    assert "Either respond is this turn's last tool call: then make your final reply exactly `[SILENT]`." in held
 
 
 def test_watcher_turn_never_ends_the_watch():
