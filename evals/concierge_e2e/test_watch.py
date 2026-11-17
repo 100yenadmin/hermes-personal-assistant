@@ -1,7 +1,9 @@
 """P3: real HB2 scheduled command probes; all inputs and delivery are loopback."""
 import datetime as dt
 import json
+import os
 import re
+from pathlib import Path
 
 import pytest
 
@@ -201,15 +203,89 @@ def test_weather_offer_then_decline(rig):
     assert all(row["errors"] == 0 for row in fields(rig, "pa:observe:" + rig.watch_id)["usage"].values())
 
 
+def hb2_before_held_turns():
+    checkout = os.getenv("PA_E2E_HEARTBEAT2")
+    if not checkout:
+        return False  # The opt-in collection hook handles an unconfigured rig.
+    manifest = (Path(checkout) / "plugin.yaml").read_text()
+    version = re.search(r'^version:\s*[\"\']?(\d+)\.(\d+)\.(\d+)', manifest, re.MULTILINE)
+    assert version, "HB2 plugin.yaml must declare a semantic version"
+    return tuple(map(int, version.groups())) < (0, 4, 8)
+
+
+@pytest.mark.skipif(hb2_before_held_turns(), reason="held watcher turns require HeartBeat 2.0 >= 0.4.8")
 @pytest.mark.parametrize("rig", [{"observe_settings": {"weather_provider": "off", "reemit_after_s": 6}}], indirect=True)
 def test_never_replies_hold(rig):
-    from harness import Text
+    from harness import Director, Text, ToolCall
     from personal_assistant.entry import dispatch
+    from personal_assistant.state import Ledger
+
     arm_watch(rig)
     occurrences, final = [], "OFFER-HOLD: your flight has another delay."
+    held_notices = []
+    summary = "Flight PA301 now departs 150 minutes late. Options ready."
+
+    def check_notice(record, *, reserve):
+        notice, = result(record)["notices"]
+        assert notice["offer_type"] == "flight_change", notice
+        assert notice["id"] == held_notices[-1], notice
+        data = dict(action="check", trip_id="T3", offer_type="flight_change", occurrence=notice["id"])
+        if not reserve:
+            data["reserve"] = False
+        return pa("trip_offer", **data)
+
+    def held_check(record):
+        return check_notice(record, reserve=False)
+
+    def held_report(record):
+        assert result(record)["allowed"] is True, result(record)
+        return ToolCall("pulse", {"action": "respond", "outcome": "needs_attention", "notify": True,
+                                  "summary": summary})
+
+    def silent_end(record):
+        # Every re-emission is a new silent model turn for the same unacked notice.
+        rig.director.actions.append(route_turn)
+        return Text("")
+
+    def owner_check(record):
+        return check_notice(record, reserve=True)
+
+    def owner_offer(record):
+        assert result(record)["allowed"] is True, result(record)
+        action = pa("trip_offer", action="record", trip_id="T3", offer_type="flight_change",
+                    occurrence=held_notices[-1], outcome="offered")
+        action.text = final  # Offer in this reply before recording its receipt.
+        return action
+
+    def owner_end(record):
+        assert result(record)["fields"]["outcome"] == "offered", result(record)
+        return Text("")
+
+    def route_turn(record):
+        messages = record["body"]["messages"]
+        text = Director._text(next(m for m in reversed(messages) if m["role"] == "user"))
+        if text.startswith("⟦pulse"):
+            assert "Messages are held right now" in text, text
+            assert "offer_type=flight_change" in text, text
+            held_notices.append(re.search(r"occurrence=(n_[0-9a-f]{8})", text).group(1))
+            rig.director.actions.extend([held_check, held_report, silent_end])
+        else:
+            assert text.startswith("Trip T3: any update?"), text
+            # intake.pre_llm_call -> desk.held_report_lines injects this into the
+            # owner's request, rather than merely leaving it in tool history.
+            context = [Director._text(m) for m in messages
+                       if "while the owner's limits held your messages" in Director._text(m)]
+            assert any(summary in message for message in context), record["body"]
+            (rig.root / "owner-report-request.json").write_text(json.dumps(record["body"], indent=2))
+            rig.director.actions.extend([owner_check, owner_offer, owner_end])
+        return pa("trip_watch_plan", action="status", trip_id="T3")
+
     for index, minutes in enumerate((90, 120, 150)):
         if index < 2:
             rig.director.actions = offer_actions(rig, occurrences, "flight_change", final)
+        else:
+            visible_before = rig.texts()
+            rig.director.actions = [route_turn]
         injected = dispatch(rig.gateway.hermes_home, {"operation": "trip_watch_plan", "data": {
             "action": "record_facts", "trip_id": "T3", "source": "simulated", "segments": [{**rig.segment,
             "estimated_departure": (dt.datetime.fromisoformat(rig.segment["scheduled_departure"]) +
@@ -220,24 +296,44 @@ def test_never_replies_hold(rig):
             rig.gateway.wait_idle(timeout=30)
             assert_no_errors(rig)
             assert not rig.director.actions
-    rig.wait(lambda: any(row["state"] == "pending" and row["held_reason"] == "held_unanswered"
-                        for row in rig.hb2()["occurrences"]), "third fire held by unanswered gate")
+    def held_reports():
+        # HB2 pulse.db occurrences is the held-report store (store.held_reports).
+        return [row for row in rig.hb2()["occurrences"] if row["wake_id"] == rig.wake_id
+                and row["state"] == "done" and row["held_reason"] == "message_held:unanswered"]
+
+    rig.wait(lambda: rig.director.errors or len(held_reports()) >= 2,
+             "third notice and its re-emission complete as silent held turns")
+    rig.gateway.wait_idle(timeout=30)
+    assert_no_errors(rig)
     held_rows = rig.hb2()
     (rig.root / "held-before-reply.json").write_text(json.dumps(held_rows, indent=2))
-    assert rig.texts().count(final) == 2
+    assert rig.texts() == visible_before
     assert held_rows["sessions"][0]["unanswered_count"] == 2
-    held, = [row for row in held_rows["occurrences"] if row["state"] == "pending"]
-    assert held["held_reason"] == "held_unanswered" and held["held_since"] is not None
-    assert held["delivered"] == 0
-    rig.director.actions = [Text("Reply received.")] + offer_actions(rig, occurrences, "flight_change", final)
-    rig.owner("Trip T3: any update?", "Reply received.")
-    rig.wait(lambda: rig.director.errors or rig.texts().count(final) == 3, "held offer released after owner reply")
+    assert len(set(held_notices)) == 1
+    notice, = set(held_notices)
+    assert notice not in occurrences
+    for held in held_reports():
+        assert held["force_silent"] == 1 and held["delivered"] == 0, held
+        assert held["outcome"] == "needs_attention" and held["notify"] == 1, held
+        assert held["summary"] == summary and len(held["summary"]) < 160, held
+    assert notice not in fields(rig, "pa:observe-control:" + rig.watch_id)["acks"]
+    assert Ledger(rig.gateway.hermes_home, read_only=True).get("action", "pa:offer:T3:flight_change:" + notice) is None
+    assert [n["id"] for n in dispatch(rig.gateway.hermes_home, {"operation": "trip_watch_plan", "data": {
+        "action": "status", "trip_id": "T3"}})["notices"]] == [notice]
+
+    rig.owner("Trip T3: any update?", final)
     rig.gateway.wait_idle(timeout=30)
     past_reemit(rig)
     assert rig.texts().count(final) == 3
     assert not rig.director.actions
-    assert len(set(occurrences)) == 3
-    assert set(occurrences) <= fields(rig, "pa:observe-control:" + rig.watch_id)["acks"].keys()
-    released = next(row for row in rig.hb2()["occurrences"] if row["dedupe_key"] == held["dedupe_key"])
-    assert released["state"] == "done" and released["delivered"] == 1
-    assert all(row["state"] == "done" for row in rig.hb2()["occurrences"]), rig.hb2()
+    assert len(set(occurrences + [notice])) == 3
+    assert set(occurrences + [notice]) <= fields(rig, "pa:observe-control:" + rig.watch_id)["acks"].keys()
+    assert fields(rig, "pa:offer:T3:flight_change:" + notice)["outcome"] == "offered"
+    # heartbeat2.model.TERMINAL_OCCURRENCE_STATES on the pinned HB2 checkout.
+    terminal = {"done", "skipped", "missed", "dead", "interrupted", "orphaned", "superseded"}
+    rig.wait(lambda: all(row["state"] in terminal for row in rig.hb2()["occurrences"]),
+             "all watcher and report-back occurrences terminal")
+    reported = [row for row in rig.hb2()["occurrences"] if row["wake_id"] == rig.wake_id
+                and row["held_reason"] == "reported:unanswered"]
+    assert len(reported) >= 2 and all(row["delivered"] == 0 for row in reported), rig.hb2()
+    assert_no_errors(rig)

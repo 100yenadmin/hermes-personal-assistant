@@ -29,28 +29,30 @@ owner-memory note and that the agent's replies honour the corrected preference a
 Claim class: `local_e2e_proof` (loopback Bot API; not real Telegram or providers).
 P2 proves no provider actions, live profile behavior, CI or customer readiness.
 
-P3 is the scripted watcher proof in `test_watch.py`. It runs the real HB2
+P3 is the scripted watcher proof in `test_watch.py`, pinned to Hermes v0.23.1
+and HeartBeat 2.0 v0.4.16. It runs the real HB2
 scheduled command probe against the gateway's copy of PA, using its exact
 interpreter/`-I`/observer allowlist prefix. The script changes only the returned
 `pulse create` trigger's `check_every` from PA's fixed `15m` to `2s`; the saved
 observer `check_every` setting does not change PA's pulse arguments. HB2's probe
 floor is one second. P3 has an explicit 420-second timeout; P1 keeps 240 seconds.
-Run the whole directory on each prepared pin twice consecutively:
+Run the watcher file twice consecutively on those prepared pins:
 ```sh
 export HERMES_DISABLE_LAZY_INSTALLS=1 PYTHONDONTWRITEBYTECODE=1
 export PA_E2E_HEARTBEAT2="$HB2_CHECKOUT"
-PA_E2E_HERMES="$HERMES_MAIN_CHECKOUT" PA_E2E_RESULTS="$PA_E2E_RESULTS_ROOT/main-r1" \
-  "$HERMES_MAIN_PYTHON" -m pytest evals/concierge_e2e -q -x -p no:cacheprovider
-PA_E2E_HERMES="$HERMES_V0222_CHECKOUT" PA_E2E_RESULTS="$PA_E2E_RESULTS_ROOT/v0222-r1" \
-  "$HERMES_V0222_PYTHON" -m pytest evals/concierge_e2e -q -x -p no:cacheprovider
+PA_E2E_HERMES="$HERMES_V0231_CHECKOUT" PA_E2E_RESULTS="$PA_E2E_RESULTS_ROOT/v0231-r1" \
+  "$HERMES_V0231_PYTHON" -m pytest evals/concierge_e2e/test_watch.py -q -p no:cacheprovider
+PA_E2E_HERMES="$HERMES_V0231_CHECKOUT" PA_E2E_RESULTS="$PA_E2E_RESULTS_ROOT/v0231-r2" \
+  "$HERMES_V0231_PYTHON" -m pytest evals/concierge_e2e/test_watch.py -q -p no:cacheprovider
 ```
 Use the prepared paths from the issue's run contract for these variables. Set
 `PA_E2E_RESULTS_ROOT` to the durable P3 evidence root supplied by the owner,
-outside temporary storage. Repeat each command with `r2` after its first pass,
-running one process at a time. Stop on a product failure and keep its evidence.
+outside temporary storage. Run one process at a time. Stop on a product failure
+and keep its evidence. Set `TMPDIR` to the supplied scratch directory; the rig
+uses it for runtime homes as well as other temporary files.
 Capture the actual exit code without a shell pipe, and write a result card for
-every invocation under that invocation's result root. Runtime sockets still use
-short temporary paths; the rig snapshots their evidence before scoring.
+every invocation under that invocation's result root. The rig snapshots runtime
+evidence before scoring.
 Each invocation creates unique evidence subdirectories and prints their paths.
 They retain gateway logs, scripted requests, visible same-DM messages, the PA
 ledger and `hb2.json` (wakes, occurrences, sessions and ledger rows). Wait failures
@@ -62,10 +64,20 @@ The delay gate checks a simulated 90-minute departure delay, per-occurrence
 further scheduled polls past the observer re-emission interval. The weather gate
 uses a loopback Open-Meteo stand-in, checks `Be at the airport by` (transfer unknown) and `+45 min for snow`,
 records a decline, then acknowledges a thunderstorm notice with no new message.
-The unanswered gate injects three successive delays: two offers arrive, and HB2
-stores the third occurrence as pending with `held_reason=held_unanswered`,
-`held_since` populated and `delivered=0`. The saved `held-before-reply.json`
-captures that state. One owner reply releases the held item exactly once.
+The unanswered gate injects three successive delays: two offers arrive, then
+HB2 runs the third notice and its re-emissions silently. Each held turn reads
+status, checks with `reserve: false`, and responds `needs_attention` with
+`notify: true` and a summary under 160 characters, without offering or recording.
+The notice stays unacked and has no offer action row. HB2's `pulse.db`
+`occurrences` table stores `state=done`, `held_reason=message_held:unanswered`,
+`force_silent=1`, `delivered=0`, `outcome=needs_attention`, `notify=1`, and
+`summary`. The saved `held-before-reply.json` captures that state.
+The owner's next request must contain HB2's handed-back summary (saved in
+`owner-report-request.json`); that turn reads status, checks with the default
+reservation, offers and records once. The notice is then acked, held reports
+are marked `reported:unanswered`, and all occurrences reach terminal states.
+On HB2 versions older than 0.4.8, only this held-turn test skips with an explicit
+version reason; the delay and weather tests still run, including on v0.2.3.
 Every P3 scenario checks zero HB2 watcher and director errors. The directory
 also includes P1's setup-to-offer regression. Check-in and `/new` re-arm stretch
 scenarios are outside this required matrix and are not implemented here.
@@ -105,3 +117,31 @@ with the pure `follow_checks.score_chase_at` oracle. Claim class is
 it does not prove inbox verification, a sent chase, real Telegram or provider
 completion, installed profiles, fleet/customer readiness or CI. Pytest does
 not collect this manual runner as a live test.
+
+P6 is `test_held_live.py`, a manual runner (`__test__ = False`) for the r4 held
+watcher rule on Hermes v0.23.1 and HB2 0.4.16. From the worktree root, with the
+release manager's token already supplied in the environment, run:
+```sh
+PA_EVAL_CODEX_TOKEN="$PA_EVAL_CODEX_TOKEN" \
+PA_E2E_PYTHON=/Users/m1/repos/hermes-pins-r6/venv-v0.23.1/bin/python \
+PA_E2E_HERMES=/Users/m1/repos/hermes-pins-r6/v0.23.1-3b42157 \
+PA_E2E_HEARTBEAT2=/Users/m1/Codex/scratch/20261117-pa-030/hb2-0416 \
+TMPDIR=/Users/m1/Codex/scratch/20261117-pa-030/p6 \
+HERMES_DISABLE_LAZY_INSTALLS=1 PYTHONDONTWRITEBYTECODE=1 \
+  /Users/m1/repos/hermes-pins-r6/venv-v0.23.1/bin/python evals/concierge_e2e/test_held_live.py \
+  --results /Users/m1/Codex/session-notes/2026-11-17/pa-030/artifacts/codex/p6-live-r1
+```
+Use a fresh results directory; prior runs are never overwritten. P6 reuses P4's
+live arming request: only pulse's watch `check_every` changes from `15m` to `2s`.
+The rig keeps its `/private/tmp` runtime home; parent temp files use `TMPDIR`.
+Observer re-emission is 60s to avoid flooding a slower live turn. Two natural,
+unanswered delay offers precede a third, silent held turn. P6 snapshots that
+turn before asking "Any update on my trip?", then observes past re-emission.
+`p6-result.json` reports PASS/FAIL/NOT_RUN/INCOMPLETE; the rig keeps HB2 rows,
+ledger, visible messages, transcript.md, usage, auth-isolation and wire metadata.
+`held-snapshot.json` can be re-scored with `score_held`; FAIL includes a transcript
+excerpt. Every wire request must use gpt-6.1-sol, low effort, no service tier.
+The wording check requires the third departure's HH:MM and flight/PA301 in one
+visible message and the owner turn; read the transcript for meaning. Claim class
+is `local_e2e_proof`; this cannot prove real Telegram, providers, runtime
+activation, fleet/customer readiness, publication, merge or CI.

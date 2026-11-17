@@ -88,6 +88,9 @@ Use `pa(operation="profile", data={"action":"list"})` alongside saved owner file
 
 `trip_watch_plan` plans trip check-ins and records agent-created pulse wake receipts.
 `trip_offer` checks and records offer outcomes; load `personal-assistant:trip-concierge`.
+When HeartBeat hands back a held report whose title starts with `Trip "`, in an
+owner turn or its "Report back" wake, load `personal-assistant:trip-concierge` and
+follow it for that trip before replying.
 Route CoS requests to `personal-assistant:cos-daily`, `personal-assistant:cos-kickoff`, `personal-assistant:cos-weekly`, `personal-assistant:cos-scout` or `personal-assistant:cos-radar` only when Chief of Staff mode is on; otherwise explain `/pa mode chief-of-staff on`.
 Load `personal-assistant:research` for comparison, price or which-to-use questions.
 
