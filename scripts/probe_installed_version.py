@@ -158,11 +158,14 @@ LOCAL_STATE_FILES = frozenset({
 })
 
 
+# The only caller variables git needs here: no GIT_* setting can point it at another
+# repository, and nothing else from the caller's environment is passed on.
+GIT_ENV_NAMES = ("PATH", "HOME", "XDG_CONFIG_HOME", "SUDO_UID", "SYSTEMROOT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH")
+
+
 def checkout_state(root):
-    # Ignore the caller's GIT_* variables so git reads this checkout, and keep
-    # git status from refreshing/writing the index during diagnostics.
-    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    env["GIT_OPTIONAL_LOCKS"] = "0"
+    env = {name: os.environ[name] for name in GIT_ENV_NAMES if name in os.environ}
+    env["GIT_OPTIONAL_LOCKS"] = "0"  # git status never refreshes or writes the index here.
     try:
         head = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"],

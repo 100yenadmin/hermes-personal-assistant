@@ -24,6 +24,8 @@ CONFIG_NAMES = (
     "daily_ops.state.json",
     "location.json",
 )
+# The caller variables the hermes CLI, git and Python need; nothing else is passed on.
+HERMES_ENV_NAMES = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
 
 
 def run(command: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None,
@@ -209,10 +211,12 @@ def main() -> int:
         source_url = fixture_source.as_uri()
         home = root / "profile"
         (home / "plugins").mkdir(parents=True)
+        # The pinned Hermes scanners rate PA's own test fixtures caution or dangerous, which stops
+        # an unforced install; the install-scan job scans PA as users get it, so this check skips it.
         (home / "config.yaml").write_text(
             "plugins:\n  enabled: []\n  scan_on_install: false\n", encoding="utf-8"
         )
-        env = dict(os.environ)
+        env = {name: os.environ[name] for name in HERMES_ENV_NAMES if name in os.environ}
         env["HERMES_HOME"] = str(home)
         install = run([
             args.hermes, "plugins", "install", source_url, "--ref", first_ref, "--no-enable"
