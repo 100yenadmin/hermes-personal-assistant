@@ -41,7 +41,12 @@ def score_held(snapshot):
                    args.get("data", {}).get("action") == "record" and args["data"].get("occurrence") == notice
                    for name, args in tool_calls(messages))
     def deferred(messages):
-        return sum(row.get("role") == "tool" and '"reason": "messages_held"' in str(row.get("content") or "")
+        """Deferred results of this notice's record calls, matched by tool_call_id."""
+        ids = {call.get("id") for row in messages for call in (json.loads(row.get("tool_calls") or "[]")
+               if isinstance(row.get("tool_calls"), str) else row.get("tool_calls") or [])
+               if call.get("id") and records([dict(tool_calls=[call])])}
+        return sum(row.get("role") == "tool" and row.get("tool_call_id") in ids
+                   and '"reason": "messages_held"' in str(row.get("content") or "")
                    and '"deferred": true' in str(row.get("content") or "") for row in messages)
     return dict(
         two_unanswered=len(snapshot.get("sendable", [])) == 2 and all(
