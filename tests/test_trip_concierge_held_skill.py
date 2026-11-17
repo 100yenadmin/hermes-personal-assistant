@@ -49,6 +49,8 @@ def test_handed_back_watch_report_gets_the_offer_in_the_owner_turn():
     assert 'in HeartBeat\'s "Report back" wake, call `pulse` with' in wake
     assert "without notify true it is not posted" in wake
     assert "also passing on the list's other items that still matter" in wake
+    # Live P6: the held turn may record early, so a Report back wake must not drop the trip report.
+    assert "A trip report in the list always still matters: pass on its change with its effect and options from status, even if its notice is no longer listed." in wake
     assert "Skip a blocked one (check acknowledged it); for each allowed one, record `outcome=offered`" in wake
     router = " ".join((ROOT / "skills/personal-assistant/SKILL.md").read_text().split())
     assert 'When HeartBeat hands back a held report whose title starts with `Trip "`, in an owner turn or its "Report back" wake, load' in router
