@@ -60,9 +60,9 @@ append one; do not absorb an unrelated existing heading. If markers are ambiguou
 or incomplete, show the conflict and ask before repair. Use a normal foreground
 file write after explicit apply, then read back. Hermes v0.23.2 and later ask the
 owner to approve every write to the profile's SOUL.md (earlier versions did
-not); say so before writing. If it is blocked or not approved, `propose` again
-without `soul_section`, apply the rest, and leave the PA section for the next
-review; do not retry it through another path.
+not); say so before writing. If it is blocked or not approved, say so and that
+`/pa setup review` can add it later, `propose` again without `soul_section`, and
+apply the rest; do not retry it now through any path.
 Project-local instruction files still follow Hermes' protected-write approval.
 
 ## Operating manual
