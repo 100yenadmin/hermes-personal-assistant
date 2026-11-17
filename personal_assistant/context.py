@@ -101,8 +101,10 @@ _TRANSACTION_HOLD = _UNRESOLVED_ATTEMPT | {"paused", "prepared", "approval_requi
                                           "approved_revision", "failed"}
 _NUDGE_IN_FLIGHT = _TRANSACTION_HOLD - {"failed"}
 _TRANSACTION_DONE = {"completed", "confirmed", "verified", "reconciled"}
-# An action in these states still waits for the owner's yes; a trip filter keeps it listed when it has no trip link.
-_AWAITING_YES = {"prepared", "approval_required", "authorized", "approved_revision"}
+# An action in these states is not finished: it waits for the owner's yes, waits to be submitted, or has an
+# attempt whose outcome is unknown. A trip filter keeps it listed when it has no trip link (#315).
+_AWAITING_YES = {"prepared", "approval_required"}
+_UNLINKED_KEPT = _AWAITING_YES | {"authorized", "approved_revision"} | _UNRESOLVED_ATTEMPT
 
 
 def nudges_in_flight(actions):
@@ -469,7 +471,7 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
         unlinked_waiting = False
         if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
             # A prepared action with no trip link may be this trip's; hiding it led PA to prepare a second one (#315).
-            if action.get("trip_id") or action.get("status") not in _AWAITING_YES:
+            if action.get("trip_id") or action.get("status") not in _UNLINKED_KEPT:
                 continue
             unlinked_waiting = True
         fields = action.get("fields", {})
@@ -500,7 +502,13 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             continue
         item = _action_summary(action)
         if unlinked_waiting:
-            item["trip_filter"] = "listed without a trip link: it waits for the owner's yes; read it before preparing again"
+            if status in _AWAITING_YES:
+                state_note = "it waits for the owner's yes"
+            elif status in _UNRESOLVED_ATTEMPT:
+                state_note = "a provider attempt has an unknown outcome; read provider state"
+            else:
+                state_note = "the owner already said yes and it is not submitted yet; do not ask again"
+            item["trip_filter"] = f"listed without a trip link: {state_note}; read it before preparing anything new"
         if radar:
             item["radar"] = {key: radar[key] for key in ("radar_kind", "date", "surface_at", "days_until")}
             if "decide_by" in radar:
@@ -561,7 +569,9 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             if actor == "them" and isinstance(counterparty, str) and counterparty.strip():
                 actor = counterparty.strip()  # Only text names a holder; structured values never break the brief.
             load[actor] = load.get(actor, 0) + 1
-    candidates.sort(key=lambda row: (row.get("due_at") is None, row.get("due_at") or "", row["action_id"]))
+    # Unlinked rows under a trip filter come first, so a small first page cannot hide them (#315).
+    candidates.sort(key=lambda row: ("trip_filter" not in row, row.get("due_at") is None, row.get("due_at") or "",
+                                     row["action_id"]))
     page = _page(candidates, limit, offset)
     return {"candidates": page.pop("items"), "excluded_completed": excluded_completed,
             "excluded_terminal_unlinked": excluded_terminal_unlinked,
