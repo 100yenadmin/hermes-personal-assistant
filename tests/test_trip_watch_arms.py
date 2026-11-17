@@ -152,6 +152,31 @@ def test_verify_statuses_and_epoch(tmp_path, state, category):
         assert changed['stale_wakes'] == []
 
 
+def test_heartbeat_epoch_expiry_is_accepted(tmp_path):
+    # Real HeartBeat 2.0 0.4.16 `pulse list` rows, copied as the agent sees them (#310): a numeric
+    # expires_at, and null for a wake with no expiry (a role wake in the same session).
+    row = {'id': 'w_one', 'status': 'active', 'expires_at': 1794945600.0}
+    role = {'id': 'w_role', 'status': 'active', 'expires_at': None}
+    plan(tmp_path)
+    record(tmp_path)
+    validate({'operation': 'trip_watch_plan', 'data': {'action': 'verify', 'trip_id': 'synthetic', 'wakes': [row, role]}},
+             SCHEMA['parameters'])
+    result = tw.verify(Ledger(tmp_path), 'synthetic', [row, role], session_id='session', at=BASE['at'])
+    assert result['verified'] == ['w_one']
+    assert result['arms']['arrival_logistics']['expires_at'] == '2026-11-17T20:00:00+00:00'
+    # The receipt from `pulse create` carries a number too; record_wake stores its own value as ISO text.
+    dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {'action': 'record_wake', 'trip_id': 'synthetic',
+        'moment': 'arrival_logistics', 'wake_id': 'w_one', 'expires_at': 1794949200}}, runtime_scope={'session_id': 'real'})
+    assert tw.status(Ledger(tmp_path), 'synthetic')['arms']['arrival_logistics']['expires_at'] == '2026-11-17T21:00:00+00:00'
+    # Zero is a time, not a missing value; ISO text still works; a boolean is not a time.
+    tw.verify(Ledger(tmp_path), 'synthetic', [{**row, 'expires_at': 0}], session_id='session', at=BASE['at'])
+    assert tw.status(Ledger(tmp_path), 'synthetic')['arms']['arrival_logistics']['expires_at'] == '1970-01-01T00:00:00+00:00'
+    assert tw._expiry('2026-11-18T08:00:00Z').isoformat() == '2026-11-18T08:00:00+00:00'
+    with pytest.raises(ValidationError):
+        validate({'operation': 'trip_watch_plan', 'data': {'action': 'verify', 'trip_id': 'synthetic',
+                  'wakes': [{**row, 'expires_at': True}]}}, SCHEMA['parameters'])
+
+
 def test_session_scope_and_five_verified_sessions(tmp_path):
     plan(tmp_path)
     dispatch(tmp_path, {'operation': 'trip_watch_plan', 'data': {'action': 'record_wake', 'trip_id': 'synthetic',
