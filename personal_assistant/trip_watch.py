@@ -402,7 +402,7 @@ def record_wake(ledger, trip_id, moment, wake_id, armed=True, expires_at=None, s
         old = next((w for w in current if w["wake_id"] == wake_id), {})
         receipt = {**old, "moment": moment, "wake_id": wake_id, "revision": revision, "armed": armed or old.get("armed", False),
                    "armed_at": old.get("armed_at") or now(), "arm_key": key, "trigger_at": pulse["trigger"].get("at", event["payload"]["inputs"]["departure_at"]),
-                   "session_id": session_id, "expires_at": _expiry(expires_at).isoformat() if expires_at else old.get("expires_at"), "carried_from": _carry}
+                   "session_id": session_id, "expires_at": _expiry(expires_at).isoformat() if expires_at not in (None, "") else old.get("expires_at"), "carried_from": _carry}
         data["wakes"] = [w for w in data["wakes"] if not (w["wake_id"] == wake_id and w["revision"] == revision)] + [receipt]
     _mutate(ledger, "pa:trip-watch:" + trip_id, update)
     current = status(ledger, trip_id)["arms"][moment]
@@ -442,7 +442,7 @@ def verify(ledger, trip_id, wakes, session_id=None, at=None):
             state = item.get("status")
             kind = {"active": "verified", "proposed": "pending", "paused": "resume", "done": "verified", "orphaned": "lost", "cancelled": "lost", "expired": "lost", "failed": "lost"}.get(state, "unlisted")
             result[kind].append(w["wake_id"])
-            if item.get("expires_at"):
+            if item.get("expires_at") not in (None, ""):  # HeartBeat lists null for a wake with no expiry.
                 w["expires_at"] = _expiry(item["expires_at"]).isoformat()
             if kind == "lost":
                 w.update(lost=True, armed=False)
