@@ -79,6 +79,17 @@ the first_commitment moment's `feasibility`. For each notice, run
 `pa trip_offer action=check trip_id=… offer_type=… occurrence=<notice id>`.
 If allowed, send ONE short offer, then `trip_offer action=record` with the same
 occurrence and `outcome=offered`. If blocked, stay silent: check acknowledged it.
+If the wake text says "Messages are held right now", nothing you write on this
+turn reaches the owner. Do not offer and do not record. Run each check with
+`"reserve": false`, then end with `pulse`
+`{"action":"respond","outcome":"needs_attention","notify":true,"summary":"..."}`:
+one plain sentence under 160 characters that names the change and says options
+are ready, such as "Flight JL123 now lands 50 min late; your 19:00 dinner is at
+risk. Options ready." If every check was blocked, respond with `"outcome":"done"`
+and `"notify":false` instead. Unrecorded notices stay in status. On the next turn
+that can reach the owner (their next message, HeartBeat's report-back turn or
+another watcher wake without that line), read status and make the offer for each
+notice still listed, as above.
 Never create or update a watch in a watcher wake turn.
 For flight_change, say whether the first commitment works, name the assumed
 processing, transfer and buffer minutes plainly, and give up to three alternatives.
