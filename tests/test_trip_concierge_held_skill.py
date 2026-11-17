@@ -29,17 +29,23 @@ def test_watcher_turn_never_ends_the_watch():
 
 def test_sendable_watcher_turn_posts_the_offer_as_final_reply():
     wake = _wake_section()
-    assert '{"action":"respond","outcome":"progress","notify":true,"summary":"Trip offer sent."}' in wake
-    assert "then make the ONE short offer your final reply. Write no text alongside tool calls." in wake
+    assert '{"action":"respond","outcome":"progress","notify":true,"summary":"…"}' in wake
+    # HB2 silences a notify turn whose summary repeats one delivered for the same wake within 24 hours.
+    assert "never fixed text: HeartBeat silences a summary it already delivered" in wake
+    assert "Trip offer sent." not in wake
+    assert "ONE short offer your final reply, covering every allowed notice." in wake
 
 
 def test_handed_back_watch_report_gets_the_offer_in_the_owner_turn():
     wake = _wake_section()
-    assert 'When HeartBeat hands back a report titled `Trip "<id>": watch` in an owner turn' in wake
-    assert "record `outcome=offered` and make the offer in that reply" in wake
-    assert "call no `pulse` respond" in wake
-    router = (ROOT / "skills/personal-assistant/SKILL.md").read_text()
-    assert 'When HeartBeat hands back a report titled `Trip "<id>": watch`, load' in router
+    assert 'When HeartBeat hands back a held report whose title starts with `Trip "`' in wake
+    assert "in an owner turn, in that reply; an owner turn has no wake, so call no `pulse` respond" in wake
+    # In the Report back wake the offer is posted only with notify true.
+    assert 'in HeartBeat\'s "Report back" wake, call `pulse` with' in wake
+    assert "without notify true it is not posted" in wake
+    assert "Skip a blocked one (check acknowledged it); for each allowed one, record `outcome=offered`" in wake
+    router = " ".join((ROOT / "skills/personal-assistant/SKILL.md").read_text().split())
+    assert 'When HeartBeat hands back a held report whose title starts with `Trip "`, in an owner turn or its "Report back" wake, load' in router
 
 
 def test_arrival_flow_is_scoped_to_the_arrival_wake():

@@ -93,15 +93,22 @@ wake payload, never from the payload.
   If blocked, end with `{"action":"respond","outcome":"no_change","notify":false}`:
   check acknowledged it. If allowed, record `outcome=offered` with
   `pa trip_offer action=record` and the same occurrence, call `pulse` with
-  `{"action":"respond","outcome":"progress","notify":true,"summary":"Trip offer sent."}`,
-  then make the ONE short offer your final reply. Write no text alongside tool calls.
+  `{"action":"respond","outcome":"progress","notify":true,"summary":"…"}`, the
+  summary one plain sentence naming this change (never fixed text: HeartBeat
+  silences a summary it already delivered for this watch that day), then make the
+  ONE short offer your final reply, covering every allowed notice. Write no text
+  alongside tool calls.
 Never use `"outcome":"done"` on a watcher wake: it ends the watch.
 Never create or update a watch in a watcher wake turn.
-When HeartBeat hands back a report titled `Trip "<id>": watch` in an owner turn
-(not a check-in or arrival wake), read status for that trip and, for each notice
-still listed, check, record `outcome=offered` and make the offer in that reply,
-including the disruption step below; an owner turn has no wake, so call no
-`pulse` respond. A notice the owner never received stays listed until it is offered.
+When HeartBeat hands back a held report whose title starts with `Trip "` (a trip
+watch), read status for that trip and check each notice still listed. Skip a
+blocked one (check acknowledged it); for each allowed one, record `outcome=offered`
+and make the offer, including the disruption step below:
+- in an owner turn, in that reply; an owner turn has no wake, so call no `pulse` respond;
+- in HeartBeat's "Report back" wake, call `pulse` with
+  `{"action":"respond","outcome":"progress","notify":true,"summary":"…"}` naming
+  the change, then make the offer your final reply; without notify true it is not posted.
+A notice the owner never received stays listed until it is offered.
 For flight_change, say whether the first commitment works, name the assumed
 processing, transfer and buffer minutes plainly, and give up to three alternatives.
 For a flight_change whose leg is cancelled, diverted or delayed by at least 45 minutes or rescheduled by at least 45 minutes,
