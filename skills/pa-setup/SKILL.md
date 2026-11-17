@@ -107,8 +107,8 @@ For “grill me”, `/pa setup grill` or `/pa setup profile`, use `{"action":"st
    A partial apply must name its subset; revise `propose` to exactly that subset.
    Wait for explicit “apply”; answering the interview is not approval to write.
 7. After apply, leave Plan Mode if active and write the approved subset in the
-   foreground using the destination reference. Do not claim a protected-write
-   prompt will approve the profile SOUL.md: this review is its approval gate.
+   foreground using the destination reference. Hermes v0.23.2+ asks the owner to approve each SOUL.md write; say so first.
+   If it is blocked or not approved, keep `soul_section` pending, say why in one line; never retry another way or suggest a restart.
    Apply `pa_preferences` through `pa automations` action `preferences` (no readback).
    After all proposed writes succeed, call `applied` with exactly the proposed file targets:
    `readbacks: [{"target":"user_memory"},{"target":"soul_section"},{"target":"manual_skill","skill":"<name>"}]`,

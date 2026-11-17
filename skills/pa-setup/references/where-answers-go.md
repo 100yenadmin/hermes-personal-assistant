@@ -58,8 +58,10 @@ Read `$HERMES_HOME/SOUL.md`. Insert or replace only this block:
 Keep all existing persona text outside the markers untouched. If no block exists,
 append one; do not absorb an unrelated existing heading. If markers are ambiguous
 or incomplete, show the conflict and ask before repair. Use a normal foreground
-file write after explicit apply, then read back. The profile's own SOUL.md is
-exempt from Hermes' protected-write gate: no extra host prompt approves it.
+file write after explicit apply, then read back. Hermes v0.23.2 and later ask the
+owner once to approve each write to the profile's SOUL.md (earlier versions did
+not); say so before writing. If it is blocked or not approved, leave the PA
+section pending and do not retry it through another path.
 Project-local instruction files still follow Hermes' protected-write approval.
 
 ## Operating manual
