@@ -115,7 +115,9 @@ and make the offer, including the disruption step below:
   make the offer your final reply, also passing on the list's other items that
   still matter; without notify true it is not posted. A trip report in the list
   always still matters: pass on its change with its effect and options from status,
-  even if its notice is no longer listed. If nothing is left to offer
+  even if its notice is no longer listed. First run `pa trip_offer` with data
+  `{"action":"check","trip_id":"…","offer_type":"…","reserve":false}` for its offer
+  type, without an occurrence; if blocked (declined or opted out), skip it. If nothing is left to offer
   or pass on, end with `{"action":"respond","outcome":"no_change","notify":false}`.
 A notice the owner never received stays listed until it is offered.
 For flight_change, say whether the first commitment works, name the assumed

@@ -51,6 +51,8 @@ def test_handed_back_watch_report_gets_the_offer_in_the_owner_turn():
     assert "also passing on the list's other items that still matter" in wake
     # Live P6: the held turn may record early, so a Report back wake must not drop the trip report.
     assert "A trip report in the list always still matters: pass on its change with its effect and options from status, even if its notice is no longer listed." in wake
+    # A check with no occurrence and reserve false is blocked only by a decline or opt-out; it reserves and acks nothing.
+    assert 'for its offer type, without an occurrence; if blocked (declined or opted out), skip it.' in wake
     assert "Skip a blocked one (check acknowledged it); for each allowed one, record `outcome=offered`" in wake
     router = " ".join((ROOT / "skills/personal-assistant/SKILL.md").read_text().split())
     assert 'When HeartBeat hands back a held report whose title starts with `Trip "`, in an owner turn or its "Report back" wake, load' in router
