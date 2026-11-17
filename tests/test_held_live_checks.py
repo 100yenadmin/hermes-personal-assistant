@@ -57,3 +57,13 @@ def test_p6_rejects_provider_tool_and_duplicate_record():
         {"function": {"name": "browser_navigate", "arguments": "{}"}}])]
     checks = score_held(snapshot)
     assert not checks["no_provider_actions"] and not checks["one_record"]
+
+
+def test_p6_deferred_held_record_is_not_a_second_record():
+    snapshot = passing_snapshot()
+    deferred_call = snapshot["transcript"][1]
+    result = dict(role="tool", content='{"deferred": true, "reason": "messages_held", "note": "x"}')
+    snapshot["transcript"] = [deferred_call, result] + snapshot["transcript"]
+    assert score_held(snapshot)["one_record"]
+    snapshot["transcript"] = snapshot["transcript"] + [deferred_call]
+    assert not score_held(snapshot)["one_record"]

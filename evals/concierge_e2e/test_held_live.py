@@ -40,6 +40,9 @@ def score_held(snapshot):
         return sum(name == "pa" and args.get("operation") == "trip_offer" and
                    args.get("data", {}).get("action") == "record" and args["data"].get("occurrence") == notice
                    for name, args in tool_calls(messages))
+    def deferred(messages):
+        return sum(row.get("role") == "tool" and '"reason": "messages_held"' in str(row.get("content") or "")
+                   and '"deferred": true' in str(row.get("content") or "") for row in messages)
     return dict(
         two_unanswered=len(snapshot.get("sendable", [])) == 2 and all(
             s.get("offer", {}).get("outcome") == "offered" and s.get("acked") and s.get("texts")
@@ -55,7 +58,8 @@ def score_held(snapshot):
             and sum(names_change(t) for t in snapshot.get("visible", [])) == 1,
         owner_turn=any(names_change(str(r.get("content") or "")) for r in snapshot.get("owner_turn", [])
                        if r.get("role") == "assistant") and records(snapshot.get("owner_turn", [])) == 1,
-        one_record=bool(notice) and records(snapshot.get("transcript", [])) == 1,
+        # A record PA deferred on a held turn wrote nothing (#312), so it is not a second record.
+        one_record=bool(notice) and records(snapshot.get("transcript", [])) - deferred(snapshot.get("transcript", [])) == 1,
         no_provider_actions=bool(snapshot.get("transcript")) and all(
             name in {"pulse", "skills_list", "skill_view", "tool_search", "tool_describe"} or name == "pa" and args.get("operation") in
             {"trip_watch_plan", "trip_offer", "context", "capabilities", "recipes"}

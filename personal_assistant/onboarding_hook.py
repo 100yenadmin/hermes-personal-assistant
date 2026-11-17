@@ -104,7 +104,8 @@ def make_pre_llm_call(root, get_config, *, chief_of_staff=False):
                                     and p.get("type") == "text" and isinstance(p.get("text"), str))
             history = kwargs.get("conversation_history")
             first = message.split("\n", 1)[0] if isinstance(message, str) else ""
-            if kwargs.get("platform") not in {"cron", "subagent", "curator"} and not kwargs.get("parent_session_id"):
+            if (kwargs.get("platform") not in {"cron", "subagent", "curator"} and not kwargs.get("parent_session_id")
+                    and not _unattended(kwargs.get("platform"))):
                 try:
                     concierge.set_messages_held(root, _messages_held(message, first))
                 except Exception:

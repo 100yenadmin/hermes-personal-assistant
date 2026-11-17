@@ -109,7 +109,7 @@ def dispatch(ledger, data):
         conn.execute("begin immediate")
         if occurrence and outcome == "offered" and conn.execute(
                 "select 1 from actions where action_id=?", (HELD_TURN_ACTION,)).fetchone():
-            return {"deferred": True, "reason": "messages_held", "note": "Messages are held, so nothing was recorded and the notice stays open for the owner's next message. End this turn with pulse respond needs_attention and the final reply [SILENT]."}
+            return {"deferred": True, "reason": "messages_held", "note": "Messages were held when this turn began, so nothing was recorded and the notice stays open for the owner's next message. On a HeartBeat held turn, end with pulse respond needs_attention and the final reply [SILENT]; otherwise reply normally."}
         saved = _record(conn, identity, "*" if identity == opt_out else trip_id, outcome)
         if occurrence and outcome == "accepted" and offer_type == "weather_leave_early":
             _weather_replan(conn, trip_id, occurrence, saved)
