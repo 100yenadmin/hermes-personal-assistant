@@ -57,3 +57,23 @@ def test_p6_rejects_provider_tool_and_duplicate_record():
         {"function": {"name": "browser_navigate", "arguments": "{}"}}])]
     checks = score_held(snapshot)
     assert not checks["no_provider_actions"] and not checks["one_record"]
+
+
+def test_p6_deferred_held_record_is_not_a_second_record():
+    snapshot = passing_snapshot()
+    record_row = copy.deepcopy(snapshot["transcript"][1])
+    calls = record_row["tool_calls"]
+    calls = json.loads(calls) if isinstance(calls, str) else calls
+    record_row["tool_calls"] = [dict(call, id="call_held") for call in calls]
+    result = dict(role="tool", tool_call_id="call_held", content='{"deferred": true, "reason": "messages_held", "note": "x"}')
+    snapshot["transcript"] = [record_row, result] + snapshot["transcript"]
+    assert score_held(snapshot)["one_record"]
+    snapshot["transcript"] = snapshot["transcript"] + [snapshot["transcript"][3]]
+    assert not score_held(snapshot)["one_record"]
+
+
+def test_p6_deferred_result_of_another_call_does_not_hide_a_duplicate():
+    snapshot = passing_snapshot()
+    other = dict(role="tool", tool_call_id="call_other", content='{"deferred": true, "reason": "messages_held", "note": "x"}')
+    snapshot["transcript"] = snapshot["transcript"] + [snapshot["transcript"][1], other]
+    assert not score_held(snapshot)["one_record"]
