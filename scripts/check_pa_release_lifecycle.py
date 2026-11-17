@@ -212,7 +212,7 @@ def main() -> int:
         home = root / "profile"
         (home / "plugins").mkdir(parents=True)
         (home / "config.yaml").write_text(
-            "plugins:\n  enabled: []\n  scan_on_install: false\n", encoding="utf-8"
+            "plugins:\n  enabled: []\n", encoding="utf-8"
         )
         env = {name: os.environ[name] for name in HERMES_ENV_NAMES if name in os.environ}
         env["HERMES_HOME"] = str(home)
