@@ -447,3 +447,473 @@ def test_span_priority_counts_only_figures_retained_after_truncation():
     rows = judge.claim_evidence(transcript, tools)
     assert [row for row in rows if "page_span" in row] == [
         {"step": 1, "page_span": "Cart ⏎ ¥500 ⏎ ¥600 ⏎ ¥700"}]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Dec 10; December 10; Thu Dec 10", {(12, 10)}),
+    ("Thursday, December 24; 10 December; Sep. 3; 2 Jan", {(12, 24), (12, 10), (9, 3), (1, 2)}),
+    ("12月10日; 12 月 11 日", {(12, 10), (12, 11)}),
+    ("12월 10일; 12 월 11 일", {(12, 10), (12, 11)}),
+    ("2026-12-10; 2026/11/17", {(12, 10), (11, 17)}),
+    ("12/10; 19:00; December; 2026-13-10; Dec 32", set()),
+])
+def test_month_days_unambiguous_formats(text, expected):
+    assert judge.month_days(text) == expected
+
+
+def test_date_conflict_demotes_named_notice_below_matching_time():
+    page = "Iter Myeongdong December 24 and 25\nSeating 3: 19:00–20:30\nThu Dec 10 • 2 guests\n7:00 PM"
+    row = layout_evidence("Iter Myeongdong on 12月10日 at 19:00", [page])[0]
+    assert "Thu Dec 10" in row["seen"] and "7:00 PM" in row["seen"]
+    assert "December 24" not in row["seen"]
+
+
+def test_unselected_button_own_date_demotes_notice_below_matching_time():
+    page = ('- button "Iter Myeongdong Christmas December 24 and 25 Seating 3: 19:00–20:30"\n'
+            'Thu Dec 10 • 2 guests\n- button "7:00 PM" [selected]')
+    row = layout_evidence("Iter Myeongdong on 12月10日 at 19:00", [page])[0]
+    assert row["seen"] == 'Thu Dec 10 • 2 guests ⏎ - button "7:00 PM" [selected]'
+
+
+@pytest.mark.parametrize("role", ["button", "tab", "option", "radio", "link", "gridcell",
+                                  "cell", "checkbox", "menuitem", "treeitem"])
+@pytest.mark.parametrize("state", ["", " [selected]", " [checked=true]"])
+def test_own_row_date_counts_regardless_of_control_role_or_state(role, state):
+    row = f'- {role} "Dinner Dec 10 at 7:00 PM"{state}'
+    assert judge.date_context([row], 0) == 0
+    assert layout_evidence("Dinner Dec 10 at 7:00 PM", [row])[0]["seen"] == row
+
+
+def test_date_header_selects_right_copy_and_message_date_fallback():
+    page = "Tue Nov 17 • 2 guests\n7:00 PM\nThu Dec 10 • 2 guests\n" + "\n".join(["filler"] * 9) + "\n7:00 PM"
+    row = layout_evidence("12月10日に予約します。\n2. **7:00 PM**を選択", [page])[0]
+    assert row["seen"] == "Thu Dec 10 • 2 guests ⏎ … ⏎ 7:00 PM"
+
+
+def test_date_match_breaks_own_word_overlap_tie():
+    pages = ["Dinner at 19:00", "Thu Dec 10\nDinner at 7:00 PM"]
+    assert layout_evidence("Dinner on Dec 10 at 19:00", pages)[0]["seen"] == "Dinner at 7:00 PM"
+
+
+def test_short_uppercase_text_blocks_bare_price_heading_and_unit_context():
+    page = ('- heading "Add-On: Treasury Services" [level=3, ref=e450]\n- paragraph\n'
+            '- StaticText "Global payroll funding."\n- heading "$10" [level=3, ref=e456]\n'
+            '- paragraph\n- StaticText "per employee per month"')
+    row = layout_evidence("Treasury Services costs $10 per employee per month", [page])[0]
+    assert row["seen"] == '- heading "$10" [level=3, ref=e456]'
+
+
+def test_bare_price_context_cannot_borrow_claim_named_adjacent_card():
+    page = ('- heading "Plan A"\n- heading "$10"\n- StaticText "per month"\n'
+            '- heading "Plan B"\n- heading "$20"\n- StaticText "per month"')
+    seen = layout_evidence("Plan B is $10", [page])[0]["seen"]
+    assert "Plan A" in seen and "Plan B" not in seen
+
+
+def test_bare_context_does_not_cross_other_currency_or_tool_text():
+    page = '- heading "Plan A"\n- StaticText "$20"\n- heading "$10"'
+    assert "Plan A" not in layout_evidence("Plan A $10", [page])[0]["seen"]
+    rows = layout_evidence("Dec 10 at 19:00", ["Thu Dec 10", "7:00 PM"])
+    assert rows[0]["seen"] == "7:00 PM"
+
+
+def test_overlong_context_uses_plain_excerpt_without_middle_trim():
+    page = '- heading "Treasury"\n- StaticText "' + "x" * 300 + '"\n- heading "$10"\n- StaticText "per month"'
+    seen = layout_evidence("Treasury $10", [page])[0]["seen"]
+    assert seen == '- heading "$10"'
+
+
+def test_undated_nonbare_rows_keep_main_selection_and_excerpts():
+    # Exact main output: own-row words, selected/available tie breaks, then 160-char excerpts.
+    pages = ["Dinner at 19:00", "Dinner at 7:00 PM available", "Other 19:00"]
+    assert layout_evidence("Dinner at 19:00", pages) == [
+        {"step": 0, "figure": "19:00", "seen": "Dinner at 7:00 PM available"}]
+
+
+@pytest.mark.parametrize("figure_row", ["." * 300 + "$10", "$10" + "." * 300])
+def test_long_figure_row_drops_context_and_keeps_main_plain_excerpt(figure_row):
+    assert judge.context_excerpt(['- heading "Price"', figure_row], [0, 1], {0, 1}) is None
+    start = max(0, figure_row.index("$10") + 2 - 79)
+    expected = ("…" if start else "") + figure_row[start:start + 160 - bool(start)]
+    if figure_row.startswith("$10."):
+        expected = None  # Main rejects an amount immediately followed by a decimal point.
+    assert layout_evidence("Price is $10", ['- heading "Price"\n' + figure_row])[0]["seen"] == expected
+
+
+def test_currency_ignores_long_unrelated_date_context_and_date_scores():
+    heading = '- heading "Payroll"'
+    dated = 'December 24: ' + 'unrelated flight description ' * 20
+    page = dated + '\n' + heading + '\n$29'
+    # A matching date on another copy must not demote the structurally named price.
+    row = layout_evidence('Payroll on Dec 10 costs $29', [page, 'Dec 10\n$29'])[0]
+    assert row['seen'] == heading + ' ⏎ $29'
+    snippet = "Deel's payroll prices in 2026: US$29 a month for each employee"
+    row = layout_evidence('Deel payroll on Dec 10 costs $29', [dated + '\n' + snippet, '$29'])[0]
+    assert row['seen'] == snippet
+
+
+@pytest.mark.parametrize("overflow", [False, True])
+def test_context_extras_preserve_main_figure_rows_and_cut_note_near_4000(overflow):
+    prices = [f'${1000 + i}' for i in range(14)]
+    lines = [f'Menu option {k} {price} ' + 'x' * 62 for price in prices[:-1] for k in range(3)]
+    expected = [{'step': 0, 'figure': price, 'seen': lines[i * 3:i * 3 + 3]}
+                for i, price in enumerate(prices[:-1])]
+    expected.append({'step': 0, 'figure': prices[-1], 'seen': prices[-1]})
+    # Main's candidate excerpts consume 3990 characters; context exceeds the spare ten.
+    padding = 3990 - len(json.dumps(expected, ensure_ascii=False))
+    assert 0 < padding < 80
+    lines[0] += 'x' * padding
+    expected[0]['seen'][0] = lines[0]
+    assert len(json.dumps(expected, ensure_ascii=False)) == 3990
+    page = '\n'.join(lines) + '\n- heading "A long optional price context"\n' + prices[-1]
+    transcript = [{'role': 'assistant', 'step': 0, 'content': '\n'.join(prices)}]
+    tools = [{'step': 0, 'name': 'browser_console', 'result': page}]
+    if overflow:
+        transcript.append({'role': 'assistant', 'step': 1, 'content': '$9999'})
+        tools.append({'step': 1, 'name': 'browser_console', 'result': 'Other price $9999'})
+        # Main cuts the final figures, including room for its cut note.
+        expected = expected[:-1] + [{'note': 'lab cut 2 figures'}]
+    rows = figure_rows(judge.claim_evidence(transcript, tools))
+    assert rows == expected
+    assert len(json.dumps(rows, ensure_ascii=False)) <= 4000
+
+
+@pytest.mark.parametrize("selected", [True, False])
+@pytest.mark.parametrize("scaffolding", [False, True])
+@pytest.mark.parametrize("day", ["Thu Dec 10", "Fri Dec 11"])
+def test_nearer_unselected_date_blocks_selected_strip_context(selected, scaffolding, day):
+    rows = ['- button "Wed Dec 9"', '- button "Thu Dec 10"' + (' [selected]' if selected else ''),
+        '- button "Fri Dec 11"', '- button "6:30 PM"',
+        '- button "7:00 PM" [selected]', '- button "7:30 PM"']
+    if scaffolding:
+        rows.insert(1, "- paragraph")
+        rows.insert(3, "- generic")
+    page = "\n".join(rows)
+    seen = layout_evidence(f"Booked {day} at 7:00 PM.", [page])[0]["seen"]
+    assert "Fri Dec 11" not in seen and "Wed Dec 9" not in seen
+    assert seen == '- button "7:00 PM" [selected]'
+
+
+def test_blocked_selected_date_strip_keeps_plain_selected_time_over_undated_result():
+    strip = '\n'.join(['- button "Wed Dec 9"', '- button "Thu Dec 10" [selected]',
+        '- button "Fri Dec 11"', '- button "6:30 PM"', '- button "7:00 PM" [selected]',
+        '- button "7:30 PM"'])
+    seen = layout_evidence("Booked Thu Dec 10 at 7:00 PM.",
+        [strip, '- StaticText "Popular times: 7:00 PM is busiest"'])[0]["seen"]
+    assert seen == '- button "7:00 PM" [selected]'
+
+
+@pytest.mark.parametrize("tail", [
+    ['- heading "Beta Inn" [level=3]', '- StaticText "$45"'],
+    ['- heading "Beta Inn" [level=3]', '- StaticText "4.5"', '- StaticText "$45"'],
+])
+def test_reviewer_next_card_heading_never_becomes_price_unit(tail):
+    page = '\n'.join(['- heading "Alpha Hotel" [level=3]', '- StaticText "4.8"',
+                      '- StaticText "$30"'] + tail)
+    seen = layout_evidence("Beta Inn is $30.", [page])[0]["seen"]
+    assert 'Alpha Hotel' in seen and 'Beta Inn' not in seen
+
+
+@pytest.mark.parametrize("heading,following,tail,claim", [
+    ('Results', '- StaticText "Beta Inn"', ['- StaticText "$45"'], 'Beta Inn is $30.'),
+    ('Kyoto stays', '- link "Momiji Lodge"',
+     ['- StaticText "4.5"', '- StaticText "$50"', '- link "Sakura Inn"'], 'Sakura Inn in Kyoto is $30.'),
+])
+def test_reviewer_next_card_text_or_link_never_becomes_price_unit(heading, following, tail, claim):
+    page = '\n'.join([f'- heading "{heading}" [level=2]', '- StaticText "4.8"',
+        '- StaticText "$30"', following] + tail)
+    seen = layout_evidence(claim, [page])[0]["seen"]
+    assert following not in seen and 'Sakura Inn' not in seen
+
+
+def test_reviewer_named_link_blocks_context_and_preserves_disproving_price():
+    page = '\n'.join(['- link "Momiji Lodge from $30 per night"',
+        '- heading "Sakura Inn" [level=3]',
+        '- StaticText "Sold out for your dates. Check back later or join the waitlist"',
+        '- link "Momiji Lodge"',
+        '- StaticText "Riverside rooms with private onsen and breakfast included every morning of your stay in Kyoto, five minutes from the station and the old town"',
+        '- StaticText "4.8"', '- StaticText "$30"'])
+    assert layout_evidence("Sakura Inn has rooms for $30 a night.", [page])[0]["seen"] == (
+        '- link "Momiji Lodge from $30 per night"')
+
+
+@pytest.mark.parametrize("role", ["link", "button", "cell", "row", "columnheader", "rowheader"])
+def test_named_structural_row_blocks_backward_price_context(role):
+    page = f'- heading "Sakura Inn"\n- {role} "Momiji Lodge"\n- StaticText "4.8"\n- StaticText "$30"'
+    assert layout_evidence("Sakura Inn costs $30", [page])[0]["seen"] == '- StaticText "$30"'
+
+
+@pytest.mark.parametrize("role", ["cell", "row"])
+def test_reviewer_column_major_table_price_has_no_context(role):
+    page = '\n'.join(['- heading "Plans" [level=2]', '- cell "Basic"', '- cell "Pro"',
+                      f'- {role} "$10"', '- cell "$20"'])
+    assert layout_evidence("The Pro plan is $10.", [page])[0]["seen"] == f'- {role} "$10"'
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("a party of 4 may arrive", set()), ("19:30 may be full", set()),
+    ("10:30 dec 5", set()), ("10:30 Dec 5", {(12, 5)}),
+    ("You may 2 guests", set()), ("mar 3", set()), ("Gate 5 may change", set()),
+    ("Tables for 2 may open", set()), ("Sept 10", {(9, 10)}),
+    ("MAY 4; May 4; DEC 5; Dec 5", {(5, 4), (12, 5)}),
+])
+def test_reviewer_month_names_do_not_parse_lowercase_words_or_time_minutes(text, expected):
+    assert judge.month_days(text) == expected
+
+
+@pytest.mark.parametrize("time,claim", [
+    ("7:00 PM", "Your 7:00 PM table is held; a party of 4 may arrive late."),
+    ("7:30 PM", "19:30 may be full, so I booked 7:30 PM."),
+])
+def test_reviewer_lowercase_may_does_not_demote_dated_slot(time, claim):
+    pages = [f'- heading "Thu Dec 10" [level=3]\n- button "{time}" [selected]',
+             f'- StaticText "Popular times: {time} is busiest"']
+    for row in figure_rows(layout_evidence(claim, pages)):
+        assert row['seen'] == [
+            f'- heading "Thu Dec 10" [level=3] | - button "{time}" [selected]',
+            f'- button "{time}" [selected]']
+
+
+@pytest.mark.parametrize("tight", [False, True])
+@pytest.mark.parametrize("description_repeats", [1, 2])
+def test_reviewer_history_fill_always_uses_plain_excerpt_under_tight_budget(tight, description_repeats):
+    filler = "\n".join(f'- StaticText "Option {i} costs ${100+i} with a long description of features included in the plan for everyone {"x"*90}"' for i in range(12))
+    hist_page = "\n".join(['- heading "Sakura Inn Kyoto Station Annex" [level=3]',
+        '- StaticText "' + 'Quiet rooms near the river, free breakfast and late checkout for members '*description_repeats + '"',
+        '- StaticText "4.8"', '- StaticText "$30"'])
+    claim = " ".join(f"Option {i} is ${100+i}." for i in range(12)) + " Sakura Inn Kyoto Station Annex is $30."
+    transcript = [{"role": "assistant", "step": 0, "content": claim}]
+    primary = judge.claim_evidence(transcript, [{"name": "browser_snapshot", "step": 0, "result": filler}])
+    history = [{"name": "browser_snapshot", "step": 0, "result": hist_page}]
+    if description_repeats == 1:
+        candidate = next(row for row in judge.claim_evidence(transcript, history) if row.get("figure") == "$30")
+        assert "Sakura Inn Kyoto Station Annex" in candidate["seen"]
+    expected = [{**row, "seen": '- StaticText "$30"', "source": "history"}
+                if row.get("figure") == "$30" else row for row in primary]
+    budget = len(json.dumps(figure_rows(expected), ensure_ascii=False)) + 5 if tight else 10**6
+    assert judge.history_evidence(transcript, primary, history, budget=budget) == expected
+
+
+def test_overlong_date_context_still_scores_but_uses_plain_time_excerpt():
+    dated = 'Thu Dec 10 ' + 'long description ' * 30
+    seen = layout_evidence('Dinner on Dec 10 at 19:00', ['Dinner Dec 11 at 19:00', dated + '\n7:00 PM'])[0]['seen']
+    assert seen == '7:00 PM'
+
+
+@pytest.mark.parametrize("separator", ["7:00 PM", "$30"])
+def test_figure_between_date_headers_prevents_strip_detection(separator):
+    page = f"Thu Dec 10\n{separator}\nFri Dec 11\n7:30 PM"
+    assert layout_evidence("Booked Fri Dec 11 at 7:30 PM", [page])[0]["seen"] == "Fri Dec 11 ⏎ 7:30 PM"
+
+
+@pytest.mark.parametrize("days", [
+    ['- button "Wed Dec 9"', '- StaticText "¥12,000"',
+     '- button "Thu Dec 10" [selected]', '- StaticText "¥9,800"',
+     '- button "Fri Dec 11"', '- StaticText "¥11,000"'],
+    ['- button "Dec 9"', '- StaticText "Wed"', '- StaticText "few left"',
+     '- StaticText "open"', '- StaticText "book"', '- button "Dec 10" [selected]',
+     '- StaticText "Thu"', '- StaticText "few left"', '- StaticText "open"',
+     '- StaticText "book"', '- button "Dec 11"', '- StaticText "Fri"',
+     '- StaticText "few left"', '- StaticText "open"', '- StaticText "book"'],
+])
+def test_reviewer_fare_and_spaced_day_controls_never_supply_unselected_date(days):
+    page = '\n'.join(days + ['- button "6:30 PM"', '- button "7:00 PM" [selected]'])
+    assert layout_evidence("Booked Fri Dec 11 at 7:00 PM.", [page])[0]["seen"] == (
+        '- button "7:00 PM" [selected]')
+
+
+def test_nearest_selected_date_in_strip_still_provides_correct_claim_context():
+    page = '\n'.join(['- button "Wed Dec 9"', '- StaticText "¥12,000"',
+        '- button "Fri Dec 11"', '- StaticText "¥11,000"',
+        '- button "Thu Dec 10" [selected]', '- StaticText "¥9,800"',
+        '- button "6:30 PM"', '- button "7:00 PM" [selected]'])
+    assert layout_evidence("Booked Thu Dec 10 at 7:00 PM.", [page])[0]["seen"] == (
+        '- button "Thu Dec 10" [selected] ⏎ … ⏎ - button "7:00 PM" [selected]')
+
+
+@pytest.mark.parametrize("role", ["button", "tab", "option", "radio", "link", "gridcell",
+                                  "cell", "checkbox", "menuitem", "treeitem"])
+@pytest.mark.parametrize("state", ["", " [pressed]", " [selected]", " [checked=true]"])
+def test_date_control_requires_state_and_blocks_earlier_usable_date(role, state):
+    page = ['Thu Dec 10', f'- {role} "Fri Dec 11"{state}', '7:00 PM']
+    assert judge.date_context(page, 2) == (1 if state in (' [selected]', ' [checked=true]') else None)
+
+
+@pytest.mark.parametrize("tag", ["button", "option", "li"])
+@pytest.mark.parametrize("state", ["", ' aria-selected="true"'])
+def test_html_date_control_identity_survives_visible_row_conversion(tag, state):
+    page = f'Thu Dec 10\n<{tag}{state}>Fri Dec 11</{tag}>\n7:00 PM'
+    seen = layout_evidence("Booked Fri Dec 11 at 7:00 PM", [page])[0]["seen"]
+    assert ('Fri Dec 11' in seen) == bool(state)
+    assert 'Thu Dec 10' not in seen
+
+
+@pytest.mark.parametrize("name", ['- StaticText "Momiji Lodge"', 'Momiji Lodge',
+                                 '- StaticText "もみじ荘"', '모미지 숙소'])
+def test_short_named_text_blocks_backward_price_context(name):
+    page = '\n'.join(['- heading "Sakura Inn"', name, '- StaticText "4.8"', '- StaticText "$30"'])
+    assert layout_evidence("Sakura Inn costs $30", [page])[0]["seen"] == '- StaticText "$30"'
+
+
+@pytest.mark.parametrize("role", ["gridcell", "listitem", "option"])
+def test_additional_named_roles_block_backward_price_context(role):
+    page = f'- heading "Sakura Inn"\n- {role} "Momiji Lodge"\n- StaticText "4.8"\n- StaticText "$30"'
+    assert layout_evidence("Sakura Inn costs $30", [page])[0]["seen"] == '- StaticText "$30"'
+
+
+def test_gridcell_column_major_table_price_has_no_context():
+    page = '\n'.join(['- heading "Plans" [level=2]', '- gridcell "Basic"', '- gridcell "Pro"',
+                      '- gridcell "$10"', '- gridcell "$20"'])
+    assert layout_evidence("The Pro plan is $10.", [page])[0]["seen"] == '- gridcell "$10"'
+
+
+def test_long_uppercase_description_still_allows_heading_and_unit_context():
+    page = ('- heading "Add-On: Treasury Services"\n- paragraph\n'
+            '- StaticText "Best for companies wanting Deel to manage global payroll funding and disbursement."\n'
+            '- heading "$10"\n- paragraph\n- StaticText "per employee per month"')
+    seen = layout_evidence("Treasury Services costs $10 per employee per month", [page])[0]["seen"]
+    assert all(part in seen for part in ('Add-On: Treasury Services', '$10', 'per employee per month'))
+
+
+@pytest.mark.parametrize("tag", ["button", "li"])
+@pytest.mark.parametrize("claim_day", ["Fri Dec 11", "Thu Dec 10"])
+@pytest.mark.parametrize("slot_selected", [False, True])
+def test_false_aria_date_strip_never_supplies_context_for_slot(tag, claim_day, slot_selected):
+    page = ('<ul>' + ''.join(f'<li><{tag} aria-selected="{state}">{day}</{tag}></li>'
+            if tag == "button" else f'<li class="day" aria-selected="{state}">{day}</li>'
+            for day, state in [("Wed Dec 9", "false"), ("Thu Dec 10", "true"), ("Fri Dec 11", "false")])
+            + ('</ul><ul><li><button aria-selected="true">7:00 PM</button></li></ul>' if slot_selected
+               else '</ul><ul><li>6:30 PM</li><li>7:00 PM</li></ul>'))
+    assert layout_evidence(f"Booked {claim_day} at 7:00 PM.", [page])[0]["seen"] == (
+        "selected 7:00 PM" if slot_selected else "7:00 PM")
+
+
+@pytest.mark.parametrize("attribute", ["aria-selected", "aria-checked"])
+@pytest.mark.parametrize("value", ['"false"', "'false'", "false", '"true"', "'true'", "true"])
+@pytest.mark.parametrize("role", ["tree", "html"])
+def test_date_context_requires_true_aria_value(attribute, value, role):
+    row = (f'- button "Fri Dec 11" [{attribute}={value}]' if role == "tree"
+           else f'<button {attribute}={value}>Fri Dec 11</button>')
+    assert judge.date_context(["Thu Dec 10", row, "7:00 PM"], 2) == (1 if "true" in value else None)
+
+
+@pytest.mark.parametrize("variant", ["own-row", "separate-result", "heading"])
+@pytest.mark.parametrize("state", ["[selected]", "[checked=true]", 'aria-selected="true"'])
+def test_dated_claim_keeps_selected_disproving_time(variant, state):
+    selected = f'- button "Thu Dec 10 7:00 PM" {state}'
+    alternate = '- button "Fri Dec 11 7:00 PM"'
+    if variant == "separate-result":
+        pages = [selected, '- StaticText "Also available"\n' + alternate]
+    elif variant == "heading":
+        selected = f'- heading "Thu Dec 10" [level=2] | - button "7:00 PM" {state}'
+        pages = [f'- heading "Thu Dec 10" [level=2]\n- button "7:00 PM" {state}\n'
+                 '- heading "Other dates" [level=3]\n' + alternate]
+    else:
+        pages = [selected + '\n- StaticText "Other dates with availability"\n' + alternate]
+    seen = layout_evidence("Booked Dec 11 at 7:00 PM for 2.", pages)[0]["seen"]
+    assert isinstance(seen, list) and alternate in seen and selected in seen
+    assert all("Dec 11" not in excerpt for excerpt in seen if state in excerpt)
+
+
+def test_selected_time_retention_uses_best_selected_row_and_caps_at_three():
+    alternatives = [f'- button "Fri Dec 11 7:00 PM choice {i}"' for i in range(3)]
+    selected = '- button "Thu Dec 10 7:00 PM" [checked=true]'
+    pages = ['\n'.join(alternatives), '- button "Wed Dec 9 7:00 PM" [selected]', selected]
+    seen = layout_evidence("Booked Thu Dec 11 at 7:00 PM.", pages)[0]["seen"]
+    assert seen == alternatives[:2] + [selected]
+
+
+def test_false_aria_time_does_not_count_as_retained_selected_candidate():
+    selected = '- button "Thu Dec 10 7:00 PM" [selected]'
+    alternate = '- button "Fri Dec 11 7:00 PM" [aria-selected="false"]'
+    assert layout_evidence("Booked Dec 11 at 7:00 PM.", [selected, alternate])[0]["seen"] == [alternate, selected]
+
+
+def test_selected_time_retention_leaves_history_plain_fills_unchanged():
+    transcript = [{"role": "assistant", "step": 0, "content": "Booked Dec 11 at 7:00 PM."}]
+    tools = [{"step": 0, "name": "browser_snapshot", "result":
+              '- button "Thu Dec 10 7:00 PM" [selected]\n- button "Fri Dec 11 7:00 PM"'}]
+    primary = judge.claim_evidence(transcript, [])
+    assert judge.history_evidence(transcript, primary, tools)[0]["seen"] == '- button "Thu Dec 10 7:00 PM" [selected]'
+
+
+@pytest.mark.parametrize("control", ['<li>Dec&nbsp;11</li>', '<button><span>Dec</span> 11</button>'])
+def test_html_visible_date_control_blocks_earlier_selected_day(control):
+    page = '<li aria-selected="true">Thu Dec 10</li>\n' + control + '\n7:00 PM'
+    assert layout_evidence('Booked Dec 10 at 7:00 PM.', [page])[0]['seen'] == '7:00 PM'
+
+
+@pytest.mark.parametrize("control", ['<li aria-selected="true">Dec&nbsp;11</li>',
+                                      '<button aria-selected="true"><span>Dec</span> 11</button>'])
+def test_html_visible_selected_date_keeps_its_attributes(control):
+    page = 'Thu Dec 10\n' + control + '\n7:00 PM'
+    rows = list(judge.page_rows([page], date_controls=True))
+    index = judge.date_context(rows, len(rows) - 1)
+    assert index is not None and 'aria-selected="true"' in rows[index]
+    assert judge.month_days(judge.date_text(rows[index])) == {(12, 11)}
+
+
+def test_html_date_control_view_built_once_per_step_and_result(monkeypatch):
+    original = judge.page_rows
+    calls = []
+    def counted(texts, *args, **kwargs):
+        if kwargs.get('date_controls'):
+            calls.append(tuple(texts))
+        return original(texts, *args, **kwargs)
+    monkeypatch.setattr(judge, 'page_rows', counted)
+    page = '<ul>' + ''.join(f'<li><button>Dec 11 7:00 PM option {i}</button></li>' for i in range(600)) + '</ul>'
+    transcript = [{'role': 'assistant', 'step': i, 'content': 'Booked Dec 11 at 7:00 PM and 19:00.'}
+                  for i in (0, 1)]
+    tools = [{'step': i, 'name': 'browser_snapshot', 'result': text}
+             for i in (0, 1) for text in (page, page.replace('option', 'choice'))]
+    judge.claim_evidence(transcript, tools)
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize("heading", ['- heading "Beta"'] + [f'<h{i}>Beta</h{i}>' for i in range(1, 7)])
+def test_date_context_stops_at_another_item_heading(heading):
+    page = '- heading "Alpha"\n- StaticText "Thu Dec 10"\n- button "6:00 PM"\n' + heading + '\n- button "7:00 PM"'
+    assert layout_evidence('Beta at 7:00 PM on Dec 10', [page])[0]['seen'] == '- button "7:00 PM"'
+
+
+@pytest.mark.parametrize("claim,page,expected", [
+    ('Booked Dec 11 at 7:00 PM.', '- button "Thu Dec 10 7:00 PM" [selected]\n- button "Fri Dec 11 7:00 PM"',
+     '- button "Thu Dec 10 7:00 PM" [selected]'),
+    ('Treasury costs $10 per employee per month.', '- StaticText "Other plan $10"\n- heading "Treasury"\n- paragraph\n- heading "$10"\n- paragraph\n- StaticText "per employee per month"',
+     ['- StaticText "Other plan $10"', '- heading "$10"']),
+])
+def test_history_selection_uses_main_date_and_bare_row_scores(claim, page, expected):
+    transcript = [{'role': 'assistant', 'step': 0, 'content': claim}]
+    history = [{'step': 0, 'name': 'browser_snapshot', 'result': page}]
+    primary = judge.claim_evidence(transcript, [])
+    assert judge.history_evidence(transcript, primary, history)[0]['seen'] == expected
+
+
+def test_selected_time_extra_rolls_back_before_figure_cut():
+    page = '- button "Thu Dec 10 7:00 PM" [selected]\n- button "Fri Dec 11 7:00 PM"'
+    assert layout_evidence('Booked Dec 11 at 7:00 PM.', [page], budget=120) == [
+        {'step': 0, 'figure': '7:00 PM', 'seen': '- button "Fri Dec 11 7:00 PM"'}]
+
+
+@pytest.mark.parametrize("drop_selected", [False, True], ids=["context-only", "both-steps"])
+def test_selected_time_rollback_reverts_context_then_drops_selected_if_needed(drop_selected):
+    choices = [f'Fri Dec 11 choice {i}\n7:00 PM' for i in range(3)]
+    selected = '- button "Thu Dec 10 7:00 PM" [selected]'
+    expected = [{'step': 0, 'figure': '7:00 PM',
+                 'seen': '7:00 PM' if drop_selected else ['7:00 PM', selected]}]
+    budget = len(json.dumps(expected, ensure_ascii=False))
+    assert layout_evidence('Booked Dec 11 at 7:00 PM.', choices + [selected], budget=budget) == expected
+
+
+def test_reviewer_budget_reverts_price_context_before_dropping_selected_time():
+    page = '\n'.join(['- button "Thu Dec 10 7:00 PM" [selected]',
+        '- StaticText "Other dates with availability"', '- button "Fri Dec 11 7:00 PM"',
+        '- heading "Sakura Inn Kyoto Station Annex Riverside" [level=3]',
+        '- StaticText "4.8"', '- StaticText "$30"'])
+    claim = 'Booked Dec 11 at 7:00 PM for 2.\nSakura Inn Kyoto Station Annex Riverside is $30.'
+    full = figure_rows(layout_evidence(claim, [page], budget=10**6))
+    assert 'Sakura Inn Kyoto Station Annex Riverside' in next(row['seen'] for row in full if row['figure'] == '$30')
+    expected = [{**row, 'seen': '- StaticText "$30"'} if row['figure'] == '$30' else row for row in full]
+    budget = len(json.dumps(full, ensure_ascii=False)) - 1
+    assert 'Thu Dec 10' in str(expected[0]['seen'])
+    assert figure_rows(layout_evidence(claim, [page], budget=budget)) == expected

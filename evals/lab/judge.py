@@ -182,7 +182,7 @@ def join_split_prices(page):
     return result
 
 
-def page_rows(texts, boundary_texts=None):
+def page_rows(texts, boundary_texts=None, date_controls=False):
     """Keep tree rows together and split long text/HTML at known item boundaries."""
     names = {match[1] for text in (texts if boundary_texts is None else boundary_texts) for line in text.splitlines()
              if (match := NAME_LINE.match(line)) and not PRICE_LINE.match(line) and len(match[1]) >= 3}
@@ -195,6 +195,9 @@ def page_rows(texts, boundary_texts=None):
                 continue
             for part in re.split(r'(?=</?(?:tr|li)\b)', line, flags=re.I):
                 if re.search(r'<(?:tr|li)\b', part, re.I):
+                    if date_controls and re.search(r'<(?:button|option|li)\b', part, re.I):
+                        yield part
+                        continue
                     # Keep visible text and the timetable/control states, not verbose markup.
                     part = re.sub(r'<[^>]+>', lambda m: ' ' + ' '.join(re.findall(
                         r'\b(?:available|selected|disabled)\b', m[0], re.I)) + ' ', part)
@@ -288,9 +291,11 @@ def history_evidence(transcript, primary, history, budget=4000):
         return primary
     spans = [row for row in primary if "page_span" in row]
     primary = [row for row in primary if "page_span" not in row]
+    plain_seen = {}
     fallback = {(row["step"], row["figure"]): row
-                for row in claim_evidence(transcript, history, budget=float("inf"))
+                for row in claim_evidence(transcript, history, budget=float("inf"), _plain_seen=plain_seen)
                 if "figure" in row and (row["step"], row["figure"]) in missing and row["seen"] is not None}
+    fallback = {key: {**row, "seen": plain_seen.get(key, row["seen"])} for key, row in fallback.items()}
     filled = [{**row, **fallback[key], "source": "history"} if (key := (row.get("step"), row.get("figure"))) in fallback
               else row for row in primary]
     # History fills are extras: undo them, newest first, before the cut could evict a primary match.
@@ -355,7 +360,99 @@ def pages_seen(tools, budget=3000):
     return result
 
 
-def claim_evidence(transcript, tools, per_step=14, budget=4000):
+MONTHS = {name: i for i, name in enumerate(("january", "february", "march", "april", "may", "june",
+          "july", "august", "september", "october", "november", "december"), 1)}
+MONTHS.update({name[:3]: i for name, i in list(MONTHS.items())})
+MONTHS["sept"] = 9
+MONTH_NAME = "|".join(variant for name in sorted(MONTHS, key=len, reverse=True)
+                      for variant in (name.title(), name.upper()))
+SCAFFOLD = re.compile(r'^- (?:paragraph|generic|image)(?:\s*\[[^]]*\])*\s*$')
+
+
+def month_days(text):
+    """Unambiguous month/day mentions, independent of language and year."""
+    text = unicodedata.normalize("NFKC", text)
+    found = set()
+    for pattern, reverse in ((rf'\b({MONTH_NAME})\.?\s+(\d{{1,2}})(?!\d)', False),
+                             (rf'(?<![\d:])(\d{{1,2}})\s+({MONTH_NAME})\b', True)):
+        for match in re.finditer(pattern, text):
+            name, day = (match[2], match[1]) if reverse else (match[1], match[2])
+            found.add((MONTHS[name.lower()], int(day)))
+    for pattern in (r'(?<!\d)(\d{1,2})\s*[月월]\s*(\d{1,2})\s*[日일]',
+                    r'(?<!\d)\d{4}[-/](\d{1,2})[-/](\d{1,2})(?!\d)'):
+        found.update((int(m[1]), int(m[2])) for m in re.finditer(pattern, text))
+    return {(month, day) for month, day in found if 1 <= month <= 12 and 1 <= day <= 31}
+
+
+def date_text(row):
+    return " ".join(unescape(re.sub(r'<[^>]+>', ' ', row)).split())
+
+
+def date_context(page, index):
+    """Own-row dates stand alone; nearer unselected controls block earlier dates."""
+    for i in range(index, max(-1, index - 41), -1):
+        if not month_days(date_text(page[i])):
+            if re.search(r'^- heading\b|<h[1-6]\b', page[i], re.I):
+                return None
+            continue
+        if i == index:
+            return i
+        control = re.search(r'^- (?:button|tab|option|radio|link|gridcell|cell|checkbox|menuitem|treeitem)\b|'
+                            r'<(?:button|option|li)\b', page[i], re.I)
+        selected = re.search(r'\[selected\]|(?<!\w)selected\]|\[checked=true\]|'
+                             r'\baria-(?:selected|checked)\s*=\s*(?:"true"|\'true\'|true(?=[\s>\]]|$))', page[i], re.I)
+        if control and not selected:
+            return None
+        return i
+    return None
+
+
+def bare_context(page, index, currency, date_index):
+    """Choose neighbours by page structure only, never by the claim's words."""
+    indices, protected = {index}, {index}
+    if re.match(r'^- (?:cell|gridcell|row)\b', page[index]):
+        return [index], protected
+    if date_index is not None:
+        indices.add(date_index)
+        protected.add(date_index)
+    if currency:
+        heading_found = False
+        for i in range(index - 1, max(-1, index - 7), -1):
+            if re.match(r'^- (?:link|button|cell|gridcell|row|columnheader|rowheader|listitem|option)\s+"[^"\n]+"', page[i]):
+                break
+            name = re.sub(r'^- StaticText "([^"\n]*)".*$', r'\1', page[i])
+            if len(name) <= 40 and re.match(r'^[A-Z\u3040-\u30ff\u3400-\u9fff\uac00-\ud7a3]', name) and not FIGURE.search(page[i]):
+                break
+            if any(re.search(r"[¥$€£₩]|(?i:JPY|USD|EUR|KRW|GBP|円|원|yen|won)", m[0])
+                   for m in FIGURE.finditer(page[i])):
+                break
+            if re.match(r'^- heading "', page[i]):
+                indices.update(range(i, index))
+                protected.add(i)
+                heading_found = True
+                break
+        for i in range(index + 1, min(len(page), index + 4)) if heading_found else []:
+            if SCAFFOLD.fullmatch(page[i]):
+                continue
+            unit = re.sub(r'^- StaticText "([^"\n]*)".*$', r'\1', page[i])
+            if len(unit) <= 40 and re.match(r'^[a-z/(+*]', unit) and not FIGURE.search(page[i]):
+                indices.add(i)
+            break
+    indices = sorted(i for i in indices if not SCAFFOLD.fullmatch(page[i]))
+    return indices, protected
+
+
+def context_excerpt(page, indices, protected):
+    """Show all selected context or fall back to the candidate's plain excerpt."""
+    rows = {i: compact_row([page[i]]) for i in indices}
+    def joined():
+        return " ⏎ ".join(("… ⏎ " if n and i > indices[n - 1] + 1 else "") + rows[i]
+                          for n, i in enumerate(indices))
+    excerpt = joined()
+    return excerpt if len(excerpt) <= 240 else None
+
+
+def claim_evidence(transcript, tools, per_step=14, budget=4000, _plain_seen=None):
     """Decode JSON string values into same-step page lines; normalize NFKC/spaces/commas.
     Prefix/suffix amounts match exact tokens or complete numbers with same-currency
     markers; times match either clock form, flights match exactly. Keep row context.
@@ -369,6 +466,10 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
         for name in re.findall(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7a3]+", text):
             tokens.update(name[i:i + 2] for i in range(len(name) - 1))
         return tokens
+    def selected_state(row):
+        row = re.sub(r'\baria-(?:selected|checked)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>\]]+))',
+                     lambda m: '[selected]' if (m[1] or m[2] or m[3] or '').lower() == 'true' else '', row, flags=re.I)
+        return bool(STATE.search(row) or re.search(r'\bselected\b', row))
     markers = {"¥": ("¥", "円", "JPY", "yen"), "₩": ("₩", "원", "KRW", "won"),
                "$": ("$", "USD", "dollar"), "€": ("€", "EUR", "euro"), "£": ("£", "GBP", "pound")}
     def match_rules(token):
@@ -386,7 +487,8 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
     for tool in tools:
         if tool.get("name", "").startswith(("browser_", "web_")):
             texts.setdefault(tool.get("step"), []).extend(result_texts(tool.get("result", "")))
-    pages = {step: [(line, normalize(line)) for line in page_rows(values)] for step, values in texts.items()}
+    pages = {step: [list(page_rows([text], boundary_texts=values)) for text in values]
+             for step, values in texts.items()}
     for message in transcript:
         if message.get("role") != "assistant" or "step" not in message:
             continue
@@ -395,14 +497,19 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
             for match in FIGURE.finditer(claim_line):
                 figure = match.group().strip()
                 if len(step_figures) < per_step:
-                    step_figures.setdefault(normalize(figure), (figure, claim_line))
-    result, selected = [], {}
+                    step_figures.setdefault(normalize(figure), (figure, claim_line, month_days(claim_line) or month_days(message.get("content") or "")))
+    result, plain_seen, selected_seen, date_pages = [], {}, {}, {}
+    plain_mode = _plain_seen is not None
     for step, step_figures in figures.items():
-        for token, (figure, claim_line) in step_figures.items():
-            claim_words, best_score = words(claim_line), (-1, -1, -1)
+        for token, (figure, claim_line, claim_dates) in step_figures.items():
+            if plain_mode:
+                claim_dates = set()
+            claim_words, best_score = words(claim_line), (-1,) * 5
+            rows = [(text_index, i, original, normalize(original))
+                    for text_index, page in enumerate(pages.get(step, [])) for i, original in enumerate(page)]
             time = clock_time(figure) if TIME.fullmatch(figure) else None
             currency, number_token, exact, number = match_rules(token)
-            candidates, loose = [], False
+            candidates, loose, selected_best = [], False, None
             # A page may name the currency once for a list ("Cancellation fee (Yen/per person) ... On the day: 8000").
             # Only when no line has the marker on the number: the bare number, not followed by a unit letter,
             # on a line whose currency label touches no number ("Yogurt (118g) ¥191" stays unmatched for ¥118).
@@ -421,37 +528,78 @@ def claim_evidence(transcript, tools, per_step=14, budget=4000):
                 any_marker = "|".join(map(re.escape, sorted({m for ms in markers.values() for m in ms}, key=len, reverse=True)))
                 bare = re.compile(rf"(?<![\d.])(?<!{'|'.join(map(re.escape, [m for ms in markers.values() for m in ms if not m.isalpha()]))})"
                                   + re.escape(number_token) + rf"(?![\d.]|[^\W\d_]|{any_marker})", re.I)
-            for original, line in pages.get(step, []) if currency else []:
+            for _, _, original, line in rows if currency else []:
                 if (exact.search(line) or number.search(line)):
                     break
             else:
                 loose = bool(currency)
-            for original, line in pages.get(step, []):
+            for text_index, row_index, original, line in rows:
                 time_matches = [m for m in TIME.finditer(original) if clock_time(m[0]) == time] if time is not None else []
                 strict = time is None and (exact.search(line) or (number and number.search(line)))
                 if time_matches or strict or (loose and bare.search(line) and label(original)):
                     in_query = time is not None and all(any(url.start() <= m.start() < url.end()
                         for url in re.finditer(r'https?://[^\s<>"\]]*\?[^\s<>"\]]*', original)) for m in time_matches)
-                    # Names still decide first; among equal names, keep the selected row
-                    # over an earlier unchecked copy or a bare figure from page text.
+                    # Preserve main's state tie-break after date and wording scores.
                     state = int(bool(STATE.search(original) or re.search(r'\bselected\b', original)))
                     state += int(bool(re.search(r'\bavailable\b', original)))
-                    score = (int(not in_query), len(claim_words & words(original)), state)
+                    page = pages[step][text_index]
+                    if time is not None and not plain_mode and (step, text_index) not in date_pages:
+                        date_pages[step, text_index] = list(page_rows([texts[step][text_index]],
+                            boundary_texts=texts[step], date_controls=True)) if "<" in texts[step][text_index] else page
+                    date_page = date_pages.get((step, text_index), page)
+                    date_index = date_context(date_page, row_index) if time is not None and not plain_mode else None
+                    dates = month_days(date_text(date_page[date_index])) if date_index is not None else set()
+                    date_match = bool(claim_dates & dates)
+                    date_conflict = bool(claim_dates and dates and not date_match)
+                    # Tree role/attribute syntax is scaffolding, not visible words on a bare row.
+                    remainder = TIME.sub(lambda m: "" if clock_time(m[0]) == time else m[0], original) if time is not None else FIGURE.sub(lambda m: "" if exact.search(normalize(m[0])) or
+                        (number and number.search(normalize(m[0]))) else m[0], original)
+                    remainder = re.sub(r'\[[^]]*\]|(?:^|\|)\s*- \w+\s*', "", remainder)
+                    is_bare = not plain_mode and not words(remainder)
+                    context, protected = bare_context(page, row_index, currency,
+                        date_index if claim_dates else None) if is_bare else ([], set())
+                    excerpt = context_excerpt(page, context, protected) if is_bare and len(context) > 1 else None
+                    if excerpt is None:
+                        context = []
+                    overlap = words(" ".join(page[i] for i in context)) if context else words(original)
+                    score = (int(not in_query), int(not date_conflict), len(claim_words & overlap), int(date_match), state)
+                    selected = selected_state(date_page[row_index])
+                    if selected and (selected_best is None or score > selected_best[0]):
+                        selected_best = (score, original, excerpt)
                     if score < best_score:
                         continue
                     if score > best_score:
                         best_score, candidates = score, []
-                    if original not in candidates and len(candidates) < 3:
-                        candidates.append(original)
-            excerpts = []
-            for original in candidates:
+                    if original not in [row[0] for row in candidates] and len(candidates) < 3:
+                        candidates.append((original, excerpt, selected))
+            extra = bool(time is not None and claim_dates and not plain_mode and selected_best and not any(row[2] for row in candidates))
+            if extra:
+                candidates = candidates + [(*selected_best[1:], True)]
+            excerpts, plain_excerpts = [], []
+            for original, excerpt, _ in candidates:
                 pattern = "".join(re.escape(c) + (r"[,\s]*" if c.isdigit() else "") for c in number_token)
                 match = next((m for m in TIME.finditer(original) if clock_time(m[0]) == time), None) if time is not None else re.search(pattern, original, re.IGNORECASE)
                 start = max(0, (match.start() + match.end()) // 2 - 79) if match else 0
-                excerpts.append(("…" if start else "") + original[start:start + 160 - bool(start)])
-            seen = excerpts if len(excerpts) > 1 else excerpts[0] if excerpts else None
+                plain = ("…" if start else "") + original[start:start + 160 - bool(start)]
+                plain_excerpts.append(plain)
+                excerpts.append(excerpt if excerpt is not None else plain)
+            as_seen = lambda values: values if len(values) > 1 else values[0] if values else None
+            seen = as_seen(excerpts[:-1][:2] + excerpts[-1:] if extra else excerpts)
+            plain = as_seen(plain_excerpts[:-1][:2] + plain_excerpts[-1:] if extra else plain_excerpts)
+            if extra:
+                selected_seen[len(result)] = as_seen(plain_excerpts[:-1])
+            if seen != plain:
+                plain_seen[len(result)] = plain
+                if _plain_seen is not None:
+                    _plain_seen[(step, figure)] = plain
             result.append({"step": step, "figure": figure, "seen": seen, **({"label_match": True} if loose and seen else {})})
-            selected[step, figure] = candidates
+    # Revert context first, retaining selected rows in plain form until they too must go.
+    while len(json.dumps(result, ensure_ascii=False)) > budget and plain_seen:
+        index = max(plain_seen)
+        result[index] = {**result[index], "seen": plain_seen.pop(index)}
+    while len(json.dumps(result, ensure_ascii=False)) > budget and selected_seen:
+        index = max(selected_seen)
+        result[index] = {**result[index], "seen": selected_seen.pop(index)}
     result = cut_evidence(result, budget)
     # Spans have their own allowance after main's figure rows and cuts are final.
     chosen = []
