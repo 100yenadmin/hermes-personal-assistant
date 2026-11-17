@@ -117,3 +117,31 @@ with the pure `follow_checks.score_chase_at` oracle. Claim class is
 it does not prove inbox verification, a sent chase, real Telegram or provider
 completion, installed profiles, fleet/customer readiness or CI. Pytest does
 not collect this manual runner as a live test.
+
+P6 is `test_held_live.py`, a manual runner (`__test__ = False`) for the r4 held
+watcher rule on Hermes v0.23.1 and HB2 0.4.16. From the worktree root, with the
+release manager's token already supplied in the environment, run:
+```sh
+PA_EVAL_CODEX_TOKEN="$PA_EVAL_CODEX_TOKEN" \
+PA_E2E_PYTHON=/Users/m1/repos/hermes-pins-r6/venv-v0.23.1/bin/python \
+PA_E2E_HERMES=/Users/m1/repos/hermes-pins-r6/v0.23.1-3b42157 \
+PA_E2E_HEARTBEAT2=/Users/m1/Codex/scratch/20261117-pa-030/hb2-0416 \
+TMPDIR=/Users/m1/Codex/scratch/20261117-pa-030/p6 \
+HERMES_DISABLE_LAZY_INSTALLS=1 PYTHONDONTWRITEBYTECODE=1 \
+  /Users/m1/repos/hermes-pins-r6/venv-v0.23.1/bin/python evals/concierge_e2e/test_held_live.py \
+  --results /Users/m1/Codex/session-notes/2026-11-17/pa-030/artifacts/codex/p6-live-r1
+```
+Use a fresh results directory; prior runs are never overwritten. P6 reuses P4's
+live arming request: only pulse's watch `check_every` changes from `15m` to `2s`.
+The rig keeps its `/private/tmp` runtime home; parent temp files use `TMPDIR`.
+Observer re-emission is 60s to avoid flooding a slower live turn. Two natural,
+unanswered delay offers precede a third, silent held turn. P6 snapshots that
+turn before asking "Any update on my trip?", then observes past re-emission.
+`p6-result.json` reports PASS/FAIL/NOT_RUN/INCOMPLETE; the rig keeps HB2 rows,
+ledger, visible messages, transcript.md, usage, auth-isolation and wire metadata.
+`held-snapshot.json` can be re-scored with `score_held`; FAIL includes a transcript
+excerpt. Every wire request must use gpt-6.1-sol, low effort, no service tier.
+The wording check requires the third departure's HH:MM and flight/PA301 in one
+visible message and the owner turn; read the transcript for meaning. Claim class
+is `local_e2e_proof`; this cannot prove real Telegram, providers, runtime
+activation, fleet/customer readiness, publication, merge or CI.
