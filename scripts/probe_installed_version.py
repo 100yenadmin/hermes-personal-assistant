@@ -160,7 +160,7 @@ LOCAL_STATE_FILES = frozenset({
 
 # The only caller variables git needs here: no GIT_* setting can point it at another
 # repository, and nothing else from the caller's environment is passed on.
-GIT_ENV_NAMES = ("PATH", "HOME", "SYSTEMROOT")
+GIT_ENV_NAMES = ("PATH", "HOME", "XDG_CONFIG_HOME", "SUDO_UID", "SYSTEMROOT", "USERPROFILE", "HOMEDRIVE", "HOMEPATH")
 
 
 def checkout_state(root):
