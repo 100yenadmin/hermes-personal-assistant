@@ -101,6 +101,8 @@ _TRANSACTION_HOLD = _UNRESOLVED_ATTEMPT | {"paused", "prepared", "approval_requi
                                           "approved_revision", "failed"}
 _NUDGE_IN_FLIGHT = _TRANSACTION_HOLD - {"failed"}
 _TRANSACTION_DONE = {"completed", "confirmed", "verified", "reconciled"}
+# An action in these states still waits for the owner's yes; a trip filter keeps it listed when it has no trip link.
+_AWAITING_YES = {"prepared", "approval_required", "authorized", "approved_revision"}
 
 
 def nudges_in_flight(actions):
@@ -464,8 +466,12 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
     for action in actions:
         if action.get("action_type") not in _COMMITMENT_TYPES:
             continue
+        unlinked_waiting = False
         if data.get("trip_id") and action.get("trip_id") != data["trip_id"]:
-            continue
+            # A prepared action with no trip link may be this trip's; hiding it led PA to prepare a second one (#315).
+            if action.get("trip_id") or action.get("status") not in _AWAITING_YES:
+                continue
+            unlinked_waiting = True
         fields = action.get("fields", {})
         loop = isinstance(fields.get("loop_kind"), str) and fields["loop_kind"] in LOOP_KINDS
         if loops_only and not loop:
@@ -493,6 +499,8 @@ def next_actions(ledger, data: dict[str, Any] | None = None,
             excluded_radar_upcoming += 1  # A renewal or date waits on the radar until its lead time.
             continue
         item = _action_summary(action)
+        if unlinked_waiting:
+            item["trip_filter"] = "listed without a trip link: it waits for the owner's yes; read it before preparing again"
         if radar:
             item["radar"] = {key: radar[key] for key in ("radar_kind", "date", "surface_at", "days_until")}
             if "decide_by" in radar:

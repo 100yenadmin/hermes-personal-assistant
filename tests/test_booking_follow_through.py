@@ -425,13 +425,37 @@ def test_yes_in_a_new_chat_finds_a_prepared_action_with_no_trip_link(ledger):
     summary = {"provider": "lab_booking", "final_action": "lab_booking_submit", "item": "offer-maple-1930"}
     dispatch(ledger.root, {"operation": "action_prepare", "data": {"action_id": "unlinked-booking", "summary": summary}})
     ids = lambda rows: [row["action_id"] for row in rows]
-    assert "unlinked-booking" not in ids(dispatch(ledger.root, {"operation": "next_action", "data": {"trip_id": TRIP}})["candidates"])
+    # 0.30.0-rc.1 wave, s37 run 3: the model sent the trip filter anyway, so it no longer hides a waiting action (#315).
+    by_trip = dispatch(ledger.root, {"operation": "next_action", "data": {"trip_id": TRIP}})["candidates"]
+    assert ids(by_trip) == ["unlinked-booking"]
+    assert by_trip[0]["trip_id"] is None and "waits for the owner's yes" in by_trip[0]["trip_filter"]
     assert "unlinked-booking" in ids(dispatch(ledger.root, {"operation": "next_action", "data": {}})["candidates"])
     listed = dispatch(ledger.root, {"operation": "next_action", "data": {"limit": 20}})
     assert "unlinked-booking" in ids(listed["candidates"])
     read = dispatch(ledger.root, {"operation": "context", "data": {"kind": "action", "action_id": "unlinked-booking"}})
     assert read["action"]["fields"]["material_summary"]["item"] == "offer-maple-1930"
     skill = (Path(__file__).parents[1] / "skills/personal-assistant/SKILL.md").read_text()
-    assert "with no `trip_id`" in skill and "a trip filter hides it" in skill
+    assert "with no `trip_id`" in skill and "a trip filter lists it only while it waits for the yes" in skill
     assert "read each waiting candidate (status `prepared` or `approval_required`) with `pa context` and its `action_id`" in skill
     assert "none is waiting for that same offer or item, unless its details changed" in skill
+
+
+@pytest.mark.parametrize("status,listed", [
+    ("prepared", True), ("approval_required", True), ("authorized", True), ("approved_revision", True),
+    ("submitting", False), ("claimed_once", False), ("failed", False), ("verified", False), ("cancelled", False),
+])
+def test_trip_filter_keeps_only_unlinked_actions_that_wait_for_the_yes(ledger, status, listed):
+    # #315: an unlinked action is listed under any trip filter only while it waits for the owner's yes.
+    from personal_assistant.entry import dispatch
+    stamp = "2026-11-09T00:00:00+00:00"
+    with ledger.connect() as conn:
+        conn.execute("insert into actions values(?,?,?,?,?,?,?,?)",
+                     ("fixture-unlinked", None, "transaction", "fixture-provider", status, json.dumps({}), stamp, stamp))
+        conn.execute("insert into actions values(?,?,?,?,?,?,?,?)",
+                     ("fixture-other-trip", "trip-elsewhere", "transaction", "fixture-provider", status, json.dumps({}), stamp, stamp))
+    rows = dispatch(ledger.root, {"operation": "next_action", "data": {"trip_id": TRIP, "limit": 20}})["candidates"]
+    ids = [row["action_id"] for row in rows]
+    assert ("fixture-unlinked" in ids) is listed
+    assert "fixture-other-trip" not in ids
+    for row in rows:
+        assert ("trip_filter" in row) is (row["action_id"] == "fixture-unlinked")
