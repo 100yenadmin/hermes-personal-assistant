@@ -435,7 +435,7 @@ def test_yes_in_a_new_chat_finds_a_prepared_action_with_no_trip_link(ledger):
     read = dispatch(ledger.root, {"operation": "context", "data": {"kind": "action", "action_id": "unlinked-booking"}})
     assert read["action"]["fields"]["material_summary"]["item"] == "offer-maple-1930"
     skill = (Path(__file__).parents[1] / "skills/personal-assistant/SKILL.md").read_text()
-    assert "with no `trip_id`" in skill and "a trip filter still lists it, marked `trip_filter`, until its outcome is known" in skill
+    assert "with no `trip_id`" in skill and "a trip filter still lists it, marked `trip_filter`, while it waits for the yes, for submission or for a provider outcome" in skill
     assert "read each waiting candidate (status `prepared` or `approval_required`) with `pa context` and its `action_id`" in skill
     assert "none is waiting for that same offer or item, unless its details changed" in skill
 
