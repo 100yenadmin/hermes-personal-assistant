@@ -123,4 +123,4 @@ steps:
       - 見積
       - 料金
 max_user_turns: 16
-budget_seconds: 1800
+budget_seconds: 2400
