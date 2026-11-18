@@ -39,7 +39,7 @@ def run_scenario(auth, pin, scenario, dest):
 
     def wait_notice(count, held=False):
         rig.wait(lambda: notice_count() >= count and (
-            any(row["held_reason"] == "held_unanswered" for row in rig.hb2().get("occurrences", [])) if held else
+            any(row["held_reason"] in {"held_unanswered", "message_held:unanswered"} for row in rig.hb2().get("occurrences", [])) if held else
             sum(row["state"] == "done" for row in rig.hb2().get("occurrences", [])) >= count),
             "material notice processing", 240)
         rig.settle(240)

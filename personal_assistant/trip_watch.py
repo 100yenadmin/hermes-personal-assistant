@@ -47,9 +47,10 @@ def _expiry(value):
 
 
 def _watch_expiry(receipt):
-    value = receipt.get("until")
+    """HeartBeat's listed expiry when known; the until PA asked for otherwise."""
+    value = receipt.get("expires_at")
     if value in (None, ""):
-        value = receipt.get("expires_at")
+        value = receipt.get("until")
     return _expiry(value) if value not in (None, "") else None
 
 

@@ -265,7 +265,7 @@ def test_watch_lifetime_boundary(tmp_path):
 
 @pytest.mark.parametrize('shift_minutes, expiry, carried', [
     (45, 'until', True), (540, 'until', True), (545, 'until', False),
-    (545, 'expires_at', False), (545, None, True),
+    (545, 'expires_at', False), (545, None, True), (45, 'observed', False),
 ])
 def test_watch_carry_requires_expiry_to_cover_flight_checks(tmp_path, monkeypatch, shift_minutes, expiry, carried):
     monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
@@ -278,7 +278,11 @@ def test_watch_carry_requires_expiry_to_cover_flight_checks(tmp_path, monkeypatc
     identity = 'pa:trip-watch:synthetic'
     receipt, = ledger.get('action', identity)['fields']['wakes']
     assert receipt['until'] == until
-    if expiry != 'until':
+    if expiry == 'observed':
+        # HeartBeat lists an earlier expiry than PA asked for; the listed one wins.
+        receipt['expires_at'] = '2026-11-20T20:00:00+00:00'
+        ledger.put('action', identity, {'wakes': [receipt]})
+    elif expiry != 'until':
         del receipt['until']
         if expiry == 'expires_at':
             receipt[expiry] = until
