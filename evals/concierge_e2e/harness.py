@@ -41,7 +41,7 @@ class WakeDirector(Director):
 
 class ConciergeRig:
     def __init__(self, pin, director=None, toolsets=(), *, hb2_settings=None,
-                 observe_settings=None, weather=False, live_auth=None):
+                 observe_settings=None, weather=False, live_auth=None, python_token=False):
         assert pin == REPO_ROOT.resolve() and ".hermes" not in pin.parts
         dest = Path(os.environ["PA_E2E_RESULTS"])
         dest.mkdir(parents=True, exist_ok=True)
@@ -58,7 +58,7 @@ class ConciergeRig:
         self.driver.start()
         self.llm.start()
         try:
-            self._build(toolsets, hb2_settings or {}, observe_settings or {})
+            self._build(toolsets, hb2_settings or {}, observe_settings or {}, python_token)
         except BaseException:
             self.llm.stop()
             self.driver.stop()
@@ -66,10 +66,11 @@ class ConciergeRig:
                 self.weather.close()
             raise
 
-    def _build(self, toolsets, hb2_settings, observe_settings):
+    def _build(self, toolsets, hb2_settings, observe_settings, python_token):
         runtime = Path(tempfile.mkdtemp(prefix="pa-rig-", dir="/private/tmp")).resolve()
         observer = runtime / "home/.hermes/plugins/personal-assistant/scripts/pa_observe.py"
-        self.observer_command = shlex.join([sys.executable, "-I", str(observer)])
+        self.observer_command = ("{python} " + shlex.quote(str(observer)) if python_token
+                                 else shlex.join([sys.executable, "-I", str(observer)]))
         cfg = {"plugins": {"enabled": ["heartbeat2", "personal-assistant"], "entries": {
             "heartbeat2": {"enabled": True, "allow_gateway_injection": True, "settings": {
                 "quiet_hours": "", "timezone": "UTC", "wake_spacing_minutes": 0,

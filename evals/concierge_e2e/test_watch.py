@@ -3,11 +3,22 @@ import datetime as dt
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.timeout(420, method="signal")
+
+
+def hb2_before(minimum):
+    checkout = os.getenv("PA_E2E_HEARTBEAT2")
+    if not checkout:
+        return False  # The opt-in collection hook handles an unconfigured rig.
+    manifest = (Path(checkout) / "plugin.yaml").read_text()
+    version = re.search(r'^version:\s*[\"\']?(\d+)\.(\d+)\.(\d+)', manifest, re.MULTILINE)
+    assert version, "HB2 plugin.yaml must declare a semantic version"
+    return tuple(map(int, version.groups())) < minimum
 
 
 def pa(operation, **data):
@@ -76,13 +87,22 @@ def arm_watch(rig, weather=False, *, request_mute_exemption=True):
     assert fields(rig, "pa:observe:" + rig.watch_id)["last_run"]["result"] == "idle"
 
 
-@pytest.mark.parametrize("rig", [{"hb2_settings": {"max_unanswered": 4},
-                                      "observe_settings": {"weather_provider": "off", "reemit_after_s": 6}}], indirect=True)
-def test_watch_delay_offer_once(rig):
+DELAY_SETTINGS = {"hb2_settings": {"max_unanswered": 4},
+                  "observe_settings": {"weather_provider": "off", "reemit_after_s": 6}}
+
+
+@pytest.mark.parametrize("rig, program", [
+    pytest.param(DELAY_SETTINGS, sys.executable, id="interpreter_path"),
+    pytest.param({**DELAY_SETTINGS, "python_token": True}, "{python}", id="python_token",
+                 marks=pytest.mark.skipif(hb2_before((0, 4, 23)), reason="{python} requires HeartBeat 2.0 >= 0.4.23")),
+], indirect=["rig"])
+def test_watch_delay_offer_once(rig, program):
     from harness import Director, Text, ToolCall
     from personal_assistant.entry import dispatch
 
     arm_watch(rig)
+    assert json.loads(watcher(rig)["trigger_json"])["command"][0] == program
+    assert_no_errors(rig)
     occurrences = []
 
     def wake(record):
@@ -205,16 +225,6 @@ def test_weather_offer_then_decline(rig):
     assert len(notices) == 2 and all(n["emits"] == 1 for n in notices), notices
     assert len(rig.hb2()["occurrences"]) == 2
     assert all(row["errors"] == 0 for row in fields(rig, "pa:observe:" + rig.watch_id)["usage"].values())
-
-
-def hb2_before(minimum):
-    checkout = os.getenv("PA_E2E_HEARTBEAT2")
-    if not checkout:
-        return False  # The opt-in collection hook handles an unconfigured rig.
-    manifest = (Path(checkout) / "plugin.yaml").read_text()
-    version = re.search(r'^version:\s*[\"\']?(\d+)\.(\d+)\.(\d+)', manifest, re.MULTILINE)
-    assert version, "HB2 plugin.yaml must declare a semantic version"
-    return tuple(map(int, version.groups())) < minimum
 
 
 def hb2_before_held_turns():

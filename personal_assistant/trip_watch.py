@@ -104,15 +104,81 @@ def _mutate(ledger, identity, fn):
     return data
 
 
-def observer_argv(watch_id):
-    argv = [sys.executable, "-I", str(Path(__file__).resolve().parents[1] / "scripts/pa_observe.py"), "trip", watch_id]
-    if any("," in path for path in argv[:3]):
+def _probe_allowlist(root):
+    try:
+        from yaml import YAMLError, safe_load
+    except ImportError:
+        try:
+            from ruamel.yaml import YAML, YAMLError
+        except ImportError:
+            return None
+        safe_load = YAML(typ="safe").load
+    try:
+        config = safe_load((root / "config.yaml").read_text(encoding="utf-8"))
+        entry = config["plugins"]["entries"]["heartbeat2"]
+        if not isinstance(entry, dict):
+            return None
+        for subtree in ("settings", "config"):
+            settings = entry.get(subtree)
+            if isinstance(settings, dict) and "probe_commands" in settings:
+                value = settings["probe_commands"]
+                return value if isinstance(value, str) else None
+    except (OSError, ValueError, TypeError, KeyError, YAMLError):
+        return None
+    return None
+
+
+def admits(allowlist, argv):
+    try:
+        for entry in (allowlist or "").split(","):
+            prefix = shlex.split(entry.strip())
+            if prefix[:1] == ["{python}"] and (len(prefix) < 2 or prefix[1].startswith("-")):
+                continue
+            if prefix and argv[:len(prefix)] == prefix:
+                return True
+    except ValueError:
+        pass
+    return False
+
+
+def _heartbeat_version():
+    for name, module in list(sys.modules.items()):
+        if name.endswith("heartbeat2.registration"):
+            version = getattr(module, "LOADED_VERSION", None)
+            if isinstance(version, str):
+                return version
+    manifest = Path(__file__).resolve().parents[2] / "heartbeat2/plugin.yaml"
+    try:
+        match = re.search(r'^version:\s*"?([^"\n]+)', manifest.read_text(encoding="utf-8"), re.M)
+    except (OSError, ValueError):
+        return None
+    return match[1].strip() if match else None
+
+
+def observer_argv(watch_id, *, root=None, saved=None):
+    script = str(Path(__file__).resolve().parents[1] / "scripts/pa_observe.py")
+    argv = [sys.executable, "-I", script, "trip", watch_id]
+    version = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)", _heartbeat_version() or "") if root is not None else None
+    if root is not None and (version is None or tuple(map(int, version.groups())) >= (0, 4, 23)):
+        allowlist = _probe_allowlist(root)
+        token = ["{python}", script, "trip", watch_id]
+        previous = token if saved and saved[0] == "{python}" else argv
+        if saved and (allowlist is None or admits(allowlist, previous)):
+            argv = previous
+        elif admits(allowlist, token):
+            argv = token
+        elif version and allowlist is not None and not admits(allowlist, argv):
+            argv = token
+    if any("," in path for path in argv[:-2]):
         raise ValueError("observer paths cannot contain commas")
     return argv
 
 
-def observer_allowlist_entry():
-    return shlex.join(observer_argv("tw" + "0" * 16)[:3])
+def observer_allowlist_entry(argv=None):
+    argv = argv or observer_argv("tw" + "0" * 16)
+    if argv[0] == "{python}":
+        return "{python} " + shlex.quote(argv[1])
+    return shlex.join(argv[:3])
 
 
 def _wakes(ledger, trip_id):
@@ -198,13 +264,16 @@ def status(ledger, trip_id, at=None, *, unplanned_ok=False):
         timing = _timing(ledger, trip_id, payload, flight_facts, current)
     except (KeyError, TypeError, ValueError):
         timing = {"at_airport_by": None, "leave_by": None, "moments": _moments(payload), "notices": [], "timing_error": True}
-    argv = payload["inputs"].get("watch_argv")
+    argv = inputs.get("watch_argv")
+    token_form = bool(argv and argv[0] == "{python}")
     return {"status": "planned", "event_id": event["event_id"], "revision": revision, "inputs": payload["inputs"], "arms": arms,
             **timing,
             "moments": [{**m, "armed": arms.get(m["key"], {}).get("armed", False), "wake_id": arms.get(m["key"], {}).get("wake_id")} for m in timing["moments"]],
             "wake_id": arrival.get("wake_id"), "armed": arrival.get("armed", False), "stale_wakes": list(dict.fromkeys(stale)),
             "facts": flight_facts, "facts_stale": bool(flight_facts and flight_facts["digest"] != payload["inputs"].get("facts_digest")),
-            "watch_allowlist_entry": observer_allowlist_entry(), "interpreter_drift": bool(argv and (argv[0] != sys.executable or not Path(argv[0]).is_file()))}
+            "watch_allowlist_entry": observer_allowlist_entry(argv or observer_argv(_watch_id(trip_id), root=ledger.root)),
+            "watch_command_form": ("python_token" if token_form else "interpreter_path") if argv else None,
+            "interpreter_drift": bool(argv and not token_form and (argv[0] != sys.executable or not Path(argv[0]).is_file()))}
 
 
 def offer_hint(ledger, trip_id, at=None):
@@ -619,7 +688,7 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
     if "watch" in arm:
         if len(trip_id.encode()) > 80:
             raise ValueError("trip_id must be at most 80 bytes to arm a watch")
-        inputs["watch_argv"] = observer_argv(_watch_id(trip_id))
+        inputs["watch_argv"] = observer_argv(_watch_id(trip_id), root=ledger.root, saved=saved.get("watch_argv"))
     if facts_mode or saved.get("facts_digest"):
         inputs.update(facts_digest=flight.get("digest") if facts_mode else saved.get("facts_digest"), facts_signature=signature if facts_mode else saved.get("facts_signature"), facts_schedule=schedule if facts_mode else saved.get("facts_schedule"))
         if facts_mode and saved.get("departure_at") == departure.isoformat() and saved.get("arrival_at") == arrival.isoformat() and saved.get("facts_signature") == signature and saved.get("facts_schedule") == schedule:
@@ -704,7 +773,8 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
                     record_wake(ledger, trip_id, m, wake["wake_id"], expires_at=wake.get("expires_at"), session_id=wake.get("session_id"),
                                 _carry=wake["revision"], owner_asked=_owner_asked(wake))
                 break
-        view = status(ledger, trip_id, at=current.isoformat())["arms"][m]
+        stored = status(ledger, trip_id, at=current.isoformat())
+        view = stored["arms"][m]
         item = {"moment": m, "at": instant.isoformat(), **view}
         if later and view["state"] in {"needed", "later"}:
             item.update(state="later", arm_after=(departure - dt.timedelta(hours=24)).isoformat())
@@ -713,7 +783,7 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
             if view["state"] == "pending_confirmation":
                 item["pending_wake_id"] = view["wake_id"]
         if m == "watch":
-            item.update(human_turn_only=True, requires={"hb2_probe_command": observer_allowlist_entry(), "recommended_settings": {"max_unanswered": 4, **({"quiet_hours_urgent": True} if night_alerts else {})}})
+            item.update(human_turn_only=True, requires={"hb2_probe_command": stored["watch_allowlist_entry"], "recommended_settings": {"max_unanswered": 4, **({"quiet_hours_urgent": True} if night_alerts else {})}})
         arms.append(item)
     stored = status(ledger, trip_id, at=current.isoformat())
     result = {**stored, "arm": arms, "moments": [{**m, **({"status": "past"} if _time(m["at"]) < current else {})} for m in moments], "late_arrival": late,
