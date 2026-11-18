@@ -103,7 +103,7 @@ def run_scenario(auth, pin, dest):
         save(rig.root / "seed-inputs.json", dict(segment=segment, plan_inputs=inputs))
         rig.owner("Trip T3: watch my synthetic trip; its facts are already in PA. Load personal-assistant:trip-concierge. "
                   "Call trip_watch_plan with " + json.dumps(inputs) + ". Arm only the watch in this DM and record its receipt. "
-                  "Use its pulse_create except trigger.check_every=2s for this loopback test. I opt in to trip alerts. "
+                  "For this loopback held-message test, use its pulse_create with trigger.check_every=2s and owner_asked=false so the unanswered mute applies. I opt in to trip alerts. "
                   "All options are words only: no web, bookings, provider actions or messages to anyone else.", timeout=300)
         state = call("trip_watch_plan", action="status", trip_id="T3")
         rig.watch_id, rig.wake_id = state["inputs"]["watch_argv"][-1], state["arms"]["watch"]["wake_id"]

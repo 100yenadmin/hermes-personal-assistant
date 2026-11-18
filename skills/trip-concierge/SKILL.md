@@ -31,10 +31,10 @@ Call `pa(operation="trip_watch_plan", data={"trip_id":"...", "arm":["check_in_wi
 Arm check_in_window and arrival_logistics in the consenting human turn, using each
 `arm` entry's `pulse_create`; record each receipt with its own moment. Keep at most
 three items per trip and arm only the next leg. Existing trips retain their stored arm choice.
-Arm watch in the trusted check-in wake turn (one child), or a human turn within
-24h of departure, after `arm_after`. Never create or update the watch inside a
-watcher wake turn. `human_turn_only` is a reminder of that trust boundary; a plain
-owner-requested `at` wake also permits the watch child. A watch has no `owner_asked`.
+Arm the watch in the same consenting human turn when its `arm` entry has `pulse_create`.
+If its state is `later`, arm it after `arm_after` in the trusted check-in wake turn (one child) or a human turn.
+Never create or update the watch inside a watcher wake turn. `human_turn_only` is a reminder of that trust boundary; a plain owner-requested `at` wake also permits the watch child.
+The watch's `pulse_create` carries `owner_asked: true`. HeartBeat 2.0 v0.4.25 and later let its alerts through the unanswered mute when created in the owner's own turn. In a wake turn or on older HeartBeat, the flag is ignored as expected.
 If HB2 refuses the watch as not allowlisted, call `record_skip` with moment=watch
 and reason=not_allowlisted. Tell the user once the exact `requires.hb2_probe_command`
 line for `plugins.entries.heartbeat2.settings.probe_commands` and recommend
@@ -55,7 +55,7 @@ sequence for any immediate offer after cancelling a held wake.
 If no `pulse_create` is returned, inspect each `arm` entry; relay its note, `later`
 state or already armed receipt. Do not create an inapplicable arm.
 Otherwise call `pulse` with exactly the moment's `pulse_create`; add no other keys.
-The user must have agreed in this chat before arming with `owner_asked: true`.
+In a human turn, arm with `owner_asked: true` only after the user agreed in this chat.
 After create, read the result's `receipt`. HB2 reports a hold only there, as
 "Quiet hours hold it until <time>" or "Wake spacing holds it until <time>";
 `wake.next_due_at` keeps the requested time. If a hold ends after `leave_by`, else `at_airport_by`,
@@ -64,7 +64,7 @@ now instead; do not record it as armed. Check the cancellation succeeded and rel
 If that wake was already recorded, also call `pa trip_watch_plan action=record_cancel` with its wake_id.
 Call `pa trip_watch_plan action=record_wake` with trip_id,
 the corresponding `moment`, `wake_id` from `wake.id`, and the returned `armed` boolean,
-including `armed: false`, so a re-plan can cancel confirmation-pending wakes.
+including `armed: false`, so a re-plan can cancel confirmation-pending wakes. For the watch, set `owner_asked` to the created `wake.owner_requested` when present.
 If `armed: false`, relay HB2's confirmation step, including the receipt's `/pulse ok` command;
 after confirmation and verification, record the same wake with `armed: true`, repeating
 the receipt hold check above on the confirmed wake.

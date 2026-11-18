@@ -65,10 +65,12 @@ def run_scenario(auth, pin, scenario, dest):
                            airport_lead_minutes=initial_lead,
                            commitments=[{"title": "Synthetic meeting", "at": (arrival + dt.timedelta(hours=1)).isoformat()}])
         save(rig.root / "seed-inputs.json", {"segment": segment, "plan_inputs": plan_inputs})
+        mute_override = "Set owner_asked to false so the unanswered mute applies. " if scenario == "never-replies" else ""
         rig.owner("Trip T3: yes, please watch my synthetic trip. The flight facts are already in PA. "
                   "Load personal-assistant:trip-concierge, call trip_watch_plan with " + json.dumps(plan_inputs) +
                   ", and arm only the watch in this DM; record the wake receipt. "
                   "Use the plan's pulse_create, except set trigger.check_every to 2s for this loopback test. "
+                  f"{mute_override}"
                   "Quiet hours are off and I opt in to alerts for this trip. All concierge alternatives must be "
                   "words only: no web, bookings, real messages, or provider actions.", timeout=300)
         state = status()
