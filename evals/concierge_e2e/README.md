@@ -89,6 +89,7 @@ poller, observer and loopback Telegram/weather services. Run `test_live.py`
 with `--results EVIDENCE_ROOT` after setting the prepared Hermes/HB2 paths.
 It runs delay, snow/acceptance and unanswered notices twice, sequentially;
 `--scenario` and `--round` select a bounded subset. It is not a pytest live test.
+`--scenario owner-asked` checks that three delay alerts reach an owner who never replies (HeartBeat >= 0.4.25).
 The parent takes the access token from `PA_EVAL_CODEX_TOKEN`, which the caller
 sets; it never reads a saved login. Each run requires a JWT
 expiry more than two hours ahead and writes the approved nested auth shape with
@@ -132,7 +133,9 @@ HERMES_DISABLE_LAZY_INSTALLS=1 PYTHONDONTWRITEBYTECODE=1 \
   --results /Users/m1/Codex/session-notes/2026-11-17/pa-030/artifacts/codex/p6-live-r1
 ```
 Use a fresh results directory; prior runs are never overwritten. P6 reuses P4's
-live arming request: only pulse's watch `check_every` changes from `15m` to `2s`.
+live arming request with watch `check_every` set to `2s` instead of `15m`. P6's
+held scenario and P4's `never-replies` scenario also set `owner_asked=false` so
+the unanswered mute applies.
 The rig keeps its `/private/tmp` runtime home; parent temp files use `TMPDIR`.
 Observer re-emission is 60s to avoid flooding a slower live turn. Two natural,
 unanswered delay offers precede a third, silent held turn. P6 snapshots that

@@ -35,7 +35,7 @@ def assert_no_errors(rig):
     assert not rig.director.errors, rig.director.errors
 
 
-def arm_watch(rig, weather=False):
+def arm_watch(rig, weather=False, *, request_mute_exemption=True):
     from harness import Text, ToolCall
     departure = dt.datetime.now(dt.timezone.utc).replace(second=0, microsecond=0) + dt.timedelta(hours=3)
     arrival = departure + dt.timedelta(hours=2)
@@ -49,15 +49,19 @@ def arm_watch(rig, weather=False):
         assert entry["requires"]["hb2_probe_command"] == rig.observer_command
         pulse = entry["pulse_create"]
         assert pulse["trigger"]["check_every"] == "15m"
-        # Exercise the real command and poller, shortening only the test cadence.
-        return ToolCall("pulse", {**pulse, "trigger": {**pulse["trigger"], "check_every": "2s"}})
+        assert pulse["owner_asked"] is True
+        # Shorten the poll cadence and let the held-message case exercise the mute.
+        return ToolCall("pulse", {**pulse, "owner_asked": request_mute_exemption,
+                                  "trigger": {**pulse["trigger"], "check_every": "2s"}})
 
     def receipt(record):
         created = result(record)
         assert created["armed"] is True, created
         rig.wake_id = created["wake"]["id"]
         rig.watch_id = rig.plan["inputs"]["watch_argv"][-1]
-        return pa("trip_watch_plan", action="record_wake", trip_id="T3", moment="watch", wake_id=rig.wake_id)
+        owner_requested = created["wake"].get("owner_requested")
+        grant = {"owner_asked": owner_requested} if owner_requested is not None else {}
+        return pa("trip_watch_plan", action="record_wake", trip_id="T3", moment="watch", wake_id=rig.wake_id, **grant)
 
     rig.director.actions = [
         pa("automations", action="preferences", changes={"timezone": "UTC", "quiet_hours": {"start": "00:00", "end": "00:00"}}),
@@ -203,14 +207,18 @@ def test_weather_offer_then_decline(rig):
     assert all(row["errors"] == 0 for row in fields(rig, "pa:observe:" + rig.watch_id)["usage"].values())
 
 
-def hb2_before_held_turns():
+def hb2_before(minimum):
     checkout = os.getenv("PA_E2E_HEARTBEAT2")
     if not checkout:
         return False  # The opt-in collection hook handles an unconfigured rig.
     manifest = (Path(checkout) / "plugin.yaml").read_text()
     version = re.search(r'^version:\s*[\"\']?(\d+)\.(\d+)\.(\d+)', manifest, re.MULTILINE)
     assert version, "HB2 plugin.yaml must declare a semantic version"
-    return tuple(map(int, version.groups())) < (0, 4, 8)
+    return tuple(map(int, version.groups())) < minimum
+
+
+def hb2_before_held_turns():
+    return hb2_before((0, 4, 8))
 
 
 @pytest.mark.skipif(hb2_before_held_turns(), reason="held watcher turns require HeartBeat 2.0 >= 0.4.8")
@@ -220,7 +228,7 @@ def test_never_replies_hold(rig):
     from personal_assistant.entry import dispatch
     from personal_assistant.state import Ledger
 
-    arm_watch(rig)
+    arm_watch(rig, request_mute_exemption=False)
     occurrences, final = [], "OFFER-HOLD: your flight has another delay."
     held_notices = []
     summary = "Flight PA301 now departs 150 minutes late. Options ready."
@@ -337,3 +345,37 @@ def test_never_replies_hold(rig):
                 and row["held_reason"] == "reported:unanswered"]
     assert len(reported) >= 2 and all(row["delivered"] == 0 for row in reported), rig.hb2()
     assert_no_errors(rig)
+
+
+@pytest.mark.skipif(hb2_before((0, 4, 25)), reason="owner-asked watchers require HeartBeat 2.0 >= 0.4.25")
+@pytest.mark.parametrize("rig", [{"observe_settings": {"weather_provider": "off", "reemit_after_s": 6}}], indirect=True)
+def test_owner_asked_watch_not_muted(rig):
+    """A watch armed in the owner's turn keeps alerting after two unanswered messages (#327)."""
+    from personal_assistant.entry import dispatch
+
+    arm_watch(rig)
+    assert watcher(rig)["owner_requested"] == 1, watcher(rig)
+    state = dispatch(rig.gateway.hermes_home, {"operation": "trip_watch_plan", "data": {"action": "status", "trip_id": "T3"}})
+    assert state["arms"]["watch"]["owner_asked"] is True, state
+    assert state["arms"]["watch"]["unanswered_mute"] == "exempt", state
+    occurrences, final = [], "OFFER-OWNER-ASKED: your flight has another delay."
+    for index, minutes in enumerate((90, 120, 150)):
+        if index == 2:
+            # Default max_unanswered is 2: a watch without owner_asked would now be held.
+            assert rig.hb2()["sessions"][0]["unanswered_count"] == 2, rig.hb2()
+        rig.director.actions = offer_actions(rig, occurrences, "flight_change", final)
+        injected = dispatch(rig.gateway.hermes_home, {"operation": "trip_watch_plan", "data": {
+            "action": "record_facts", "trip_id": "T3", "source": "simulated", "segments": [{**rig.segment,
+            "estimated_departure": (dt.datetime.fromisoformat(rig.segment["scheduled_departure"]) +
+                                    dt.timedelta(minutes=minutes)).isoformat()}]}})
+        assert injected["changed"] is True
+        rig.wait(lambda: rig.director.errors or rig.texts().count(final) == index + 1, "owner-asked delay offer")
+        rig.gateway.wait_idle(timeout=30)
+        assert_no_errors(rig)
+        assert not rig.director.actions
+    rows = rig.hb2()
+    (rig.root / "owner-asked-after-third.json").write_text(json.dumps(rows, indent=2))
+    held = [row for row in rows["occurrences"] if row["wake_id"] == rig.wake_id and row["held_reason"]]
+    assert not held, held
+    assert len(set(occurrences)) == 3
+    assert set(occurrences) <= fields(rig, "pa:observe-control:" + rig.watch_id)["acks"].keys()
