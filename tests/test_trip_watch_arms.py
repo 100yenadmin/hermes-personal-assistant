@@ -397,8 +397,8 @@ def test_in_flight_facts_replan_keeps_journey_and_watch(tmp_path, monkeypatch, a
 @pytest.mark.parametrize('case, clock, flight_change, expected_leg', [
     ('departed', '19:00', {'status': 'departed'}, 'outbound'),
     ('late_estimate', '20:00', {'status': 'delayed', 'estimated_arrival': '19:00'}, 'outbound'),
-    ('scheduled', '20:00', {'status': 'scheduled'}, 'outbound'),
-    ('unknown', '20:00', {'status': 'unknown'}, 'outbound'),
+    ('scheduled', '20:00', {'status': 'scheduled'}, 'return'),
+    ('unknown', '20:00', {'status': 'unknown'}, 'return'),
     ('on_ground', '13:00', {'status': 'delayed', 'estimated_departure': '15:00'}, 'outbound'),
     ('landed', '19:00', {'status': 'landed'}, 'return'),
     ('grace_elapsed', '01:00', {'status': 'departed'}, 'return'),
@@ -447,6 +447,39 @@ def test_round_trip_facts_replan(tmp_path, monkeypatch, case, clock, flight_chan
         assert 'pulse_create' not in arm(updated, 'watch')
         assert updated['revision'] == first['revision']
 
+
+
+@pytest.mark.parametrize('case', ['same_day_return', 'round_trip'])
+def test_replan_never_moves_back_to_a_journey_the_plan_left(tmp_path, monkeypatch, case):
+    # The first plan came after the outbound's ETA and watches the return; a later re-plan must not go back to the
+    # unfinished-looking outbound and list the return's watch as stale.
+    def instant(clock, day=10):
+        return f'2026-11-{day}T{clock}:00+00:00'
+
+    ledger, trip = Ledger(tmp_path), BASE['trip_id']
+    same_day = case == 'same_day_return'
+    outbound = dict(carrier='ZZ', number='123', origin='AAA', destination='BBB', origin_timezone='UTC',
+                    destination_timezone='UTC', status='departed',
+                    scheduled_departure=instant('08:00' if same_day else '12:00'),
+                    scheduled_arrival=instant('09:00' if same_day else '18:00'))
+    inbound = dict(outbound, number='456', origin='BBB', destination='AAA', status='scheduled',
+                   scheduled_departure=instant('18:00', 10 if same_day else 12),
+                   scheduled_arrival=instant('19:00', 10 if same_day else 12))
+    first_at, replan_at = (instant('11:00'), instant('12:30')) if same_day else (instant('19:00'), instant('22:30'))
+    monkeypatch.setattr(tw, 'now', lambda: first_at)
+    record_facts(ledger, trip, [outbound, inbound], 'user', observed_at=first_at)
+    first = tw.plan(ledger, trip, arm=['watch'], hb2_timezone='UTC', at=first_at)
+    assert first['inputs']['departure_at'] == inbound['scheduled_departure']
+    record(tmp_path, 'watch', 'w_return')
+
+    updated = tw.plan(ledger, trip, at=replan_at)
+    status = tw.status(ledger, trip, at=replan_at)
+
+    assert updated['inputs']['departure_at'] == inbound['scheduled_departure']
+    assert status['stale_wakes'] == []
+    assert status['arms']['watch']['wake_id'] == 'w_return' and status['arms']['watch']['armed']
+    assert 'pulse_create' not in arm(updated, 'watch')
+    assert updated['revision'] == first['revision']
 
 def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path, monkeypatch):
     monkeypatch.setattr(tw, 'now', lambda: BASE['at'])

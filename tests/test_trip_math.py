@@ -19,6 +19,9 @@ ARRIVAL = "2026-11-10T18:00:00Z"
     ("later_arrival_estimate", "15:30", "08:00"),
     ("earlier_arrival_estimate", "14:30", "08:00"),
     ("earlier_departure_estimate", "07:45", "08:00"),
+    ("plain_scheduled_in_air", "08:30", "08:00"),
+    ("plain_scheduled_after_arrival", "09:00", None),
+    ("plain_unknown_after_arrival", "10:00", None),
 ])
 def test_journey_start_boundaries(case, clock, expected):
     def instant(clock):
@@ -41,6 +44,8 @@ def test_journey_start_boundaries(case, clock, expected):
         outbound["estimated_arrival"] = instant("08:30")
     if case == "earlier_departure_estimate":
         outbound["estimated_departure"] = instant("07:30")
+    if case.startswith("plain_"):
+        outbound["status"] = "unknown" if "unknown" in case else "scheduled"
 
     current = dt.datetime.fromisoformat(instant(clock))
     assert trip_math.journey_start(segments, current) == (dt.datetime.fromisoformat(instant(expected)) if expected else current)

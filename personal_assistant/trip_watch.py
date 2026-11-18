@@ -592,11 +592,15 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         airborne = next((s for s in flight["segments"] if s["status"] != "cancelled"
                          and _time(s.get("estimated_departure") or s["scheduled_departure"]) <= current
                          < _time(s.get("estimated_arrival") or s["scheduled_arrival"])), None)
-        # A first plan still targets the next departure once the previous flight's ETA passes.
-        if prior:
-            journey_start = trip_math.journey_start(flight["segments"], current)
-        else:
-            journey_start = _time(airborne["scheduled_departure"]) if airborne else current
+        journey_start = _time(airborne["scheduled_departure"]) if airborne else current
+        # A re-plan keeps the journey it already watches while that journey is unfinished (late, in the air or not
+        # known to have landed). It never moves back to a journey the saved plan had already left, and a first plan
+        # still targets the next departure once the previous flight's ETA passes.
+        unfinished = trip_math.journey_start(flight["segments"], current) if prior else current
+        watched = {row[0] for row in saved.get("facts_signature") or []}
+        if unfinished != current and not watched.isdisjoint(
+                s["segment_id"] for s in trip_math._next_journey(flight["segments"], unfinished)):
+            journey_start = unfinished
         segments = trip_math._next_journey(flight["segments"], journey_start)
         # A cancelled leg with a rebooked alternative in the same journey: the trip goes on with the live legs.
         live = [s for s in segments if s["status"] != "cancelled"] or segments
