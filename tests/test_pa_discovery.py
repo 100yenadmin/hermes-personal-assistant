@@ -86,8 +86,7 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(row["status"], "available")
         self.assertEqual(row["evidence"], "browser_session operation; credentials present")
 
-    def test_exec_browser_reports_session_requirement_and_disables_pa_checkout_lane(self):
-        from unittest.mock import Mock
+    def test_exec_browser_reports_session_requirement(self):
         check = lambda: True
         for terminal_registered, cached, expected in ((False, True, "available"),
                                                        (True, None, "unverified"),
@@ -96,19 +95,33 @@ class DiscoveryTests(unittest.TestCase):
                 entries = [_Entry("browser_exec", check)]
                 if terminal_registered:
                     entries.append(_Entry("terminal"))
-                lookup = Mock(return_value=None)
-                secrets = Mock(return_value=True)
-                rows = {r["id"]: r for r in discover(entries, lambda fn: cached,
-                                                    secret_present=secrets, which=lookup)["capabilities"]}
+                rows = {r["id"]: r for r in discover(entries, lambda fn: cached)["capabilities"]}
                 self.assertEqual(rows["browser"]["status"], expected)
                 self.assertEqual(rows["browser"]["tools"], ["browser_exec"])
                 self.assertIn("only in sessions with the terminal tool", rows["browser"]["evidence"])
-                self.assertEqual(rows["remote_browser"]["status"], "unavailable")
-                self.assertEqual(rows["remote_browser"]["tools"], [])
-                self.assertIn("Hermes v0.22.x agent-browser CLI", rows["remote_browser"]["evidence"])
-                self.assertIn("browser_exec", rows["remote_browser"]["recovery_action"])
-                lookup.assert_called_once_with("gog")
-                secrets.assert_not_called()
+
+    def test_exec_browser_keeps_pa_checkout_lane_with_keys_and_cli(self):
+        from unittest.mock import Mock
+        entries = [_Entry("browser_exec"), _Entry("terminal")]
+        for configured, cli, expected in ((True, True, "available"),
+                                          (True, False, "needs-setup"),
+                                          (False, True, "needs-setup"),
+                                          (False, False, "needs-setup")):
+            with self.subTest(configured=configured, cli=cli):
+                lookup = Mock(side_effect=lambda name: "/fixture/agent-browser" if cli and name == "agent-browser" else None)
+                rows = discover(entries, secret_present=lambda name: configured, which=lookup)["capabilities"]
+                row = next(row for row in rows if row["id"] == "remote_browser")
+                self.assertEqual(row["status"], expected)
+                self.assertEqual(row["tools"], ["pa"])
+                self.assertIn("installed separately on Hermes v0.23+", row["evidence"])
+                self.assertIn("runs through the terminal tool", row["evidence"])
+                if configured and not cli:
+                    self.assertIn("not found on PATH", row["evidence"])
+                    self.assertIn("Install agent-browser", row["recovery_action"])
+                if not configured:
+                    self.assertIn("add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID", row["evidence"])
+                self.assertEqual([c.args[0] for c in lookup.call_args_list],
+                                 ["gog", "agent-browser"] if configured else ["gog"])
 
     def test_profile_native_route_does_not_override_failed_or_uncached_tools(self):
         with tempfile.TemporaryDirectory() as root:

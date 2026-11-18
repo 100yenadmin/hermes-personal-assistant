@@ -51,7 +51,7 @@ def test_create_dispatch_and_private_ledger(tmp_path):
     result = dispatch(tmp_path, {"operation": "browser_session", "data": {"action": "create", "region": "us-east-1"}},
                       runtime_scope={"browserbase_opener": opener, "get_secret": SECRETS.get, "session_id": "hermes-id"})
     assert result == {"bb_session_id": "bb-1", "connect_url": CONNECT, "live_view_url": LIVE,
-                      "expires_at": CREATED["expiresAt"], "attach_hint": "Hermes v0.22.x: agent-browser --session <name> connect <connect_url>"}
+                      "expires_at": CREATED["expiresAt"], "attach_hint": "agent-browser --session <name> connect <connect_url>"}
     req, timeout = opener.calls[0]
     assert (req.get_method(), req.full_url, timeout, req.get_header("X-bb-api-key")) == ("POST", "https://api.browserbase.com/v1/sessions", 60, KEY)
     assert json.loads(req.data) == {"projectId": "project", "keepAlive": True, "timeout": 1200, "region": "us-east-1",
@@ -196,7 +196,7 @@ def test_skill_text_uses_browser_session_and_user_final_tap(path):
     for forbidden in ("$BROWSERBASE_API_KEY", "profile environment", "browse cloud sessions", "--remote", "browse open <url> --cdp"):
         assert forbidden not in text
     assert "agent-browser --session <task-name> connect <connect_url>" in text
-    assert "v0.22.x" in text and "browser_exec" in text
+    assert "browser_exec" in text
     assert "solve supported CAPTCHA" not in text
     if path.endswith("SKILL.md"):
         assert 'operation="browser_session"' in text
@@ -227,7 +227,7 @@ def test_connect_returns_a_fresh_connection_for_a_running_owned_session(tmp_path
     opener = Opener({"id": "bb-1", "status": "RUNNING", "connectUrl": fresh, "expiresAt": "2026-10-21T12:20:00Z"})
     result = browser_session(ledger, {"action": "connect", "bb_session_id": "bb-1"}, opener=opener, get_secret=SECRETS.get)
     assert result == {"bb_session_id": "bb-1", "connect_url": fresh, "expires_at": "2026-10-21T12:20:00Z",
-                      "attach_hint": "Hermes v0.22.x: agent-browser --session <name> connect <connect_url>"}
+                      "attach_hint": "agent-browser --session <name> connect <connect_url>"}
     req = opener.calls[0][0]
     assert (req.get_method(), req.full_url, req.data) == ("GET", "https://api.browserbase.com/v1/sessions/bb-1", None)
     raw = ledger.path.read_bytes() + json.dumps(ledger.list("action")).encode()

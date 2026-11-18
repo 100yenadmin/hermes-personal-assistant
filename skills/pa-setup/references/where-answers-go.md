@@ -58,8 +58,8 @@ Read `$HERMES_HOME/SOUL.md`. Insert or replace only this block:
 Keep all existing persona text outside the markers untouched. If no block exists,
 append one; do not absorb an unrelated existing heading. If markers are ambiguous
 or incomplete, show the conflict and ask before repair. Use a normal foreground
-file write after explicit apply, then read back. Hermes v0.22.x exempts profile SOUL.md from
-the protected-instruction-file guard. On v0.23.2+, Hermes by default asks for one-time approval
+file write after explicit apply, then read back. Before v0.23.2, Hermes exempts profile SOUL.md
+from the protected-instruction-file guard. In v0.23.2 and later, Hermes by default asks for one-time approval
 per write and blocks it if nobody can answer. Tell the owner before writing. If blocked or refused, say so and that
 `/pa setup review` can add it later, `propose` again without `soul_section`, and
 apply the rest; do not retry it now through any path.

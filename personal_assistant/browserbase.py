@@ -10,7 +10,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 from .state import now
 
 API = "https://api.browserbase.com"
-ATTACH_HINT = "Hermes v0.22.x: agent-browser --session <name> connect <connect_url>"
+ATTACH_HINT = "agent-browser --session <name> connect <connect_url>"
 SESSION_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 

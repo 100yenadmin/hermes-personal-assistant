@@ -41,9 +41,9 @@ database; do not substitute a host-specific skill path.
 3. Keep one accountable owner. Use a separate research lane only when the user or active runtime policy explicitly requests it and the work is independent.
 4. Merge findings into a short decision set. If provider facts conflict, verify directly before proceeding.
 5. Load the relevant qualified skill for booking, check-in, food, rideshare, reservation, calendar, or nudges. Load payment guidance only when the user selected that optional integration.
-6. Preflight provider login, session and fallback browsers, PA Browserbase readiness (`remote_browser` on Hermes v0.22.x), wallet/payment descriptor, funds, phone/contact, address, traveler profile, dates, and provider-required fields. Record readiness or blockers in `travel-ledger`.
+6. Preflight provider login, session and fallback browsers, PA Browserbase readiness (`remote_browser`), wallet/payment descriptor, funds, phone/contact, address, traveler profile, dates, and provider-required fields. Record readiness or blockers in `travel-ledger`.
 7. Use saved credentials and sessions, browser profiles, configured browser lanes, connected email/SMS/device lanes, and funded/reloadable payment lanes to reach the final button.
-8. For login, CAPTCHA, address validation, checkout staging, or provider 401s, use `browserbase-checkout-lane` on Hermes v0.22.x (`browser_session` create, `agent-browser` connect, owner final tap in the live view, then release). On v0.23+ use `browser_exec` directly in the session's browser, local or Hermes-managed Browserbase via `browser.cloud_provider`. For login, OTP, payment, or another step that needs the owner's signed-in session, give them the page link or a screenshot and the exact step they must complete.
+8. For login, CAPTCHA, address validation, checkout staging, or provider 401s, follow [Owner Handoff](../browserbase-checkout-lane/SKILL.md#owner-handoff) in `browserbase-checkout-lane`. Use the PA live view when available and follow the `browser_exec` fallback when needed.
 9. Store a checkout checkpoint in `travel-ledger` after each meaningful provider step. On timeout or disconnect, resume in the same browser when possible or restore from the checkpoint.
 10. Stop for one compact final-state confirmation before paid submit, booking, check-in submit, ride request, food order, reservation, cancellation, outbound message, phone call, or material profile/payment change.
 11. Use `travel-approval-packet` as the final confirmation summary for the final action and verify live provider state after confirmation. After submit/send/request, write the receipt, ticket id, order id, confirmation id, sent-message proof, calendar event id, or blocker status to `travel-ledger`.
@@ -80,7 +80,7 @@ If the user provides app credentials, save them and acknowledge plainly: `Saved.
 Use an executable next step, not a refusal.
 
 ```text
-I have the item in the cart. Instacart is asking for sign-in. Please open this link in your signed-in browser, complete the sign-in step, and tell me when you're done. I'll verify the cart and total before asking you to confirm the order.
+I prepared [items] for [address] at [time]. The last total I saw was [total]. Open [page link], sign in, and review the details. If they match and you want to order, press Place Order. I can't see your device. Please reply with the order confirmation.
 ```
 
 ## Completion
