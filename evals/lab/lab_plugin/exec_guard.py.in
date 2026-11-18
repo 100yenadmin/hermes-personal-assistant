@@ -1,0 +1,113 @@
+"""Source template for the browser harness, where browser helpers are globals."""
+import atexit as _pa_atexit
+import json as _pa_json
+from pathlib import Path as _pa_Path
+
+_pa_guard = """(() => {
+  const [confirmed, strict, context, contact] = """ + _pa_json.dumps(_pa_rules) + r""";
+  window.__paLabConfirmed = confirmed;
+  if (window.__paLabBlocked) return;
+  window.__paLabBlocked = [];
+  const control = 'button,a,input,[role=button],[role=link],[role=menuitem]';
+  const labels = el => [el?.innerText, el?.getAttribute('aria-label'), el?.value]
+    .filter(Boolean).map(label => label.trim());
+  const final = label => {
+    if (label.length > 60 || /[?？]$|^(?:Q[.: ]|FAQ)/i.test(label) ||
+        /(方法|手段|内容|수단|방법).*(見る|確認|보기|확인)/.test(label)) return false;
+    const text = label.replace(/^[.!。！]+|[.!。！]+$/g, '');
+    return new RegExp(strict, 'i').test(text) || new RegExp(context, 'i').test(text) &&
+      [...document.querySelectorAll('input')].some(el => el.value &&
+        new RegExp(contact, 'i').test([el.type, el.name, el.autocomplete, ...labels(el)].join(' ')));
+  };
+  const block = event => {
+    if (window.__paLabConfirmed || (event.type === 'keydown' && event.key !== 'Enter')) return;
+    const target = event.target;
+    const form = target.closest?.('form') || target.form;
+    const submit = form?.querySelector('button:not([type]),button[type=submit],input[type=submit]');
+    const label = [...labels(target.closest?.(control)),
+      ...labels(event.submitter || (event.type !== 'click' ? submit : null))].find(final);
+    if (!label) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.__paLabBlocked.push(label);
+  };
+  for (const event of ['click', 'submit', 'keydown']) window.addEventListener(event, block, true);
+})()"""
+
+_pa_snapshot = r"""(() => {
+  const rows = [];
+  const line = (role, name, state = '') => rows.push(`- ${role} ${JSON.stringify(name)}${state}`);
+  const visible = el => el.checkVisibility({visibilityProperty: true, opacityProperty: true});
+  for (const el of document.querySelectorAll('button,a[href],input,textarea,select,[role],[contenteditable=true]')) {
+    if (!visible(el) || el.type === 'hidden') continue;
+    const role = el.getAttribute('role') || ({BUTTON:'button', A:'link', SELECT:'combobox'}[el.tagName]) ||
+      ({radio:'radio', checkbox:'checkbox', button:'button', submit:'button', reset:'button'}[el.type]) || 'textbox';
+    if (!/^(button|link|textbox|combobox|radio|checkbox|menuitem|option|tab|switch)$/.test(role)) continue;
+    const name = el.getAttribute('aria-label') || [...(el.labels || [])].map(label => label.innerText).join(' ') ||
+      el.innerText || (role === 'button' ? el.value : '') || el.placeholder || el.title || '';
+    line(role, name.trim().replace(/\s+/g, ' '), el.checked || el.getAttribute('aria-checked') === 'true' ? ' [checked=true]' : '');
+  }
+  for (const el of document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading]')) {
+    if (visible(el)) line('heading', el.innerText.trim().replace(/\s+/g, ' '));
+  }
+  return rows.concat(document.body?.innerText || '').join('\n').slice(0, 200000);
+})()"""
+
+_pa_blocked = []
+_pa_script = None
+
+
+def _pa_drain():
+    _pa_blocked.extend(js('window.__paLabBlocked?.splice(0) || []'))
+
+
+def _pa_install():
+    global _pa_script
+    _pa_script = cdp('Page.addScriptToEvaluateOnNewDocument', source=_pa_guard)['identifier']
+    js(_pa_guard)
+
+
+def _pa_remove():
+    global _pa_script
+    if _pa_script is not None:
+        cdp('Page.removeScriptToEvaluateOnNewDocument', identifier=_pa_script)
+        _pa_script = None
+
+
+def _pa_wrap(helper, switches_tab):
+    def guarded(*args, **kwargs):
+        _pa_drain()
+        if switches_tab:
+            _pa_remove()
+        result = helper(*args, **kwargs)
+        if switches_tab:
+            _pa_install()
+        else:
+            js(_pa_guard)
+        return result
+    return guarded
+
+
+@_pa_atexit.register
+def _pa_capture():
+    stem = _pa_Path(_pa_evidence)
+    page = {}
+    try:
+        _pa_drain()
+        page = page_info()
+        stem.with_suffix('.txt').write_text(js(_pa_snapshot), encoding='utf-8', errors='replace')
+        capture_screenshot(str(stem.with_suffix('.png')))
+    except Exception:
+        pass  # The parent records missing evidence; capture must stay out of the model's result.
+    finally:
+        stem.with_suffix('.json').write_text(_pa_json.dumps({**page, 'blocked': _pa_blocked}), encoding='utf-8')
+        try:
+            _pa_remove()
+        except Exception:
+            pass
+
+
+_pa_install()
+new_tab = _pa_wrap(new_tab, True)
+switch_tab = _pa_wrap(switch_tab, True)
+goto_url = _pa_wrap(goto_url, False)

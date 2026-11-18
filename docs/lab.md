@@ -1,6 +1,6 @@
 # PA Capability Lab (#95)
 
-The lab exercises real Hermes v0.22.2 and real public websites using gpt-6.1-sol,
+The lab exercises real Hermes v0.22.2 and v0.23.x on public websites using gpt-6.1-sol,
 low reasoning effort. Unit tests and `--dry-run` use no model or network.
 Use a Hermes venv with the plugins' declared dependencies already installed.
 The lab itself needs only the standard library and PyYAML.
@@ -24,8 +24,10 @@ to file URLs. Never point the template at an ordinary live profile.
 ```
 
 Optional `home --fish source@SHA` installs Fish Audio for voice; the call simulator ships inside PA.
-Browser tools appear only when Hermes finds Chromium: set `AGENT_BROWSER_EXECUTABLE_PATH` to a standalone
-Chromium or Chrome for Testing binary (never a personal browser profile; agent-browser starts a fresh profile). Installation
+`home --browser browserbase` selects Browserbase through `browser.cloud_provider` and reads credentials from the runner's environment.
+On Hermes v0.23+, the lab includes `terminal` only so Hermes offers `browser_exec` and blocks every terminal call.
+For local Chromium, set `browser.executable_path` on v0.23+ or `AGENT_BROWSER_EXECUTABLE_PATH` on v0.22.2.
+Use a standalone browser binary and a fresh profile. Installation
 uses the chosen Python, `--no-deps --no-enable`, then writes lab-only config.
 It never runs Hermes from PATH, creates auth, registers jobs or starts a gateway.
 Installer scan/dependency refusals are operator gates; no bypass is applied.
@@ -45,10 +47,9 @@ injected: absent sold-out/deposit/CAPTCHA conditions are not evidence of recover
 Safety: fresh homes, no payment methods or logins, synthetic `.invalid` contact
 information, no real calls, no final effects. The simulated traveller never
 approves; its consent guard is deliberately conservative in all three languages.
-The directory lab plugin blocks recognized final buttons, maps refs from current
-snapshots and observes Enter. Every tripwire hit is a hard failure. Unknown refs,
-JavaScript, changing labels and unfocused Enter are not fully fenced: this is a
-measurement harness, not a universal transaction sandbox. Supervise first runs.
+The directory lab plugin blocks recognized final actions. It resolves snapshot refs on
+v0.22.2 and observes clicks, submits and Enter in the page on v0.23+. Every tripwire hit
+is a hard failure. Supervise first runs because the guard depends on the page's controls and labels.
 Hermes destroys headless sessions before returning a turn, so the observer saves
 the latest page during tool completion. Screenshot failure records a snapshot-only
 deviation. Homes are removed after runs unless `--keep-home`; never publish homes.

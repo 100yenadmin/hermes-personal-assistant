@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 import yaml
 from . import common, checks, judge, sim_user, cos
-from .common import MODEL, read, write, append
+from .common import MODEL, read, write, append, lines
 from .scenario import load_catalog, READ_ONLY_AREAS
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -124,6 +124,12 @@ def hermes_head(hermes):
         return stamp.read_text().strip() if stamp.is_file() else None
 
 
+def browser_shape(registry, scope):
+    if registry.get_entry("browser_navigate", scope=scope):
+        return "legacy"
+    return "exec" if registry.get_entry("browser_exec", scope=scope) else "legacy"
+
+
 def user_view(transcript):
     """The simulated user's own history: its lines are assistant turns, the PA's lines are user turns."""
     swapped = [{"role": "assistant" if m["role"] == "user" else "user", "content": m["content"]} for m in transcript]
@@ -228,7 +234,7 @@ def one(args):
     os.chdir(home)
     from hermes_constants import set_hermes_home_override
     set_hermes_home_override(str(hh))
-    calls, manager = None, None
+    calls, manager, observer = None, None, None
     history, transcript, evidence, metrics, ledger_steps = [], [], [], [], set()
     approval_steps, approval_ids, approval_packets = set(), set(), []
     try:
@@ -255,6 +261,8 @@ def one(args):
         if calls:
             assert registry.get_entry("pa_call", scope=str(hh)), "pa_call registration missing"
         observer = manager._plugins["pa-capability-lab"].module.observer
+        observer.browser_shape = meta["browser_shape"] = browser_shape(registry, str(hh))
+        exec_browser = observer.browser_shape == "exec"
         # Import solely from the installed package, with an isolated namespace.
         spec = importlib.util.spec_from_file_location("lab_installed_pa", package / "personal_assistant/__init__.py", submodule_search_locations=[str(package / "personal_assistant")])
         module = importlib.util.module_from_spec(spec)
@@ -286,6 +294,8 @@ def one(args):
         assert not forbidden.intersection(allowed), "forbidden toolset"
         blocked = {t for n in forbidden for t in resolve_toolset(n)}
         names = sorted(set(names) - blocked)
+        if exec_browser:
+            names = sorted({*names, "browser_exec", "terminal"})
         # Restrict to the resolved surface, including any tools added by plugins.
         TOOLSETS["pa_lab_surface"] = {"description": "Lab allowed surface", "tools": names, "includes": []}
         meta.update(toolsets=allowed, tool_list=names, hermes_head=hermes_head(hermes), plugin_refs=read(root / "plugin-refs.json", {}))
@@ -302,6 +312,11 @@ def one(args):
             agent = AIAgent(**kwargs, enabled_toolsets=[] if user else ["pa_lab_surface"], run_budget_seconds=remaining,
                             **({"session_id": session_id or default_session_id} if (session_id or default_session_id) and not user else {}),
                             **({"platform": platform} if platform else {}))
+            approve_soul = exec_browser and not user and platform is None
+            if approve_soul:
+                from tools.terminal_tool import _get_approval_callback, set_approval_callback
+                previous = _get_approval_callback()
+                set_approval_callback(observer.approval_callback(hh))
             try:
                 if user:
                     assert not agent.valid_tool_names, "sim user has tools"
@@ -315,6 +330,8 @@ def one(args):
                 metrics.append({"agent": "sim_user" if user else "assistant", **{k: getattr(agent, k, 0) for k in ("session_input_tokens", "session_output_tokens", "session_total_tokens")}})
                 return result
             finally:
+                if approve_soul:
+                    set_approval_callback(previous)
                 agent.close()
         system = system_prompt(s)
         if scripted:
@@ -334,6 +351,8 @@ def one(args):
                 meta["sessions"][str(step)] = step_session_id
             before = ledger(hh)
             transcript.append({"role": "user", "content": message, "step": step})
+            if exec_browser:
+                write(root / "transcript.json", transcript)
             result = turn(message, system=system, hist=history,
                           **({"session_id": step_session_id} if step_session_id else {}))
             history = result.get("messages") or []
@@ -380,6 +399,9 @@ def one(args):
                 meta["calls_error"] = type(exc).__name__
             calls.close()
         write(root / "ledger.json", ledger(hh))
+        if observer is not None and observer.browser_shape == "exec":
+            meta.update(terminal_blocked=observer.terminal_blocked, approvals=observer.file_approvals,
+                        exec_blocks=lines(root / "exec-blocks.jsonl"), pages=observer.pages, evidence=observer.capture(0))
         meta.update(end=time.time(), usage=metrics)
         write(root / "run.json", meta)
         write(root / "transcript.json", transcript)

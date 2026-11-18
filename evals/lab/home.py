@@ -33,8 +33,7 @@ def build(args):
         raise ValueError("plugins: personal-assistant was not installed")
     config = {"model": {"provider": "openai-codex", "default": "gpt-6.1-sol"},
               "agent": {"reasoning_effort": "low", "service_tier": ""}, "plugins": {"enabled": names},
-              # Built-in browser_* tools: the tripwire watches their clicks. Hermes' default Browser Use mode
-              # (one browser_exec tool running Python) needs the terminal toolset, which the lab withholds.
+              # Keep the built-in browser_* tools on legacy Hermes. Exec-based Hermes ignores backend.
               "browser": {"backend": "off", "allow_private_urls": False}, "tools": {"tool_search": False}}
     if getattr(args, "browser", "local") == "browserbase":
         # Real sites block bare headless Chromium; keys come from the runner's environment, never the home.
