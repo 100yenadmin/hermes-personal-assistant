@@ -598,8 +598,11 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         # still targets the next departure once the previous flight's ETA passes.
         unfinished = trip_math.journey_start(flight["segments"], current) if prior else current
         watched = {row[0] for row in saved.get("facts_signature") or []}
-        if unfinished != current and not watched.isdisjoint(
-                s["segment_id"] for s in trip_math._next_journey(flight["segments"], unfinished)):
+        watched_start = min((_time(s["scheduled_departure"]) for s in flight["segments"] if s["segment_id"] in watched),
+                            default=None)
+        # Never start before the first leg the saved plan watches: a plan made during a layover keeps the connection.
+        if (unfinished != current and watched_start is not None and unfinished >= watched_start
+                and not watched.isdisjoint(s["segment_id"] for s in trip_math._next_journey(flight["segments"], unfinished))):
             journey_start = unfinished
         segments = trip_math._next_journey(flight["segments"], journey_start)
         # A cancelled leg with a rebooked alternative in the same journey: the trip goes on with the live legs.

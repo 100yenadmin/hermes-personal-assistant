@@ -481,6 +481,32 @@ def test_replan_never_moves_back_to_a_journey_the_plan_left(tmp_path, monkeypatc
     assert 'pulse_create' not in arm(updated, 'watch')
     assert updated['revision'] == first['revision']
 
+
+def test_replan_during_a_layover_keeps_the_connection_the_plan_watches(tmp_path, monkeypatch):
+    # The first plan came during the layover, with the first leg still marked departed, and watches the connection only.
+    def instant(clock):
+        return f'2026-11-10T{clock}:00+00:00'
+
+    ledger, trip = Ledger(tmp_path), BASE['trip_id']
+    first_leg = dict(carrier='ZZ', number='123', origin='AAA', destination='BBB', origin_timezone='UTC',
+                     destination_timezone='UTC', status='departed',
+                     scheduled_departure=instant('08:00'), scheduled_arrival=instant('09:00'))
+    connection = dict(first_leg, number='456', origin='BBB', destination='CCC', status='scheduled',
+                      scheduled_departure=instant('16:00'), scheduled_arrival=instant('18:00'))
+    monkeypatch.setattr(tw, 'now', lambda: instant('10:00'))
+    record_facts(ledger, trip, [first_leg, connection], 'user', observed_at=instant('10:00'))
+    first = tw.plan(ledger, trip, arm=['watch'], hb2_timezone='UTC', at=instant('10:00'))
+    assert first['inputs']['departure_at'] == connection['scheduled_departure']
+    record(tmp_path, 'watch', 'w_connection')
+
+    updated = tw.plan(ledger, trip, at=instant('11:00'))
+    status = tw.status(ledger, trip, at=instant('11:00'))
+
+    assert updated['inputs']['departure_at'] == connection['scheduled_departure']
+    assert updated['revision'] == first['revision']
+    assert status['stale_wakes'] == []
+    assert status['arms']['watch']['wake_id'] == 'w_connection' and status['arms']['watch']['armed']
+
 def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path, monkeypatch):
     monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
     plan(tmp_path, arm=['watch'])
