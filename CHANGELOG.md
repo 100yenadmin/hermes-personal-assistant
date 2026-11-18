@@ -2,7 +2,7 @@
 
 ## 0.31.0-rc.1 — 2026-11-18
 
-On a turn where HeartBeat 2.0 holds messages, PA no longer records a trip notice as offered, so the notice stays open for the owner. A trip filter now keeps listing an unfinished action that has no trip link. PA now accepts HeartBeat 2.0's numeric wake expiry and tells the owner that Hermes v0.23.2 asks them to approve SOUL.md writes. Two release scripts pass on a named environment, and the release workflow retries a new tag's read-back. Python files change, so the gateway needs a restart.
+On a HeartBeat 2.0 watcher turn where messages are held, PA no longer reserves a trip notice or records it as offered, so it can still make the offer to the owner later. A trip filter now keeps listing an unfinished action that has no trip link. PA now accepts HeartBeat 2.0's numeric wake expiry and tells the owner that Hermes v0.23.2 asks them to approve SOUL.md writes. Two release scripts pass on a named environment, and the release workflow retries a new tag's read-back. Python files change, so the gateway needs a restart.
 - **A held turn no longer records a trip notice as offered (#325, for #312).** In 0.30.0-rc.1 live runs, PA gave HeartBeat the right one-sentence summary on a held turn and then recorded the offer in the same turn (10 of 10 held turns observed). That closed the notice before the owner saw the offer.
   - On a HeartBeat watcher turn, PA's pre-turn hook marks the turn as held when HeartBeat's own "Messages are held right now (" line comes after HeartBeat's `Contract: this turn is yours to act on.` line and after the wake payload, if there is one. A line inside the payload never counts.
   - Any other owner or HeartBeat turn clears the mark. Cron, subagent, curator, child-session and unattended turns leave it alone.
@@ -41,7 +41,7 @@ On a turn where HeartBeat 2.0 holds messages, PA no longer records a trip notice
     - never retries the write now.
   - The change is skill text only.
 - **Release scripts pass a named environment (#324, for #314).**
-  - `probe_installed_version.py` now gives git a named list of variables (`PATH`, `HOME`, `XDG_CONFIG_HOME`, `SUDO_UID`, and on Windows `SYSTEMROOT`, `USERPROFILE`, `HOMEDRIVE` and `HOMEPATH`) plus `GIT_OPTIONAL_LOCKS=0`.
+  - `probe_installed_version.py` now gives git a named list of variables (`PATH`, `HOME`, `XDG_CONFIG_HOME`, `SUDO_UID`, `SYSTEMROOT`, `USERPROFILE`, `HOMEDRIVE` and `HOMEPATH`, each when set) plus `GIT_OPTIONAL_LOCKS=0`.
   - `check_pa_release_lifecycle.py` gives `hermes plugins` only `PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `SYSTEMROOT` and `HERMES_HOME`.
   - The install-gate scanner's two HIGH "Env Variable Harvesting" findings on these scripts are gone.
 - **The release workflow retries a new tag's read-back (#316, for #309).** The 0.29.0-rc.1 publish stopped once when a tag it had just created read back as missing. The workflow now reads a new tag back up to 5 times, 2 seconds apart, while the tag is missing. A tag at any other commit still fails at once.
