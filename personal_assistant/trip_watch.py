@@ -519,8 +519,10 @@ def record_wake(ledger, trip_id, moment, wake_id, armed=True, expires_at=None, s
             if current_facts.get("digest") == i.get("facts_digest"):
                 planned_itinerary = trip_math.journey_itinerary(flight, _time(i["departure_at"]), planned_ids)
             else:
+                # Keep an itinerary recorded for this same plan; otherwise the observer's digest check decides.
                 previous = (ledger.get("action", watch_key) or {}).get("fields", {})
-                planned_itinerary = previous.get("planned_itinerary")
+                same_plan = previous.get("planned_facts_digest") == i.get("facts_digest")
+                planned_itinerary = previous.get("planned_itinerary") if same_plan else None
             flight = [s for s in flight if s["segment_id"] in planned_ids] or flight
             ledger.put("action", watch_key, {
                 "schema": 1, "watch_id": _watch_id(trip_id), "trip_id": trip_id, "event_id": event["event_id"], "status": "active", "profile_root": str(ledger.root),
@@ -531,7 +533,8 @@ def record_wake(ledger, trip_id, moment, wake_id, armed=True, expires_at=None, s
                 "destination": {"iata": flight[-1]["destination"] if flight else None, "tz": i.get("arrival_timezone") or str(_time(i["arrival_at"]).tzinfo), "label": flight[-1]["destination"] if flight else "Destination"},
                 "planned_facts_digest": i.get("facts_digest"),
                 **({"planned_itinerary": planned_itinerary} if planned_itinerary is not None else {}),
-                "created_at": now()}, action_type="observe_watch", trip_id=trip_id)
+                "created_at": now()}, action_type="observe_watch", trip_id=trip_id,
+                remove=() if planned_itinerary is not None else ("planned_itinerary",))  # put merges fields
     return status(ledger, trip_id)
 
 

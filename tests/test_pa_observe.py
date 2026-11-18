@@ -947,3 +947,24 @@ def test_weather_notice_adds_only_unincluded_minutes(profile, included, old, ext
     expected = expected.replace(minute=expected.minute // 5 * 5)
     assert notice["signals"][-1] == f'Be at the airport by {expected:%H:%M} (+{extra} min for snow)'
     assert notice["weather_extra_minutes"] == extra
+
+
+def test_itinerary_from_an_earlier_plan_is_not_reused_for_a_new_plan(profile):
+    original = get(profile, "pa:trip-facts:synthetic")["segments"][0]
+    trip = "earlier-plan"
+    _, watch_id = arm_facts_watch(profile, trip, original)
+    watch_key = "pa:observe-watch:" + watch_id
+    earlier = get(profile, watch_key)["planned_itinerary"]
+    trip_watch.record_cancel(profile, trip, "w_carried")
+    assert get(profile, watch_key)["planned_itinerary"] == earlier  # put merges, so the cancelled record keeps it
+
+    moved = {**original, "scheduled_arrival": shift(original["scheduled_arrival"], -60)}
+    record_facts(profile, trip, [moved], "user")
+    second = trip_watch.plan(profile, trip, arm=["watch"], weather=False, hb2_quiet_hours="", hb2_timezone="UTC")
+    trip_watch.record_wake(profile, trip, "watch", "w_second", armed=False)
+    record_facts(profile, trip, [{**moved, "scheduled_arrival": shift(moved["scheduled_arrival"], -10)}], "user")
+    trip_watch.record_wake(profile, trip, "watch", "w_second")
+    row = get(profile, watch_key)
+    assert row["planned_facts_digest"] == second["inputs"]["facts_digest"] and "planned_itinerary" not in row
+    output = run(profile, args=("trip", watch_id))
+    assert output["fire"] and "offer_type=trip_change" in output["message"]
