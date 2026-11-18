@@ -668,6 +668,26 @@ def test_replan_does_not_reach_back_to_same_origin_without_cancellation(facts_wa
     assert result['revision'] == first['revision']
 
 
+def test_replan_keeps_departed_rebooking_after_landed_same_origin_hop(facts_watch):
+    previous_legs = [{**_replan_leg(*leg), 'status': 'landed'} for leg in [
+        ('301', 'AAA', 'BBB', '06:00', '07:00'),
+        ('302', 'BBB', 'CCC', '08:00', '10:00'),
+        ('303', 'CCC', 'BBB', '10:30', '11:30'),
+    ]]
+    watched_leg = _replan_leg('304', 'BBB', 'DDD', '16:00', '18:00')
+    replacement = _replan_leg('305', 'BBB', 'DDD', '12:30', '14:30')
+    first = facts_watch.start(previous_legs + [watched_leg], at=_replan_time('11:45'))
+    assert [row[0].split(':')[0] for row in first['inputs']['facts_signature']] == ['ZZ304']
+
+    result = facts_watch.replan([
+        {**watched_leg, 'status': 'cancelled'}, {**replacement, 'status': 'departed'},
+    ], _replan_time('12:45'))
+
+    facts_watch.assert_watch(result, ['ZZ305', 'ZZ304'], _replan_time('14:30'))
+    assert result['inputs']['departure_at'] == _replan_time('12:30')
+    assert result['inputs']['facts_signature'][0][2:] == ['BBB', 'DDD']
+
+
 def test_replan_offers_return_after_outbound_flight_window_closed(tmp_path, facts_watch):
     outbound = {**_replan_leg('123', 'AAA', 'BBB', '12:00', '18:00'), 'status': 'departed'}
     inbound = _replan_leg('456', 'BBB', 'AAA', '12:00', '18:00', day=12)

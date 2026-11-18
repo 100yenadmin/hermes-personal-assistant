@@ -589,6 +589,8 @@ def _retained_journey(segments, watched, current):
         # Group the watched legs from the saved plan's start, or from an earlier rebooking.
         start = min(floor, _time(candidate[0]["scheduled_departure"]))
         journey = trip_math._next_journey(segments, start)
+        if watched.isdisjoint(s["segment_id"] for s in journey):
+            continue
         last_live = next((s for s in reversed(journey) if s["status"] != "cancelled"), None)
         if last_live and current < trip_math._latest_arrival(last_live) + WATCH_FLIGHT_POST_ARRIVAL:
             kept = journey
