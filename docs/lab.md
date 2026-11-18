@@ -57,7 +57,8 @@ Costs: assistant and simulated-user tokens appear separately in `run.json` and
 `cost.json`. Dollar cost is unknown rather than guessed; judge CLI usage is billed
 separately. The default wave makes 45 jobs (135 with three runs), including explicit skips; each live
 job has its scenario's dialogue budget (`budget_seconds`: 900, or 1,500–1,800 for
-multi-errand scenarios) plus 120 seconds of subprocess grace. Reports
+multi-errand scenarios, and 2,400 for `s03_sf_tokyo_en`, whose five errands on real sites took up to
+31.6 minutes in the 0.31.0-rc.1 wave) plus 120 seconds of subprocess grace. Reports
 are local exploratory results until the operator creates the required result
 card and publishes approved evidence. Source/unit proof establishes no live task,
 booking, publication, runtime or customer success.
