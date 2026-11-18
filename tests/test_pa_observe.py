@@ -16,8 +16,10 @@ from urllib.parse import urlsplit, parse_qs
 
 import pytest
 
+from personal_assistant import trip_watch
 from personal_assistant.observe import ack
 from personal_assistant.state import Ledger
+from personal_assistant.trip_facts import record_facts
 
 ROOT = Path(__file__).resolve().parents[1]
 SHIM = ROOT / "scripts/pa_observe.py"
@@ -216,6 +218,57 @@ def test_trip_change_and_silent_rebaseline(profile):
     assert back["fire"] and "back to the planned itinerary" in back["message"]
     assert not run(profile)["fire"]
     assert get(profile)["facts_revision"] == 3
+
+
+def test_early_watch_does_not_check_trip_change_after_owner_adds_return(profile):
+    original = get(profile, "pa:trip-facts:synthetic")["segments"][0]
+    departure = shift(original["scheduled_departure"], 48 * 60)
+    arrival = shift(original["scheduled_arrival"], 48 * 60)
+    watch(profile, checks={"trip_change": True}, departure_at=departure, arrival_at=arrival)
+    assert not run(profile)["fire"]
+    record_facts(profile, "synthetic", [{
+        **original, "number": "321", "origin": "BBB", "destination": "AAA",
+        "origin_timezone": "UTC", "destination_timezone": "Asia/Tokyo",
+        "scheduled_departure": shift(departure, 5 * 24 * 60), "scheduled_arrival": shift(arrival, 5 * 24 * 60),
+    }], "user")
+    assert not run(profile)["fire"]
+    state = get(profile)
+    assert state["last_run"]["checks"]["trip_change"] is False
+    assert "facts_revision" not in state and "facts_itinerary" not in state
+    assert state["notices"] == []
+
+
+def test_trip_change_stays_due_after_flight_window(profile):
+    watch_row = get(profile, "pa:observe-watch:w1")
+    watch(profile, checks={"trip_change": True, "flight": True},
+          departure_at=shift(watch_row["departure_at"], -11 * 60),
+          arrival_at=shift(watch_row["arrival_at"], -11 * 60))
+    assert not run(profile)["fire"]  # First in-window poll baselines the unchanged plan.
+    segment(profile, number="124")
+    profile.put("action", "pa:trip-facts:synthetic", {"revision": 2, "digest": "changed"})
+    output = run(profile)
+    assert output["fire"] and "offer_type=trip_change" in output["message"]
+    assert get(profile)["last_run"]["checks"] == {"trip_change": True, "flight": False, "weather": False}
+
+
+def test_carried_watch_uses_new_plan_digest_without_alerting(profile):
+    original = get(profile, "pa:trip-facts:synthetic")["segments"][0]
+    trip = "replanned"
+    first_facts = record_facts(profile, trip, [original], "user")
+    first = trip_watch.plan(profile, trip, arm=["watch"], weather=False, hb2_quiet_hours="", hb2_timezone="UTC")
+    trip_watch.record_wake(profile, trip, "watch", "w_carried")
+    watch_id = first["inputs"]["watch_argv"][-1]
+    watch_key = "pa:observe-watch:" + watch_id
+    assert get(profile, watch_key)["planned_facts_digest"] == first_facts["digest"]
+    assert not run(profile, args=("trip", watch_id))["fire"]
+
+    edited = record_facts(profile, trip, [{**original, "scheduled_arrival": shift(original["scheduled_arrival"], -60)}], "user")
+    replanned = trip_watch.plan(profile, trip)
+    assert replanned["arm"][0]["carried_from"] == first["revision"]
+    assert replanned["arm"][0]["wake_id"] == "w_carried" and replanned["stale_wakes"] == []
+    assert get(profile, watch_key)["planned_facts_digest"] == replanned["inputs"]["facts_digest"] == edited["digest"]
+    assert not run(profile, args=("trip", watch_id))["fire"]
+    assert get(profile, "pa:observe:" + watch_id)["facts_revision"] == edited["revision"]
 
 
 def test_unannounced_change_that_returns_to_plan_stays_silent(profile):

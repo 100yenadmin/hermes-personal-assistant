@@ -150,7 +150,8 @@ def probe(ledger, watch_id, watch, settings, deadline, started):
     stamp = now.isoformat()
     departure, arrival = instant(watch["departure_at"]), instant(watch["arrival_at"])
     checks = watch.get("checks", {})
-    flight_due = checks.get("flight") and departure - dt.timedelta(hours=float(settings.get("flight_window_hours", 24))) <= now <= arrival + dt.timedelta(hours=3)
+    flight_window = dt.timedelta(hours=float(settings.get("flight_window_hours", 24)))
+    flight_due = checks.get("flight") and departure - flight_window <= now <= arrival + dt.timedelta(hours=3)
     weather_due = checks.get("weather") and settings.get("weather_provider", "open_meteo") != "off" and departure - dt.timedelta(hours=float(settings.get("weather_window_hours", 48))) <= now <= departure
     identity = "pa:observe:" + watch_id
     initial = fields(ledger, identity)
@@ -177,13 +178,18 @@ def probe(ledger, watch_id, watch, settings, deadline, started):
         control = read(conn, "pa:observe-control:" + watch_id)
         is_quiet = quiet(watch, now)
         signals, offer, critical, updates = [], "trip_change", False, []
+        trip_change_due = watch.get("checks", {}).get("trip_change") and instant(watch["departure_at"]) - flight_window <= now
         revision, plan = facts.get("revision"), itinerary(facts)
-        changed_trip = checks.get("trip_change") and revision != state.get("facts_revision")
-        # Back on plan is news only when the traveller was told about a different itinerary.
-        announced, back_to_plan = state.get("facts_itinerary"), facts.get("digest") == watch.get("planned_facts_digest")
-        if changed_trip and (plan == announced or back_to_plan and announced is None):
+        changed_trip = trip_change_due and revision != state.get("facts_revision")
+        planned_digest = watch.get("planned_facts_digest")
+        new_plan = planned_digest != state.get("planned_facts_digest", planned_digest)
+        # A newly accepted plan becomes the baseline. A return to the same plan can be news.
+        announced, back_to_plan = state.get("facts_itinerary"), facts.get("digest") == planned_digest
+        if changed_trip and (plan == announced or back_to_plan and (announced is None or new_plan)):
             state["facts_revision"], state["facts_itinerary"] = revision, plan
             changed_trip = False
+        if trip_change_due:
+            state["planned_facts_digest"] = planned_digest
         if changed_trip and not is_quiet:
             signals.append("Trip is back to the planned itinerary" if back_to_plan else "Trip facts changed from the planned itinerary")
         if flight_due:
@@ -248,6 +254,8 @@ def probe(ledger, watch_id, watch, settings, deadline, started):
                 weather["error"]["attention"] = True
         elif not is_quiet:
             for pending in state.get("notices", []):
+                if pending["offer_type"] == "trip_change" and not trip_change_due:
+                    continue
                 if pending["id"] not in control.get("acks", {}) and pending["emits"] < 3 and (now - instant(pending["last_at"])).total_seconds() >= float(settings.get("reemit_after_s", 1200)):
                     pending["emits"] += 1
                     pending["last_at"] = stamp
@@ -262,7 +270,7 @@ def probe(ledger, watch_id, watch, settings, deadline, started):
         cutoff = (now.date() - dt.timedelta(days=13)).isoformat()
         state["usage"] = {k: state["usage"][k] for k in sorted(state["usage"])[-14:] if cutoff <= k <= day}
         state["last_run"] = {"at": stamp, "ms": ms, "result": "fire" if notice else "error" if error else "quiet" if is_quiet else "idle",
-                             "checks": {"trip_change": bool(checks.get("trip_change")), "flight": bool(flight_due), "weather": bool(weather_due)}}
+                             "checks": {"trip_change": bool(trip_change_due), "flight": bool(flight_due), "weather": bool(weather_due)}}
         payload = {"fire": notice is not None, "message": message(watch, notice, facts, now) if notice else "",
                    "state": {"watch": watch_id, **({"notice": notice["id"]} if notice else {})}}
         write(conn, identity, state, "observe_state", watch["trip_id"], stamp)

@@ -253,15 +253,53 @@ def test_watch_arms_more_than_a_day_before_departure(tmp_path):
 
 
 def test_watch_lifetime_boundary(tmp_path):
-    # Keep the normalized arrival fixed and move the 14-day cutoff one minute earlier.
-    exact = plan(tmp_path, arm=['watch'], at='2026-10-28T06:00:00+00:00')
-    item = arm(exact, 'watch')
-    assert item['state'] == 'needed'
-    assert item['pulse_create']['until']['expires'] == '2026-11-11T06:00:00+00:00'
+    for at, expected in [('05:59', 'later'), ('06:00', 'needed'), ('06:01', 'needed')]:
+        at = f'2026-10-28T{at}:00+00:00'
+        item = arm(plan(tmp_path, arm=['watch'], at=at), 'watch')
+        assert item['state'] == tw.status(Ledger(tmp_path), 'synthetic', at=at)['arms']['watch']['state'] == expected
+        if expected == 'needed':
+            assert item['pulse_create']['until']['expires'] == '2026-11-11T06:00:00+00:00'
+        else:
+            assert 'pulse_create' not in item
 
-    later = plan(tmp_path, arm=['watch'], at='2026-10-28T05:59:00+00:00')
-    item = arm(later, 'watch')
-    assert item['state'] == 'later' and 'pulse_create' not in item
+
+@pytest.mark.parametrize('day, expiry, carried', [
+    (22, 'until', False), (19, 'until', True), (22, 'expires_at', False), (22, None, True),
+])
+def test_watch_carry_requires_expiry_to_cover_arrival(tmp_path, monkeypatch, day, expiry, carried):
+    monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
+    ledger = Ledger(tmp_path)
+    trip = {'arm': ['watch'], 'departure_at': '2026-11-20T12:00:00+00:00', 'arrival_at': '2026-11-20T18:00:00+00:00'}
+    first = plan(tmp_path, **trip)
+    until = arm(first, 'watch')['pulse_create']['until']['expires']
+    record(tmp_path, 'watch', 'w_watch')
+    identity = 'pa:trip-watch:synthetic'
+    receipt, = ledger.get('action', identity)['fields']['wakes']
+    assert receipt['until'] == until
+    if expiry != 'until':
+        del receipt['until']
+        if expiry == 'expires_at':
+            receipt[expiry] = until
+        ledger.put('action', identity, {'wakes': [receipt]})
+
+    reschedule = {'departure_at': f'2026-11-{day}T12:00:00+00:00', 'arrival_at': f'2026-11-{day}T18:00:00+00:00'}
+    updated = plan(tmp_path, **reschedule)
+    watch = arm(updated, 'watch')
+    if carried:
+        assert watch['state'] == 'armed' and watch['carried_from'] == first['revision']
+        assert watch['wake_id'] == 'w_watch' and 'pulse_create' not in watch and updated['stale_wakes'] == []
+        if expiry == 'until':
+            # Moving back to the original arrival still fits the actual wake expiry.
+            record(tmp_path, 'watch', 'w_watch')
+            assert arm(plan(tmp_path, **trip), 'watch')['wake_id'] == 'w_watch'
+        else:
+            tw.verify(ledger, 'synthetic', [{'id': 'w_watch', 'status': 'active', 'expires_at': until}])
+            revised = plan(tmp_path, **reschedule, airport_lead_minutes=120)
+            assert revised['stale_wakes'] == ['w_watch'] and 'pulse_create' in arm(revised, 'watch')
+    else:
+        assert watch['state'] == 'needed' and updated['stale_wakes'] == ['w_watch']
+        assert watch['pulse_create']['until']['expires'] == '2026-11-23T06:00:00+00:00'
+        assert tw.status(ledger, 'synthetic', at='2026-11-20T13:00:00+00:00')['stale_wakes'] == ['w_watch']
 
 
 def test_trip_pulse_create_contracts(tmp_path):
@@ -318,6 +356,21 @@ def test_watch_owner_asked_receipt_and_carry(tmp_path, grant, mute):
     assert watch['armed'] and watch['wake_id'] == 'w_watch' and watch['carried_from'] == first['revision']
     assert watch['owner_asked'] is grant.get('owner_asked') and watch['unanswered_mute'] == mute
     assert 'pulse_create' not in watch and carried['stale_wakes'] == []
+
+
+def test_verify_refreshes_watch_owner_asked_from_pulse_list(tmp_path):
+    plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch', owner_asked=True)
+    args = {'operation': 'trip_watch_plan', 'data': {'action': 'verify', 'trip_id': 'synthetic',
+            'wakes': [{'id': 'w_watch', 'status': 'active', 'owner_requested': False}]}}
+    validate(args, SCHEMA['parameters'])
+    verified = dispatch(tmp_path, args)
+    assert verified['arms']['watch']['owner_asked'] is False
+    assert verified['arms']['watch']['unanswered_mute'] == 'applies'
+
+    ledger = Ledger(tmp_path)
+    missing_flag = tw.verify(ledger, 'synthetic', [{'id': 'w_watch', 'status': 'active'}])
+    assert missing_flag['arms']['watch']['owner_asked'] is False
 
 
 @pytest.mark.parametrize('owner_asked', ['true', 1])

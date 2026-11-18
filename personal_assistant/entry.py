@@ -55,7 +55,7 @@ SCHEMA = {
             "night_alerts": {"type": "boolean"}, "weather": {"type": "boolean"},
             "reason": {"type": "string", "description": "trip_watch_plan record_skip: " + ", ".join(SKIPS) + ". expense void: free text."},
             "expires_at": {"anyOf": [{"type": "string"}, {"type": "number"}, {"type": "null"}]},
-            "wakes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "status": {"type": "string"}, "expires_at": {"anyOf": [{"type": "string"}, {"type": "number"}, {"type": "null"}]}}, "required": ["id", "status"]}},
+            "wakes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "status": {"type": "string"}, "expires_at": {"anyOf": [{"type": "string"}, {"type": "number"}, {"type": "null"}]}, "owner_requested": {"type": "boolean"}}, "required": ["id", "status"]}},
             "segments": {"anyOf": [{"type": "array", "items": SEG_SCHEMA, "minItems": 1, "maxItems": 8}, SEG_SCHEMA,
                                    {"type": "string", "description": "JSON-encoded segments; record_facts parses it."}]},
             "source": {"type": "string"},

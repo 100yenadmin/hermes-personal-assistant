@@ -41,8 +41,8 @@ line for `plugins.entries.heartbeat2.settings.probe_commands` and recommend
 `max_unanswered: 4`. Do not edit their configuration or retry in a watcher turn.
 When arming with night alerts, tell the user once: HeartBeat holds even urgent notices in quiet hours unless `quiet_hours_urgent` is on; it is off by default and applies to the whole profile. Hand the change to the user; never edit HB2 config.
 After HB2 reports orphaned wakes, or on doubt, run `pulse list`, then
-`pa trip_watch_plan action=verify` with its wakes (id/status/expires_at). Ask once
-before re-arming lost wakes. Resume paused wakes through HB2; unlisted does not mean lost.
+`pa trip_watch_plan action=verify` with its wakes (id/status/expires_at/owner_requested when present). Ask once
+before re-arming lost wakes. Resume paused wakes through HB2, using `owner_asked: true` for the watch only in an owner turn. Unlisted does not mean lost.
 Do not add a `/new` hook nudge: HB2 reports orphans on the next human turn.
 Pass `check_in_lead_minutes`, `hb2_quiet_hours` and `hb2_timezone` when recorded in
 the user's manual or USER.md by setup: `hb2_quiet_hours` as ASCII "HH:MM-HH:MM", or ""
