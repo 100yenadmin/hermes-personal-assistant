@@ -2,10 +2,53 @@ import datetime as dt
 
 import pytest
 
+from personal_assistant import trip_math
 from personal_assistant.trip_math import ARRIVAL_DEFAULTS, feasibility, at_airport_by
 
 DEPARTURE = "2026-11-10T12:03:59Z"
 ARRIVAL = "2026-11-10T18:00:00Z"
+
+
+@pytest.mark.parametrize("case, clock, expected", [
+    ("grace", "14:59", "08:00"),
+    ("grace", "15:00", None),
+    ("return_cutoff", "12:59", "08:00"),
+    ("return_cutoff", "13:00", None),
+    ("cancelled", "10:00", None),
+    ("cancelled_first", "10:00", "08:00"),
+    ("later_arrival_estimate", "15:30", "08:00"),
+    ("earlier_arrival_estimate", "14:30", "08:00"),
+    ("earlier_departure_estimate", "07:45", "08:00"),
+    ("plain_scheduled_in_air", "08:30", "08:00"),
+    ("plain_scheduled_after_arrival", "09:00", None),
+    ("plain_unknown_after_arrival", "10:00", None),
+])
+def test_journey_start_boundaries(case, clock, expected):
+    def instant(clock):
+        return f"2026-11-10T{clock}:00+00:00"
+
+    outbound = dict(origin="AAA", destination="BBB", status="departed",
+                    scheduled_departure=instant("08:00"), scheduled_arrival=instant("09:00"))
+    segments = [outbound]
+    if case in {"cancelled", "cancelled_first"}:
+        outbound["status"] = "cancelled"
+    if case == "return_cutoff":
+        segments.insert(0, dict(outbound, origin="BBB", destination="AAA", status="cancelled",
+                                scheduled_departure=instant("13:00"), scheduled_arrival=instant("14:00")))
+    if case == "cancelled_first":
+        segments.insert(0, dict(outbound, origin="BBB", destination="CCC", status="scheduled",
+                                scheduled_departure=instant("10:00"), scheduled_arrival=instant("11:00")))
+    if case == "later_arrival_estimate":
+        outbound["estimated_arrival"] = instant("10:00")
+    if case == "earlier_arrival_estimate":
+        outbound["estimated_arrival"] = instant("08:30")
+    if case == "earlier_departure_estimate":
+        outbound["estimated_departure"] = instant("07:30")
+    if case.startswith("plain_"):
+        outbound["status"] = "unknown" if "unknown" in case else "scheduled"
+
+    current = dt.datetime.fromisoformat(instant(clock))
+    assert trip_math.journey_start(segments, current) == (dt.datetime.fromisoformat(instant(expected)) if expected else current)
 
 
 def test_at_airport_by_basis_floor_and_local_time():

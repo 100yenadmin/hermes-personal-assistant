@@ -28,6 +28,39 @@ def _next_journey(all_segments, current):
     return journey
 
 
+def journey_start(segments, current):
+    """Scheduled start of the latest unfinished journey, or current if none qualifies.
+
+    A journey is unfinished while one of its started legs is not cancelled or landed and the clock is before that
+    leg's latest known arrival (plus 6 h when the flight is departed, delayed, diverted or has an estimate) and before
+    the next journey's first scheduled departure."""
+    remaining = sorted(segments, key=lambda s: _time(s["scheduled_departure"]))
+    start = current
+    while remaining:
+        scheduled_start = _time(remaining[0]["scheduled_departure"])
+        journey = _next_journey(remaining, scheduled_start)
+        remaining = remaining[len(journey):]
+        if remaining and current >= _time(remaining[0]["scheduled_departure"]):
+            continue
+        for leg in journey:
+            if leg.get("status") in {"cancelled", "landed"}:
+                continue
+            departure = _time(leg["scheduled_departure"])
+            arrival = _time(leg["scheduled_arrival"])
+            if leg.get("estimated_departure"):
+                departure = min(departure, _time(leg["estimated_departure"]))
+            if leg.get("estimated_arrival"):
+                arrival = max(arrival, _time(leg["estimated_arrival"]))
+            # Only a sign the flight is not over (departed, delayed, diverted, or an estimate) earns the grace;
+            # a plain "scheduled" or "unknown" leg is taken as landed at its scheduled arrival.
+            disrupted = (leg.get("status") in {"departed", "delayed", "diverted"}
+                         or leg.get("estimated_departure") or leg.get("estimated_arrival"))
+            if departure <= current < arrival + (dt.timedelta(hours=6) if disrupted else dt.timedelta(0)):
+                start = scheduled_start
+                break
+    return start
+
+
 def itinerary(facts):
     """The planned itinerary only: estimates, status and terminals are flight changes, not trip changes."""
     return sorted([s.get(k) for k in ("segment_id", "carrier", "number", "origin", "destination", "scheduled_departure",
