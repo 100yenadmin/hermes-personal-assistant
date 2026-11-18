@@ -19,8 +19,9 @@ HTML comments are removed from extracted release notes before publication, and t
 Every pull request runs the required `validate` check. It aggregates package
 validation, the affected test suite, deterministic archive checks, PR metadata,
 the release-contract dry run, the native lifecycle matrix on both supported
-Hermes commits, and an install of the PR's commit with Hermes v0.22.2's security
-scan on (no `--force`), as a user installing from the README would. A skipped,
+Hermes commits, and an install of the PR's commit with the security scan on (no
+`--force`) on Hermes v0.22.2 and on the latest stable Hermes, v0.23.2, as a user
+installing from the README would. A skipped,
 cancelled, or failed mandatory job fails the aggregate.
 
 The current supported Hermes pins are:
