@@ -116,7 +116,7 @@ On a HeartBeat 2.0 watcher turn where messages are held, 0.31.0-rc.1 no longer r
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
 - attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1) and passes a two-day lab scenario (s42, with a stand-in for HB2's `pulse`); in 0.22.0-rc.1 an owner's chase time fired on a real HeartBeat 2.0 v0.2.0 wake in an isolated lab home with loopback Telegram, but not yet on a live profile; since 0.30.0-rc.1 a trip watch's change reaches the owner when HeartBeat 2.0 holds messages: under the unanswered mute on the owner's next message (scripted test on 0.4.16) and after quiet hours (live diagnostics); the daily message limit is untested, and none of it has run on a live profile yet; since 0.31.0-rc.1 PA no longer reserves a trip notice or records it as offered on a held turn, so it can still make the offer later (#325, scripted and live tests on HeartBeat 2.0 0.4.16);
 - a yes that leads to finished work: no live send, invite or booking completed yet (#152);
-- office work in the owner's own systems on a live account: the documents flow passes in the lab (s43) but has not run on an owner's Google account (#156); the tax pack is built (#237, unit tests), its lab scenario next (#235);
+- office work in the owner's own systems on a live account: the documents flow passes in the lab (s43) but has not run on an owner's Google account (#156); the tax pack is built (#237) and passes its lab scenario (s44 3 of 3 in 0.24.0-rc.1, #235);
 - real phone calls (#4).
 
 **Missing against the Chief of Staff bar:** everything that involves the team.
@@ -130,12 +130,12 @@ log, meeting capture, a scorecard, L2 envelopes and a project register.
 | Onboarding interview ("grill me") | built in 0.9.0-rc.1: 8 core, 6 Chief of Staff and 27 profile questions across the eight groups; live exit pending | M1 |
 | Preference and voice learning | built in 0.9.0-rc.1: corrections, confirmed inferences, people and SOPs; live exit pending; voice not yet tested | M1, plus the voice test in M6 |
 | Recurring ops | partial: routines run, but they are not scored and not proven unattended | M2 (check), M3 (daily and weekly), M6 (monthly, quarterly, licences and contracts) |
-| Research | partial: adopt-or-build research only | M2 |
+| Research | built in 0.10.0-rc.1: general research skill and lab s18; passes 3 of 3 in the 0.11.0 scorecard | M2 |
 | Travel | partial: prep up to the final page, nothing completed | M0 (real trip), M5 (completion) |
 | Personal life admin | partial: renewal and birthday radar (lab s21); contracts, subscriptions and licences surfaced before the notice deadline with annual cost and a keep-or-cancel decision (0.24.0-rc.1; lab s45 2 of 3 in 0.24.0-rc.1 and 0.25.0-rc.1, 0 of 3 in 0.26.0-rc.1, where PA listed a renewal that is not due among the decisions, and 3 of 3 in each wave from 0.27.0-rc.1 to 0.31.0-rc.1); family appointments, household vendors and a year at a glance with gift ideas, every booking and send held for the yes (0.16.0-rc.1, lab s41 3 of 3) | M3 (radar), M6 (the rest) |
-| Follow-up, reporting, escalation | missing or partial | M3 |
-| Inbox | missing | M4 |
-| Calendar | partial: reads and conflict checks | M4 |
+| Follow-up, reporting, escalation | built in 0.11.0: open loops with the day 2, 5 and 10 chase ladder, the personal radar, an end-of-day note and routine health; live exit and ten-working-day canary pending (#50) | M3 |
+| Inbox | built in 0.11.0: twice-daily triage, a digest, thread tracking and in-voice drafts held for the yes; live exit pending | M4 |
+| Calendar | built in 0.11.0: reads, conflict checks, writes and invites after the yes, find-a-time across zones, 24-hour confirmations and briefs; live exit pending | M4 |
 | Errands and bookings | partial: stops correctly before booking, nothing completed | M5 |
 | Phone and messages | partial: call brief and simulator; the post-call poller ran on one real inbound call. PA cannot place or answer live calls yet | M5 |
 | Documents and data | partial: contact list cleanup with a change log (lab s32 3 of 3 in 0.19.0-rc.1, 2 of 3 in 0.20.0-rc.1 over an unhelpful error, 3 of 3 in 0.21.0-rc.1 once the error names the call's shape); meeting minutes with owners and dates (lab s34 3 of 3); a budget sheet with a formula total and an agenda doc in the owner's Google account, sharing and a CRM change held for the yes (0.23.0-rc.1, lab s43 3 of 3; live run next, #156) | M6 |
@@ -186,7 +186,8 @@ plugin catalog.
 
 **Exit.**
 - #1 passes on the real trip.
-- 0.8.0 is published.
+- 0.8.0 is published. (No stable 0.8.0 was published: 0.8.0 shipped as
+  rc.1 to rc.3, and their changes are in the stable v0.9.0.)
 - The catalog pull request is submitted (#2).
 
 ### M1: Knows you, with self-onboarding and "grill me" (target 0.9.0)
@@ -376,6 +377,9 @@ needs both.
 
 **Why.** A VA finishes errands. PA still stops at the handoff.
 
+The 0.12.0 target passed without the exit test, and at 0.31.0-rc.1 M5's exit
+has still not passed (see "Where we are").
+
 **Status (0.13.0-rc.1).** The steps after the yes are built. In the lab, against
 stand-in providers, these pass: recording a booked restaurant or appointment from
 the readback, reminders, the ICS file, and vendor requests that become chased
@@ -421,7 +425,7 @@ open.
 
 ### M6: Remote VA parity (target 1.0.0)
 
-**Status (0.13.0-rc.1).** M6 has started. Built so far:
+**Status (from 0.13.0-rc.1, updated through 0.27.0-rc.1).** M6 has started. Built so far:
 - invoices and the overdue chase ladder (M6-a);
 - owner-stated balances, a weekly cash position and a monthly income and expense summary;
 - customer and vendor replies under the owner's written policy (M6-b);
@@ -606,4 +610,6 @@ the evidence in either of two cases:
 - the order changes.
 
 Each milestone (M0 to M9) has a GitHub milestone of the same name, and its work
-is tracked in issues.
+is tracked in issues. The M5 and M6 slices named in this file (#116, #117, #123,
+#130, #136, #144, #146, #235, #248, #255) are tracked by their own issues and
+are not on a GitHub milestone.
