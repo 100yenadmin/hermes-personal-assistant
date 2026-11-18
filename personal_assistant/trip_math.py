@@ -13,6 +13,31 @@ def _time(value):
     return parsed.astimezone(dt.timezone.utc)
 
 
+def _next_journey(all_segments, current):
+    """The next departure plus segments within 24 h of it (connections, rebooked alternatives).
+
+    A flight back to the journey's origin, or one more than 24 h later, starts a later journey."""
+    ordered = sorted(all_segments, key=lambda s: _time(s["scheduled_departure"]))
+    upcoming = [s for s in ordered if _time(s["scheduled_departure"]) >= current] or ordered
+    journey = upcoming[:1]
+    for s in upcoming[1:]:
+        if (_time(s["scheduled_departure"]) - _time(journey[-1]["scheduled_arrival"]) > dt.timedelta(hours=24)
+                or s["destination"] == journey[0]["origin"]):
+            break
+        journey.append(s)
+    return journey
+
+
+def itinerary(facts):
+    """The planned itinerary only: estimates, status and terminals are flight changes, not trip changes."""
+    return sorted([s.get(k) for k in ("segment_id", "carrier", "number", "origin", "destination", "scheduled_departure",
+                                      "scheduled_arrival")] + [s.get("status") == "cancelled"] for s in facts.get("segments", []))
+
+
+def journey_itinerary(segments, start):
+    return itinerary({"segments": _next_journey(segments, start)})
+
+
 def _minutes(value):
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError("minutes must be a nonnegative integer")

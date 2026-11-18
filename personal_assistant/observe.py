@@ -90,12 +90,6 @@ def message(watch, notice, facts, now):
     return prefix + safe("; ".join(notice["signals"]), min(260, room)) + suffix
 
 
-def itinerary(facts):
-    """The planned itinerary only: estimates, status and terminals are flight changes, not trip changes."""
-    return sorted([s.get(k) for k in ("segment_id", "carrier", "number", "origin", "destination", "scheduled_departure",
-                                      "scheduled_arrival")] + [s.get("status") == "cancelled"] for s in facts.get("segments", []))
-
-
 def _airport_timing(watch, departure, zone, **kwargs):
     transfer = watch.get("airport_transfer_minutes")
     airport = trip_math.at_airport_by(departure, watch.get("airport_lead_minutes", 180), zone, **kwargs)
@@ -178,20 +172,35 @@ def probe(ledger, watch_id, watch, settings, deadline, started):
         control = read(conn, "pa:observe-control:" + watch_id)
         is_quiet = quiet(watch, now)
         signals, offer, critical, updates = [], "trip_change", False, []
-        trip_change_due = watch.get("checks", {}).get("trip_change") and instant(watch["departure_at"]) - flight_window <= now
-        revision, plan = facts.get("revision"), itinerary(facts)
+        watched_departure = instant(watch["departure_at"])
+        trip_change_due = watch.get("checks", {}).get("trip_change") and watched_departure - flight_window <= now
+        revision = facts.get("revision")
         changed_trip = trip_change_due and revision != state.get("facts_revision")
-        planned_digest = watch.get("planned_facts_digest")
-        new_plan = planned_digest != state.get("planned_facts_digest", planned_digest)
-        # A newly accepted plan becomes the baseline. A return to the same plan can be news.
-        announced, back_to_plan = state.get("facts_itinerary"), facts.get("digest") == planned_digest
-        if changed_trip and (plan == announced or back_to_plan and (announced is None or new_plan)):
-            state["facts_revision"], state["facts_itinerary"] = revision, plan
-            changed_trip = False
         if trip_change_due:
+            planned_digest = watch.get("planned_facts_digest")
+            accepted_plan = False
+            if "planned_itinerary" in watch:
+                plan = trip_math.journey_itinerary(facts.get("segments", []), watched_departure - dt.timedelta(hours=24))
+                planned_itinerary = watch["planned_itinerary"]
+                back_to_plan = plan == planned_itinerary
+                new_plan = planned_itinerary != state.get("planned_itinerary")
+                state["planned_itinerary"] = planned_itinerary
+                accepted_plan = new_plan and back_to_plan
+                if accepted_plan:
+                    acks = control.get("acks", {})
+                    state["notices"] = [n for n in state.get("notices", []) if n["offer_type"] != "trip_change" or n["id"] in acks]
+            else:
+                plan = trip_math.itinerary(facts)
+                back_to_plan = facts.get("digest") == planned_digest
+                new_plan = planned_digest != state.get("planned_facts_digest", planned_digest)
             state["planned_facts_digest"] = planned_digest
-        if changed_trip and not is_quiet:
-            signals.append("Trip is back to the planned itinerary" if back_to_plan else "Trip facts changed from the planned itinerary")
+            # A newly accepted plan becomes the baseline. A return to the same plan can be news.
+            announced = state.get("facts_itinerary")
+            if accepted_plan or (changed_trip and (plan == announced or (back_to_plan and (announced is None or new_plan)))):
+                state["facts_revision"], state["facts_itinerary"] = revision, plan
+                changed_trip = False
+            if changed_trip and not is_quiet:
+                signals.append("Trip is back to the planned itinerary" if back_to_plan else "Trip facts changed from the planned itinerary")
         if flight_due:
             flight = state.setdefault("flight", {})
             flight["checked_at"] = stamp

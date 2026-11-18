@@ -202,8 +202,9 @@ runpy.run_path({str(SHIM)!r}, run_name="__main__")'''
     assert not run(profile, code=code)["fire"]
 
 
-def test_trip_change_and_silent_rebaseline(profile):
+def test_legacy_trip_change_and_silent_rebaseline(profile):
     watch(profile, checks={"trip_change": True})
+    assert "planned_itinerary" not in get(profile, "pa:observe-watch:w1")
     assert not run(profile)["fire"]
     assert get(profile)["facts_revision"] == 1
     planned = get(profile, "pa:trip-facts:synthetic")["segments"][0]["scheduled_departure"]
@@ -251,6 +252,40 @@ def test_trip_change_stays_due_after_flight_window(profile):
     assert get(profile)["last_run"]["checks"] == {"trip_change": True, "flight": False, "weather": False}
 
 
+def arm_facts_watch(profile, trip, original):
+    record_facts(profile, trip, [original], "user")
+    first = trip_watch.plan(profile, trip, arm=["watch"], weather=False, hb2_quiet_hours="", hb2_timezone="UTC")
+    trip_watch.record_wake(profile, trip, "watch", "w_carried")
+    return first, first["inputs"]["watch_argv"][-1]
+
+
+def test_return_added_before_first_trip_change_check(profile):
+    original = get(profile, "pa:trip-facts:synthetic")["segments"][0]
+    trip = "roundtrip"
+    _, watch_id = arm_facts_watch(profile, trip, original)
+    record_facts(profile, trip, [{**original, "number": "321", "origin": "BBB", "destination": "AAA",
+        "scheduled_departure": shift(original["scheduled_arrival"], 120),
+        "scheduled_arrival": shift(original["scheduled_arrival"], 300)}], "user")
+    assert not run(profile, args=("trip", watch_id))["fire"]
+
+    record_facts(profile, trip, [{**original, "scheduled_arrival": shift(original["scheduled_arrival"], 60)}], "user")
+    output = run(profile, args=("trip", watch_id))
+    assert output["fire"] and "offer_type=trip_change" in output["message"]
+
+
+@pytest.mark.parametrize("delay", [5, 90])
+def test_estimate_before_first_trip_change_check(profile, delay):
+    original = get(profile, "pa:trip-facts:synthetic")["segments"][0]
+    trip = "delayed"
+    _, watch_id = arm_facts_watch(profile, trip, original)
+    record_facts(profile, trip, [{**original, "estimated_departure": shift(original["scheduled_departure"], delay)}], "user")
+    output = run(profile, args=("trip", watch_id))
+    assert output["fire"] == (delay == 90)
+    assert "Trip facts changed" not in output["message"]
+    if delay == 90:
+        assert "offer_type=flight_change" in output["message"]
+
+
 def test_carried_watch_uses_new_plan_digest_without_alerting(profile):
     original = get(profile, "pa:trip-facts:synthetic")["segments"][0]
     trip = "replanned"
@@ -269,6 +304,31 @@ def test_carried_watch_uses_new_plan_digest_without_alerting(profile):
     assert get(profile, watch_key)["planned_facts_digest"] == replanned["inputs"]["facts_digest"] == edited["digest"]
     assert not run(profile, args=("trip", watch_id))["fire"]
     assert get(profile, "pa:observe:" + watch_id)["facts_revision"] == edited["revision"]
+
+
+def test_announced_trip_change_reemits_until_owner_replans(profile):
+    original = get(profile, "pa:trip-facts:synthetic")["segments"][0]
+    trip = "accepted"
+    first, watch_id = arm_facts_watch(profile, trip, original)
+    args, state_key = ("trip", watch_id), "pa:observe:" + watch_id
+    settings(profile, reemit_after_s=0)
+    assert not run(profile, args=args)["fire"]
+
+    updated = {**original, "scheduled_arrival": shift(original["scheduled_arrival"], -60)}
+    record_facts(profile, trip, [updated], "user")
+    announced = run(profile, args=args)
+    assert announced["fire"] and "offer_type=trip_change" in announced["message"]
+
+    estimated = {**updated, "estimated_departure": shift(original["scheduled_departure"], 5)}
+    facts = record_facts(profile, trip, [estimated], "user")
+    repeated = run(profile, args=args)
+    assert repeated["fire"] and repeated["state"]["notice"] == announced["state"]["notice"]
+    assert get(profile, state_key)["facts_revision"] == facts["revision"]
+
+    replanned = trip_watch.plan(profile, trip)
+    assert replanned["arm"][0]["carried_from"] == first["revision"]
+    assert not run(profile, args=args)["fire"]
+    assert get(profile, state_key)["notices"] == []
 
 
 def test_unannounced_change_that_returns_to_plan_stays_silent(profile):

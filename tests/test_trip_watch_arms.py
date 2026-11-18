@@ -237,6 +237,7 @@ def test_watch_command_and_observer_row(tmp_path, night_alerts):
     assert row['action_type'] == 'observe_watch' and row['trip_id'] == dangerous_id
     fields = row['fields']
     assert fields['checks'] == {'trip_change': True, 'flight': True, 'weather': False}
+    assert fields['planned_itinerary'] == []
     assert fields['status'] == 'active' and fields['profile_root'] == str(tmp_path.resolve())
     assert fields['departure_at'] == BASE['departure_at'] and fields['arrival_at'] == BASE['arrival_at']
     assert fields['night_alerts'] is night_alerts and fields['schema'] == 1
