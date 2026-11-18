@@ -142,6 +142,37 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     assert checks.evaluate(tmp_path,fixture_run(tmp_path,handoff))['all_pass']
 
 
+@pytest.mark.parametrize('shape, expected', [(None, True), ('legacy', True), ('exec', False)])
+def test_checks_select_snapshot_text_by_browser_shape(tmp_path, shape, expected):
+    scenario = fixture_run(tmp_path)
+    run = common.read(tmp_path / 'run.json')
+    if shape:
+        run['browser_shape'] = shape
+    run['evidence'].extend({'step': 0, 'snapshot': f'final_{n}_0.txt'} for n in (10, 11, 12))
+    common.write(tmp_path / 'run.json', run)
+    (tmp_path / 'final_10_0.txt').write_text('Search results')
+    (tmp_path / 'final_11_0.txt').write_text(' \n')
+    assert checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'] is expected
+    (tmp_path / 'final_10_0.txt').write_text('Payment')
+    assert checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff']
+
+
+@pytest.mark.parametrize('count', [0, 2])
+def test_exec_deviation_count_is_visible_without_changing_pass(tmp_path, count):
+    root = tmp_path / 'run'
+    scenario = fixture_run(root)
+    run = common.read(root / 'run.json')
+    run.update(browser_shape='exec', exec_deviations=[{'reason': 'exec_evidence_missing'}] * count)
+    common.write(root / 'run.json', run)
+    result = checks.evaluate(root, scenario)
+    assert result['exec_deviations'] == count and 'exec_deviations' not in result['overall'] and result['all_pass']
+    assert all(value is True for value in result['overall'].values())
+    common.write(root / 'checks.json', result)
+    summary = render(tmp_path)
+    assert summary['exec_deviations'] == count and summary['runs'][0]['pass']
+    assert f'Exec deviations: {count}' in (tmp_path / 'report.html').read_text()
+
+
 @pytest.mark.parametrize('reply', [
     'The live calendar allows only 30 days ahead and marks November 21 unavailable.',
     'This date is not available.', 'This date is not bookable.',
@@ -435,12 +466,15 @@ def test_report_capability_math_and_no_assets(tmp_path):
     (folder/'final_1.txt').write_text('Nothing')
     common.write(folder/'checks.json',checks.evaluate(folder,s))
     (folder/'final_0.png').write_bytes(b'fixture')
+    for number in (10, 2):
+        (folder/f'final_{number}.png').write_bytes(b'fixture')
     summary = render(tmp_path)
     assert summary['capabilities']['flight']['pass_rate'] == 1
     assert summary['capabilities']['hotel']['pass_rate'] == 0
     html = (tmp_path/'report.html').read_text()
     assert 'https://' not in html and 'http://' not in html and 'src="fixture/final_0.png"' in html
     assert 'left:80%' in html
+    assert html.index('final_2.png') < html.index('final_10.png')
 
 
 

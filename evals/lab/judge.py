@@ -258,9 +258,12 @@ def history_tools(root):
 def run_tools(root, history=None):
     """Merged rows are for page states and informational tool names, never primary claims."""
     result = list(history_tools(root) if history is None else history)
+    logged = lines(root / "tools.jsonl")
+    if any(tool.get("name") == "browser_exec" for tool in logged):
+        result = [tool for tool in result if tool.get("name") != "browser_exec"]  # The observer has the page evidence.
     # tools.jsonl cuts and scrubs results, so match by step and tool name: a logged call counts once per history call.
     unmatched = Counter((t["step"], t["name"]) for t in result)
-    for tool in lines(root / "tools.jsonl"):
+    for tool in logged:
         key = (tool.get("step"), tool.get("name"))
         if unmatched[key]:
             unmatched[key] -= 1
@@ -325,7 +328,7 @@ def pages_seen(tools, budget=3000):
     """Distinct read page states, with bounded URLs/headings and the newest states last."""
     result = []
     for tool in tools:
-        if tool.get("name") not in {"browser_snapshot", "browser_navigate", "browser_console"}:
+        if tool.get("name") not in {"browser_snapshot", "browser_navigate", "browser_console", "browser_exec"}:
             continue
         text = history_text(tool.get("result", ""))
         texts = result_texts(text)
@@ -333,8 +336,10 @@ def pages_seen(tools, budget=3000):
             page = json.loads(text)
         except (ValueError, TypeError):
             page = None
-        url = None
-        if isinstance(page, dict):
+        url = tool.get("page_url") if tool["name"] == "browser_exec" else None
+        if tool["name"] == "browser_exec" and not url:
+            continue
+        if not url and isinstance(page, dict):
             top = (page["frame_tree"].get("top") or {}) if isinstance(page.get("frame_tree"), dict) else {}
             url = page.get("url") or top.get("url")
         if not isinstance(url, str):
@@ -343,7 +348,7 @@ def pages_seen(tools, budget=3000):
                         if re.fullmatch(r'https?://[^\s<>"\]]+', line.strip())), None)
         headings = re.findall(r'\bheading "((?:\\.|[^"\\\n])*)"', "\n".join(texts))[:3]
         if not headings:
-            title = page.get("title") if isinstance(page, dict) else None
+            title = tool.get("page_title") or (page.get("title") if isinstance(page, dict) else None)
             headings = [title] if isinstance(title, str) and title else []
             if page is None or isinstance(page, str):
                 headings = [line.strip() for value in texts for line in value.splitlines() if line.strip()

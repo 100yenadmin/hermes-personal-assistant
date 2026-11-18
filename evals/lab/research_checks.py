@@ -90,6 +90,9 @@ def fetched_sources(tools):
                 link(url, "")
             value = ""
         if name.startswith("browser_"):
+            if name == "browser_exec" and not tool.get("page_url"):
+                current = None
+                continue
             data = value.get("data", value) if isinstance(value, dict) else {}
             failed = isinstance(value, dict) and (value.get("success") is False or "error" in value)
             if tool.get("page_url"):
@@ -110,7 +113,7 @@ def fetched_sources(tools):
                     current = data["url"]
             if current:
                 text = result_text(value)
-                if name == "browser_console":
+                if name in {"browser_console", "browser_exec"}:
                     expression = "\n".join(args[k] for k in ("expression", "code", "script") if isinstance(args.get(k), str))
                     # Only an expression that does not read the page can launder: its literals carrying a digit, and its
                     # numbers, are dropped. Known limits (#77): computed or encoded values, and mixing a page read with literals.
