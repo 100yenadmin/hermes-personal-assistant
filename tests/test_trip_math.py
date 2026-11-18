@@ -48,7 +48,14 @@ def test_journey_start_boundaries(case, clock, expected):
         outbound["status"] = "unknown" if "unknown" in case else "scheduled"
 
     current = dt.datetime.fromisoformat(instant(clock))
-    assert trip_math.journey_start(segments, current) == (dt.datetime.fromisoformat(instant(expected)) if expected else current)
+    assert trip_math.journey_start(segments, current) == (dt.datetime.fromisoformat(instant(expected)) if expected else None)
+
+
+def test_journey_start_distinguishes_departure_now_from_no_match():
+    departure = dt.datetime.fromisoformat(DEPARTURE)
+    legs = [dict(origin="AAA", destination="BBB", scheduled_departure=DEPARTURE, scheduled_arrival=ARRIVAL)]
+    assert trip_math.journey_start(legs, departure) == departure
+    assert trip_math.journey_start(legs, departure - dt.timedelta(seconds=1)) is None
 
 
 def test_at_airport_by_basis_floor_and_local_time():

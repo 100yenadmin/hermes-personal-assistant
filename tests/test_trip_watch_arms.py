@@ -439,13 +439,18 @@ def test_round_trip_facts_replan(tmp_path, monkeypatch, case, clock, flight_chan
     status = tw.status(ledger, trip, at=at)
 
     assert (updated['inputs']['departure_at'], updated['inputs']['arrival_at']) == (
-        expected_departure['scheduled_departure'], expected_arrival['scheduled_arrival'])
+        expected_departure['scheduled_departure'],
+        changes['estimated_arrival'] if case == 'late_estimate' else expected_arrival['scheduled_arrival'])
     assert status['inputs'] == updated['inputs']
     if expected_leg == 'outbound':
         assert status['stale_wakes'] == []
         assert status['arms']['watch']['wake_id'] == 'w_watch' and status['arms']['watch']['armed']
         assert 'pulse_create' not in arm(updated, 'watch')
-        assert updated['revision'] == first['revision']
+        if case == 'late_estimate':
+            assert updated['revision'] != first['revision']
+            assert status['arms']['watch']['carried_from'] == first['revision']
+        else:
+            assert updated['revision'] == first['revision']
 
 
 
@@ -506,6 +511,116 @@ def test_replan_during_a_layover_keeps_the_connection_the_plan_watches(tmp_path,
     assert updated['revision'] == first['revision']
     assert status['stale_wakes'] == []
     assert status['arms']['watch']['wake_id'] == 'w_connection' and status['arms']['watch']['armed']
+
+@pytest.fixture
+def facts_watch(tmp_path, monkeypatch):
+    ledger, trip = Ledger(tmp_path), BASE['trip_id']
+
+    def start(segments, at=BASE['at']):
+        monkeypatch.setattr(tw, 'now', lambda: at)
+        record_facts(ledger, trip, segments, 'user', observed_at=at)
+        result = tw.plan(ledger, trip, arm=['watch'], hb2_timezone='UTC', at=at)
+        record(tmp_path, 'watch', 'w_original')
+        return result
+
+    def replan(changes, at):
+        record_facts(ledger, trip, changes, 'user', observed_at=at)
+        return tw.plan(ledger, trip, at=at)
+
+    def assert_watch(result, numbers, arrival, wake_id='w_original'):
+        assert [row[0].split(':')[0] for row in result['inputs']['facts_signature']] == numbers
+        assert result['inputs']['arrival_at'] == arrival
+        assert result['stale_wakes'] == ([] if wake_id == 'w_original' else ['w_original'])
+        watch = result['arms']['watch']
+        assert watch['state'] == 'armed' and watch['wake_id'] == wake_id
+        if 'arm' in result:
+            assert 'pulse_create' not in arm(result, 'watch')
+        observer = ledger.get('action', 'pa:observe-watch:' + result['inputs']['watch_argv'][-1])['fields']
+        assert observer['arrival_at'] == arrival
+
+    return SimpleNamespace(start=start, replan=replan, assert_watch=assert_watch)
+
+
+def _replan_time(clock, day=10):
+    return f'2026-11-{day}T{clock}:00+00:00'
+
+
+def _replan_leg(number, origin, destination, departure, arrival, day=10):
+    return dict(carrier='ZZ', number=number, origin=origin, destination=destination,
+                origin_timezone='UTC', destination_timezone='UTC',
+                scheduled_departure=_replan_time(departure, day), scheduled_arrival=_replan_time(arrival, day))
+
+
+@pytest.mark.parametrize('clock, changed_leg, changes', [
+    pytest.param('16:30', '456', {'status': 'delayed', 'estimated_departure': _replan_time('18:00')},
+                 id='delayed_connection'),
+    pytest.param('16:30', '123', {'estimated_arrival': _replan_time('17:00')}, id='earlier_leg_eta'),
+    pytest.param('16:00', '123', {'estimated_arrival': _replan_time('17:00')}, id='scheduled_departure_now'),
+])
+def test_layover_replan_retains_watched_connection(facts_watch, clock, changed_leg, changes):
+    first_leg = {**_replan_leg('123', 'AAA', 'BBB', '08:00', '09:00'), 'status': 'departed'}
+    connection = _replan_leg('456', 'BBB', 'CCC', '16:00', '19:00')
+    inbound = _replan_leg('789', 'CCC', 'AAA', '20:00', '22:00', day=12)
+    first = facts_watch.start([first_leg, connection, inbound], at=_replan_time('10:00'))
+    assert first['inputs']['departure_at'] == connection['scheduled_departure']
+    leg = first_leg if changed_leg == first_leg['number'] else connection
+    result = facts_watch.replan([{**leg, **changes}], _replan_time(clock))
+    facts_watch.assert_watch(result, ['ZZ456'], connection['scheduled_arrival'])
+
+
+def test_replan_keeps_earlier_same_origin_rebooking(facts_watch):
+    outbound = _replan_leg('123', 'AAA', 'BBB', '12:00', '18:00')
+    inbound = _replan_leg('456', 'BBB', 'AAA', '22:00', '23:45')
+    replacement = _replan_leg('789', 'BBB', 'AAA', '20:00', '22:00')
+    first = facts_watch.start([outbound, inbound], at=_replan_time('19:00'))
+    assert first['inputs']['departure_at'] == inbound['scheduled_departure']
+
+    result = facts_watch.replan([
+        {**outbound, 'estimated_arrival': _replan_time('21:00')},
+        {**inbound, 'status': 'cancelled'}, replacement,
+    ], _replan_time('20:30'))
+    assert result['inputs']['departure_at'] == replacement['scheduled_departure']
+    facts_watch.assert_watch(result, ['ZZ789', 'ZZ456'], replacement['scheduled_arrival'])
+    assert arm(result, 'watch')['carried_from'] == first['revision']
+
+
+def test_replan_uses_scheduled_cutoff_for_unwatched_return(facts_watch):
+    outbound = {**_replan_leg('123', 'AAA', 'BBB', '12:00', '18:00'), 'status': 'departed'}
+    inbound = _replan_leg('456', 'BBB', 'AAA', '22:00', '23:45')
+    facts_watch.start([outbound, inbound])
+
+    early_return = {**inbound, 'estimated_departure': _replan_time('19:30')}
+    result = facts_watch.replan([early_return], _replan_time('20:00'))
+    facts_watch.assert_watch(result, ['ZZ123'], outbound['scheduled_arrival'])
+    at_cutoff = facts_watch.replan([early_return], inbound['scheduled_departure'])
+    assert at_cutoff['inputs']['departure_at'] == inbound['scheduled_departure']
+
+
+def test_replan_carries_ground_delayed_watch_past_scheduled_window(facts_watch):
+    outbound = _replan_leg('123', 'AAA', 'BBB', '12:00', '18:00')
+    inbound = _replan_leg('456', 'BBB', 'AAA', '12:00', '18:00', day=12)
+    first = facts_watch.start([outbound, inbound])
+
+    delayed = {**outbound, 'status': 'delayed', 'estimated_departure': _replan_time('22:00'),
+               'estimated_arrival': _replan_time('23:00')}
+    result = facts_watch.replan([delayed], _replan_time('21:01'))
+    facts_watch.assert_watch(result, ['ZZ123'], delayed['estimated_arrival'])
+    assert arm(result, 'watch')['carried_from'] == first['revision']
+
+
+def test_replan_offers_return_after_outbound_flight_window_closed(tmp_path, facts_watch):
+    outbound = {**_replan_leg('123', 'AAA', 'BBB', '12:00', '18:00'), 'status': 'departed'}
+    inbound = _replan_leg('456', 'BBB', 'AAA', '12:00', '18:00', day=12)
+    facts_watch.start([outbound, inbound])
+
+    result = facts_watch.replan([{**outbound, 'scheduled_arrival': _replan_time('19:00')}], _replan_time('23:00'))
+    assert result['inputs']['departure_at'] == inbound['scheduled_departure']
+    assert result['stale_wakes'] == ['w_original']
+    watch = arm(result, 'watch')
+    assert watch['state'] == 'needed' and watch['pulse_create']['action'] == 'create'
+    armed = record(tmp_path, 'watch', 'w_return')
+    facts_watch.assert_watch(armed, ['ZZ456'], inbound['scheduled_arrival'], wake_id='w_return')
+
 
 def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path, monkeypatch):
     monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
