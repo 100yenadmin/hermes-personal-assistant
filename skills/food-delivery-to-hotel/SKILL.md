@@ -30,11 +30,11 @@ Help the user eat after arrival. Prepare the order, then ask before final order 
 1. Verify hotel name, address, arrival time, local time, and delivery policy.
 2. Ask for allergies, dietary restrictions, cuisine preferences, and budget if missing.
 3. Search delivery options with realistic ETA after arrival.
-4. Save/use food-delivery credentials, saved sessions, Browserbase checkout, persistent browser profile, and Live Browser fallback to prepare a cart in the connected account or provider page. Use `browserbase-checkout-lane` before giving up on login, CAPTCHA, address, or checkout friction.
+4. Save/use food-delivery credentials, saved sessions, available persistent browser profiles, the session's browser, and Live Browser fallback to prepare a cart in the connected account or provider page. For login, CAPTCHA, address, or checkout friction, follow Browser Friction below.
 5. After adding, open the cart and read it. Report the cart's items, quantities and subtotal only from that cart read (otherwise say the item was added on the menu page and the cart was not read); a later verified checkout page may update the address, fees and next button in the final summary. Quote an item's price only where the page shows it beside that item. Never present your own sum as a cart or verified subtotal; without a cart read, say the subtotal was not read. Name a stopping point (login, address, cart) only from a page you read. Verify items, quantities, substitutions, address, delivery instructions, fees, taxes, tip, total, payment descriptor, cancellation/refund terms, and final button.
 6. Store a checkout checkpoint in `travel-ledger` with session/Context, cart, address, total, payment descriptor, missing fields, and last user intent.
 7. Build a final confirmation summary with kind `food`, risk flags `final-order-submit` and `delivery-address`, plus a configured-payment flag when relevant.
-8. In a Browserbase session, send the live view for the user to check details and make the final tap; never press final submit there. In the local browser, after confirmation re-check the cart and submit only if details match.
+8. In the v0.22.x Browserbase checkout lane, send the live view for the user to check details and make the final tap; never press final submit there. In the local browser, after confirmation re-check the cart and submit only if details match. Hand off any owner-only payment step.
 9. Verify order confirmation, ETA, restaurant, and delivery status. Record order id/receipt/status proof in `travel-ledger` before reporting.
 
 If you stop earlier, at a login, the user's app, no availability or a blocked site, record that stop in `travel-ledger` before replying: the stopping URL, what is prepared, what is missing and the next step.
@@ -48,10 +48,10 @@ Stop at a required user login or at checkout with the `travel-approval-packet`, 
 ## Browser Friction
 
 - Instacart, Uber Eats, DoorDash, Grubhub, and grocery stores may present reCAPTCHA, 401s, phone verification, passkeys, or address-validation modals. Treat these as workflow steps, not dead ends.
-- When a handoff is likely or the local browser is blocked, check `pa(operation="capabilities")` → `remote_browser`; create with `pa(operation="browser_session", data={"action":"create"})` and attach with `agent-browser --session <task-name> connect <connect_url>`.
-- Work the cart via `browserbase-checkout-lane`. Keep `bb_session_id` for cleanup; never persist connection or live view URLs. Release when done or abandoned with `pa(operation="browser_session", data={"action":"release","bb_session_id":"<id>"})`.
+- On Hermes v0.23+ use `browser_exec` directly in the session's browser, local or Hermes-managed Browserbase via `browser.cloud_provider`. For login, OTP, payment, or another step that needs the owner's signed-in session, share the page link or a screenshot, explain the exact step and wait.
+- On Hermes v0.22.x, when a handoff is likely or the local browser is blocked, check `pa(operation="capabilities")` → `remote_browser`. Use `browserbase-checkout-lane`: create with `pa(operation="browser_session", data={"action":"create"})` and attach with `agent-browser --session <task-name> connect <connect_url>`. Keep `bb_session_id` and release it when done or abandoned. Never persist connection or live view URLs.
 - A login modal is not automatically a CAPTCHA. Use saved sessions, continue through visible provider steps, and retry the click/Enter/login path before reporting a blocker.
-- At card, OTP, passport, CAPTCHA, or passkey entry, send `live_view_url`: "Open this link, complete that step, and tell me when done." Wait; do not snapshot or read back payment fields afterwards. Refresh a missing/stale link with `browser_session` action `live_view` and `bb_session_id`; for a step in another tab, send that tab's link from `tabs`.
+- In the v0.22.x checkout lane, send `live_view_url` for card, OTP, passport, CAPTCHA, or passkey entry: "Open this link, complete that step, and tell me when done." Wait; do not snapshot or read back payment fields afterwards. Refresh a missing or stale link with `browser_session` action `live_view` and `bb_session_id`. For another tab, use its link from `tabs`.
 - Keep the user-facing tone action-first: "I have the cart staged. I'm at provider verification now, then I'll bring you the total and final order confirmation."
 
 ## Must Not

@@ -10,7 +10,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 from .state import now
 
 API = "https://api.browserbase.com"
-ATTACH_HINT = "agent-browser --session <name> connect <connect_url>"
+ATTACH_HINT = "Hermes v0.22.x: agent-browser --session <name> connect <connect_url>"
 SESSION_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
@@ -113,7 +113,7 @@ def browser_session(ledger, data, *, opener=None, get_secret=None, base_url=API)
                     for page in pages if isinstance(page, dict) and isinstance(page.get("debuggerFullscreenUrl"), str)
                     and page["debuggerFullscreenUrl"]]
             return {"bb_session_id": identity, "live_view_url": url, **({"tabs": tabs} if len(tabs) > 1 else {})}
-        if action == "connect":  # Reattach after a lost agent-browser connection; only a running session.
+        if action == "connect":  # Refresh the connection URL for a running PA session.
             result = request("/v1/sessions/" + identity)
             connect_url = result.get("connectUrl")
             if result.get("status") != "RUNNING" or not isinstance(connect_url, str) or not connect_url:
