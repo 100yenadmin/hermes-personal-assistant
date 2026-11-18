@@ -2,9 +2,9 @@
 
 ## 0.31.0-rc.1 — 2026-11-18
 
-On a turn where HeartBeat 2.0 holds messages, PA no longer records a trip offer, so the trip notice stays open for the owner. A trip filter now keeps listing an unfinished action that has no trip link. PA now accepts HeartBeat 2.0's numeric wake expiry and tells the owner that Hermes v0.23.2 asks them to approve SOUL.md writes. Two release scripts pass on a named environment, and the release workflow retries a new tag's read-back. Python files change, so the gateway needs a restart.
-- **A held turn no longer records the trip offer (#325, for #312).** In 0.30.0-rc.1 live runs, PA gave HeartBeat the right one-sentence summary on a held turn and then recorded the offer in the same turn (10 of 10 held turns observed). That closed the notice before the owner saw the offer.
-  - On a HeartBeat watcher turn, PA's pre-turn hook marks the turn as held when HeartBeat's own "Messages are held right now (" line comes after the `Contract:` line and after the wake payload, if there is one. A line inside the payload never counts.
+On a turn where HeartBeat 2.0 holds messages, PA no longer records a trip notice as offered, so the notice stays open for the owner. A trip filter now keeps listing an unfinished action that has no trip link. PA now accepts HeartBeat 2.0's numeric wake expiry and tells the owner that Hermes v0.23.2 asks them to approve SOUL.md writes. Two release scripts pass on a named environment, and the release workflow retries a new tag's read-back. Python files change, so the gateway needs a restart.
+- **A held turn no longer records a trip notice as offered (#325, for #312).** In 0.30.0-rc.1 live runs, PA gave HeartBeat the right one-sentence summary on a held turn and then recorded the offer in the same turn (10 of 10 held turns observed). That closed the notice before the owner saw the offer.
+  - On a HeartBeat watcher turn, PA's pre-turn hook marks the turn as held when HeartBeat's own "Messages are held right now (" line comes after HeartBeat's `Contract: this turn is yours to act on.` line and after the wake payload, if there is one. A line inside the payload never counts.
   - Any other owner or HeartBeat turn clears the mark. Cron, subagent, curator, child-session and unattended turns leave it alone.
   - While a turn is marked held:
     - `trip_offer check` does not reserve a notice;
@@ -41,7 +41,7 @@ On a turn where HeartBeat 2.0 holds messages, PA no longer records a trip offer,
     - never retries the write now.
   - The change is skill text only.
 - **Release scripts pass a named environment (#324, for #314).**
-  - `probe_installed_version.py` now gives git a named list of variables (`PATH`, `HOME`, `XDG_CONFIG_HOME`, `SUDO_UID` and four Windows home variables) plus `GIT_OPTIONAL_LOCKS=0`.
+  - `probe_installed_version.py` now gives git a named list of variables (`PATH`, `HOME`, `XDG_CONFIG_HOME`, `SUDO_UID`, and on Windows `SYSTEMROOT`, `USERPROFILE`, `HOMEDRIVE` and `HOMEPATH`) plus `GIT_OPTIONAL_LOCKS=0`.
   - `check_pa_release_lifecycle.py` gives `hermes plugins` only `PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `SYSTEMROOT` and `HERMES_HOME`.
   - The install-gate scanner's two HIGH "Env Variable Harvesting" findings on these scripts are gone.
 - **The release workflow retries a new tag's read-back (#316, for #309).** The 0.29.0-rc.1 publish stopped once when a tag it had just created read back as missing. The workflow now reads a new tag back up to 5 times, 2 seconds apart, while the tag is missing. A tag at any other commit still fails at once.
@@ -53,12 +53,12 @@ The README install line stays on stable v0.11.0; this is a release candidate.
 It ships `releases/0.31.0-rc.1/scorecard.md`, built from 138 Capability Lab runs: 46 scenarios, 3 runs each, pinned to the reviewed commit 62cd2cb, on real Hermes v0.22.2 and `gpt-6.1-sol`, one run at a time. These are the same 46 scenarios as 0.30.0-rc.1. 137 of 138 runs pass, against 132 of 138 in 0.30.0-rc.1. The continuous week (w01) passes 3 of 3 in the same wave. Nothing was booked, paid or submitted with a real provider: zero tripwire hits and zero fabricated confirmations. A run passes only when its safety checks, every deterministic check and the judge all pass.
 
 **Reading the numbers.**
-- The lab runs Hermes v0.22.2 and HeartBeat 2.0 v0.2.3. That HeartBeat version does not write the held-turn line #325 looks for. No run called `trip_watch` `verify` or `record_wake`, the two places #320 changes, and Hermes v0.22.2 does not ask for SOUL.md approval (#323). So for these three changes the wave shows only that nothing else broke. Their proof is above.
+- The lab runs Hermes v0.22.2 and HeartBeat 2.0 v0.2.3. That HeartBeat version does not write the held-turn line #325 looks for. No run called `pa trip_watch_plan` with `verify` or `record_wake`, the two actions #320 changes, and Hermes v0.22.2 does not ask for SOUL.md approval (#323). So for these three changes the wave shows only that nothing else broke. Their proof is above.
 - No s37 run used a trip filter, so the wave does not exercise #317's code path either; only its updated `personal-assistant` line was in context. Its tests are its proof.
 - s03 runs still take most of the 30-minute run budget: 31.6, 29.1 and 24.7 minutes in this wave.
 
 - **45 of 46 scenarios pass 3 of 3** (41 of 46 in 0.30.0-rc.1).
-  - The approval day (s37), failure handling (s11), onboarding first win (s35) and the content calendar (s38) are back to 3 of 3; each passed 2 of 3 in 0.30.0-rc.1. Their 0.30.0-rc.1 misses were the lab's detector (s11, #318, still open), a model request that failed with HTTP 400 (s35) and a missing Instagram slot (s38). No change in this release targets those misses. #323 changes the setup text s35 uses, for a separate issue found on Hermes v0.23.2.
+  - The approval day (s37), failure handling (s11), onboarding first win (s35) and the content calendar (s38) are back to 3 of 3; each passed 2 of 3 in 0.30.0-rc.1. #317 targets the s37 miss, though no s37 run here reached its code path (see above). The other three 0.30.0-rc.1 misses were the lab's detector (s11, #318, still open), a model request that failed with HTTP 400 (s35) and a missing Instagram slot (s38). No change in this release targets those three. #323 changes the setup text s35 uses, for a separate issue found on Hermes v0.23.2.
   - Seoul to Tokyo (s01), Tokyo to Seoul (s02) and four errands in Japanese (s12) pass 3 of 3, and the simulated calls (s04–s08) pass 15 of 15.
 - **The one miss: San Francisco to Tokyo (s03) passes 2 of 3** (1 of 3 in 0.30.0-rc.1).
   - Run 1 reached all five steps. Every step check passed and the judge passed the run, but it ended at 31.6 minutes, past the 30-minute run budget.
