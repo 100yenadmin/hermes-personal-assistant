@@ -75,6 +75,8 @@ def discover(entries: Iterable[Any] | None = None,
             entries, cached_check = (), None
             discovery_error = type(exc).__name__
     entries = list(entries)
+    registered = {str(getattr(entry, "name", "")) for entry in entries}
+    exec_browser = "browser_exec" in registered and "browser_navigate" not in registered
     which = which or shutil.which
     configured_gog = os.environ.get("GOG_PATH")
     gog = (configured_gog if configured_gog and os.path.isfile(configured_gog)
@@ -100,6 +102,8 @@ def discover(entries: Iterable[Any] | None = None,
             else:
                 status, evidence = "needs-setup", "active registration; current cached availability check failed"
             tool_names = sorted({str(entry.name) for entry in matched})
+        if capability == "browser" and exec_browser:
+            evidence += ". Hermes offers browser_exec only in sessions with the terminal tool"
         if gog and capability in {"calendar", "email"}:
             status = "available" if matched and status == "available" else "unverified"
             tool_names = ["gog", *(name for name in tool_names if name != "gog")]
@@ -122,17 +126,19 @@ def discover(entries: Iterable[Any] | None = None,
         configured = all(present(name) for name in ("BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID"))
     except Exception:
         configured = False
-    status = "available" if configured else "needs-setup"
-    missing_cli = configured and which("agent-browser") is None
-    if missing_cli:
-        status = "needs-setup"
+    cli = "agent-browser"
+    missing_cli = configured and which(cli) is None
+    status = "available" if configured and not missing_cli else "needs-setup"
+    evidence = (f"Browserbase key and project present; {cli} CLI not found on PATH" if missing_cli else
+                "browser_session operation; credentials present" if configured else
+                "add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID to the profile's secrets")
+    recovery = (f"Install {cli} on this host, then rerun capability discovery." if missing_cli else
+                _recovery(status, "remote_browser"))
+    if exec_browser:
+        evidence += f". The {cli} CLI is installed separately on Hermes v0.23+ and runs through the terminal tool"
     rows.append({"id": "remote_browser", "status": status, "tools": ["pa"],
                  "reuse": "PA Browserbase live-view handoff", "authentication": "unverified",
-                 "evidence": "Browserbase key and project present; agent-browser CLI not found on PATH" if missing_cli else
-                 "browser_session operation; credentials present" if configured else
-                 "add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID to the profile's secrets",
-                 "recovery_action": "Install agent-browser on this host, then rerun capability discovery." if missing_cli else
-                 _recovery(status, "remote_browser")})
+                 "evidence": evidence, "recovery_action": recovery})
     counts = Counter(row["status"] for row in rows)
     result = {
         "capabilities": rows,

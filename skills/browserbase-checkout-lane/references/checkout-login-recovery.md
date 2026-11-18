@@ -1,10 +1,10 @@
 # Checkout Login Recovery
 
-Use this reference when a provider checkout is stuck on login, CAPTCHA, address validation, provider verification, or an account wall.
+Follow [Owner Handoff](../SKILL.md#owner-handoff) to choose between PA's Browserbase live view and the `browser_exec` fallback. The recovery steps below use the `agent-browser` CLI.
 
 ## Remote Browser Gotchas
 
-- Create through `pa(operation="browser_session", data={"action":"create"})`; attach with `agent-browser --session <task-name> connect <connect_url>`; `browse open --cdp` cannot attach to Browserbase.
+- Create through `pa(operation="browser_session", data={"action":"create"})` and attach with `agent-browser --session <task-name> connect <connect_url>`.
 - Use `agent-browser --session <task-name> press Enter` when clicking a provider login button does not progress.
 - Recover a fresh handoff link with `pa(operation="browser_session", data={"action":"live_view","bb_session_id":"<id>"})` (a step in another tab uses that tab's link from `tabs`); release when done or abandoned with `pa(operation="browser_session", data={"action":"release","bb_session_id":"<id>"})`.
 - Send the live view link for card, OTP, passport, or CAPTCHA entry and wait for the user. Do not snapshot or read back payment fields after handoff; the user's final tap completes checkout.
@@ -19,7 +19,7 @@ After each meaningful step, record a compact checkpoint:
 - Current total and visible required fields.
 - Whether the agent is before login, after login, before payment selection, at final confirmation, or blocked on a provider-required field.
 
-Before creating a new browser lane, reattach to the last session: get a fresh `connect_url` with `pa(operation="browser_session", data={"action":"connect","bb_session_id":"<id>"})` and attach it with `agent-browser`. If expired, create a bounded session and restore from the checkpoint. This route does not persist login Contexts; use another configured attended browser if recovery fails.
+Before creating a new browser lane, get a fresh `connect_url` for the last session with `pa(operation="browser_session", data={"action":"connect","bb_session_id":"<id>"})` and reattach with `agent-browser`. If expired, create a bounded session and restore from the checkpoint. This route does not persist login Contexts; use another configured attended browser if recovery fails.
 
 If the user's final submit reveals a required field, the task is not complete. Hand it back in the live view, update the checkpoint without sensitive values, and wait.
 

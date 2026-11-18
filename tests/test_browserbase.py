@@ -196,6 +196,7 @@ def test_skill_text_uses_browser_session_and_user_final_tap(path):
     for forbidden in ("$BROWSERBASE_API_KEY", "profile environment", "browse cloud sessions", "--remote", "browse open <url> --cdp"):
         assert forbidden not in text
     assert "agent-browser --session <task-name> connect <connect_url>" in text
+    assert "browser_exec" in text
     assert "solve supported CAPTCHA" not in text
     if path.endswith("SKILL.md"):
         assert 'operation="browser_session"' in text
