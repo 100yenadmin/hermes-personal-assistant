@@ -87,11 +87,11 @@ def run_scenario(auth, pin, scenario, dest):
             save(rig.root / "offer-status.json", status())
             rig.owner("yes, leave earlier", timeout=300)
         else:
-            for index, minutes in enumerate((90, 120, 150) if scenario == "never-replies" else (90,)):
+            for index, minutes in enumerate((90, 120, 150) if scenario in ("never-replies", "owner-asked") else (90,)):
                 call("trip_watch_plan", action="record_facts", trip_id="T3", source="simulated", segments=[{
                     **segment, "estimated_departure": (departure + dt.timedelta(minutes=minutes)).isoformat(),
                     "estimated_arrival": (arrival + dt.timedelta(minutes=minutes)).isoformat()}])
-                wait_notice(index + 1, held=index == 2)
+                wait_notice(index + 1, held=index == 2 and scenario == "never-replies")
         save(rig.root / "final-status.json", status())
     except Exception as exc:
         result["reason"] = auth.scrub(str(exc))
@@ -101,7 +101,7 @@ def run_scenario(auth, pin, scenario, dest):
             control = fields(rig, "pa:observe-control:" + rig.watch_id) if hasattr(rig, "watch_id") else {}
             offers = [fields(rig, "pa:offer:T3:" + n["offer_type"] + ":" + n["id"]) for n in notices]
             rows = rig.hb2()
-            held = [r for r in rows.get("occurrences", []) if r["held_reason"] == "held_unanswered" and r["delivered"] == 0]
+            held = [r for r in rows.get("occurrences", []) if "unanswered" in r["held_reason"] and r["delivered"] == 0]  # held_unanswered or message_held:unanswered
             delivered = rig.texts()[len(baseline):] if baseline else []
             offer_messages = checkpoints[0]["texts"] if scenario == "weather" and checkpoints else delivered
             count = len(offer_messages)
@@ -114,7 +114,9 @@ def run_scenario(auth, pin, scenario, dest):
                           notice_count=len(notices), observer_lead=watch_lead,
                           accepted=any(o.get("outcome") == "accepted" for o in offers),
                           acked_notice_emits_within_cap=all(n["emits"] <= 3 for n in notices if n["id"] in control.get("acks", {})),
-                          watcher_error_streak=watcher(rig)["error_streak"] if hasattr(rig, "wake_id") and rig.wake_id else None)
+                          watcher_error_streak=watcher(rig)["error_streak"] if hasattr(rig, "wake_id") and rig.wake_id else None,
+                          owner_requested=watcher(rig)["owner_requested"] if hasattr(rig, "wake_id") and rig.wake_id else None,
+                          unanswered_mute=final.get("arms", {}).get("watch", {}).get("unanswered_mute"))
             text = "\n".join(offer_messages)
             if scenario == "delay":
                 # Mechanical text checks only; Claude judges meaning and alternative count.
@@ -139,6 +141,10 @@ def run_scenario(auth, pin, scenario, dest):
                             notice_count=3 if scenario == "never-replies" else 1,
                             held_count=1 if scenario == "never-replies" else 0,
                             acked_notice_emits_within_cap=True, watcher_error_streak=0)
+            if scenario == "owner-asked":
+                # #327: armed in the owner's turn, all three delays reach an owner who never replies.
+                expected.update(offer_count=3, occurrence_recorded=3, ack_present=3, notice_count=3, held_count=0,
+                                owner_requested=1, unanswered_mute="exempt")
             if scenario == "weather":
                 expected.update(accepted=True, replan_done=True, observer_lead=225,
                                 new_airport_time_present=True, weather_extra_minutes=45, status_at_airport_by_matches_offer=True)
@@ -183,7 +189,7 @@ def run_scenario(auth, pin, scenario, dest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results", type=Path, required=True)
-    parser.add_argument("--scenario", choices=("delay", "weather", "never-replies"))
+    parser.add_argument("--scenario", choices=("delay", "weather", "never-replies", "owner-asked"))
     parser.add_argument("--round", type=int, choices=(1, 2))
     args = parser.parse_args()
     from codex_live import LiveAuth
