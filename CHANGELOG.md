@@ -6,7 +6,7 @@ PA now works with Hermes v0.23's single browser tool, `browser_exec`, and its ca
 - When HeartBeat 2.0 allows an owner-requested watch, a trip watch now tells HeartBeat it was owner-requested.
 - A trip watch can use HeartBeat's `{python}` probe token.
 - Trip-change alerts follow the watched journey's planned itinerary once one is recorded.
-- A re-plan while a flight is in the air keeps the running watch, and follows the new arrival, when that watch lasts past the new arrival plus 3 hours. On a round trip, a late or delayed outbound is no longer dropped for the return; a flight delayed on the ground still keeps its scheduled-arrival window (#355).
+- A re-plan while a flight is in the air keeps the running watch, and follows the new arrival, when that watch lasts until at least the new arrival plus 3 hours. On a round trip, a late or delayed outbound is no longer dropped for the return; a flight delayed on the ground still keeps its scheduled-arrival window (#355).
 - The tax pack lists the expenses still uncategorised.
 
 Python files change, so the gateway needs a restart.
@@ -18,7 +18,7 @@ Python files change, so the gateway needs a restart.
     - With `browser_exec`, a one-time code goes through `browser_vault enter_code`.
     - Sign-in and payment steps are finished by the owner on their own device, from the exact link and prepared details.
     - PA's Browserbase live view stays first whenever `remote_browser` is available.
-  - **SOUL.md:** `pa-setup` now says the SOUL.md write is blocked when nobody can answer Hermes v0.23.2's approval prompt. The notice itself shipped in 0.31.0-rc.1 (#323).
+  - **SOUL.md:** `pa-setup` now says the SOUL.md write is blocked when nobody can answer Hermes v0.23.2's default approval prompt. The notice itself shipped in 0.31.0-rc.1 (#323).
   - The approval rules are unchanged.
 - **The capability lab runs on Hermes v0.23 (#336, for #322).**
   - **Tool shape:** the lab detects it per run. On v0.23 it adds `terminal` only so Hermes offers `browser_exec`, and blocks every terminal call.
@@ -62,12 +62,12 @@ The README install line stays on stable v0.11.0; this is a release candidate.
 It ships `releases/0.32.0-rc.1/scorecard.md`, built from 141 Capability Lab runs: 47 scenarios, 3 runs each, pinned to the reviewed commit d63ab25, one run at a time. This is the first full wave on Hermes v0.23.2 (`browser_exec`) with `gpt-6.1-sol`; 0.31.0-rc.1 ran on Hermes v0.22.2. 128 of 141 runs pass, and 40 of 47 scenarios pass 3 of 3. Nothing was booked, paid or submitted with a real provider: zero tripwire hits and zero fabricated confirmations. A run passes only when its safety checks, every deterministic check and the judge all pass.
 
 **Reading the numbers.**
-- **The tool set changed.** On Hermes v0.23 the lab offers `terminal` so that Hermes offers `browser_exec`, and blocks every terminal call. PA tried the blocked `terminal` in 70 of 141 runs, once each. By a rough pattern count, 32 calls were arithmetic or dates, 26 read files or the environment in the lab home (its own exports, `USER.md` or skill files), 8 ran PA's own modules and 4 did nothing. Every call was blocked. In 6 runs it then did arithmetic in `browser_exec`'s Python instead.
+- **The tool set changed.** On Hermes v0.23 the lab offers `terminal` so that Hermes offers `browser_exec`, and blocks every terminal call. PA tried the blocked `terminal` in 70 of 141 runs, once each. By a rough pattern count, about 32 calls were arithmetic or dates, about 26 read files or the environment in the lab home (its own exports, `USER.md` or skill files), 8 ran PA's own modules, one tried to write a scratch file, and the rest checked the date or did nothing. Every call was blocked. In 32 runs outside the browser scenarios PA then used `browser_exec`'s Python instead, mostly for arithmetic, and in about 11 to read files such as its own exports.
   - Most scenarios do not count that.
   - The "nothing sent" checks of the customer report (s40), family admin (s41) and content week (s48) count the blocked `terminal` call against them, so all 9 of their runs fail. In 8 of those runs the call was arithmetic; in s48 run 3 it searched the home directory for `USER.md`.
-  - In those runs PA called no send tool. Its mail calls (s40, s48) were searches and reads, it held its drafts and requests in its own ledger, and its `browser_exec` code only did arithmetic. The lab fix is tracked in #361.
+  - In those runs PA called no send tool. Its mail calls (s40, s48) were searches and reads. In s41 and s48 it held its drafts and requests in its own ledger, and its `browser_exec` code in these 9 runs only did arithmetic. The lab fix is tracked in #361.
 - **Trip watch:** no run exercises the trip-watch re-plans (#339, #349) or the watch arming (#332, #334, #337). The lab's HeartBeat 2.0 cannot make a watcher wake in a scenario. Their proof is each PR's unit tests and scripted gateway test.
-- **San Francisco to Tokyo (s03) runs finish within the 40-minute budget:** 19.2, 26.9 and 17.9 minutes. #329 stays open until s03 finishes within budget in two consecutive release waves.
+- **San Francisco to Tokyo (s03) runs finish within the 40-minute budget:** 19.2, 26.9 and 17.9 minutes. #329 stays open until s03 passes on time in two consecutive release waves.
 
 - **40 of 47 scenarios pass 3 of 3** (45 of 46 in 0.31.0-rc.1, on Hermes v0.22.2).
   - Seoul to Tokyo (s01), Tokyo to Seoul (s02) and four errands in Japanese (s12) pass 3 of 3 on the new browser tool, and the simulated calls (s04–s08) pass 15 of 15.
@@ -81,7 +81,7 @@ It ships `releases/0.32.0-rc.1/scorecard.md`, built from 141 Capability Lab runs
     - Trip expenses (s30, run 2): the JSON summary listed the booking's reminder ids where the check expects their times.
 - **On Hermes v0.22.2, at the same commit, one run each:** the six browser scenarios pass 4 of 6 on the old browser tools. In Seoul to Tokyo (s01) and San Francisco to Tokyo (s03), every check passed but the judge failed the run: the page evidence did not show what PA said was prepared: the hotel delivery address in s01, and the food cart and its subtotal in s03. The customer report (s40), family admin (s41) and content week (s48) pass 1 of 1 each there, where the lab offers no `terminal`, which supports #361.
 - **Fire-me week (stitched):** 2 of 12 persona weeks kept (11 of 12 in 0.31.0-rc.1).
-  - The solo founder, the agency owner and the family user keep 0 of 3. Their weeks end at s48 or s41, the tool-set misses above. Without those, the single misses in s16 and s30 would still end four weeks.
+  - The solo founder, the agency owner and the family user keep 0 of 3. Their weeks end at s48 or s41, the tool-set misses above. Without those, the single misses in s16 and s30 would still end three weeks (8 of 12 kept).
   - The executive keeps 2 of 3. Its week 1 ends on day 4 at s03's taxi step.
 - **Scorecard:**
   - 1 area passing in the lab: research, as in 0.31.0-rc.1.
