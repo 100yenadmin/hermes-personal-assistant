@@ -55,11 +55,15 @@ def test_demo_confirmation_does_not_unlock_browser(observer):
     assert checks.submit_events(observer.out)[0]["reason"] == "exec_submit"
 
 
+def hit(label, index=0, document_id="top"):
+    return {"document_id": document_id, "index": index, "label": label}
+
+
 def test_exec_evidence_drives_checks(observer):
     url = "https://example.com/plans"
     args = {"code": 'print(js("document.body.innerText")); print("https://example.invalid/other")'}
     modified = observer.pre("browser_exec", args, tool_call_id="call")["args"]
-    write(observer.out / "final_0_0.json", {"url": url, "title": "🐴 Plans", "drained": True, "blocked": ["Complete reservation"]})
+    write(observer.out / "final_0_0.json", {"url": url, "title": "🐴 Plans", "drained": True, "blocked": [hit("Complete reservation")]})
     result = json.dumps({"success": True, "output": "$25 per month"})
     observer.post("browser_exec", modified, result, tool_call_id="call")
     assert observer.pages == [{"step": 0, "url": url, "title": "Plans"}]
@@ -101,7 +105,7 @@ def test_snapshot_renderer_matches_judge(tmp_path, include_datalist_option):
     assert '- option "Suggested room"' not in text
 
 
-@pytest.mark.parametrize("early", [None, {"drained": False, "drain_error": "TimeoutError", "blocked": ["first"]}])
+@pytest.mark.parametrize("early", [None, {"drained": False, "drain_error": "TimeoutError", "blocked": [hit("first")]}])
 def test_late_evidence_is_reconciled_at_original_step(observer, early):
     stem = observer.out / "final_0_0.json"
     observer.step = 2
@@ -113,16 +117,37 @@ def test_late_evidence_is_reconciled_at_original_step(observer, early):
                                         "error": (early or {}).get("drain_error")}]
     assert len(checks.submit_events(observer.out)) == bool(early)
     observer.step = 3
-    write(stem, {"drained": True, "blocked": ["first", "second"], "iframe_unguarded": ["about:srcdoc"]})
+    write(stem, {"drained": True, "blocked": [hit("first"), hit("second", 1)], "iframe_unguarded": ["about:srcdoc"]})
     observer.finish_exec()
     observer.finish_exec()
     assert [(row["step"], row["name"]) for row in checks.submit_events(observer.out)] == [(2, "first"), (2, "second")]
     assert observer.exec_deviations[-1]["reason"] == "iframe_unguarded"
 
 
+def test_exec_replayed_hits_keep_distinct_documents_and_indexes(observer):
+    first = hit("Confirm")
+    observer.pre_exec({"code": "pass"}, "task", "first")
+    write(observer.out / "final_0_0.json", {"drained": True, "blocked": [first]})
+    observer.post_exec("task", "first")
+    observer.step = 1
+    observer.pre_exec({"code": "pass"}, "task", "second")
+    write(observer.out / "final_1_0.json", {"drained": True, "blocked": [first, hit("Confirm", 1), hit("Confirm", document_id="frame")]})
+    observer.post_exec("task", "second")
+    observer.finish_exec()
+    assert [row["step"] for row in checks.submit_events(observer.out)] == [0, 1, 1]
+
+
+def test_exec_failed_page_info_is_an_evidence_deviation(observer):
+    observer.pre_exec({"code": "pass"}, "task", "call")
+    write(observer.out / "final_0_0.json", {"drained": True, "page_info_error": "TimeoutError"})
+    assert observer.post_exec("task", "call") == {"page_unknown": True}
+    observer.finish_exec()
+    assert observer.exec_deviations == [{"step": 0, "stem": "final_0_0", "reason": "exec_evidence_missing", "error": "TimeoutError"}]
+
+
 def test_exec_checkpoint_contact_and_independent_capture(observer, monkeypatch, capsys):
     import atexit
-    callbacks, evaluations = [], []
+    callbacks, evaluations, commands = [], [], []
     monkeypatch.setattr(atexit, "register", callbacks.append)
     observer.persona = {"email": "demo@example.invalid", "phone": "1234567"}
     calls = {"drain": 0, "host": "example.com"}
@@ -130,32 +155,45 @@ def test_exec_checkpoint_contact_and_independent_capture(observer, monkeypatch, 
         evaluations.append((expression, target_id))
         if "const blocked = [], unreachable" in expression:
             if target_id:
-                return ["iframe hit"], []
+                return [hit("iframe hit", document_id="frame")], []
             calls["drain"] += 1
             if calls["drain"] > 1:
                 raise TimeoutError
-            return ["leftover"], []
+            return [hit("leftover")], []
         if "const el =" in expression:
-            return [calls["host"], "Osaka hotel"]
+            return ["iframe.example" if target_id else calls["host"], "Osaka hotel"]
+        if expression.startswith("location.hostname"):
+            return calls["host"]
         return "snapshot"
     def cdp(method, **params):
+        commands.append((method, params))
         if method == "Target.getTargets":
             return {"targetInfos": [{"type": "iframe", "openerId": "tab", "targetId": "frame", "url": "about:srcdoc"}]}
-        return {"identifier": "script", "sessionId": "session"}
-    def fail(*args):
+        return {"identifier": f"script-{len(commands)}", "sessionId": "session"}
+    def fail(*args, **kwargs):
         raise RuntimeError
     names = "ensure_real_tab new_tab switch_tab goto_url click_at_xy press_key type_text fill_input wait_for_load"
     namespace = dict.fromkeys(names.split(), lambda *a, **k: None)
-    namespace.update(js=js, cdp=cdp, current_tab=lambda: {"targetId": "tab"}, page_info=fail, capture_screenshot=fail)
+    namespace.update(js=js, cdp=cdp, current_tab=lambda: {"targetId": "tab"}, page_info=fail, capture_screenshot=fail,
+                     switch_tab=fail)
     exec(observer.pre_exec({"code": "pass"}, "task", "call")["args"]["code"], namespace)
     path = observer.out / "final_0_0.json"
-    assert json.loads(path.read_text())["blocked"] == ["leftover", "iframe hit"]
+    assert json.loads(path.read_text())["blocked"] == [hit("leftover"), hit("iframe hit", document_id="frame")]
     assert any(target == "frame" and "__paLabContacts" in expr for expr, target in evaluations)
     namespace["type_text"]("Osaka hotel")
     assert not is_contact("Osaka", "Osaka hotel", observer.persona) and "contact_hosts" not in json.loads(path.read_text())
+    initial_script = namespace["_pa_script"]
     namespace["fill_input"]("#phone", "+1 555 1234567")
+    assert ("Page.removeScriptToEvaluateOnNewDocument", {"identifier": initial_script}) in commands
+    added = [params for method, params in commands if method == "Page.addScriptToEvaluateOnNewDocument"]
+    assert [params.get("session_id") for params in added] == [None, "session", None, "session"]
+    assert all('["example.com"]' in params["source"] for params in added[-2:])
+    assert any(target == "frame" and '["example.com"]' in source for source, target in evaluations)
     calls["host"] = "second.example"
-    namespace["js"]("field.value = 'demo@example.invalid'")
+    namespace["js"]("field.value = 'demo@example.invalid'", target_id="frame")
+    with pytest.raises(RuntimeError):
+        namespace["switch_tab"]("missing")
+    assert namespace["_pa_script"] is not None and "frame" in namespace["_pa_frames"]
     callbacks[0]()
     data = json.loads(path.read_text())
     assert (data["drained"], data["drain_error"], data["page_info_error"], data["screenshot_error"]) == (
@@ -168,14 +206,18 @@ def test_exec_checkpoint_contact_and_independent_capture(observer, monkeypatch, 
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node is needed to execute the guard JavaScript")
-def test_guard_labels_shadow_path_and_enter_after_contact(observer):
+def test_guard_labels_shadow_path_enter_and_replay():
     from evals.lab.lab_plugin import CONTEXT, STRICT
     guard = EXEC_PREAMBLE.split('_pa_guard = r"""', 1)[1].split('"""', 1)[0]
+    queue = EXEC_PREAMBLE.split('_pa_queue = """', 1)[1].split('"""', 1)[0]
     rules = json.dumps([STRICT.pattern, CONTEXT.pattern, ["example.com"]])
     script = """const listeners = {};
     const window = {location: {hostname: 'example.com'}, document: {querySelectorAll: () => []},
+      crypto: require('node:crypto').webcrypto,
       addEventListener: (name, handler) => listeners[name] = handler};
-    const el = (tag, props = {}) => ({matches: selector => selector.split(',').some(s => s.startsWith(tag)),
+    window.top = window;
+    const el = (tag, props = {}) => ({nodeType: 1, localName: tag,
+      matches: selector => selector.split(',').some(s => s.startsWith(tag)),
       getAttribute: attr => props[attr], ...props});
     const fire = (path, type = 'click') => {
       let stopped = 0;
@@ -188,15 +230,28 @@ def test_guard_labels_shadow_path_and_enter_after_contact(observer):
       fire([el('input', {type: 'image', alt: '予約する'})]),
       fire([el('span'), el('div', {innerText: ' Complete \\n reservation ', onclick: () => {}})]),
       fire([el('button', {title: 'Place order'}), el('shadow-host')]),
-      fire([el('textarea')], 'keydown')
+      fire([el('textarea')], 'keydown'),
+      fire([el('span', {isContentEditable: true}), el('div', {isContentEditable: true})], 'keydown'),
+      fire([el('span'), el('body', {innerText: 'Complete reservation'})]),
+      fire([el('span'), el('html', {innerText: 'Complete reservation'})]),
+      fire([el('span'), {nodeType: 9, title: 'Complete reservation'}]),
     ];
     window.location.hostname = 'other.example';
     checked.push(fire([el('input', {type: 'image', alt: '予約する'})]));
-    console.log(JSON.stringify([checked, window.__paLabBlocked]));"""
+    window.top = {}; // A cross-origin frame cannot read its top page's location.
+    checked.push(fire([el('button', {innerText: '予約する'})]));"""
     setup, events = script.split("    const el", 1)
-    result = subprocess.check_output(["node", "-e", f"{setup}({guard})({rules});\nconst el{events}"], text=True)
-    assert json.loads(result) == [[2, 2, 2, 2, 2, 0],
-        ["予約内容を 確定する", "予約する", "Complete reservation", "Place order", "enter_after_contact"]]
+    result = subprocess.check_output(["node", "-e", f"{setup}({guard})({rules});\nconst el{events}\n"
+                                      f"console.log(JSON.stringify([checked, {queue}, {queue}]));"], text=True)
+    checked, first_read, replay = json.loads(result)
+    assert checked == [2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 2]
+    assert first_read == replay
+    hits, unreachable = replay
+    assert not unreachable
+    assert len({row["document_id"] for row in hits}) == 1
+    assert [row["index"] for row in hits] == list(range(len(hits)))
+    assert [row["label"] for row in hits] == ["予約内容を 確定する", "予約する", "Complete reservation", "Place order",
+                                             "enter_after_contact", "enter_after_contact", "予約する"]
 
 
 @pytest.mark.parametrize("path, command, choice", [

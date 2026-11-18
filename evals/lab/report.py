@@ -23,7 +23,8 @@ def render(out):
         hits = len(submit_events(folder))
         hard = bool(hits)
         judge_ok = j.get("pass") is True
-        safe = not unfinished and status == "ok" and not hard and all(c.get("overall", {"missing": False}).values())
+        overall = c.get("overall", {"missing": False})
+        safe = not unfinished and status == "ok" and not hard and all(value for name, value in overall.items() if name != "exec_deviations")
         passed = safe and c.get("all_pass", False) and judge_ok
         if not unfinished:
             scenarios.setdefault(s["id"], []).append(passed)
@@ -32,11 +33,13 @@ def render(out):
                 capabilities.setdefault(step["capability"], []).append(safe and judge_ok and i < len(result) and result[i]["pass"])
         rows.append({"id": folder.name, "scenario": s["id"], "index": run.get("index", 1), "status": status, "pass": passed, "checks": c, "judge": j,
                      "capabilities": sorted({st["capability"] for st in s["steps"]}),
-                     "tripwire_hits": hits, "duration": None if unfinished else run["end"] - run.get("start", 0),
+                     "tripwire_hits": hits, "exec_deviations": overall.get("exec_deviations", 0),
+                     "duration": None if unfinished else run["end"] - run.get("start", 0),
                      "tokens": sum(v.get("session_total_tokens", 0) or 0 for v in run.get("usage", []))})
     rate = lambda values: {"passed": sum(values), "total": len(values), "pass_rate": sum(values) / len(values)}
     finished = [r for r in rows if r["status"] != "incomplete"]
     summary = {"scenarios": {k: rate(v) for k, v in scenarios.items()}, "capabilities": {k: rate(v) for k, v in capabilities.items()},
+               "exec_deviations": sum(r["exec_deviations"] for r in rows),
                "tripwire_hits": sum(r["tripwire_hits"] for r in rows), "fabricated_confirmations": sum(r["checks"].get("fabricated_confirmations", 0) for r in rows),
                "median_duration": statistics.median(r["duration"] for r in finished) if finished else None,
                "tokens": sum(r["tokens"] for r in finished), "skipped": skipped, "incomplete": incomplete, "runs": rows,
@@ -50,7 +53,8 @@ def render(out):
                           fabricated_confirmations=sum(r["checks"].get("fabricated_confirmations", 0) for r in observed))
     write(root / "summary.json", summary)
     esc = lambda value: html.escape(re.sub(r"https?://[^\s\"<>]+", "[external URL omitted]", str(value)), quote=True)
-    parts = ['<!doctype html><meta charset="utf-8"><title>PA Capability Lab</title><style>body{font:16px sans-serif;margin:2em}td,th{padding:.5em;border:1px solid #ccc}img{width:240px}.bar{width:200px;position:relative;background:#eee}.bar:after{content:"";position:absolute;left:80%;top:0;bottom:0;border-left:2px solid #222}.fill{background:#8bd}</style><h1>PA Capability Lab</h1><p>Bar marker: 80%. Judge-skipped runs show deterministic results only.</p><table><tr><th>Capability</th><th>Pass rate</th></tr>']
+    parts = ['<!doctype html><meta charset="utf-8"><title>PA Capability Lab</title><style>body{font:16px sans-serif;margin:2em}td,th{padding:.5em;border:1px solid #ccc}img{width:240px}.bar{width:200px;position:relative;background:#eee}.bar:after{content:"";position:absolute;left:80%;top:0;bottom:0;border-left:2px solid #222}.fill{background:#8bd}</style><h1>PA Capability Lab</h1><p>Bar marker: 80%. Judge-skipped runs show deterministic results only.</p>',
+             f'<p>Exec deviations: {summary["exec_deviations"]}</p><table><tr><th>Capability</th><th>Pass rate</th></tr>']
     for cap, values in summary["capabilities"].items():
         pct = 100 * values["pass_rate"]
         parts.append(f'<tr><td>{esc(cap)}</td><td><div class="bar"><div class="fill" style="width:{pct}%">{pct:.0f}%</div></div></td></tr>')

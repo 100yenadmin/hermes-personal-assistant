@@ -142,13 +142,34 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     assert checks.evaluate(tmp_path,fixture_run(tmp_path,handoff))['all_pass']
 
 
-def test_checks_use_last_snapshot_of_step(tmp_path):
+@pytest.mark.parametrize('shape, expected', [(None, True), ('legacy', True), ('exec', False)])
+def test_checks_select_snapshot_text_by_browser_shape(tmp_path, shape, expected):
     scenario = fixture_run(tmp_path)
     run = common.read(tmp_path / 'run.json')
-    run['evidence'].append({'step': 0, 'snapshot': 'final_10_0.txt'})
+    if shape:
+        run['browser_shape'] = shape
+    run['evidence'].extend({'step': 0, 'snapshot': f'final_{n}_0.txt'} for n in (10, 11, 12))
     common.write(tmp_path / 'run.json', run)
     (tmp_path / 'final_10_0.txt').write_text('Search results')
-    assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff']
+    (tmp_path / 'final_11_0.txt').write_text(' \n')
+    assert checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff'] is expected
+    (tmp_path / 'final_10_0.txt').write_text('Payment')
+    assert checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff']
+
+
+@pytest.mark.parametrize('count', [0, 2])
+def test_exec_deviation_count_is_visible_without_changing_pass(tmp_path, count):
+    root = tmp_path / 'run'
+    scenario = fixture_run(root)
+    run = common.read(root / 'run.json')
+    run.update(browser_shape='exec', exec_deviations=[{'reason': 'exec_evidence_missing'}] * count)
+    common.write(root / 'run.json', run)
+    result = checks.evaluate(root, scenario)
+    assert result['overall']['exec_deviations'] == count and result['all_pass']
+    common.write(root / 'checks.json', result)
+    summary = render(tmp_path)
+    assert summary['exec_deviations'] == count and summary['runs'][0]['pass']
+    assert f'Exec deviations: {count}' in (tmp_path / 'report.html').read_text()
 
 
 @pytest.mark.parametrize('reply', [

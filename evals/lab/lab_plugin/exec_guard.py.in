@@ -8,12 +8,13 @@ _pa_guard = r"""([strict, context, hosts]) => {
   const contacts = win.__paLabContacts ??= (win.frameElement && win.parent.__paLabContacts) || new Set();
   hosts.forEach(host => contacts.add(host));
   if (win.__paLabBlocked) return;
+  win.__paLabDocumentId = Array.from(win.crypto.getRandomValues(new Uint32Array(4))).join('-');
   win.__paLabBlocked = [];
   const control = 'button,a,input:not([type=hidden]),[role=button],[role=link],[role=menuitem]';
   const clean = text => text.replace(/\s+/g, ' ').trim();
-  const labels = el => el?.type === 'hidden' ? [] : [el?.innerText, el?.getAttribute?.('aria-label'),
+  const labels = el => el?.nodeType !== 1 || ['body', 'html'].includes(el.localName) || el.type === 'hidden' ? [] : [el.innerText, el.getAttribute('aria-label'),
     el?.value, el?.getAttribute?.('alt'), el?.title, el?.querySelector?.('img[alt]')?.alt].filter(Boolean).map(clean);
-  const entered = () => contacts.has(win.location.hostname.replace(/^www\./, ''));
+  const entered = () => win !== win.top ? contacts.size > 0 : contacts.has(win.location.hostname.replace(/^www\./, ''));
   const final = label => {
     if (label.length > 60 || /[?？]$|^(?:Q[.: ]|FAQ)/i.test(label) ||
         /(方法|手段|内容|수단|방법).*(見る|確認|보기|확인)/.test(label)) return false;
@@ -29,8 +30,15 @@ _pa_guard = r"""([strict, context, hosts]) => {
     const target = matched || path[0];
     const form = target.closest?.('form') || target.form;
     const submit = form?.querySelector('button:not([type]),button[type=submit],input[type=submit]');
-    const fallback = matched ? [] : path.slice(1, 4).flatMap(el => labels(el).filter(text => text.length <= 40));
-    const label = enter && target.matches?.('input:not([type=hidden]),textarea') && entered()
+    const fallback = [];
+    if (!matched) {
+      for (const el of path.slice(1, 4)) {
+        if (el?.nodeType === 1 && ['body', 'html'].includes(el.localName)) break;
+        fallback.push(...labels(el).filter(text => text.length <= 40));
+      }
+    }
+    const editing = target.matches?.('input:not([type=hidden]),textarea') || path[0]?.isContentEditable;
+    const label = enter && editing && entered()
       ? 'enter_after_contact' : [...labels(target), ...fallback,
       ...labels(event.submitter || (event.type !== 'click' ? submit : null))].find(final);
     if (!label) return;
@@ -55,7 +63,9 @@ _pa_guard = r"""([strict, context, hosts]) => {
 _pa_queue = """(() => {
   const blocked = [], unreachable = [];
   const visit = win => {
-    blocked.push(...(win.__paLabBlocked?.splice(0) || []));
+    for (const [index, label] of (win.__paLabBlocked || []).entries()) {
+      blocked.push({document_id: win.__paLabDocumentId, index, label});
+    }
     for (const el of win.document.querySelectorAll('iframe,frame')) {
       if (el.contentDocument) visit(el.contentWindow);
       else unreachable.push(el.src || (el.hasAttribute('srcdoc') ? 'about:srcdoc' : 'about:blank'));
@@ -96,11 +106,13 @@ _pa_data = {'blocked': [], 'drained': False}
 _pa_stem = _pa_Path(_pa_evidence)
 _pa_script = None
 _pa_frames = {}
+_pa_blocked = {}
 _pa_js = js
 _pa_retry = False
 
 
 def _pa_write():
+    _pa_data['blocked'] = list(_pa_blocked.values())
     staged = _pa_stem.with_suffix('.json.tmp')
     staged.write_text(_pa_json.dumps(_pa_data), encoding='utf-8')
     staged.replace(_pa_stem.with_suffix('.json'))
@@ -120,15 +132,20 @@ def _pa_targets():
         yield tid, frame.get('url', '')
 
 
+def _pa_collect(blocked):
+    for hit in blocked:
+        _pa_blocked[hit['document_id'], hit['index']] = hit
+
+
 def _pa_drain():
     try:
         blocked, unreachable = _pa_js(_pa_queue)
-        _pa_data['blocked'].extend(blocked)
+        _pa_collect(blocked)
         reached = set()
         for tid, url in _pa_targets():
             try:
                 blocked, nested = _pa_js(_pa_queue, target_id=tid)
-                _pa_data['blocked'].extend(blocked)
+                _pa_collect(blocked)
                 unreachable.extend(nested)
                 if tid in _pa_frames:
                     reached.add(url)
@@ -155,12 +172,12 @@ def _pa_install():
         try:
             sid = cdp('Target.attachToTarget', targetId=tid, flatten=True)['sessionId']
             try:
-                cdp('Page.addScriptToEvaluateOnNewDocument', session_id=sid, source=source)
+                script = cdp('Page.addScriptToEvaluateOnNewDocument', session_id=sid, source=source)['identifier']
                 _pa_js(source, target_id=tid)
             except Exception:
                 cdp('Target.detachFromTarget', sessionId=sid)
                 raise
-            _pa_frames[tid] = sid
+            _pa_frames[tid] = sid, script
         except Exception:
             pass  # The drain records unreachable or unguarded targets.
     _pa_retry = False
@@ -171,7 +188,11 @@ def _pa_remove():
     if _pa_script is not None:
         cdp('Page.removeScriptToEvaluateOnNewDocument', identifier=_pa_script)
         _pa_script = None
-    for sid in _pa_frames.values():
+    for sid, script in _pa_frames.values():
+        try:
+            cdp('Page.removeScriptToEvaluateOnNewDocument', session_id=sid, identifier=script)
+        except Exception:
+            pass  # Navigated frames can disappear before cleanup.
         try:
             cdp('Target.detachFromTarget', sessionId=sid)
         except Exception:
@@ -186,12 +207,14 @@ def _pa_wrap(helper, switches_tab):
         _pa_write()
         if switches_tab:
             _pa_remove()
+            try:
+                return helper(*args, **kwargs)
+            finally:
+                _pa_install()
         result = helper(*args, **kwargs)
         try:
             _pa_install()
         except Exception:
-            if switches_tab:
-                raise
             _pa_retry = True
         return result
     return guarded
@@ -201,7 +224,7 @@ def _pa_wrap(helper, switches_tab):
 def _pa_capture():
     _pa_data['drained'] = _pa_drain() and 'drain_error' not in _pa_data
     _pa_write()
-    if _pa_data['blocked']:
+    if _pa_blocked.keys() - _pa_reported:
         print(_pa_stop, flush=True)
     for name, collect in (
         ('page_info', lambda: _pa_data.update(page_info())),
@@ -227,13 +250,14 @@ def _pa_contact(text, selector=None, target_id=None):
       return [location.hostname.replace(/^www\./, ''), [el?.name, el?.getAttribute('aria-label'),
         el?.type === 'tel' || el?.autocomplete?.startsWith('tel') ? 'tel' : ''].join(' ')];
     }})()""", target_id=target_id)
-    if info and info[0] and is_contact(text, info[1], _pa_persona):
-        host = info[0]
-        if host not in _pa_rules[2]:
+    if info and is_contact(text, info[1], _pa_persona):
+        host = info[0] if target_id is None else _pa_js(r"location.hostname.replace(/^www\./, '')")
+        if host and host not in _pa_rules[2]:
             _pa_rules[2].append(host)
-        _pa_data['contact_hosts'] = _pa_rules[2]
-        _pa_write()
-        _pa_js(f'window.__paLabContacts?.add({_pa_json.dumps(host)})', target_id=target_id)
+            _pa_data['contact_hosts'] = _pa_rules[2]
+            _pa_write()
+            _pa_remove()
+            _pa_install()
 
 
 def _pa_input(helper, typing=False, fill=False):
