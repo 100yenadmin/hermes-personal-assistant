@@ -34,8 +34,14 @@ def itinerary(facts):
                                       "scheduled_arrival")] + [s.get("status") == "cancelled"] for s in facts.get("segments", []))
 
 
-def journey_itinerary(segments, start):
-    return itinerary({"segments": _next_journey(segments, start)})
+def watched_journey(segments, departure_at, planned_ids):
+    planned_departures = (_time(s["scheduled_departure"]) for s in segments if s["segment_id"] in planned_ids)
+    start = min(planned_departures, default=departure_at - dt.timedelta(minutes=45))
+    return _next_journey(segments, start)
+
+
+def journey_itinerary(segments, departure_at, planned_ids):
+    return itinerary({"segments": watched_journey(segments, departure_at, planned_ids)})
 
 
 def _minutes(value):

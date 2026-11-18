@@ -180,8 +180,9 @@ def probe(ledger, watch_id, watch, settings, deadline, started):
             planned_digest = watch.get("planned_facts_digest")
             accepted_plan = False
             if "planned_itinerary" in watch:
-                plan = trip_math.journey_itinerary(facts.get("segments", []), watched_departure - dt.timedelta(hours=24))
                 planned_itinerary = watch["planned_itinerary"]
+                planned_ids = {row[0] for row in planned_itinerary}
+                plan = trip_math.journey_itinerary(facts.get("segments", []), watched_departure, planned_ids)
                 back_to_plan = plan == planned_itinerary
                 new_plan = planned_itinerary != state.get("planned_itinerary")
                 state["planned_itinerary"] = planned_itinerary

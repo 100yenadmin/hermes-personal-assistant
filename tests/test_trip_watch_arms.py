@@ -14,6 +14,7 @@ from personal_assistant import trip_watch as tw
 from personal_assistant.entry import SCHEMA, dispatch
 from personal_assistant.state import Ledger
 from personal_assistant.state_loop import StateLoop
+from personal_assistant.trip_facts import record_facts
 
 BASE = dict(trip_id='synthetic', departure_at='2026-11-10T12:00:00+00:00',
             arrival_at='2026-11-10T18:00:00+00:00', hb2_timezone='UTC',
@@ -221,7 +222,12 @@ def hb2_accepts(argv):
 @pytest.mark.parametrize('night_alerts', [False, True])
 def test_watch_command_and_observer_row(tmp_path, night_alerts):
     dangerous_id = '-c;$x apply'
-    result = plan(tmp_path, trip_id=dangerous_id, arm=['watch'], night_alerts=night_alerts, weather=False)
+    ledger = Ledger(tmp_path)
+    record_facts(ledger, dangerous_id, [dict(carrier='ZZ', number='123', origin='AAA', destination='BBB',
+                                           origin_timezone='UTC', destination_timezone='UTC',
+                                           scheduled_departure=BASE['departure_at'], scheduled_arrival=BASE['arrival_at'])], 'user')
+    result = tw.plan(ledger, dangerous_id, at=BASE['at'], hb2_timezone='UTC', arm=['watch'],
+                     night_alerts=night_alerts, weather=False)
     item = arm(result, 'watch')
     pulse = item['pulse_create']
     argv = pulse['trigger']['command']
@@ -237,7 +243,9 @@ def test_watch_command_and_observer_row(tmp_path, night_alerts):
     assert row['action_type'] == 'observe_watch' and row['trip_id'] == dangerous_id
     fields = row['fields']
     assert fields['checks'] == {'trip_change': True, 'flight': True, 'weather': False}
-    assert fields['planned_itinerary'] == []
+    assert fields['planned_itinerary'] == [
+        ['ZZ123:2026-11-10', 'ZZ', '123', 'AAA', 'BBB', BASE['departure_at'], BASE['arrival_at'], False],
+    ]
     assert fields['status'] == 'active' and fields['profile_root'] == str(tmp_path.resolve())
     assert fields['departure_at'] == BASE['departure_at'] and fields['arrival_at'] == BASE['arrival_at']
     assert fields['night_alerts'] is night_alerts and fields['schema'] == 1

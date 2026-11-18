@@ -512,17 +512,25 @@ def record_wake(ledger, trip_id, moment, wake_id, armed=True, expires_at=None, s
         _resolve(ledger, event["event_id"], moment, "confirmed", {k: current[k] for k in ("wake_id", "arm_key", "carried_from") if current.get(k)})
         if moment == "watch":
             i = event["payload"]["inputs"]
-            flight = status(ledger, trip_id)["facts"].get("segments", [])
-            planned_itinerary = trip_math.journey_itinerary(flight, _time(i["departure_at"]) - dt.timedelta(hours=24))
-            flight = [s for s in flight if s["segment_id"] in {pair[0] for pair in i.get("facts_signature", [])}] or flight
-            ledger.put("action", "pa:observe-watch:" + _watch_id(trip_id), {
+            current_facts = status(ledger, trip_id)["facts"]
+            flight = current_facts.get("segments", [])
+            planned_ids = {pair[0] for pair in (i.get("facts_signature") or [])}
+            watch_key = "pa:observe-watch:" + _watch_id(trip_id)
+            if current_facts.get("digest") == i.get("facts_digest"):
+                planned_itinerary = trip_math.journey_itinerary(flight, _time(i["departure_at"]), planned_ids)
+            else:
+                previous = (ledger.get("action", watch_key) or {}).get("fields", {})
+                planned_itinerary = previous.get("planned_itinerary")
+            flight = [s for s in flight if s["segment_id"] in planned_ids] or flight
+            ledger.put("action", watch_key, {
                 "schema": 1, "watch_id": _watch_id(trip_id), "trip_id": trip_id, "event_id": event["event_id"], "status": "active", "profile_root": str(ledger.root),
                 "checks": {"trip_change": True, "flight": True, "weather": i["weather"]},
                 **{k: i.get(k) for k in ("departure_at", "arrival_at", "airport_lead_minutes", "airport_transfer_minutes", "airport_transfer_origin", "hb2_quiet_hours", "hb2_timezone", "night_alerts")},
                 "weather_included_minutes": i.get("weather_included_minutes") or 0,  # Plans saved before this field have none.
                 "origin": {"iata": flight[0]["origin"] if flight else None, "tz": flight[0]["origin_timezone"] if flight else i["origin_timezone"], "label": flight[0]["origin"] if flight else "Origin"},
                 "destination": {"iata": flight[-1]["destination"] if flight else None, "tz": i.get("arrival_timezone") or str(_time(i["arrival_at"]).tzinfo), "label": flight[-1]["destination"] if flight else "Destination"},
-                "planned_facts_digest": i.get("facts_digest"), "planned_itinerary": planned_itinerary,
+                "planned_facts_digest": i.get("facts_digest"),
+                **({"planned_itinerary": planned_itinerary} if planned_itinerary is not None else {}),
                 "created_at": now()}, action_type="observe_watch", trip_id=trip_id)
     return status(ledger, trip_id)
 
