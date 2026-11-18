@@ -198,6 +198,12 @@ def main() -> int:
     try:
         event = json.loads(Path(args.event).read_text(encoding="utf-8"))
         result = validate_pull_request(event, require_merged=args.mode in {"merge", "notes"})
+        if args.mode == "pr" and result["publish"]:
+            # The pull_request workflow checks out GitHub's test-merge commit.
+            merge_sha = os.environ.get("GITHUB_SHA", "")
+            if not re.fullmatch(r"[0-9a-fA-F]{40}", merge_sha):
+                raise ValueError("release PR requires its test-merge commit SHA in GITHUB_SHA")
+            check_reviewed_implementation(merge_sha, str(result["version"]))
         if args.mode == "merge":
             write_output(args.github_output, result)
         elif args.mode == "notes":
