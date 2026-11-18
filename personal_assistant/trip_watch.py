@@ -587,8 +587,13 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
     restored = departure_at is None and arrival_at is None
     defaults = saved if restored else {}
     facts_mode = restored and bool(flight)
+    current = _time(at or now()) if facts_mode else None
     if facts_mode:
-        segments = trip_math._next_journey(flight["segments"], _time(at or now()))
+        in_flight = next((s for s in flight["segments"] if s["status"] != "cancelled"
+                          and _time(s.get("estimated_departure") or s["scheduled_departure"]) <= current
+                          < _time(s.get("estimated_arrival") or s["scheduled_arrival"])), None)
+        journey_start = _time(in_flight["scheduled_departure"]) if in_flight else current
+        segments = trip_math._next_journey(flight["segments"], journey_start)
         # A cancelled leg with a rebooked alternative in the same journey: the trip goes on with the live legs.
         live = [s for s in segments if s["status"] != "cancelled"] or segments
         departure_at, arrival_at, arrival_timezone = _time(live[0]["scheduled_departure"]).astimezone(ZoneInfo(live[0]["origin_timezone"])).isoformat(), _time(live[-1]["scheduled_arrival"]).astimezone(ZoneInfo(live[-1]["destination_timezone"])).isoformat(), live[-1]["destination_timezone"]
@@ -597,6 +602,8 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         schedule = [[s["scheduled_departure"], s["scheduled_arrival"]] for s in segments]
         if saved.get("facts_signature") == signature and saved.get("facts_schedule") and all(abs((_time(a) - _time(b)).total_seconds()) < 2700 for pair, old in zip(schedule, saved["facts_schedule"]) for a, b in zip(pair, old)):
             departure_at, arrival_at, schedule = saved["departure_at"], saved["arrival_at"], saved["facts_schedule"]
+        if in_flight is live[-1] and in_flight.get("estimated_arrival"):
+            arrival_at = _time(in_flight["estimated_arrival"]).astimezone(ZoneInfo(arrival_timezone)).isoformat()
     else:
         departure_at, arrival_at = departure_at or saved.get("departure_at"), arrival_at or saved.get("arrival_at")
         arrival_timezone = arrival_timezone or (saved.get("arrival_timezone") if restored else None)
@@ -624,7 +631,9 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         events = (ledger.get("trip", trip_id) or {}).get("fields", {}).get("events", [])
         return {"status": "needs_input", "needs": needs,
                 "candidates": [{k: e.get(k) for k in ("start", "end", "summary", "location")} for e in events[:8]]}
-    departure, arrival, current = _time(departure_at), _time(arrival_at), _time(at or now())
+    departure, arrival = _time(departure_at), _time(arrival_at)
+    if current is None:
+        current = _time(at or now())
     departure = departure.replace(minute=departure.minute // 5 * 5, second=0, microsecond=0)
     arrival = arrival.replace(minute=arrival.minute // 5 * 5, second=0, microsecond=0)
     if arrival < departure:
@@ -732,51 +741,70 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         moments[-1]["slack_minutes"] = (_time(first["at"]) - arrival).total_seconds() / 60
     late = arrival.hour >= 22 or arrival.hour < 6
     payload = clean({"inputs": inputs, "moments": moments, "late_arrival": late, "derivation": 4})
-    revision = prior["source_revision"] if prior and json.loads(prior["payload_json"]) == payload else hashlib.sha256(
+    next_revision = hashlib.sha256(
         (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + (prior["source_revision"] if prior else "")).encode()).hexdigest()
+    revision = prior["source_revision"] if prior and previous == payload else next_revision
     loop = StateLoop(ledger)
-    event = loop.event_upsert(source_type="pa_trip_watch", source_id=trip_id, source_revision=revision,
-        projections=[{"projection_key": "arm:" + m, "target_type": "heartbeat2_wake", "target_id": trip_id} for m in arm], payload=payload)
-    arms, receipts = [], _wakes(ledger, trip_id)
-    inactive_ids = {w["wake_id"] for w in receipts if any(w.get(k) for k in ("cancelled", "lost", "fired", "superseded_by"))}
     planned_arrival = _time(inputs["arrival_at"])
     watch_until = planned_arrival + WATCH_POST_ARRIVAL
     watch_flight_end = planned_arrival + WATCH_FLIGHT_POST_ARRIVAL
+    cancelled = facts_mode and all(s["status"] == "cancelled" for s in segments)
+    in_flight_carry = "watch" in arm and not cancelled and departure < current < watch_flight_end
+
+    def carry_candidate(receipts, moment, pulse):
+        arm_key = _arm_key(pulse)
+        seen_ids = {w["wake_id"] for w in receipts if any(w.get(k) for k in ("cancelled", "lost", "fired", "superseded_by"))}
+        for wake in reversed(receipts):
+            if wake["wake_id"] in seen_ids or wake["moment"] != moment or not wake.get("arm_key"):
+                continue
+            seen_ids.add(wake["wake_id"])
+            if wake["revision"] == revision or not wake.get("armed") or wake["arm_key"] != arm_key:
+                continue
+            expiry = _watch_expiry(wake) if moment == "watch" else None
+            if expiry is None or expiry >= watch_flight_end:
+                return wake
+        return None
+
+    if revision != next_revision and in_flight_carry:
+        # A legacy moment_past resolution is terminal in its revision. Retry on a fresh revision.
+        projections = loop.get_event(_event_id(trip_id))["projections"]
+        watch_projection = next(p for p in projections if p["projection_key"] == "arm:watch")
+        if watch_projection["status"] == "not_applicable":
+            reason = (watch_projection["result"]["proof"] or {}).get("reason")
+            if reason == "moment_past" and carry_candidate(_wakes(ledger, trip_id), "watch", _pulse(payload, "watch", ledger.root, at=current.isoformat())):
+                revision = next_revision
+            else:
+                in_flight_carry = False
+    event = loop.event_upsert(source_type="pa_trip_watch", source_id=trip_id, source_revision=revision,
+        projections=[{"projection_key": "arm:" + m, "target_type": "heartbeat2_wake", "target_id": trip_id} for m in arm], payload=payload)
+    arms, receipts = [], _wakes(ledger, trip_id)
     for m in arm:
         pulse = _pulse(payload, m, ledger.root, at=current.isoformat())
         instant = _time(pulse["trigger"].get("at", departure.isoformat()))
-        reason = "moment_past" if instant < current else "too_far" if m != "watch" and instant - current > dt.timedelta(days=365) else None
+        past = instant < current
+        reason = "moment_past" if past else "too_far" if m != "watch" and instant - current > dt.timedelta(days=365) else None
         if m == "check_in_window" and (check_in >= (leave_at or departure - dt.timedelta(minutes=airport_lead_minutes)) or any(_quiet(check_in.astimezone(z), w) for w, z in windows)):
             reason = "quiet_hours"
         if m == "arrival_logistics" and any(_quiet(logistics.astimezone(z), w) for w, z in windows):
             reason = "quiet_hours"
-        if facts_mode and all(s["status"] == "cancelled" for s in segments):
+        if cancelled:
             reason = "cancelled"
         later = m == "watch" and watch_until > current + WATCH_MAX_LIFETIME
-        if reason:
+        carry = None
+        if (not reason and not later) or (m == "watch" and in_flight_carry):
+            carry = carry_candidate(receipts, m, pulse)
+        if carry:
+            if not status(ledger, trip_id, at=current.isoformat())["arms"][m]["armed"]:
+                record_wake(ledger, trip_id, m, carry["wake_id"], expires_at=carry.get("expires_at"), session_id=carry.get("session_id"),
+                            _carry=carry["revision"], owner_asked=_owner_asked(carry))
+        elif reason:
             _resolve(ledger, event["event_id"], m, "not_applicable", {"reason": reason})
-        elif not later:
-            arm_key = _arm_key(pulse)
-            seen_ids = inactive_ids.copy()
-            for wake in reversed(receipts):
-                if wake["wake_id"] in seen_ids or wake["moment"] != m or not wake.get("arm_key"):
-                    continue
-                seen_ids.add(wake["wake_id"])
-                if wake["revision"] == revision or not wake.get("armed") or wake.get("arm_key") != arm_key:
-                    continue
-                expiry = _watch_expiry(wake) if m == "watch" else None
-                if expiry is not None and expiry < watch_flight_end:
-                    continue
-                if not status(ledger, trip_id, at=current.isoformat())["arms"][m]["armed"]:
-                    record_wake(ledger, trip_id, m, wake["wake_id"], expires_at=wake.get("expires_at"), session_id=wake.get("session_id"),
-                                _carry=wake["revision"], owner_asked=_owner_asked(wake))
-                break
         stored = status(ledger, trip_id, at=current.isoformat())
         view = stored["arms"][m]
         item = {"moment": m, "at": instant.isoformat(), **view}
-        if later and view["state"] in {"needed", "later"}:
+        if not past and later and view["state"] in {"needed", "later"}:
             item.update(state="later", arm_after=(departure - dt.timedelta(hours=24)).isoformat())
-        elif not reason and view["state"] in {"needed", "pending_confirmation"}:
+        elif not past and not reason and view["state"] in {"needed", "pending_confirmation"}:
             item["pulse_create"] = pulse
             if view["state"] == "pending_confirmation":
                 item["pending_wake_id"] = view["wake_id"]

@@ -326,22 +326,72 @@ def test_watch_carry_requires_expiry_to_cover_flight_checks(tmp_path, monkeypatc
         assert watch['pulse_create']['until']['expires'] == (dt.datetime.fromisoformat(until) + shift).isoformat()
 
 
-def test_in_flight_replan_keeps_running_watch(tmp_path, monkeypatch):
+@pytest.mark.parametrize('case', ['carry', 'retry_legacy_plan', 'short_expiry', 'flight_window_ended', 'no_wake'])
+def test_in_flight_replan_keeps_running_watch(tmp_path, monkeypatch, case):
     monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
     first = plan(tmp_path, arm=['watch'])
-    record(tmp_path, 'watch', 'w_watch')
+    ledger = Ledger(tmp_path)
+    watch_id = first['inputs']['watch_argv'][-1]
+    watch_key = f'pa:observe-watch:{watch_id}'
+    arrival = '2026-11-10T19:30:00+00:00'
+    expiry = '2026-11-10T22:25:00+00:00' if case == 'short_expiry' else '2026-11-10T22:30:00+00:00'
+    if case != 'no_wake':
+        record(tmp_path, 'watch', 'w_watch', expires_at=expiry)
 
-    updated = plan(tmp_path, at='2026-11-10T13:00:00+00:00', arrival_at='2026-11-10T19:30:00+00:00')
+    at = '2026-11-10T22:30:00+00:00' if case == 'flight_window_ended' else '2026-11-10T13:00:00+00:00'
+    if case == 'retry_legacy_plan':
+        # Restore the state left by a pre-fix re-plan: moment_past alongside the old armed receipt.
+        receipt_key = 'pa:trip-watch:synthetic'
+        receipts = ledger.get('action', receipt_key)['fields']['wakes']
+        ledger.put('action', receipt_key, {'wakes': []})
+        legacy = plan(tmp_path, at=at, arrival_at=arrival)
+        assert arm(legacy, 'watch')['reason'] == 'moment_past'
+        ledger.put('action', receipt_key, {'wakes': receipts})
+    updated = plan(tmp_path, at=at, arrival_at=arrival)
 
     watch = arm(updated, 'watch')
     assert updated['revision'] != first['revision']
-    assert watch['state'] == 'not_applicable' and watch['reason'] == 'moment_past'
     assert 'pulse_create' not in watch and updated['stale_wakes'] == []
+    stored = tw.status(ledger, 'synthetic', at=at)['arms']['watch']
+    if case in {'carry', 'retry_legacy_plan'}:
+        assert stored['armed'] and stored['carried_from'] == first['revision']
+        assert stored['wake_id'] == 'w_watch'
+        assert ledger.get('action', watch_key)['fields']['arrival_at'] == arrival
+        assert plan(tmp_path, at=at, arrival_at=arrival)['revision'] == updated['revision']
+    else:
+        assert not stored['armed'] and watch['state'] == 'not_applicable' and watch['reason'] == 'moment_past'
+        observer = ledger.get('action', watch_key)
+        if case == 'no_wake':
+            assert observer is None
+        else:
+            assert observer['fields']['status'] == 'active' and observer['fields']['arrival_at'] == BASE['arrival_at']
+
+
+@pytest.mark.parametrize('arrival_field', ['estimated_arrival', 'scheduled_arrival'])
+def test_in_flight_facts_replan_keeps_journey_and_watch(tmp_path, monkeypatch, arrival_field):
+    monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
     ledger = Ledger(tmp_path)
-    receipt, = ledger.get('action', 'pa:trip-watch:synthetic')['fields']['wakes']
-    assert receipt['wake_id'] == 'w_watch' and receipt['armed'] and not receipt.get('cancelled')
-    watch_id = first['inputs']['watch_argv'][-1]
-    assert ledger.get('action', f'pa:observe-watch:{watch_id}')['fields']['status'] == 'active'
+    trip = 'synthetic'
+    outbound = dict(carrier='ZZ', number='123', origin='AAA', destination='BBB',
+                    origin_timezone='UTC', destination_timezone='UTC',
+                    scheduled_departure=BASE['departure_at'], scheduled_arrival=BASE['arrival_at'])
+    inbound = dict(outbound, number='456', origin='BBB', destination='AAA',
+                   scheduled_departure='2026-11-12T12:00:00+00:00', scheduled_arrival='2026-11-12T18:00:00+00:00')
+    record_facts(ledger, trip, [outbound, inbound], 'user', observed_at=BASE['at'])
+    first = tw.plan(ledger, trip, arm=['watch'], hb2_timezone='UTC', at=BASE['at'])
+    record(tmp_path, 'watch', 'w_watch')
+
+    at, arrival = '2026-11-10T18:30:00+00:00', '2026-11-10T19:30:00+00:00'
+    facts = record_facts(ledger, trip, [{**outbound, arrival_field: arrival}], 'user', observed_at=at)
+    updated = tw.plan(ledger, trip, at=at)
+
+    assert [s[0] for s in updated['inputs']['facts_signature']] == ['ZZ123:2026-11-10']
+    assert updated['inputs']['arrival_at'] == arrival
+    watch = tw.status(ledger, trip, at=at)['arms']['watch']
+    assert watch['armed'] and watch['carried_from'] == first['revision'] and watch['wake_id'] == 'w_watch'
+    assert 'pulse_create' not in arm(updated, 'watch')
+    observer = ledger.get('action', 'pa:observe-watch:' + first['inputs']['watch_argv'][-1])['fields']
+    assert observer['arrival_at'] == arrival and observer['planned_facts_digest'] == facts['digest']
 
 
 def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path, monkeypatch):
