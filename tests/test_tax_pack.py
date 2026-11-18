@@ -192,7 +192,7 @@ def test_uncategorised_lines_keep_expense_order_and_signed_total(ledger):
     result = pack(ledger)
     view = result["currencies"]["USD"]
     lines = [{"expense_id": r["action_id"], "date": r["fields"]["date"],
-              "merchant": r["fields"]["merchant"], "amount": r["fields"]["amount"]} for r in (charge, refund)]
+              "merchant": r["fields"]["merchant"], "amount": amount} for r, amount in ((charge, "8"), (refund, "-3"))]
     expected = {"count": 2, "total": "5", "lines": lines, "more": 0}
     assert view["uncategorised"] == expected
     assert set(lines[0]) == set(view["receipts_missing"]["lines"][0])

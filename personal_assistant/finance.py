@@ -206,9 +206,14 @@ def _counterparties(rows):
 
 
 def _expense_line_summary(rows, *, signed=False):
+    """First 50 lines plus the overflow count; with signed, a refund's amount is negative, as in the total."""
     limit = 50
-    lines = [{"expense_id": r["action_id"], **{k: r["fields"].get(k, "")
-              for k in ("date", "merchant", "amount")}} for r in rows[:limit]]
+    lines = [{"expense_id": r["action_id"], **{k: r["fields"].get(k, "") for k in ("date", "merchant", "amount")}}
+             for r in rows[:limit]]
+    if signed:
+        for line, r in zip(lines, rows):
+            if r["fields"]["kind"] == "refund":
+                line["amount"] = _number(-Decimal(r["fields"]["amount"]))
     return {"count": len(rows), "total": _number(_total(rows, signed=signed)),
             "lines": lines, "more": max(0, len(rows) - limit)}
 
