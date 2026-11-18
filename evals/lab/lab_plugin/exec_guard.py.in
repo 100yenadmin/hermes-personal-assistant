@@ -210,7 +210,11 @@ def _pa_wrap(helper, switches_tab):
             try:
                 return helper(*args, **kwargs)
             finally:
-                _pa_install()
+                try:
+                    _pa_install()
+                except Exception:
+                    _pa_retry = True
+                    raise
         result = helper(*args, **kwargs)
         try:
             _pa_install()
@@ -243,6 +247,7 @@ def _pa_capture():
 
 
 def _pa_contact(text, selector=None, target_id=None):
+    global _pa_retry
     element = 'document.activeElement' if selector is None else f'document.querySelector({_pa_json.dumps(selector)})'
     info = _pa_js(rf"""(() => {{
       const el = {element};
@@ -256,8 +261,12 @@ def _pa_contact(text, selector=None, target_id=None):
             _pa_rules[2].append(host)
             _pa_data['contact_hosts'] = _pa_rules[2]
             _pa_write()
-            _pa_remove()
-            _pa_install()
+            try:
+                _pa_remove()
+                _pa_install()
+            except Exception:
+                _pa_retry = True  # The next helper call re-installs with the new host.
+                raise
 
 
 def _pa_input(helper, typing=False, fill=False):

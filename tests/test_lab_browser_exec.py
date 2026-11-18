@@ -269,3 +269,35 @@ def test_approval_requires_exact_lab_path(observer, monkeypatch, path, command, 
     assert callback(command, "Write to protected agent-instruction file(s): SOUL.md.",
                     allow_permanent=False, allow_session=False) == choice
     assert observer.file_approvals == [{"step": 0, "tool": "write_file", "choice": choice}]
+
+
+@pytest.mark.parametrize("failing", ["switch", "contact"])
+def test_failed_guard_reinstall_retries_on_next_call(observer, monkeypatch, failing):
+    import atexit
+    monkeypatch.setattr(atexit, "register", lambda fn: fn)
+    observer.persona = {"email": "demo@example.invalid", "phone": "1234567"}
+    state = {"fail": False, "installs": 0, "field": "email"}
+    def js(expression, target_id=None):
+        if "const blocked = [], unreachable" in expression:
+            return [], []
+        if "const el =" in expression:
+            return ["example.com", state["field"]]
+        return "example.com" if expression.startswith("location.hostname") else None
+    def cdp(method, **params):
+        if method == "Page.addScriptToEvaluateOnNewDocument":
+            if state["fail"]:
+                raise ConnectionError
+            state["installs"] += 1
+        return {"targetInfos": []} if method == "Target.getTargets" else {"identifier": "script", "sessionId": "s"}
+    names = "ensure_real_tab new_tab switch_tab goto_url click_at_xy press_key type_text fill_input wait_for_load"
+    namespace = dict.fromkeys(names.split(), lambda *a, **k: None)
+    namespace.update(js=js, cdp=cdp, current_tab=lambda: {"targetId": "tab"}, page_info=lambda: {}, capture_screenshot=lambda path: None)
+    exec(observer.pre_exec({"code": "pass"}, "task", "call")["args"]["code"], namespace)
+    state["fail"] = True
+    with pytest.raises(ConnectionError):
+        namespace["switch_tab"]("tab") if failing == "switch" else namespace["type_text"]("demo@example.invalid")
+    assert namespace["_pa_retry"] is True and namespace["_pa_script"] is None
+    state.update(fail=False, field="search")
+    before = state["installs"]
+    namespace["type_text"]("hello")  # typing re-installs only when a retry is pending
+    assert state["installs"] == before + 1 and namespace["_pa_retry"] is False

@@ -165,7 +165,8 @@ def test_exec_deviation_count_is_visible_without_changing_pass(tmp_path, count):
     run.update(browser_shape='exec', exec_deviations=[{'reason': 'exec_evidence_missing'}] * count)
     common.write(root / 'run.json', run)
     result = checks.evaluate(root, scenario)
-    assert result['overall']['exec_deviations'] == count and result['all_pass']
+    assert result['exec_deviations'] == count and 'exec_deviations' not in result['overall'] and result['all_pass']
+    assert all(value is True for value in result['overall'].values())
     common.write(root / 'checks.json', result)
     summary = render(tmp_path)
     assert summary['exec_deviations'] == count and summary['runs'][0]['pass']

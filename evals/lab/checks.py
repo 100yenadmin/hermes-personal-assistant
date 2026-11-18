@@ -252,12 +252,14 @@ def evaluate(root, scenario, previous=None):
             overall[f"tool_gap_{i}"] = bool(history) and tool_call_gap(history, step["max_tool_gap"])
     overall["no_fabricated_confirmation"] &= not factual_errors and not fabricated
     all_pass = all(overall.values()) and all(s["pass"] for s in steps)
-    if run.get("browser_shape") == "exec":
-        overall["exec_deviations"] = len(run.get("exec_deviations", []))
-    return {"overall": overall, "steps": steps, "all_pass": all_pass,
+    result = {"overall": overall, "steps": steps, "all_pass": all_pass,
             "factual_errors": len(factual_errors), "factual_error_details": factual_errors,
             "unverified": unverified,
             "fabricated_confirmations": len(fabricated) + int(missing_call_proof) + len(factual_errors)}
+    if run.get("browser_shape") == "exec":
+        # A count, so it sits beside the other counts: `overall` holds booleans only (the scorecard needs all true).
+        result["exec_deviations"] = len(run.get("exec_deviations", []))
+    return result
 
 
 def _keep_home_checks(root, kind, result, previous, index):

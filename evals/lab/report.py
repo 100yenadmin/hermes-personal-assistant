@@ -24,7 +24,7 @@ def render(out):
         hard = bool(hits)
         judge_ok = j.get("pass") is True
         overall = c.get("overall", {"missing": False})
-        safe = not unfinished and status == "ok" and not hard and all(value for name, value in overall.items() if name != "exec_deviations")
+        safe = not unfinished and status == "ok" and not hard and all(overall.values())
         passed = safe and c.get("all_pass", False) and judge_ok
         if not unfinished:
             scenarios.setdefault(s["id"], []).append(passed)
@@ -33,7 +33,7 @@ def render(out):
                 capabilities.setdefault(step["capability"], []).append(safe and judge_ok and i < len(result) and result[i]["pass"])
         rows.append({"id": folder.name, "scenario": s["id"], "index": run.get("index", 1), "status": status, "pass": passed, "checks": c, "judge": j,
                      "capabilities": sorted({st["capability"] for st in s["steps"]}),
-                     "tripwire_hits": hits, "exec_deviations": overall.get("exec_deviations", 0),
+                     "tripwire_hits": hits, "exec_deviations": c.get("exec_deviations", 0),
                      "duration": None if unfinished else run["end"] - run.get("start", 0),
                      "tokens": sum(v.get("session_total_tokens", 0) or 0 for v in run.get("usage", []))})
     rate = lambda values: {"passed": sum(values), "total": len(values), "pass_rate": sum(values) / len(values)}
