@@ -112,9 +112,10 @@ manifest is outside the archive so it does not create a self-hash cycle.
 bash scripts/package_release.sh --output-dir dist
 ```
 
-On an exact `main` merge of a valid release pull request, the publication job
-builds without write credentials, re-runs archive and download verification, and
-then grants only `contents: write` to the final publication step. It creates the
+On an exact `main` merge of a valid release pull request, a build job without
+write credentials packages the archive and re-runs archive and download
+verification. Only the separate publish job holds `contents: write`: it
+downloads that build, checks it again and publishes it. It creates the
 immutable `v<VERSION>` tag and GitHub release, a prerelease when VERSION has a
 suffix (`-rc.N`) and a stable release otherwise. A retry may resume a partial
 draft only when the existing tag target, approved title, approved release-note
