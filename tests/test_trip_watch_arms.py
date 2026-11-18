@@ -211,7 +211,8 @@ def hb2_accepts(argv):
 
 
 @pytest.mark.parametrize('night_alerts', [False, True])
-def test_watch_command_and_observer_row(tmp_path, night_alerts):
+def test_watch_command_and_observer_row(tmp_path, monkeypatch, night_alerts):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: None)
     dangerous_id = '-c;$x apply'
     result = plan(tmp_path, trip_id=dangerous_id, arm=['watch'], night_alerts=night_alerts, weather=False)
     item = arm(result, 'watch')
@@ -341,7 +342,8 @@ def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path,
     assert watch['pulse_create']['until']['expires'] == '2026-11-13T06:00:00+00:00'
 
 
-def test_trip_pulse_create_contracts(tmp_path):
+def test_trip_pulse_create_contracts(tmp_path, monkeypatch):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: None)
     result = plan(tmp_path, arm=list(tw.MOMENTS), at='2026-11-09T11:59:00+00:00')
     watch = arm(result, 'watch')['pulse_create']
     assert watch == {
@@ -457,13 +459,87 @@ def test_watch_owner_asked_rejects_non_bool(tmp_path, owner_asked):
 
 
 def test_watch_argv_drift_and_commas(tmp_path, monkeypatch):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: None)
     plan(tmp_path, arm=['watch'])
     assert not tw.status(Ledger(tmp_path), 'synthetic')['interpreter_drift']
     monkeypatch.setattr(sys, 'executable', '/missing/interpreter')
-    assert tw.status(Ledger(tmp_path), 'synthetic')['interpreter_drift']
+    status = tw.status(Ledger(tmp_path), 'synthetic')
+    assert status['interpreter_drift']
+    assert status['watch_allowlist_entry'] == shlex.join(status['inputs']['watch_argv'][:3])
     monkeypatch.setattr(sys, 'executable', '/x,break/bin/python3')
     with pytest.raises(ValueError, match='commas'):
         tw.observer_allowlist_entry()
+
+
+def watch_config(root, allowlist):
+    (root / 'config.yaml').write_text('plugins:\n  entries:\n    heartbeat2:\n      settings:\n'
+                                      '        probe_commands: ' + json.dumps(allowlist) + '\n')
+
+
+@pytest.mark.parametrize('entry, version, token', [
+    ('legacy', '0.4.28', False), ('token', '0.4.28', True), ('token', '0.4.16', False),
+    ('invalid_token', '0.4.28', True), ('invalid_token', '0.4.16', False),
+    ('', '0.4.28', True), ('', '0.4.16', False), ('', None, False), ('', 'unparsable', False),
+    (None, '0.4.28', True),
+])
+def test_watch_command_form(tmp_path, monkeypatch, entry, version, token):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: version)
+    # A path with spaces exercises shlex prefix matching and the owner's quoted script line.
+    monkeypatch.setattr(tw, '__file__', str(tmp_path / 'plugin home/personal_assistant/trip_watch.py'))
+    watch_id = tw._watch_id(BASE['trip_id'])
+    legacy = tw.observer_argv(watch_id)
+    script = legacy[2]
+    legacy_line, token_line = shlex.join(legacy[:3]), '{python} ' + shlex.quote(script)
+    lines = {'legacy': legacy_line, 'token': token_line, 'invalid_token': '{python} -I ' + shlex.quote(script)}
+    expected = ['{python}', script, 'trip', watch_id] if token else legacy
+    if entry is not None:
+        watch_config(tmp_path, lines.get(entry, entry))
+    if entry == 'invalid_token':
+        assert not tw.admits(lines[entry], ['{python}', '-I', script, 'trip', watch_id])
+    result = plan(tmp_path, arm=['watch'])
+    watch = arm(result, 'watch')
+    assert result['inputs']['watch_argv'] == watch['pulse_create']['trigger']['command'] == expected
+    assert result['watch_command_form'] == ('python_token' if token else 'interpreter_path')
+    assert watch['requires']['hb2_probe_command'] == result['watch_allowlist_entry'] == (token_line if token else legacy_line)
+    assert result['interpreter_drift'] is False
+
+
+@pytest.mark.parametrize('config', [None, '{"broken":', 'plugins: []', 'non_string'])
+def test_saved_token_watch_is_sticky(tmp_path, monkeypatch, config):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: '0.4.28')
+    watch_config(tmp_path, '')
+    first = plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch')
+    if config is None:
+        (tmp_path / 'config.yaml').unlink()
+    elif config == 'non_string':
+        watch_config(tmp_path, ['a list'])
+    else:
+        (tmp_path / 'config.yaml').write_text(config)
+    monkeypatch.setattr(sys, 'executable', '/missing/interpreter')
+    replanned = plan(tmp_path)
+    assert replanned['watch_command_form'] == 'python_token' and replanned['interpreter_drift'] is False
+    assert replanned['revision'] == first['revision']
+    assert arm(replanned, 'watch')['wake_id'] == 'w_watch'
+    carried = plan(tmp_path, departure_at='2026-11-10T13:00:00+00:00', arrival_at='2026-11-10T19:00:00+00:00')
+    assert arm(carried, 'watch')['carried_from'] == first['revision']
+
+
+def test_watch_switches_when_legacy_prefix_is_removed(tmp_path, monkeypatch):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: '0.4.28')
+    legacy = tw.observer_allowlist_entry()
+    watch_config(tmp_path, legacy)
+    first = plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch')
+    token = '{python} ' + shlex.quote(first['inputs']['watch_argv'][2])
+    watch_config(tmp_path, legacy + ', ' + token)
+    assert plan(tmp_path)['revision'] == first['revision']
+    watch_config(tmp_path, token)
+    assert tw.status(Ledger(tmp_path), BASE['trip_id'])['watch_allowlist_entry'] == legacy
+    updated = plan(tmp_path)
+    assert updated['watch_command_form'] == 'python_token'
+    assert updated['stale_wakes'] == ['w_watch']
+    assert arm(updated, 'watch')['requires']['hb2_probe_command'] == token
 
 
 def test_settings_snapshot_validated_and_scope_only(tmp_path):
