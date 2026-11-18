@@ -400,8 +400,10 @@ def one(args):
             calls.close()
         write(root / "ledger.json", ledger(hh))
         if observer is not None and observer.browser_shape == "exec":
+            evidence = observer.finish_exec()
             meta.update(terminal_blocked=observer.terminal_blocked, approvals=observer.file_approvals,
-                        exec_blocks=lines(root / "exec-blocks.jsonl"), pages=observer.pages, evidence=observer.capture(0))
+                        exec_blocks=lines(root / "exec-blocks.jsonl"), exec_deviations=observer.exec_deviations,
+                        pages=observer.pages, evidence=evidence)
         meta.update(end=time.time(), usage=metrics)
         write(root / "run.json", meta)
         write(root / "transcript.json", transcript)

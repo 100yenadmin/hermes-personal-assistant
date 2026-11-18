@@ -68,7 +68,7 @@ def render(out):
     for r in rows:
         parts.append(f'<details id="{esc(r["id"])}"><summary>{esc(r["id"])} ({esc(r["status"])})</summary><pre>{esc(r["checks"])}\n{esc(r["judge"])}</pre>')
         parts.append('<pre>' + esc(str(read(root / r["id"] / "transcript.json", []))[:4000]) + '</pre>')
-        for p in sorted((root / r["id"]).glob("final_*.png")):
+        for p in sorted((root / r["id"]).glob("final_*.png"), key=lambda p: [int(n) for n in re.findall(r"\d+", p.stem)]):
             link = esc(p.relative_to(root).as_posix())
             parts.append(f'<a href="{link}"><img src="{link}" alt="Final page"></a>')
         parts.append('</details>')

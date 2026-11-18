@@ -142,6 +142,15 @@ def test_checks_pass_and_handoff(tmp_path,handoff):
     assert checks.evaluate(tmp_path,fixture_run(tmp_path,handoff))['all_pass']
 
 
+def test_checks_use_last_snapshot_of_step(tmp_path):
+    scenario = fixture_run(tmp_path)
+    run = common.read(tmp_path / 'run.json')
+    run['evidence'].append({'step': 0, 'snapshot': 'final_10_0.txt'})
+    common.write(tmp_path / 'run.json', run)
+    (tmp_path / 'final_10_0.txt').write_text('Search results')
+    assert not checks.evaluate(tmp_path, scenario)['steps'][0]['checks']['final_or_handoff']
+
+
 @pytest.mark.parametrize('reply', [
     'The live calendar allows only 30 days ahead and marks November 21 unavailable.',
     'This date is not available.', 'This date is not bookable.',
@@ -435,12 +444,15 @@ def test_report_capability_math_and_no_assets(tmp_path):
     (folder/'final_1.txt').write_text('Nothing')
     common.write(folder/'checks.json',checks.evaluate(folder,s))
     (folder/'final_0.png').write_bytes(b'fixture')
+    for number in (10, 2):
+        (folder/f'final_{number}.png').write_bytes(b'fixture')
     summary = render(tmp_path)
     assert summary['capabilities']['flight']['pass_rate'] == 1
     assert summary['capabilities']['hotel']['pass_rate'] == 0
     html = (tmp_path/'report.html').read_text()
     assert 'https://' not in html and 'http://' not in html and 'src="fixture/final_0.png"' in html
     assert 'left:80%' in html
+    assert html.index('final_2.png') < html.index('final_10.png')
 
 
 

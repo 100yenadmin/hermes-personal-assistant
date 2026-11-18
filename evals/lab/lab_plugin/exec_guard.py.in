@@ -3,68 +3,167 @@ import atexit as _pa_atexit
 import json as _pa_json
 from pathlib import Path as _pa_Path
 
-_pa_guard = """(() => {
-  const [confirmed, strict, context, contact] = """ + _pa_json.dumps(_pa_rules) + r""";
-  window.__paLabConfirmed = confirmed;
-  if (window.__paLabBlocked) return;
-  window.__paLabBlocked = [];
-  const control = 'button,a,input,[role=button],[role=link],[role=menuitem]';
-  const labels = el => [el?.innerText, el?.getAttribute('aria-label'), el?.value]
-    .filter(Boolean).map(label => label.trim());
+_pa_guard = r"""([strict, context, hosts]) => {
+  const install = win => {
+  const contacts = win.__paLabContacts ??= (win.frameElement && win.parent.__paLabContacts) || new Set();
+  hosts.forEach(host => contacts.add(host));
+  if (win.__paLabBlocked) return;
+  win.__paLabBlocked = [];
+  const control = 'button,a,input:not([type=hidden]),[role=button],[role=link],[role=menuitem]';
+  const clean = text => text.replace(/\s+/g, ' ').trim();
+  const labels = el => el?.type === 'hidden' ? [] : [el?.innerText, el?.getAttribute?.('aria-label'),
+    el?.value, el?.getAttribute?.('alt'), el?.title, el?.querySelector?.('img[alt]')?.alt].filter(Boolean).map(clean);
+  const entered = () => contacts.has(win.location.hostname.replace(/^www\./, ''));
   const final = label => {
     if (label.length > 60 || /[?？]$|^(?:Q[.: ]|FAQ)/i.test(label) ||
         /(方法|手段|内容|수단|방법).*(見る|確認|보기|확인)/.test(label)) return false;
     const text = label.replace(/^[.!。！]+|[.!。！]+$/g, '');
-    return new RegExp(strict, 'i').test(text) || new RegExp(context, 'i').test(text) &&
-      [...document.querySelectorAll('input')].some(el => el.value &&
-        new RegExp(contact, 'i').test([el.type, el.name, el.autocomplete, ...labels(el)].join(' ')));
+    const japanese = text.replace(/([一-龯ぁ-ゖァ-ヺ]) (?=[一-龯ぁ-ゖァ-ヺ])/g, '$1');
+    return new RegExp(strict, 'i').test(japanese) || new RegExp(context, 'i').test(japanese) && entered();
   };
   const block = event => {
-    if (window.__paLabConfirmed || (event.type === 'keydown' && event.key !== 'Enter')) return;
-    const target = event.target;
+    const enter = event.type === 'keydown';
+    if (enter && event.key !== 'Enter') return;
+    const path = event.composedPath();
+    const matched = path.find(el => el.matches?.(control));
+    const target = matched || path[0];
     const form = target.closest?.('form') || target.form;
     const submit = form?.querySelector('button:not([type]),button[type=submit],input[type=submit]');
-    const label = [...labels(target.closest?.(control)),
+    const fallback = matched ? [] : path.slice(1, 4).flatMap(el => labels(el).filter(text => text.length <= 40));
+    const label = enter && target.matches?.('input:not([type=hidden]),textarea') && entered()
+      ? 'enter_after_contact' : [...labels(target), ...fallback,
       ...labels(event.submitter || (event.type !== 'click' ? submit : null))].find(final);
     if (!label) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    window.__paLabBlocked.push(label);
+    win.__paLabBlocked.push(label);
   };
-  for (const event of ['click', 'submit', 'keydown']) window.addEventListener(event, block, true);
+  for (const event of ['click', 'submit', 'keydown']) win.addEventListener(event, block, true);
+  win.addEventListener('load', event => {
+    if (event.target.contentDocument) install(event.target.contentWindow);
+  }, true);
+  };
+  const visit = win => {
+    install(win);
+    for (const el of win.document.querySelectorAll('iframe,frame')) {
+      if (el.contentDocument) visit(el.contentWindow);
+    }
+  };
+  visit(window);
+}"""
+
+_pa_queue = """(() => {
+  const blocked = [], unreachable = [];
+  const visit = win => {
+    blocked.push(...(win.__paLabBlocked?.splice(0) || []));
+    for (const el of win.document.querySelectorAll('iframe,frame')) {
+      if (el.contentDocument) visit(el.contentWindow);
+      else unreachable.push(el.src || (el.hasAttribute('srcdoc') ? 'about:srcdoc' : 'about:blank'));
+    }
+  };
+  visit(window);
+  return [blocked, unreachable];
 })()"""
 
 _pa_snapshot = r"""(() => {
   const rows = [];
   const line = (role, name, state = '') => rows.push(`- ${role} ${JSON.stringify(name)}${state}`);
   const visible = el => el.checkVisibility({visibilityProperty: true, opacityProperty: true});
-  for (const el of document.querySelectorAll('button,a[href],input,textarea,select,[role],[contenteditable=true]')) {
-    if (!visible(el) || el.type === 'hidden') continue;
-    const role = el.getAttribute('role') || ({BUTTON:'button', A:'link', SELECT:'combobox'}[el.tagName]) ||
-      ({radio:'radio', checkbox:'checkbox', button:'button', submit:'button', reset:'button'}[el.type]) || 'textbox';
+  const controls = 'button,a[href],input,textarea,select,option,[role],[aria-pressed],[aria-selected],[contenteditable=true]';
+  for (const el of document.querySelectorAll('body, body *')) {
+    if (el.tagName === 'OPTION' ? !visible(el.closest('select')) : !visible(el) || el.type === 'hidden') continue;
+    if (el.matches('h1,h2,h3,h4,h5,h6,[role=heading]')) line('heading', el.innerText.trim().replace(/\s+/g, ' '));
+    if (!el.matches(controls)) {
+      for (const node of el.childNodes) {
+        const text = node.nodeType === 3 ? node.textContent.replace(/\s+/g, ' ').trim() : '';
+        if (text && text.length <= 120) line('StaticText', text);
+      }
+      continue;
+    }
+    const role = el.getAttribute('role') || ({BUTTON:'button', A:'link', SELECT:'combobox', OPTION:'option'}[el.tagName]) ||
+      ({radio:'radio', checkbox:'checkbox', button:'button', submit:'button', reset:'button', image:'button'}[el.type]) || 'textbox';
     if (!/^(button|link|textbox|combobox|radio|checkbox|menuitem|option|tab|switch)$/.test(role)) continue;
     const name = el.getAttribute('aria-label') || [...(el.labels || [])].map(label => label.innerText).join(' ') ||
-      el.innerText || (role === 'button' ? el.value : '') || el.placeholder || el.title || '';
-    line(role, name.trim().replace(/\s+/g, ' '), el.checked || el.getAttribute('aria-checked') === 'true' ? ' [checked=true]' : '');
-  }
-  for (const el of document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading]')) {
-    if (visible(el)) line('heading', el.innerText.trim().replace(/\s+/g, ' '));
+      el.innerText || (role === 'button' ? el.value || el.alt : '') || el.placeholder || el.title || '';
+    const selected = el.selected || ['aria-selected', 'aria-pressed'].some(attr => el.getAttribute(attr) === 'true');
+    const checked = el.checked || el.getAttribute('aria-checked') === 'true';
+    line(role, name.trim().replace(/\s+/g, ' '), (checked ? ' [checked=true]' : '') + (selected ? ' [selected=true]' : ''));
   }
   return rows.concat(document.body?.innerText || '').join('\n').slice(0, 200000);
 })()"""
 
-_pa_blocked = []
+_pa_data = {'blocked': [], 'drained': False}
+_pa_stem = _pa_Path(_pa_evidence)
 _pa_script = None
+_pa_frames = {}
+_pa_js = js
+_pa_retry = False
+
+
+def _pa_write():
+    staged = _pa_stem.with_suffix('.json.tmp')
+    staged.write_text(_pa_json.dumps(_pa_data), encoding='utf-8')
+    staged.replace(_pa_stem.with_suffix('.json'))
+
+
+def _pa_targets():
+    tab = current_tab()['targetId']
+    for frame in cdp('Target.getTargets')['targetInfos']:
+        if frame['type'] != 'iframe':
+            continue
+        tid = frame['targetId']
+        if tab not in (frame.get('parentId'), frame.get('openerId')):
+            try:
+                cdp('DOM.getFrameOwner', frameId=tid)
+            except Exception:
+                continue
+        yield tid, frame.get('url', '')
 
 
 def _pa_drain():
-    _pa_blocked.extend(js('window.__paLabBlocked?.splice(0) || []'))
+    try:
+        blocked, unreachable = _pa_js(_pa_queue)
+        _pa_data['blocked'].extend(blocked)
+        reached = set()
+        for tid, url in _pa_targets():
+            try:
+                blocked, nested = _pa_js(_pa_queue, target_id=tid)
+                _pa_data['blocked'].extend(blocked)
+                unreachable.extend(nested)
+                if tid in _pa_frames:
+                    reached.add(url)
+                else:
+                    unreachable.append(url)
+            except Exception:
+                unreachable.append(url)
+        _pa_data['iframe_unguarded'] = sorted(set(_pa_data.get('iframe_unguarded', [])) | (set(unreachable) - reached))
+        return True
+    except Exception as exc:
+        _pa_data['drain_error'] = type(exc).__name__
+        return False
 
 
 def _pa_install():
-    global _pa_script
-    _pa_script = cdp('Page.addScriptToEvaluateOnNewDocument', source=_pa_guard)['identifier']
-    js(_pa_guard)
+    global _pa_script, _pa_retry
+    source = f'({_pa_guard})({_pa_json.dumps(_pa_rules)})'
+    if _pa_script is None:
+        _pa_script = cdp('Page.addScriptToEvaluateOnNewDocument', source=source)['identifier']
+    _pa_js(source)
+    for tid, _ in _pa_targets():
+        if tid in _pa_frames:
+            continue
+        try:
+            sid = cdp('Target.attachToTarget', targetId=tid, flatten=True)['sessionId']
+            try:
+                cdp('Page.addScriptToEvaluateOnNewDocument', session_id=sid, source=source)
+                _pa_js(source, target_id=tid)
+            except Exception:
+                cdp('Target.detachFromTarget', sessionId=sid)
+                raise
+            _pa_frames[tid] = sid
+        except Exception:
+            pass  # The drain records unreachable or unguarded targets.
+    _pa_retry = False
 
 
 def _pa_remove():
@@ -72,42 +171,103 @@ def _pa_remove():
     if _pa_script is not None:
         cdp('Page.removeScriptToEvaluateOnNewDocument', identifier=_pa_script)
         _pa_script = None
+    for sid in _pa_frames.values():
+        try:
+            cdp('Target.detachFromTarget', sessionId=sid)
+        except Exception:
+            pass  # Navigated frames can disappear before detach.
+    _pa_frames.clear()
 
 
 def _pa_wrap(helper, switches_tab):
     def guarded(*args, **kwargs):
+        global _pa_retry
         _pa_drain()
+        _pa_write()
         if switches_tab:
             _pa_remove()
         result = helper(*args, **kwargs)
-        if switches_tab:
+        try:
             _pa_install()
-        else:
-            js(_pa_guard)
+        except Exception:
+            if switches_tab:
+                raise
+            _pa_retry = True
         return result
     return guarded
 
 
 @_pa_atexit.register
 def _pa_capture():
-    stem = _pa_Path(_pa_evidence)
-    page = {}
-    try:
-        _pa_drain()
-        page = page_info()
-        stem.with_suffix('.txt').write_text(js(_pa_snapshot), encoding='utf-8', errors='replace')
-        capture_screenshot(str(stem.with_suffix('.png')))
-    except Exception:
-        pass  # The parent records missing evidence; capture must stay out of the model's result.
-    finally:
-        stem.with_suffix('.json').write_text(_pa_json.dumps({**page, 'blocked': _pa_blocked}), encoding='utf-8')
+    _pa_data['drained'] = _pa_drain() and 'drain_error' not in _pa_data
+    _pa_write()
+    if _pa_data['blocked']:
+        print(_pa_stop, flush=True)
+    for name, collect in (
+        ('page_info', lambda: _pa_data.update(page_info())),
+        ('text', lambda: _pa_stem.with_suffix('.txt').write_text(_pa_js(_pa_snapshot), encoding='utf-8', errors='replace')),
+        ('screenshot', lambda: capture_screenshot(str(_pa_stem.with_suffix('.png')))),
+    ):
         try:
-            _pa_remove()
-        except Exception:
-            pass
+            collect()
+        except Exception as exc:
+            _pa_data[f'{name}_error'] = type(exc).__name__
+    _pa_write()
+    try:
+        _pa_remove()
+    except Exception:
+        pass
+
+
+def _pa_contact(text, selector=None, target_id=None):
+    element = 'document.activeElement' if selector is None else f'document.querySelector({_pa_json.dumps(selector)})'
+    info = _pa_js(rf"""(() => {{
+      const el = {element};
+      if (el?.type === 'hidden') return null;
+      return [location.hostname.replace(/^www\./, ''), [el?.name, el?.getAttribute('aria-label'),
+        el?.type === 'tel' || el?.autocomplete?.startsWith('tel') ? 'tel' : ''].join(' ')];
+    }})()""", target_id=target_id)
+    if info and info[0] and is_contact(text, info[1], _pa_persona):
+        host = info[0]
+        if host not in _pa_rules[2]:
+            _pa_rules[2].append(host)
+        _pa_data['contact_hosts'] = _pa_rules[2]
+        _pa_write()
+        _pa_js(f'window.__paLabContacts?.add({_pa_json.dumps(host)})', target_id=target_id)
+
+
+def _pa_input(helper, typing=False, fill=False):
+    def guarded(*args, **kwargs):
+        _pa_ready(not typing)
+        if typing:
+            text = kwargs['text'] if 'text' in kwargs else args[int(fill)]
+            _pa_contact(text, kwargs.get('selector', args[0] if args else None) if fill else None)
+        return helper(*args, **kwargs)
+    return guarded
+
+
+def _pa_ready(refresh=False):
+    if _pa_retry or refresh:
+        _pa_install()
+
+
+def js(expression, target_id=None):
+    _pa_ready(bool(target_id))
+    for value in re.findall(r"""\.value\s*=\s*(['"])(.*?)\1""", expression):
+        if is_contact(value[1], '', _pa_persona):
+            _pa_contact(value[1], target_id=target_id)
+    return _pa_js(expression, target_id=target_id)
 
 
 _pa_install()
+_pa_drain()
+_pa_write()
 new_tab = _pa_wrap(new_tab, True)
 switch_tab = _pa_wrap(switch_tab, True)
+ensure_real_tab = _pa_wrap(ensure_real_tab, True)
 goto_url = _pa_wrap(goto_url, False)
+click_at_xy = _pa_input(click_at_xy)
+press_key = _pa_input(press_key)
+type_text = _pa_input(type_text, typing=True)
+fill_input = _pa_input(fill_input, typing=True, fill=True)
+wait_for_load = _pa_wrap(wait_for_load, False)

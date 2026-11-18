@@ -228,7 +228,7 @@ def evaluate(root, scenario, previous=None):
             continue
         pages = [p for p in run.get("pages", []) if p.get("step") == i]
         snapshots = [root / p["snapshot"] for p in run.get("evidence", []) if p.get("step") == i]
-        text = "\n".join(p.read_text() for p in snapshots if p.exists())
+        text = snapshots[-1].read_text() if snapshots and snapshots[-1].exists() else ""
         ex = step["expect"]
         final = ex.get("final", {})
         matched = any(u.lower() in p.get("url", "").lower() for u in final.get("url_any", []) for p in pages) and any(t.lower() in text.lower() for t in final.get("text_any", []))
