@@ -589,10 +589,14 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
     facts_mode = restored and bool(flight)
     current = _time(at or now()) if facts_mode else None
     if facts_mode:
-        in_flight = next((s for s in flight["segments"] if s["status"] != "cancelled"
-                          and _time(s.get("estimated_departure") or s["scheduled_departure"]) <= current
-                          < _time(s.get("estimated_arrival") or s["scheduled_arrival"])), None)
-        journey_start = _time(in_flight["scheduled_departure"]) if in_flight else current
+        airborne = next((s for s in flight["segments"] if s["status"] != "cancelled"
+                         and _time(s.get("estimated_departure") or s["scheduled_departure"]) <= current
+                         < _time(s.get("estimated_arrival") or s["scheduled_arrival"])), None)
+        # A first plan still targets the next departure once the previous flight's ETA passes.
+        if prior:
+            journey_start = trip_math.journey_start(flight["segments"], current)
+        else:
+            journey_start = _time(airborne["scheduled_departure"]) if airborne else current
         segments = trip_math._next_journey(flight["segments"], journey_start)
         # A cancelled leg with a rebooked alternative in the same journey: the trip goes on with the live legs.
         live = [s for s in segments if s["status"] != "cancelled"] or segments
@@ -602,8 +606,8 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         schedule = [[s["scheduled_departure"], s["scheduled_arrival"]] for s in segments]
         if saved.get("facts_signature") == signature and saved.get("facts_schedule") and all(abs((_time(a) - _time(b)).total_seconds()) < 2700 for pair, old in zip(schedule, saved["facts_schedule"]) for a, b in zip(pair, old)):
             departure_at, arrival_at, schedule = saved["departure_at"], saved["arrival_at"], saved["facts_schedule"]
-        if in_flight is live[-1] and in_flight.get("estimated_arrival"):
-            arrival_at = _time(in_flight["estimated_arrival"]).astimezone(ZoneInfo(arrival_timezone)).isoformat()
+        if airborne is live[-1] and airborne.get("estimated_arrival"):
+            arrival_at = _time(airborne["estimated_arrival"]).astimezone(ZoneInfo(arrival_timezone)).isoformat()
     else:
         departure_at, arrival_at = departure_at or saved.get("departure_at"), arrival_at or saved.get("arrival_at")
         arrival_timezone = arrival_timezone or (saved.get("arrival_timezone") if restored else None)

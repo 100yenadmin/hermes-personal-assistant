@@ -28,6 +28,31 @@ def _next_journey(all_segments, current):
     return journey
 
 
+def journey_start(segments, current):
+    """Scheduled start of the latest unfinished journey, or current if none qualifies."""
+    remaining = sorted(segments, key=lambda s: _time(s["scheduled_departure"]))
+    start = current
+    while remaining:
+        scheduled_start = _time(remaining[0]["scheduled_departure"])
+        journey = _next_journey(remaining, scheduled_start)
+        remaining = remaining[len(journey):]
+        if remaining and current >= _time(remaining[0]["scheduled_departure"]):
+            continue
+        for leg in journey:
+            if leg.get("status") in {"cancelled", "landed"}:
+                continue
+            departure = _time(leg["scheduled_departure"])
+            arrival = _time(leg["scheduled_arrival"])
+            if leg.get("estimated_departure"):
+                departure = min(departure, _time(leg["estimated_departure"]))
+            if leg.get("estimated_arrival"):
+                arrival = max(arrival, _time(leg["estimated_arrival"]))
+            if departure <= current < arrival + dt.timedelta(hours=6):
+                start = scheduled_start
+                break
+    return start
+
+
 def itinerary(facts):
     """The planned itinerary only: estimates, status and terminals are flight changes, not trip changes."""
     return sorted([s.get(k) for k in ("segment_id", "carrier", "number", "origin", "destination", "scheduled_departure",

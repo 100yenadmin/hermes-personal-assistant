@@ -394,6 +394,60 @@ def test_in_flight_facts_replan_keeps_journey_and_watch(tmp_path, monkeypatch, a
     assert observer['arrival_at'] == arrival and observer['planned_facts_digest'] == facts['digest']
 
 
+@pytest.mark.parametrize('case, clock, flight_change, expected_leg', [
+    ('departed', '19:00', {'status': 'departed'}, 'outbound'),
+    ('late_estimate', '20:00', {'status': 'delayed', 'estimated_arrival': '19:00'}, 'outbound'),
+    ('scheduled', '20:00', {'status': 'scheduled'}, 'outbound'),
+    ('unknown', '20:00', {'status': 'unknown'}, 'outbound'),
+    ('on_ground', '13:00', {'status': 'delayed', 'estimated_departure': '15:00'}, 'outbound'),
+    ('landed', '19:00', {'status': 'landed'}, 'return'),
+    ('grace_elapsed', '01:00', {'status': 'departed'}, 'return'),
+    ('same_day', '13:30', {'status': 'scheduled'}, 'return'),
+    ('connection', '19:30', {'status': 'delayed', 'estimated_departure': '20:00',
+                             'estimated_arrival': '21:00'}, 'outbound'),
+], ids=lambda value: value if isinstance(value, str) else None)
+def test_round_trip_facts_replan(tmp_path, monkeypatch, case, clock, flight_change, expected_leg):
+    def instant(clock, day=10):
+        return f'2026-11-{day}T{clock}:00+00:00'
+
+    ledger, trip = Ledger(tmp_path), BASE['trip_id']
+    monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
+    outbound = dict(carrier='ZZ', number='123', origin='AAA', destination='BBB',
+                    origin_timezone='UTC', destination_timezone='UTC',
+                    scheduled_departure=instant('08:00' if case == 'same_day' else '12:00'),
+                    scheduled_arrival=instant('09:10' if case == 'same_day' else '18:00'))
+    return_day = 10 if case == 'same_day' else 12
+    inbound = dict(outbound, number='456', origin='BBB', destination='AAA',
+                   scheduled_departure=instant('13:00', return_day), scheduled_arrival=instant('15:00', return_day))
+    segments = [outbound, inbound]
+    expected_departure = outbound if expected_leg == 'outbound' else inbound
+    expected_arrival = expected_departure
+    if case == 'connection':
+        connection = dict(outbound, number='789', origin='BBB', destination='CCC',
+                          scheduled_departure=instant('19:00'), scheduled_arrival=instant('22:00'))
+        segments.insert(1, connection)
+        inbound['origin'] = 'CCC'
+        expected_arrival = connection
+
+    record_facts(ledger, trip, segments, 'user', observed_at=BASE['at'])
+    first = tw.plan(ledger, trip, arm=['watch'], hb2_timezone='UTC', at=BASE['at'])
+    record(tmp_path, 'watch', 'w_watch')
+    at = instant(clock, 11 if case == 'grace_elapsed' else 10)
+    changes = {key: instant(value) if key.startswith('estimated_') else value for key, value in flight_change.items()}
+    record_facts(ledger, trip, [{**outbound, **changes}], 'user', observed_at=at)
+    updated = tw.plan(ledger, trip, at=at)
+    status = tw.status(ledger, trip, at=at)
+
+    assert (updated['inputs']['departure_at'], updated['inputs']['arrival_at']) == (
+        expected_departure['scheduled_departure'], expected_arrival['scheduled_arrival'])
+    assert status['inputs'] == updated['inputs']
+    if expected_leg == 'outbound':
+        assert status['stale_wakes'] == []
+        assert status['arms']['watch']['wake_id'] == 'w_watch' and status['arms']['watch']['armed']
+        assert 'pulse_create' not in arm(updated, 'watch')
+        assert updated['revision'] == first['revision']
+
+
 def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path, monkeypatch):
     monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
     plan(tmp_path, arm=['watch'])
