@@ -17,21 +17,6 @@ from .state_loop import StateLoop
 from . import trip_math
 
 
-def _next_journey(all_segments, current):
-    """The next departure plus segments within 24 h of it (connections, rebooked alternatives).
-
-    A flight back to the journey's origin, or one more than 24 h later, starts a later journey."""
-    ordered = sorted(all_segments, key=lambda s: _time(s["scheduled_departure"]))
-    upcoming = [s for s in ordered if _time(s["scheduled_departure"]) >= current] or ordered
-    journey = upcoming[:1]
-    for s in upcoming[1:]:
-        if (_time(s["scheduled_departure"]) - _time(journey[-1]["scheduled_arrival"]) > dt.timedelta(hours=24)
-                or s["destination"] == journey[0]["origin"]):
-            break
-        journey.append(s)
-    return journey
-
-
 def _time(value):
     parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.utcoffset() is None:
@@ -437,7 +422,7 @@ def _journey(facts, current):
         return {}, {}
     airborne = next((s for s in sorted(segments, key=lambda s: _time(s["scheduled_departure"]))
                      if s.get("status") != "cancelled" and _time(s.get("estimated_arrival") or s["scheduled_arrival"]) >= current), None)
-    journey = _next_journey(segments, min(current, _time(airborne["scheduled_departure"])) if airborne else current)
+    journey = trip_math._next_journey(segments, min(current, _time(airborne["scheduled_departure"])) if airborne else current)
     live = [s for s in journey if s.get("status") != "cancelled"] or journey
     return live[0], live[-1]
 
@@ -527,16 +512,29 @@ def record_wake(ledger, trip_id, moment, wake_id, armed=True, expires_at=None, s
         _resolve(ledger, event["event_id"], moment, "confirmed", {k: current[k] for k in ("wake_id", "arm_key", "carried_from") if current.get(k)})
         if moment == "watch":
             i = event["payload"]["inputs"]
-            flight = status(ledger, trip_id)["facts"].get("segments", [])
-            flight = [s for s in flight if s["segment_id"] in {pair[0] for pair in i.get("facts_signature", [])}] or flight
-            ledger.put("action", "pa:observe-watch:" + _watch_id(trip_id), {
+            current_facts = status(ledger, trip_id)["facts"]
+            flight = current_facts.get("segments", [])
+            planned_ids = {pair[0] for pair in (i.get("facts_signature") or [])}
+            watch_key = "pa:observe-watch:" + _watch_id(trip_id)
+            if current_facts.get("digest") == i.get("facts_digest"):
+                planned_itinerary = trip_math.journey_itinerary(flight, _time(i["departure_at"]), planned_ids)
+            else:
+                # Keep an itinerary recorded for this same plan; otherwise the observer's digest check decides.
+                previous = (ledger.get("action", watch_key) or {}).get("fields", {})
+                same_plan = previous.get("planned_facts_digest") == i.get("facts_digest")
+                planned_itinerary = previous.get("planned_itinerary") if same_plan else None
+            flight = [s for s in flight if s["segment_id"] in planned_ids] or flight
+            ledger.put("action", watch_key, {
                 "schema": 1, "watch_id": _watch_id(trip_id), "trip_id": trip_id, "event_id": event["event_id"], "status": "active", "profile_root": str(ledger.root),
                 "checks": {"trip_change": True, "flight": True, "weather": i["weather"]},
                 **{k: i.get(k) for k in ("departure_at", "arrival_at", "airport_lead_minutes", "airport_transfer_minutes", "airport_transfer_origin", "hb2_quiet_hours", "hb2_timezone", "night_alerts")},
                 "weather_included_minutes": i.get("weather_included_minutes") or 0,  # Plans saved before this field have none.
                 "origin": {"iata": flight[0]["origin"] if flight else None, "tz": flight[0]["origin_timezone"] if flight else i["origin_timezone"], "label": flight[0]["origin"] if flight else "Origin"},
                 "destination": {"iata": flight[-1]["destination"] if flight else None, "tz": i.get("arrival_timezone") or str(_time(i["arrival_at"]).tzinfo), "label": flight[-1]["destination"] if flight else "Destination"},
-                "planned_facts_digest": i.get("facts_digest"), "created_at": now()}, action_type="observe_watch", trip_id=trip_id)
+                "planned_facts_digest": i.get("facts_digest"),
+                **({"planned_itinerary": planned_itinerary} if planned_itinerary is not None else {}),
+                "created_at": now()}, action_type="observe_watch", trip_id=trip_id,
+                remove=() if planned_itinerary is not None else ("planned_itinerary",))  # put merges fields
     return status(ledger, trip_id)
 
 
@@ -590,7 +588,7 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
     defaults = saved if restored else {}
     facts_mode = restored and bool(flight)
     if facts_mode:
-        segments = _next_journey(flight["segments"], _time(at or now()))
+        segments = trip_math._next_journey(flight["segments"], _time(at or now()))
         # A cancelled leg with a rebooked alternative in the same journey: the trip goes on with the live legs.
         live = [s for s in segments if s["status"] != "cancelled"] or segments
         departure_at, arrival_at, arrival_timezone = _time(live[0]["scheduled_departure"]).astimezone(ZoneInfo(live[0]["origin_timezone"])).isoformat(), _time(live[-1]["scheduled_arrival"]).astimezone(ZoneInfo(live[-1]["destination_timezone"])).isoformat(), live[-1]["destination_timezone"]
