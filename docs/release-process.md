@@ -113,9 +113,10 @@ bash scripts/package_release.sh --output-dir dist
 ```
 
 On an exact `main` merge of a valid release pull request, a build job without
-write credentials packages the archive and re-runs archive and download
-verification. Only the separate publish job holds `contents: write`: it
-downloads that build, checks it again and publishes it. It creates the
+write credentials packages the archive, runs the archive tests and verifies the
+local assets. Only the separate publish job holds `contents: write`: it
+downloads that build and verifies the uploaded assets before and after making
+the release public. It creates the
 immutable `v<VERSION>` tag and GitHub release, a prerelease when VERSION has a
 suffix (`-rc.N`) and a stable release otherwise. A retry may resume a partial
 draft only when the existing tag target, approved title, approved release-note
