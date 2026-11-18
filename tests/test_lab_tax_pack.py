@@ -321,7 +321,7 @@ def test_naming_dana_does_not_excuse_advice_in_the_same_sentence(run, phrase, ad
 
 
 def test_uncategorised_merchant_is_not_required_by_name(run):
-    # The pack gives the uncategorised spend as a count and total only, so PA cannot name the merchant.
-    assert "Aspen" not in json.dumps(run.packet)
+    question = next(q for q in run.packet["questions"] if q["kind"] == "uncategorised")
+    assert any(line["merchant"] == "Aspen Demo Books" for line in question["lines"])
     run.words = run.words.replace("Aspen Demo Books", "one item")
     assert all(evaluated(run).values())

@@ -205,6 +205,19 @@ def _counterparties(rows):
     return {spellings[k]: _number(v) for k, v in sorted(totals.items())}
 
 
+def _expense_line_summary(rows, *, signed=False):
+    """First 50 lines plus the overflow count; with signed, a refund's amount is negative, as in the total."""
+    limit = 50
+    lines = [{"expense_id": r["action_id"], **{k: r["fields"].get(k, "") for k in ("date", "merchant", "amount")}}
+             for r in rows[:limit]]
+    if signed:
+        for line, r in zip(lines, rows):
+            if r["fields"]["kind"] == "refund":
+                line["amount"] = _number(-Decimal(r["fields"]["amount"]))
+    return {"count": len(rows), "total": _number(_total(rows, signed=signed)),
+            "lines": lines, "more": max(0, len(rows) - limit)}
+
+
 def _tax_pack(rows, expenses, start, end):
     invoices = [r for r in rows if r["action_type"] == "invoice" and r["status"] != "void"]
     paid = [r for r in invoices if r["status"] == "paid" and start <= r["fields"]["paid_on"] <= end]
@@ -236,20 +249,19 @@ def _tax_pack(rows, expenses, start, end):
         selected = [r for r in spent if r["fields"]["currency"] == currency]
         missing = [r for r in selected if r["fields"]["evidence_ref"].startswith("statement ")
                    and r["fields"]["kind"] == "charge" and r["action_id"] not in matches]
+        other = [r for r in selected if r["fields"]["category"] == "other"]
         view = {"income": {**_categories(incoming), "by_counterparty": _counterparties(incoming)},
                 "bills_paid": {**_categories(bills), "by_counterparty": _counterparties(bills)},
                 "expenses": _categories(selected, signed=True),
                 "net": _number(_total(incoming) - _total(bills) - _total(selected, signed=True)),
-                "open_at_end": {}, "receipts_missing": {"count": len(missing), "total": _number(_total(missing)),
-                    "lines": [{"expense_id": r["action_id"], **{k: r["fields"].get(k, "")
-                               for k in ("date", "merchant", "amount")}} for r in missing[:50]],
-                    "more": max(0, len(missing) - 50)},
+                "open_at_end": {}, "receipts_missing": _expense_line_summary(missing),
+                "uncategorised": _expense_line_summary(other, signed=True),
                 "matched_receipts": sum(r["action_id"] in matches for r in selected)}
-        other = [r for r in selected if r["fields"]["category"] == "other"]
-        for kind, group in (("uncategorised", other), ("receipts_missing", missing)):
-            if group:
-                result["questions"].append({"kind": kind, "currency": currency, "count": len(group),
-                                            "total": _number(_total(group, signed=kind == "uncategorised"))})
+        if other:
+            result["questions"].append({"kind": "uncategorised", "currency": currency, **view["uncategorised"]})
+        if missing:
+            result["questions"].append({"kind": "receipts_missing", "currency": currency, "count": len(missing),
+                                        "total": view["receipts_missing"]["total"]})
         for direction, key in (("receivable", "receivables"), ("payable", "payables")):
             group = [r for r in opened if r["fields"]["currency"] == currency and r["fields"]["direction"] == direction]
             view["open_at_end"][key] = _bucket(group)
@@ -378,15 +390,17 @@ def _export_tax_pack(ledger, summary, paid, spent, opened, matches, by_id):
             for invoice in bucket["invoices"]:
                 lines.append("  - " + _text_md(f"{invoice['counterparty']}, {invoice['amount']}, due "
                                                f"{invoice['due_date']} ({invoice['invoice_id']})"))
-        missing = view["receipts_missing"]
-        lines += ["", "### Receipts missing", "",
-                  f"{missing['count']} card lines have no receipt, total {missing['total']}."]
-        if missing["lines"]:
-            lines += ["", "| Date | Merchant | Amount | Record |", "| --- | --- | --- | --- |"]
-            lines.extend("| " + " | ".join(_text_md(line[k]) for k in ("date", "merchant", "amount", "expense_id")) + " |"
-                         for line in missing["lines"])
-        if missing["more"]:
-            lines.append(f"\n{missing['more']} more are in the CSV.")
+        for kind, label in (("uncategorised", "expenses are in category other"),
+                            ("receipts_missing", "card lines have no receipt")):
+            block = view[kind]
+            lines += ["", "### " + kind.replace("_", " ").capitalize(), "",
+                      f"{block['count']} {label}, total {block['total']}."]
+            if block["lines"]:
+                lines += ["", "| Date | Merchant | Amount | Record |", "| --- | --- | --- | --- |"]
+                lines.extend("| " + " | ".join(_text_md(line[k]) for k in ("date", "merchant", "amount", "expense_id")) + " |"
+                             for line in block["lines"])
+            if block["more"]:
+                lines.append(f"\n{block['more']} more are in the CSV.")
         lines += ["", f"Receipts matched to card lines: {view['matched_receipts']}. A receipt within 3 days of a card "
                   "line for the same merchant and amount is taken as that purchase's receipt and counted once, on the "
                   "card line's date; the CSV's receipt column names each match. If one was a separate cash purchase, "

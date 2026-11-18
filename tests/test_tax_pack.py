@@ -159,13 +159,16 @@ def test_mixed_questions_order_details_and_separate_currencies(ledger):
     result = pack(ledger)
     assert result["currencies"]["USD"]["net"] == "-32"
     assert result["currencies"]["JPY"]["net"] == "-50"
+    jpy_lines = result["currencies"]["JPY"]["uncategorised"]["lines"]
+    usd_lines = result["currencies"]["USD"]["uncategorised"]["lines"]
+    assert len(jpy_lines) == len(usd_lines) == 1
     assert result["questions"] == [
         {"kind": "possible_duplicate", "expense_ids": [first["action_id"], second["action_id"]],
          "merchant": "repeat", "amount": "2", "currency": "USD", "dates": ["2026-10-31", "2026-11-01"]},
         {"kind": "possible_duplicate", "invoice_id": bill["action_id"], "expense_id": duplicate["action_id"],
          "merchant": "Synthetic Vendor", "amount": "30", "currency": "USD", "dates": ["2026-11-01", "2026-10-31"]},
-        {"kind": "uncategorised", "currency": "JPY", "count": 1, "total": "50"},
-        {"kind": "uncategorised", "currency": "USD", "count": 1, "total": "2"},
+        {"kind": "uncategorised", "currency": "JPY", "count": 1, "total": "50", "lines": jpy_lines, "more": 0},
+        {"kind": "uncategorised", "currency": "USD", "count": 1, "total": "2", "lines": usd_lines, "more": 0},
         {"kind": "receipts_missing", "currency": "JPY", "count": 1, "total": "50"},
         {"kind": "receipts_missing", "currency": "USD", "count": 1, "total": "2"},
         {"kind": "unpaid_at_end", "currency": "USD", "direction": "payable", "count": 1, "total": "5"},
@@ -180,6 +183,52 @@ def test_missing_receipt_preview_is_capped_but_totals_are_complete(ledger):
     missing = pack(ledger)["currencies"]["USD"]["receipts_missing"]
     assert (missing["count"], missing["total"], len(missing["lines"]), missing["more"]) == (53, "53", 50, 3)
     assert [r["expense_id"] for r in missing["lines"]] == sorted(r["expense_id"] for r in missing["lines"])
+
+
+def test_uncategorised_lines_keep_expense_order_and_signed_total(ledger):
+    refund = expense(ledger, "refund", category="other", kind="refund", amount="3", date="2026-11-12")
+    charge = statement(ledger, "1", category="other", amount="8")
+    statement(ledger, "2", category="food")
+    result = pack(ledger)
+    view = result["currencies"]["USD"]
+    lines = [{"expense_id": r["action_id"], "date": r["fields"]["date"],
+              "merchant": r["fields"]["merchant"], "amount": amount} for r, amount in ((charge, "8"), (refund, "-3"))]
+    expected = {"count": 2, "total": "5", "lines": lines, "more": 0}
+    assert view["uncategorised"] == expected
+    assert set(lines[0]) == set(view["receipts_missing"]["lines"][0])
+    question = next(q for q in result["questions"] if q["kind"] == "uncategorised")
+    assert question == {"kind": "uncategorised", "currency": "USD", **expected}
+
+
+def test_uncategorised_preview_is_capped_and_csv_includes_all_lines(ledger):
+    rows = [expense(ledger, f"receipt {n}", merchant=f"Merchant {n}", amount="1", category="other")
+            for n in range(51)]
+    ids = sorted(r["action_id"] for r in rows)
+    result = pack(ledger, export=True)
+    view = result["currencies"]["USD"]["uncategorised"]
+    question = result["questions"][0]
+    assert (view["count"], view["total"], view["more"]) == (51, "51", 1)
+    assert [line["expense_id"] for line in view["lines"]] == ids[:50]
+    assert question == {"kind": "uncategorised", "currency": "USD", **view}
+    markdown = Path(result["export"]["markdown"]).read_text()
+    section = markdown.split("### Uncategorised\n", 1)[1].split("\n##", 1)[0]
+    markdown_ids = [row.rsplit(" | ", 1)[1].removesuffix(" |")
+                    for row in section.splitlines() if row.startswith("| 2026-")]
+    assert markdown_ids == ids[:50]
+    assert "\n1 more are in the CSV.\n" in section
+    with Path(result["export"]["csv"]).open(newline="") as handle:
+        assert [row["record_id"] for row in csv.DictReader(handle)
+                if row["section"] == "expenses" and row["category"] == "other"] == ids
+
+
+def test_uncategorised_markdown_escapes_merchants_and_keeps_question_text(ledger):
+    row = expense(ledger, "receipt", merchant="[Books]*|Cafe", category="other")
+    result = pack(ledger, export=True)
+    markdown = Path(result["export"]["markdown"]).read_text()
+    section = markdown.split("### Uncategorised\n", 1)[1].split("\n##", 1)[0]
+    assert "| Date | Merchant | Amount | Record |\n| --- | --- | --- | --- |" in section
+    assert rf"| 2026-11-10 | \[Books\]\*\|Cafe | 10 | {row['action_id']} |" in section
+    assert "- 1 USD expenses are in category other, total 10: which category?\n" in markdown.split("## Questions\n", 1)[1]
 
 
 @pytest.mark.parametrize("change,message", [
