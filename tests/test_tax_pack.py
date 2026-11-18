@@ -159,8 +159,9 @@ def test_mixed_questions_order_details_and_separate_currencies(ledger):
     result = pack(ledger)
     assert result["currencies"]["USD"]["net"] == "-32"
     assert result["currencies"]["JPY"]["net"] == "-50"
-    jpy_lines = result["currencies"]["JPY"]["receipts_missing"]["lines"]
-    usd_lines = result["currencies"]["USD"]["receipts_missing"]["lines"]
+    jpy_lines = result["currencies"]["JPY"]["uncategorised"]["lines"]
+    usd_lines = result["currencies"]["USD"]["uncategorised"]["lines"]
+    assert len(jpy_lines) == len(usd_lines) == 1
     assert result["questions"] == [
         {"kind": "possible_duplicate", "expense_ids": [first["action_id"], second["action_id"]],
          "merchant": "repeat", "amount": "2", "currency": "USD", "dates": ["2026-10-31", "2026-11-01"]},
