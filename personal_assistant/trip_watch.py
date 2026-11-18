@@ -581,12 +581,16 @@ def _retained_journey(segments, watched, current):
                         key=lambda s: _time(s["scheduled_departure"]), default=None)
     if first_watched is None:
         return []
+    floor = _time(first_watched["scheduled_departure"])
     kept = []
-    for journey in trip_math._in_progress_journeys(segments, current, first_watched=first_watched):
-        if watched.isdisjoint(s["segment_id"] for s in journey):
+    for candidate in trip_math._in_progress_journeys(segments, current, first_watched=first_watched):
+        if watched.isdisjoint(s["segment_id"] for s in candidate):
             continue
-        last_live = next(s for s in reversed(journey) if s["status"] != "cancelled")
-        if current < trip_math._latest_arrival(last_live) + WATCH_FLIGHT_POST_ARRIVAL:
+        # Group the watched legs from the saved plan's start, or from an earlier rebooking.
+        start = min(floor, _time(candidate[0]["scheduled_departure"]))
+        journey = trip_math._next_journey(segments, start)
+        last_live = next((s for s in reversed(journey) if s["status"] != "cancelled"), None)
+        if last_live and current < trip_math._latest_arrival(last_live) + WATCH_FLIGHT_POST_ARRIVAL:
             kept = journey
     return kept
 
@@ -621,7 +625,13 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
             departure_at, arrival_at, schedule = saved["departure_at"], saved["arrival_at"], saved["facts_schedule"]
         last = live[-1]
         estimate = last.get("estimated_arrival")
-        if estimate and (airborne is last or (kept and _time(estimate) > _time(last["scheduled_arrival"]))):
+        if kept:
+            # The saved arrival may include an earlier estimate. Use the scheduled baseline.
+            arrival_at = schedule[segments.index(last)][1]
+            if estimate and _time(estimate) > _time(last["scheduled_arrival"]):
+                arrival_at = estimate
+            arrival_at = _time(arrival_at).astimezone(ZoneInfo(arrival_timezone)).isoformat()
+        elif estimate and airborne is last:
             arrival_at = _time(estimate).astimezone(ZoneInfo(arrival_timezone)).isoformat()
     else:
         departure_at, arrival_at = departure_at or saved.get("departure_at"), arrival_at or saved.get("arrival_at")

@@ -608,6 +608,66 @@ def test_replan_carries_ground_delayed_watch_past_scheduled_window(facts_watch):
     assert arm(result, 'watch')['carried_from'] == first['revision']
 
 
+@pytest.mark.parametrize('scheduled, estimated', [
+    pytest.param('18:00', '18:00', id='on_time'),
+    pytest.param('18:10', '17:50', id='early_with_schedule_drift'),
+])
+def test_replan_restores_scheduled_arrival_when_delay_recovers(facts_watch, scheduled, estimated):
+    outbound = _replan_leg('123', 'AAA', 'BBB', '12:00', '18:00')
+    inbound = _replan_leg('456', 'BBB', 'AAA', '12:00', '18:00', day=12)
+    first = facts_watch.start([outbound, inbound])
+    delayed = {**outbound, 'status': 'delayed', 'estimated_departure': _replan_time('14:00'),
+               'estimated_arrival': _replan_time('20:00')}
+    late_plan = facts_watch.replan([delayed], _replan_time('13:00'))
+    facts_watch.assert_watch(late_plan, ['ZZ123'], delayed['estimated_arrival'])
+    assert arm(late_plan, 'watch')['carried_from'] == first['revision']
+
+    recovered = {**delayed, 'scheduled_arrival': _replan_time(scheduled),
+                 'estimated_departure': _replan_time('13:45'), 'estimated_arrival': _replan_time(estimated)}
+    result = facts_watch.replan([recovered], _replan_time('13:30'))
+    facts_watch.assert_watch(result, ['ZZ123'], outbound['scheduled_arrival'])
+    assert arm(result, 'watch')['carried_from'] == late_plan['revision']
+
+
+@pytest.mark.parametrize('completed, watched, replan_at', [
+    pytest.param([('101', 'AAA', 'BBB', '06:00', '07:00'), ('102', 'BBB', 'CCC', '08:00', '09:00')],
+                 [('103', 'CCC', 'BBB', '14:00', '15:00'), ('104', 'BBB', 'AAA', '18:00', '19:00')],
+                 '14:30', id='same_day_return'),
+    pytest.param([('201', 'AAA', 'BBB', '08:00', '09:00')],
+                 [('202', 'BBB', 'CCC', '16:00', '18:00'), ('203', 'CCC', 'AAA', '20:00', '22:00')],
+                 '16:30', id='triangle'),
+])
+def test_replan_rebuilds_journey_from_first_watched_leg(facts_watch, completed, watched, replan_at):
+    previous_legs = [{**_replan_leg(*leg), 'status': 'landed'} for leg in completed]
+    watched_legs = [_replan_leg(*leg) for leg in watched]
+    numbers = ['ZZ' + leg['number'] for leg in watched_legs]
+    departure, arrival = watched_legs[0]['scheduled_departure'], watched_legs[-1]['scheduled_arrival']
+    first = facts_watch.start(previous_legs + watched_legs, at=_replan_time('10:00'))
+    assert [row[0].split(':')[0] for row in first['inputs']['facts_signature']] == numbers
+    assert first['inputs']['arrival_at'] == arrival
+
+    result = facts_watch.replan([{**watched_legs[0], 'status': 'departed'}], _replan_time(replan_at))
+    facts_watch.assert_watch(result, numbers, arrival)
+    assert result['inputs']['departure_at'] == departure
+    assert result['revision'] == first['revision']
+
+
+def test_replan_does_not_reach_back_to_same_origin_without_cancellation(facts_watch):
+    previous_legs = [{**_replan_leg(*leg), 'status': 'landed'} for leg in [
+        ('301', 'AAA', 'BBB', '06:00', '07:00'),
+        ('302', 'BBB', 'CCC', '08:00', '09:00'),
+        ('303', 'CCC', 'BBB', '11:00', '12:00'),
+    ]]
+    watched_leg = _replan_leg('304', 'BBB', 'DDD', '16:00', '18:00')
+    first = facts_watch.start(previous_legs + [watched_leg], at=_replan_time('13:00'))
+    assert first['inputs']['departure_at'] == watched_leg['scheduled_departure']
+
+    result = facts_watch.replan([{**watched_leg, 'status': 'departed'}], _replan_time('16:30'))
+    facts_watch.assert_watch(result, ['ZZ304'], watched_leg['scheduled_arrival'])
+    assert result['inputs']['departure_at'] == watched_leg['scheduled_departure']
+    assert result['revision'] == first['revision']
+
+
 def test_replan_offers_return_after_outbound_flight_window_closed(tmp_path, facts_watch):
     outbound = {**_replan_leg('123', 'AAA', 'BBB', '12:00', '18:00'), 'status': 'departed'}
     inbound = _replan_leg('456', 'BBB', 'AAA', '12:00', '18:00', day=12)

@@ -38,6 +38,7 @@ def _in_progress_journeys(segments, current, *, first_watched=None):
     """Yield unfinished journeys in scheduled order, optionally starting at the watched part of each."""
     remaining = sorted(segments, key=lambda s: _time(s["scheduled_departure"]))
     floor = _time(first_watched["scheduled_departure"]) if first_watched is not None else None
+    replacement_origin = first_watched["origin"] if first_watched and first_watched.get("status") == "cancelled" else None
     while remaining:
         scheduled_start = _time(remaining[0]["scheduled_departure"])
         journey = _next_journey(remaining, scheduled_start)
@@ -46,9 +47,9 @@ def _in_progress_journeys(segments, current, *, first_watched=None):
         if remaining and current >= _time(remaining[0]["scheduled_departure"]):
             continue
         if floor is not None:
-            # A same-origin replacement can leave earlier than the leg it replaces.
+            # A same-origin replacement can leave earlier than the cancelled leg it replaces.
             start = next((i for i, leg in enumerate(journey)
-                          if _time(leg["scheduled_departure"]) >= floor or leg["origin"] == first_watched["origin"]),
+                          if _time(leg["scheduled_departure"]) >= floor or leg["origin"] == replacement_origin),
                          len(journey))
             journey = journey[start:]
         for leg in journey:
@@ -64,12 +65,6 @@ def _in_progress_journeys(segments, current, *, first_watched=None):
             if departure <= current < _latest_arrival(leg) + (dt.timedelta(hours=6) if disrupted else dt.timedelta(0)):
                 yield journey
                 break
-
-
-def journey_start(segments, current):
-    """Scheduled start of the latest unfinished journey, or None if none qualifies."""
-    return max((_time(journey[0]["scheduled_departure"]) for journey in _in_progress_journeys(segments, current)),
-               default=None)
 
 
 def itinerary(facts):
