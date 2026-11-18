@@ -101,7 +101,8 @@ def run_scenario(auth, pin, scenario, dest):
             control = fields(rig, "pa:observe-control:" + rig.watch_id) if hasattr(rig, "watch_id") else {}
             offers = [fields(rig, "pa:offer:T3:" + n["offer_type"] + ":" + n["id"]) for n in notices]
             rows = rig.hb2()
-            held = [r for r in rows.get("occurrences", []) if "unanswered" in r["held_reason"] and r["delivered"] == 0]  # held_unanswered or message_held:unanswered
+            held = [r for r in rows.get("occurrences", [])
+                    if r["held_reason"] in {"held_unanswered", "message_held:unanswered"} and r["delivered"] == 0]
             delivered = rig.texts()[len(baseline):] if baseline else []
             offer_messages = checkpoints[0]["texts"] if scenario == "weather" and checkpoints else delivered
             count = len(offer_messages)

@@ -53,6 +53,11 @@ def _watch_expiry(receipt):
     return _expiry(value) if value not in (None, "") else None
 
 
+def _owner_asked(receipt):
+    value = receipt.get("owner_asked")
+    return value if isinstance(value, bool) else None
+
+
 def _quiet(local, window):
     start, end = (dt.time.fromisoformat(window[k]) for k in ("start", "end"))
     clock = local.time().replace(tzinfo=None)
@@ -82,6 +87,7 @@ MOMENTS = ("check_in_window", "arrival_logistics", "watch")
 SKIPS = ("declined", "not_allowlisted", "max_active", "held_past_leave_by", "unsupported_chat")
 WATCH_MAX_LIFETIME = dt.timedelta(days=14)
 WATCH_POST_ARRIVAL = dt.timedelta(hours=12)
+WATCH_FLIGHT_POST_ARRIVAL = dt.timedelta(hours=3)  # Matches the observer's flight-check window.
 
 
 def _mutate(ledger, identity, fn):
@@ -167,9 +173,11 @@ def status(ledger, trip_id, at=None, *, unplanned_ok=False):
         if moment == "watch":
             if arms[moment]["state"] == "needed" and _time(inputs["arrival_at"]) + WATCH_POST_ARRIVAL > current + WATCH_MAX_LIFETIME:
                 arms[moment]["state"] = "later"
-            owner_asked = receipt.get("owner_asked")
+            owner_asked = _owner_asked(receipt)
             arms[moment].update(owner_asked=owner_asked, unanswered_mute={True: "exempt", False: "applies", None: "unknown"}[owner_asked])
     arrival = arms.get("arrival_logistics", {})
+    watch_can_rearm = ("watch" in arms and projections["arm:watch"]["status"] != "not_applicable"
+                       and arms["watch"]["state"] in {"needed", "later", "pending_confirmation"})
     inactive = {w["wake_id"] for w in wakes if any(w.get(k) for k in ("cancelled", "lost", "fired"))}
     carried = {w["wake_id"] for w in wakes if w["revision"] == revision and w.get("carried_from")}
     stale = []
@@ -179,7 +187,7 @@ def status(ledger, trip_id, at=None, *, unplanned_ok=False):
         superseded = w.get("superseded_by")
         if (w["revision"] == revision and not superseded) or (w["revision"] != revision and superseded):
             continue
-        ends = _watch_expiry(w) if w["moment"] == "watch" else None
+        ends = _watch_expiry(w) if w["moment"] == "watch" and watch_can_rearm else None
         if ends is None and w.get("trigger_at"):
             ends = _time(w["trigger_at"])
         if ends is not None and ends > current:
@@ -483,8 +491,9 @@ def verify(ledger, trip_id, wakes, session_id=None, at=None):
             result[kind].append(w["wake_id"])
             if item.get("expires_at") not in (None, ""):  # HeartBeat lists null for a wake with no expiry.
                 w["expires_at"] = _expiry(item["expires_at"]).isoformat()
-            if w.get("moment") == "watch" and "owner_requested" in item:
-                w["owner_asked"] = item["owner_requested"]
+            owner_requested = item.get("owner_requested")
+            if w.get("moment") == "watch" and isinstance(owner_requested, bool):
+                w["owner_asked"] = owner_requested
             if kind == "lost":
                 w.update(lost=True, armed=False)
             elif state == "done":
@@ -662,7 +671,9 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         projections=[{"projection_key": "arm:" + m, "target_type": "heartbeat2_wake", "target_id": trip_id} for m in arm], payload=payload)
     arms, receipts = [], _wakes(ledger, trip_id)
     inactive_ids = {w["wake_id"] for w in receipts if any(w.get(k) for k in ("cancelled", "lost", "fired", "superseded_by"))}
-    watch_until = _time(inputs["arrival_at"]) + WATCH_POST_ARRIVAL
+    planned_arrival = _time(inputs["arrival_at"])
+    watch_until = planned_arrival + WATCH_POST_ARRIVAL
+    watch_flight_end = planned_arrival + WATCH_FLIGHT_POST_ARRIVAL
     for m in arm:
         pulse = _pulse(payload, m, ledger.root, at=current.isoformat())
         instant = _time(pulse["trigger"].get("at", departure.isoformat()))
@@ -686,11 +697,11 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
                 if wake["revision"] == revision or not wake.get("armed") or wake.get("arm_key") != arm_key:
                     continue
                 expiry = _watch_expiry(wake) if m == "watch" else None
-                if expiry is not None and expiry < watch_until:
+                if expiry is not None and expiry < watch_flight_end:
                     continue
                 if not status(ledger, trip_id, at=current.isoformat())["arms"][m]["armed"]:
                     record_wake(ledger, trip_id, m, wake["wake_id"], expires_at=wake.get("expires_at"), session_id=wake.get("session_id"),
-                                _carry=wake["revision"], owner_asked=wake.get("owner_asked"))
+                                _carry=wake["revision"], owner_asked=_owner_asked(wake))
                 break
         view = status(ledger, trip_id, at=current.isoformat())["arms"][m]
         item = {"moment": m, "at": instant.isoformat(), **view}

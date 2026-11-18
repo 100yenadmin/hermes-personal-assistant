@@ -263,15 +263,17 @@ def test_watch_lifetime_boundary(tmp_path):
             assert 'pulse_create' not in item
 
 
-@pytest.mark.parametrize('day, expiry, carried', [
-    (22, 'until', False), (19, 'until', True), (22, 'expires_at', False), (22, None, True),
+@pytest.mark.parametrize('shift_minutes, expiry, carried', [
+    (45, 'until', True), (540, 'until', True), (545, 'until', False),
+    (545, 'expires_at', False), (545, None, True),
 ])
-def test_watch_carry_requires_expiry_to_cover_arrival(tmp_path, monkeypatch, day, expiry, carried):
+def test_watch_carry_requires_expiry_to_cover_flight_checks(tmp_path, monkeypatch, shift_minutes, expiry, carried):
     monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
     ledger = Ledger(tmp_path)
     trip = {'arm': ['watch'], 'departure_at': '2026-11-20T12:00:00+00:00', 'arrival_at': '2026-11-20T18:00:00+00:00'}
     first = plan(tmp_path, **trip)
     until = arm(first, 'watch')['pulse_create']['until']['expires']
+    assert until == '2026-11-21T06:00:00+00:00'
     record(tmp_path, 'watch', 'w_watch')
     identity = 'pa:trip-watch:synthetic'
     receipt, = ledger.get('action', identity)['fields']['wakes']
@@ -282,7 +284,9 @@ def test_watch_carry_requires_expiry_to_cover_arrival(tmp_path, monkeypatch, day
             receipt[expiry] = until
         ledger.put('action', identity, {'wakes': [receipt]})
 
-    reschedule = {'departure_at': f'2026-11-{day}T12:00:00+00:00', 'arrival_at': f'2026-11-{day}T18:00:00+00:00'}
+    shift = dt.timedelta(minutes=shift_minutes)
+    reschedule = {key: (dt.datetime.fromisoformat(trip[key]) + shift).isoformat()
+                  for key in ('departure_at', 'arrival_at')}
     updated = plan(tmp_path, **reschedule)
     watch = arm(updated, 'watch')
     if carried:
@@ -298,8 +302,39 @@ def test_watch_carry_requires_expiry_to_cover_arrival(tmp_path, monkeypatch, day
             assert revised['stale_wakes'] == ['w_watch'] and 'pulse_create' in arm(revised, 'watch')
     else:
         assert watch['state'] == 'needed' and updated['stale_wakes'] == ['w_watch']
-        assert watch['pulse_create']['until']['expires'] == '2026-11-23T06:00:00+00:00'
-        assert tw.status(ledger, 'synthetic', at='2026-11-20T13:00:00+00:00')['stale_wakes'] == ['w_watch']
+        assert watch['pulse_create']['until']['expires'] == (dt.datetime.fromisoformat(until) + shift).isoformat()
+
+
+def test_in_flight_replan_keeps_running_watch(tmp_path, monkeypatch):
+    monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
+    first = plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch')
+
+    updated = plan(tmp_path, at='2026-11-10T13:00:00+00:00', arrival_at='2026-11-10T19:30:00+00:00')
+
+    watch = arm(updated, 'watch')
+    assert updated['revision'] != first['revision']
+    assert watch['state'] == 'not_applicable' and watch['reason'] == 'moment_past'
+    assert 'pulse_create' not in watch and updated['stale_wakes'] == []
+    ledger = Ledger(tmp_path)
+    receipt, = ledger.get('action', 'pa:trip-watch:synthetic')['fields']['wakes']
+    assert receipt['wake_id'] == 'w_watch' and receipt['armed'] and not receipt.get('cancelled')
+    watch_id = first['inputs']['watch_argv'][-1]
+    assert ledger.get('action', f'pa:observe-watch:{watch_id}')['fields']['status'] == 'active'
+
+
+def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path, monkeypatch):
+    monkeypatch.setattr(tw, 'now', lambda: BASE['at'])
+    plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch')
+
+    updated = plan(tmp_path, at='2026-11-10T13:00:00+00:00', departure_at='2026-11-12T12:00:00+00:00',
+                   arrival_at='2026-11-12T18:00:00+00:00')
+
+    watch = arm(updated, 'watch')
+    assert updated['stale_wakes'] == ['w_watch'] and watch['state'] == 'needed'
+    assert watch['pulse_create']['action'] == 'create'
+    assert watch['pulse_create']['until']['expires'] == '2026-11-13T06:00:00+00:00'
 
 
 def test_trip_pulse_create_contracts(tmp_path):
@@ -371,6 +406,39 @@ def test_verify_refreshes_watch_owner_asked_from_pulse_list(tmp_path):
     ledger = Ledger(tmp_path)
     missing_flag = tw.verify(ledger, 'synthetic', [{'id': 'w_watch', 'status': 'active'}])
     assert missing_flag['arms']['watch']['owner_asked'] is False
+
+
+@pytest.mark.parametrize('owner_requested', ['true', 1, None])
+def test_verify_ignores_non_bool_owner_requested(tmp_path, owner_requested):
+    plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch', owner_asked=False)
+    ledger = Ledger(tmp_path)
+
+    verified = tw.verify(ledger, 'synthetic', [
+        {'id': 'w_watch', 'status': 'active', 'owner_requested': owner_requested},
+    ])
+
+    assert verified['verified'] == ['w_watch']
+    assert verified['arms']['watch']['owner_asked'] is False
+    receipt, = ledger.get('action', 'pa:trip-watch:synthetic')['fields']['wakes']
+    assert receipt['owner_asked'] is False
+
+
+@pytest.mark.parametrize('owner_asked', ['true', 1])
+def test_status_and_replan_treat_non_bool_stored_owner_asked_as_unknown(tmp_path, owner_asked):
+    first = plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch')
+    ledger = Ledger(tmp_path)
+    identity = 'pa:trip-watch:synthetic'
+    fields = ledger.get('action', identity)['fields']
+    fields['wakes'][0]['owner_asked'] = owner_asked
+    ledger.put('action', identity, fields)
+
+    watch = tw.status(ledger, 'synthetic', at=BASE['at'])['arms']['watch']
+    assert watch['armed'] and watch['owner_asked'] is None and watch['unanswered_mute'] == 'unknown'
+    carried = arm(plan(tmp_path, airport_lead_minutes=120), 'watch')
+    assert carried['armed'] and carried['carried_from'] == first['revision']
+    assert carried['owner_asked'] is None and carried['unanswered_mute'] == 'unknown'
 
 
 @pytest.mark.parametrize('owner_asked', ['true', 1])
