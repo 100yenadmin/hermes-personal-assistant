@@ -116,7 +116,7 @@ On a HeartBeat 2.0 watcher turn where messages are held, 0.31.0-rc.1 no longer r
 **Missing against the VA bar** (gap review, 9 November 2026; see the next section):
 - attention that runs on its own: the HeartBeat 2.0 role is built (0.14.0-rc.1) and passes a two-day lab scenario (s42, with a stand-in for HB2's `pulse`); in 0.22.0-rc.1 an owner's chase time fired on a real HeartBeat 2.0 v0.2.0 wake in an isolated lab home with loopback Telegram, but not yet on a live profile; since 0.30.0-rc.1 a trip watch's change reaches the owner when HeartBeat 2.0 holds messages: under the unanswered mute on the owner's next message (scripted test on 0.4.16) and after quiet hours (live diagnostics); the daily message limit is untested, and none of it has run on a live profile yet; since 0.31.0-rc.1 PA no longer reserves a trip notice or records it as offered on a held turn, so it can still make the offer later (#325, scripted and live tests on HeartBeat 2.0 0.4.16);
 - a yes that leads to finished work: no live send, invite or booking completed yet (#152);
-- office work in the owner's own systems on a live account: the documents flow passes in the lab (s43) but has not run on an owner's Google account (#156); the tax pack is built (#237) and passes its lab scenario (s44 3 of 3 in 0.24.0-rc.1, #235);
+- office work in the owner's own systems on a live account: the documents flow passes in the lab (s43) but has not run on an owner's Google account (#156 built; the live proof is tracked in #53); the tax pack is built (#237) and passes its lab scenario (s44 3 of 3 in 0.24.0-rc.1, #235);
 - real phone calls (#4).
 
 **Missing against the Chief of Staff bar:** everything that involves the team.
@@ -516,7 +516,7 @@ Meeting preparation (agendas and pre-reads ahead of meetings) and basic priority
 - Meeting preparation (agendas and pre-reads sent ahead of a meeting) and
   priority mapping (#158) each pass a lab check 3 of 3.
 - Two consenting owners with teams each have six scheduled Chief of Staff runs
-  within two weeks (#7). A justified silence counts as a run, but each owner
+  within two weeks (#347). A justified silence counts as a run, but each owner
   must still receive reports, use at least one recommendation, and explicitly
   choose to continue. Scheduled runs alone do not pass this exit.
 
@@ -595,7 +595,7 @@ Meeting preparation (agendas and pre-reads ahead of meetings) and basic priority
 
 ## Decisions the owner holds
 
-- A second pilot user, for the VA scorecard and the Chief of Staff pilot (#7).
+- A second pilot user, for the VA scorecard (#345) and the Chief of Staff pilot (#347).
 - A phone number and accounts for real calls (#4).
 - For M7: two business owners with teams who will grant read access to their
   team systems.
@@ -613,3 +613,6 @@ Each milestone (M0 to M9) has a GitHub milestone of the same name, and its work
 is tracked in issues. The M5 and M6 slices named in this file (#116, #117, #123,
 #130, #136, #144, #146, #235, #248, #255) are tracked by their own issues and
 are not on a GitHub milestone.
+Each milestone's live exit on the pilot is tracked in one open issue: M1 #344,
+M2 #345, M3 #50, M4 #346, M5 #152, M6 #53 and M7 #347. A build issue closes when
+its build ships, and its live checks move to that milestone's tracker.
