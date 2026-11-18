@@ -106,15 +106,26 @@ def _mutate(ledger, identity, fn):
 
 def _probe_allowlist(root):
     try:
-        import yaml
+        from yaml import YAMLError, safe_load
     except ImportError:
-        return None
+        try:
+            from ruamel.yaml import YAML, YAMLError
+        except ImportError:
+            return None
+        safe_load = YAML(typ="safe").load
     try:
-        config = yaml.safe_load((root / "config.yaml").read_text(encoding="utf-8"))
-        value = config["plugins"]["entries"]["heartbeat2"]["settings"]["probe_commands"]
-    except (OSError, ValueError, TypeError, KeyError, yaml.YAMLError):
+        config = safe_load((root / "config.yaml").read_text(encoding="utf-8"))
+        entry = config["plugins"]["entries"]["heartbeat2"]
+        if not isinstance(entry, dict):
+            return None
+        for subtree in ("settings", "config"):
+            settings = entry.get(subtree)
+            if isinstance(settings, dict) and "probe_commands" in settings:
+                value = settings["probe_commands"]
+                return value if isinstance(value, str) else None
+    except (OSError, ValueError, TypeError, KeyError, YAMLError):
         return None
-    return value if isinstance(value, str) else None
+    return None
 
 
 def admits(allowlist, argv):
@@ -148,13 +159,15 @@ def observer_argv(watch_id, *, root=None, saved=None):
     script = str(Path(__file__).resolve().parents[1] / "scripts/pa_observe.py")
     argv = [sys.executable, "-I", script, "trip", watch_id]
     version = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)", _heartbeat_version() or "") if root is not None else None
-    if version and tuple(map(int, version.groups())) >= (0, 4, 23):
+    if root is not None and (version is None or tuple(map(int, version.groups())) >= (0, 4, 23)):
         allowlist = _probe_allowlist(root)
         token = ["{python}", script, "trip", watch_id]
         previous = token if saved and saved[0] == "{python}" else argv
         if saved and (allowlist is None or admits(allowlist, previous)):
             argv = previous
-        elif admits(allowlist, token) or not admits(allowlist, argv):
+        elif admits(allowlist, token):
+            argv = token
+        elif version and allowlist is not None and not admits(allowlist, argv):
             argv = token
     if any("," in path for path in argv[:-2]):
         raise ValueError("observer paths cannot contain commas")

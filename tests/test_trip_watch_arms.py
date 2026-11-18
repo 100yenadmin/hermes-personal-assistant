@@ -5,6 +5,7 @@ import re
 import shlex
 import sys
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from jsonschema import ValidationError, validate
@@ -17,6 +18,13 @@ from personal_assistant.state_loop import StateLoop
 BASE = dict(trip_id='synthetic', departure_at='2026-11-10T12:00:00+00:00',
             arrival_at='2026-11-10T18:00:00+00:00', hb2_timezone='UTC',
             at='2026-11-09T13:00:00+00:00')
+
+
+@pytest.fixture(autouse=True)
+def stub_heartbeat_version(monkeypatch):
+    lookup = tw._heartbeat_version
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: None)
+    return lookup
 
 
 def plan(root, **extra):
@@ -211,8 +219,7 @@ def hb2_accepts(argv):
 
 
 @pytest.mark.parametrize('night_alerts', [False, True])
-def test_watch_command_and_observer_row(tmp_path, monkeypatch, night_alerts):
-    monkeypatch.setattr(tw, '_heartbeat_version', lambda: None)
+def test_watch_command_and_observer_row(tmp_path, night_alerts):
     dangerous_id = '-c;$x apply'
     result = plan(tmp_path, trip_id=dangerous_id, arm=['watch'], night_alerts=night_alerts, weather=False)
     item = arm(result, 'watch')
@@ -342,8 +349,7 @@ def test_replan_after_departure_replaces_watch_for_trip_moved_two_days(tmp_path,
     assert watch['pulse_create']['until']['expires'] == '2026-11-13T06:00:00+00:00'
 
 
-def test_trip_pulse_create_contracts(tmp_path, monkeypatch):
-    monkeypatch.setattr(tw, '_heartbeat_version', lambda: None)
+def test_trip_pulse_create_contracts(tmp_path):
     result = plan(tmp_path, arm=list(tw.MOMENTS), at='2026-11-09T11:59:00+00:00')
     watch = arm(result, 'watch')['pulse_create']
     assert watch == {
@@ -459,7 +465,6 @@ def test_watch_owner_asked_rejects_non_bool(tmp_path, owner_asked):
 
 
 def test_watch_argv_drift_and_commas(tmp_path, monkeypatch):
-    monkeypatch.setattr(tw, '_heartbeat_version', lambda: None)
     plan(tmp_path, arm=['watch'])
     assert not tw.status(Ledger(tmp_path), 'synthetic')['interpreter_drift']
     monkeypatch.setattr(sys, 'executable', '/missing/interpreter')
@@ -471,16 +476,53 @@ def test_watch_argv_drift_and_commas(tmp_path, monkeypatch):
         tw.observer_allowlist_entry()
 
 
-def watch_config(root, allowlist):
-    (root / 'config.yaml').write_text('plugins:\n  entries:\n    heartbeat2:\n      settings:\n'
+def watch_config(root, allowlist, *, subtree='settings'):
+    (root / 'config.yaml').write_text(f'plugins:\n  entries:\n    heartbeat2:\n      {subtree}:\n'
                                       '        probe_commands: ' + json.dumps(allowlist) + '\n')
 
 
+def test_heartbeat_version_from_loaded_registration(monkeypatch, stub_heartbeat_version):
+    registration = ModuleType('x.heartbeat2.registration')
+    registration.LOADED_VERSION = '0.4.28'
+    monkeypatch.setattr(tw, 'sys', SimpleNamespace(modules={registration.__name__: registration}))
+    assert stub_heartbeat_version() == '0.4.28'
+
+
+def test_heartbeat_version_from_manifest(tmp_path, monkeypatch, stub_heartbeat_version):
+    monkeypatch.setattr(tw, 'sys', SimpleNamespace(modules={}))
+    monkeypatch.setattr(tw, '__file__', str(tmp_path / 'personal-assistant/personal_assistant/trip_watch.py'))
+    heartbeat = tmp_path / 'heartbeat2'
+    heartbeat.mkdir()
+    (heartbeat / 'plugin.yaml').write_text('name: heartbeat2\nversion: "0.4.16"\n')
+    assert stub_heartbeat_version() == '0.4.16'
+
+
+def test_watch_allowlist_without_pyyaml(tmp_path, monkeypatch):
+    pytest.importorskip('ruamel.yaml')
+    monkeypatch.setitem(sys.modules, 'yaml', None)
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: '0.4.28')
+    watch_config(tmp_path, tw.observer_allowlist_entry())
+    assert tw._probe_allowlist(tmp_path) == tw.observer_allowlist_entry()
+    assert plan(tmp_path, arm=['watch'])['watch_command_form'] == 'interpreter_path'
+
+
+def test_watch_allowlist_from_legacy_config(tmp_path, monkeypatch):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: '0.4.28')
+    legacy = tw.observer_allowlist_entry()
+    watch_config(tmp_path, legacy, subtree='config')
+    result = plan(tmp_path, arm=['watch'])
+    assert result['watch_command_form'] == 'interpreter_path'
+    assert arm(result, 'watch')['requires']['hb2_probe_command'] == legacy
+    with (tmp_path / 'config.yaml').open('a') as config:
+        config.write('      settings:\n        probe_commands: ""\n')
+    assert tw._probe_allowlist(tmp_path) == ''
+
+
 @pytest.mark.parametrize('entry, version, token', [
-    ('legacy', '0.4.28', False), ('token', '0.4.28', True), ('token', '0.4.16', False),
+    ('legacy', '0.4.28', False), ('token', '0.4.28', True), ('token', None, True), ('token', '0.4.16', False),
     ('invalid_token', '0.4.28', True), ('invalid_token', '0.4.16', False),
     ('', '0.4.28', True), ('', '0.4.16', False), ('', None, False), ('', 'unparsable', False),
-    (None, '0.4.28', True),
+    (None, '0.4.28', False),
 ])
 def test_watch_command_form(tmp_path, monkeypatch, entry, version, token):
     monkeypatch.setattr(tw, '_heartbeat_version', lambda: version)
@@ -504,8 +546,11 @@ def test_watch_command_form(tmp_path, monkeypatch, entry, version, token):
     assert result['interpreter_drift'] is False
 
 
-@pytest.mark.parametrize('config', [None, '{"broken":', 'plugins: []', 'non_string'])
-def test_saved_token_watch_is_sticky(tmp_path, monkeypatch, config):
+@pytest.mark.parametrize('config, version', [
+    (None, '0.4.28'), (None, None), ('{"broken":', '0.4.28'),
+    ('plugins: []', '0.4.28'), ('non_string', '0.4.28'),
+])
+def test_saved_token_watch_is_sticky(tmp_path, monkeypatch, config, version):
     monkeypatch.setattr(tw, '_heartbeat_version', lambda: '0.4.28')
     watch_config(tmp_path, '')
     first = plan(tmp_path, arm=['watch'])
@@ -516,6 +561,7 @@ def test_saved_token_watch_is_sticky(tmp_path, monkeypatch, config):
         watch_config(tmp_path, ['a list'])
     else:
         (tmp_path / 'config.yaml').write_text(config)
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: version)
     monkeypatch.setattr(sys, 'executable', '/missing/interpreter')
     replanned = plan(tmp_path)
     assert replanned['watch_command_form'] == 'python_token' and replanned['interpreter_drift'] is False
@@ -523,6 +569,18 @@ def test_saved_token_watch_is_sticky(tmp_path, monkeypatch, config):
     assert arm(replanned, 'watch')['wake_id'] == 'w_watch'
     carried = plan(tmp_path, departure_at='2026-11-10T13:00:00+00:00', arrival_at='2026-11-10T19:00:00+00:00')
     assert arm(carried, 'watch')['carried_from'] == first['revision']
+
+
+def test_saved_legacy_watch_is_sticky_with_unknown_allowlist(tmp_path, monkeypatch):
+    monkeypatch.setattr(tw, '_heartbeat_version', lambda: '0.4.28')
+    watch_config(tmp_path, tw.observer_allowlist_entry())
+    first = plan(tmp_path, arm=['watch'])
+    record(tmp_path, 'watch', 'w_watch')
+    (tmp_path / 'config.yaml').unlink()
+    replanned = plan(tmp_path)
+    assert replanned['watch_command_form'] == 'interpreter_path'
+    assert replanned['revision'] == first['revision']
+    assert arm(replanned, 'watch')['wake_id'] == 'w_watch'
 
 
 def test_watch_switches_when_legacy_prefix_is_removed(tmp_path, monkeypatch):
