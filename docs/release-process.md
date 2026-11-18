@@ -25,7 +25,9 @@ installing from the README would. A skipped,
 cancelled, or failed mandatory job fails the aggregate.
 
 Release PRs also run the reviewed-implementation guard against GitHub's
-test-merge commit, so it sees packaged changes from both the PR and its base branch.
+test-merge commit, so it sees packaged changes from both the PR and its base branch
+as of the PR's latest run. A run does not repeat when only main moves, so push to
+the release PR again if main changed after its last green run.
 
 The current supported Hermes pins are:
 
