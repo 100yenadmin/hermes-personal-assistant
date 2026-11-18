@@ -73,18 +73,24 @@ def test_exec_evidence_drives_checks(observer):
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node is needed to execute the snapshot JavaScript")
-def test_snapshot_renderer_matches_judge(tmp_path):
+@pytest.mark.parametrize("include_datalist_option", [False, True], ids=["select", "datalist"])
+def test_snapshot_renderer_matches_judge(tmp_path, include_datalist_option):
     snapshot = next(ast.literal_eval(stmt.value) for stmt in ast.parse(EXEC_PREAMBLE).body
                     if isinstance(stmt, ast.Assign) and stmt.targets[0].id == "_pa_snapshot")
-    script = """const el = (tagName, innerText, type) => ({tagName, innerText, type, checked: !!type,
-      childNodes: [{nodeType: 3, textContent: innerText}], closest: () => el('SELECT', ''),
+    script = """const el = (tagName, innerText, type, inSelect = true) => ({tagName, innerText, type, checked: !!type,
+      childNodes: [{nodeType: 3, textContent: innerText}], closest: () => inSelect ? el('SELECT', '') : null,
       getAttribute: attr => innerText === 'Checkout' && attr === 'aria-pressed' ? 'true' : null,
       selected: tagName === 'OPTION', checkVisibility: () => true,
       matches: selector => selector.startsWith('h1') ? tagName === 'H1' : !['H1','SPAN'].includes(tagName)});
     const document = {body: {innerText: 'Details'}, querySelectorAll: () => [el('H1', 'Summary'),
       el('SPAN', 'Room A'), el('SPAN', '$25'), el('BUTTON', 'Checkout'), el('OPTION', 'Twin'),
+      ...(includeDatalistOption ? [el('OPTION', 'Suggested room', undefined, false)] : []),
       el('INPUT', 'Terms', 'checkbox'), el('INPUT', 'Standard', 'radio'), el('TEXTAREA', 'Notes')]};"""
-    text = subprocess.check_output(["node", "-e", f"{script}\nconsole.log({snapshot});"], text=True)
+    include_datalist = json.dumps(include_datalist_option)
+    text = subprocess.check_output(
+        ["node", "-e", f"const includeDatalistOption = {include_datalist};\n{script}\nconsole.log({snapshot});"],
+        text=True,
+    )
     (tmp_path / "final_0_0.txt").write_text(text)
     excerpt = judge.final_page(tmp_path, {"snapshot": "final_0_0.txt"})["excerpt"]
     assert judge.snapshot_row(text.splitlines(), 2) == ['- StaticText "Room A"', '- StaticText "$25"', '- button "Checkout" [selected=true]']
@@ -92,6 +98,7 @@ def test_snapshot_renderer_matches_judge(tmp_path):
                 '- radio "Standard" [checked=true]', '- textbox "Notes"', '- option "Twin"'):
         assert row in excerpt
     assert '- option "Twin" [selected=true]' in text
+    assert '- option "Suggested room"' not in text
 
 
 @pytest.mark.parametrize("early", [None, {"drained": False, "drain_error": "TimeoutError", "blocked": ["first"]}])
