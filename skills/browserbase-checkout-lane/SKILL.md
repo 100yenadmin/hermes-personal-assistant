@@ -17,14 +17,14 @@ Read `references/checkout-login-recovery.md` when a checkout is stuck on login, 
 
 ## Preflight
 
-Before starting, call `pa(operation="capabilities")` and inspect `remote_browser`. If it is not `available`, record a `browser-readiness` blocker in `travel-ledger` and use the next configured browser lane. PA reads profile secrets in-process; never source env files or print keys.
+Before starting, call `pa(operation="capabilities")` and inspect `remote_browser`. If it is not `available`, record a `browser-readiness` blocker in `travel-ledger` and use the next configured browser lane. Before creating a session, run `command -v agent-browser` where you will run it (the `terminal` tool may run in a separate container); if it fails, record the same blocker and use the next lane. PA reads profile secrets in-process; never source env files or print keys.
 
 ## Owner Handoff
 
 Use PA's Browserbase live view first for login, OTP, CAPTCHA, and the owner's final tap when `remote_browser` is `available`. Otherwise, with `browser_exec`, work in the session's own browser (local or Hermes-managed cloud).
 - For a one-time code, use `browser_vault` action `enter_code` if offered. Without a vault handle, Hermes prompts the owner for the code and fills it on the current page without putting it in chat. A saved login can supply its own authenticator code. If prompting is unavailable, use the owner-device handoff below. If the owner declines, stop for this turn.
 - When you cannot complete sign-in, a password, passkey, payment, or another owner-only step, the owner finishes on their own device. Send the exact page link, the prepared details (item, total, address, time, with unknowns marked), and the final control to press. Say you cannot see their device and ask them to reply with the confirmation. Report it as owner-confirmed.
-- A screenshot can accompany the link via `MEDIA:/abs/path` on messaging gateways. CLI and TUI sessions cannot attach files.
+- A screenshot can accompany the link via `MEDIA:/abs/path` on messaging gateways, never of a page showing card, passport or one-time-code fields. CLI and TUI sessions cannot attach files.
 
 ## Lane Order
 
