@@ -576,6 +576,27 @@ def verify(ledger, trip_id, wakes, session_id=None, at=None):
     return {**status(ledger, trip_id), **result, "replanned": replanned}
 
 
+def _retained_journey(segments, watched, current):
+    first_watched = min((s for s in segments if s["segment_id"] in watched),
+                        key=lambda s: _time(s["scheduled_departure"]), default=None)
+    if first_watched is None:
+        return []
+    floor = _time(first_watched["scheduled_departure"])
+    kept = []
+    for candidate in trip_math._in_progress_journeys(segments, current, first_watched=first_watched):
+        if watched.isdisjoint(s["segment_id"] for s in candidate):
+            continue
+        # Group the watched legs from the saved plan's start, or from an earlier rebooking.
+        start = min(floor, _time(candidate[0]["scheduled_departure"]))
+        journey = trip_math._next_journey(segments, start)
+        if watched.isdisjoint(s["segment_id"] for s in journey):
+            continue
+        last_live = next((s for s in reversed(journey) if s["status"] != "cancelled"), None)
+        if last_live and current < trip_math._latest_arrival(last_live) + WATCH_FLIGHT_POST_ARRIVAL:
+            kept = journey
+    return kept
+
+
 def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=None,
          commitments=None, airport_lead_minutes=None, at=None, check_in_lead_minutes=None,
          hb2_quiet_hours=None, hb2_timezone=None, arm=None, check_in_window_hours=None,
@@ -592,19 +613,10 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         airborne = next((s for s in flight["segments"] if s["status"] != "cancelled"
                          and _time(s.get("estimated_departure") or s["scheduled_departure"]) <= current
                          < _time(s.get("estimated_arrival") or s["scheduled_arrival"])), None)
-        journey_start = _time(airborne["scheduled_departure"]) if airborne else current
-        # A re-plan keeps the journey it already watches while that journey is unfinished (late, in the air or not
-        # known to have landed). It never moves back to a journey the saved plan had already left, and a first plan
-        # still targets the next departure once the previous flight's ETA passes.
-        unfinished = trip_math.journey_start(flight["segments"], current) if prior else current
         watched = {row[0] for row in saved.get("facts_signature") or []}
-        watched_start = min((_time(s["scheduled_departure"]) for s in flight["segments"] if s["segment_id"] in watched),
-                            default=None)
-        # Never start before the first leg the saved plan watches: a plan made during a layover keeps the connection.
-        if (unfinished != current and watched_start is not None and unfinished >= watched_start
-                and not watched.isdisjoint(s["segment_id"] for s in trip_math._next_journey(flight["segments"], unfinished))):
-            journey_start = unfinished
-        segments = trip_math._next_journey(flight["segments"], journey_start)
+        kept = _retained_journey(flight["segments"], watched, current) if watched else []
+        fallback_start = _time(airborne["scheduled_departure"]) if airborne else current
+        segments = kept or trip_math._next_journey(flight["segments"], fallback_start)
         # A cancelled leg with a rebooked alternative in the same journey: the trip goes on with the live legs.
         live = [s for s in segments if s["status"] != "cancelled"] or segments
         departure_at, arrival_at, arrival_timezone = _time(live[0]["scheduled_departure"]).astimezone(ZoneInfo(live[0]["origin_timezone"])).isoformat(), _time(live[-1]["scheduled_arrival"]).astimezone(ZoneInfo(live[-1]["destination_timezone"])).isoformat(), live[-1]["destination_timezone"]
@@ -613,8 +625,16 @@ def plan(ledger, trip_id, departure_at=None, arrival_at=None, arrival_timezone=N
         schedule = [[s["scheduled_departure"], s["scheduled_arrival"]] for s in segments]
         if saved.get("facts_signature") == signature and saved.get("facts_schedule") and all(abs((_time(a) - _time(b)).total_seconds()) < 2700 for pair, old in zip(schedule, saved["facts_schedule"]) for a, b in zip(pair, old)):
             departure_at, arrival_at, schedule = saved["departure_at"], saved["arrival_at"], saved["facts_schedule"]
-        if airborne is live[-1] and airborne.get("estimated_arrival"):
-            arrival_at = _time(airborne["estimated_arrival"]).astimezone(ZoneInfo(arrival_timezone)).isoformat()
+        last = live[-1]
+        estimate = last.get("estimated_arrival")
+        if kept:
+            # The saved arrival may include an earlier estimate. Use the scheduled baseline.
+            arrival_at = schedule[segments.index(last)][1]
+            if estimate and _time(estimate) > _time(last["scheduled_arrival"]):
+                arrival_at = estimate
+            arrival_at = _time(arrival_at).astimezone(ZoneInfo(arrival_timezone)).isoformat()
+        elif estimate and airborne is last:
+            arrival_at = _time(estimate).astimezone(ZoneInfo(arrival_timezone)).isoformat()
     else:
         departure_at, arrival_at = departure_at or saved.get("departure_at"), arrival_at or saved.get("arrival_at")
         arrival_timezone = arrival_timezone or (saved.get("arrival_timezone") if restored else None)

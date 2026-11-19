@@ -28,37 +28,43 @@ def _next_journey(all_segments, current):
     return journey
 
 
-def journey_start(segments, current):
-    """Scheduled start of the latest unfinished journey, or current if none qualifies.
+def _latest_arrival(leg):
+    scheduled = _time(leg["scheduled_arrival"])
+    estimated = leg.get("estimated_arrival")
+    return max(scheduled, _time(estimated)) if estimated else scheduled
 
-    A journey is unfinished while one of its started legs is not cancelled or landed and the clock is before that
-    leg's latest known arrival (plus 6 h when the flight is departed, delayed, diverted or has an estimate) and before
-    the next journey's first scheduled departure."""
+
+def _in_progress_journeys(segments, current, *, first_watched=None):
+    """Yield unfinished journeys in scheduled order, optionally starting at the watched part of each."""
     remaining = sorted(segments, key=lambda s: _time(s["scheduled_departure"]))
-    start = current
+    floor = _time(first_watched["scheduled_departure"]) if first_watched is not None else None
+    replacement_origin = first_watched["origin"] if first_watched and first_watched.get("status") == "cancelled" else None
     while remaining:
         scheduled_start = _time(remaining[0]["scheduled_departure"])
         journey = _next_journey(remaining, scheduled_start)
         remaining = remaining[len(journey):]
+        # Keep the cutoff from the full itinerary, even for a watch that began during a layover.
         if remaining and current >= _time(remaining[0]["scheduled_departure"]):
             continue
+        if floor is not None:
+            # A same-origin replacement can leave earlier than the cancelled leg it replaces.
+            start = next((i for i, leg in enumerate(journey)
+                          if _time(leg["scheduled_departure"]) >= floor or leg["origin"] == replacement_origin),
+                         len(journey))
+            journey = journey[start:]
         for leg in journey:
             if leg.get("status") in {"cancelled", "landed"}:
                 continue
             departure = _time(leg["scheduled_departure"])
-            arrival = _time(leg["scheduled_arrival"])
             if leg.get("estimated_departure"):
                 departure = min(departure, _time(leg["estimated_departure"]))
-            if leg.get("estimated_arrival"):
-                arrival = max(arrival, _time(leg["estimated_arrival"]))
             # Only a sign the flight is not over (departed, delayed, diverted, or an estimate) earns the grace;
             # a plain "scheduled" or "unknown" leg is taken as landed at its scheduled arrival.
             disrupted = (leg.get("status") in {"departed", "delayed", "diverted"}
                          or leg.get("estimated_departure") or leg.get("estimated_arrival"))
-            if departure <= current < arrival + (dt.timedelta(hours=6) if disrupted else dt.timedelta(0)):
-                start = scheduled_start
+            if departure <= current < _latest_arrival(leg) + (dt.timedelta(hours=6) if disrupted else dt.timedelta(0)):
+                yield journey
                 break
-    return start
 
 
 def itinerary(facts):

@@ -23,7 +23,7 @@ ARRIVAL = "2026-11-10T18:00:00Z"
     ("plain_scheduled_after_arrival", "09:00", None),
     ("plain_unknown_after_arrival", "10:00", None),
 ])
-def test_journey_start_boundaries(case, clock, expected):
+def test_in_progress_journey_boundaries(case, clock, expected):
     def instant(clock):
         return f"2026-11-10T{clock}:00+00:00"
 
@@ -48,7 +48,15 @@ def test_journey_start_boundaries(case, clock, expected):
         outbound["status"] = "unknown" if "unknown" in case else "scheduled"
 
     current = dt.datetime.fromisoformat(instant(clock))
-    assert trip_math.journey_start(segments, current) == (dt.datetime.fromisoformat(instant(expected)) if expected else current)
+    starts = [journey[0]["scheduled_departure"] for journey in trip_math._in_progress_journeys(segments, current)]
+    assert starts == ([instant(expected)] if expected else [])
+
+
+def test_in_progress_journey_includes_departure_now():
+    departure = dt.datetime.fromisoformat(DEPARTURE)
+    legs = [dict(origin="AAA", destination="BBB", scheduled_departure=DEPARTURE, scheduled_arrival=ARRIVAL)]
+    assert list(trip_math._in_progress_journeys(legs, departure)) == [legs]
+    assert list(trip_math._in_progress_journeys(legs, departure - dt.timedelta(seconds=1))) == []
 
 
 def test_at_airport_by_basis_floor_and_local_time():
