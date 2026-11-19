@@ -255,8 +255,63 @@ def release_candidate(repo, reviewed, version="0.4.0-rc.1"):
         destination.write_text("Release documents\n")
     release = repo / "releases" / version
     release.mkdir()
-    (release / "manifest.json").write_text(json.dumps({"reviewed_implementation_commit": reviewed}))
+    (release / "manifest.json").write_text(json.dumps({
+        "version": version, "native_id": "personal-assistant", "source_commit": "release-merge",
+        "reviewed_implementation_commit": reviewed,
+    }))
     return version
+
+
+@pytest.mark.parametrize("implementation_on", ["pr-head", "base", None],
+                         ids=["pr-head", "base-moved", "release-documents-only"])
+def test_main_pr_checks_reviewed_merge_result(reviewed_repo, monkeypatch, capsys, implementation_on):
+    repo, reviewed = reviewed_repo
+    release_candidate(repo, reviewed)
+    implementation = "personal_assistant/state.py"
+    if implementation_on == "pr-head":
+        (repo / implementation).write_text("reviewed = False\n")
+    head = commit(repo, "release PR head")
+
+    git(repo, "checkout", "--detach", reviewed)
+    base = reviewed
+    if implementation_on == "base":
+        (repo / implementation).write_text("reviewed = False\n")
+        base = commit(repo, "base moved with packaged implementation")
+        assert git(repo, "diff", "--name-only", reviewed, head, "--", implementation) == ""
+    git(repo, "-c", "user.name=Release contract fixture", "-c", "user.email=release-contract@example.invalid",
+        "merge", "--no-ff", "--no-edit", head)
+    merge_sha = git(repo, "rev-parse", "HEAD")
+
+    body = "Related #287\nRelease impact: publish\n## Release notes\nAdds reviewed release documentation.\n"
+    event_path = repo.parent / "event.json"
+    event_path.write_text(json.dumps(event(base, head, body)))
+    monkeypatch.setattr(release_contract, "ROOT", repo)
+    monkeypatch.setenv("GITHUB_SHA", merge_sha)
+    monkeypatch.setattr("sys.argv", ["release_contract.py", "pr", "--event", str(event_path)])
+
+    status = release_contract.main()
+    result = json.loads(capsys.readouterr().out)
+    if implementation_on is None:
+        assert status == 0, result
+        assert result["publish"] is True
+    else:
+        assert status == 1, result
+        assert "packaged implementation differs from reviewed commit" in result["error"]
+        assert implementation in result["error"]
+
+
+def test_main_pr_skips_reviewed_guard_for_non_release(reviewed_repo, monkeypatch, capsys):
+    repo, reviewed = reviewed_repo
+    (repo / "personal_assistant" / "state.py").write_text("reviewed = False\n")
+    head = commit(repo, "ordinary implementation PR")
+    event_path = repo.parent / "event.json"
+    event_path.write_text(json.dumps(event(reviewed, head, "Related #287\nRelease impact: none\n")))
+    monkeypatch.setattr(release_contract, "ROOT", repo)
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.setattr("sys.argv", ["release_contract.py", "pr", "--event", str(event_path)])
+
+    assert release_contract.main() == 0
+    assert json.loads(capsys.readouterr().out)["publish"] is False
 
 
 def test_reviewed_guard_allows_release_documents_and_version_bumps(reviewed_repo):
