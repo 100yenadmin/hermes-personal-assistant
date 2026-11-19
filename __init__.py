@@ -1,7 +1,18 @@
 """Native Hermes entry point; installation registers capabilities but starts no jobs."""
 from pathlib import Path
 import json
+import logging
 import threading
+
+
+logger = logging.getLogger(__name__)
+
+
+def _input_error(operation, allowed_operations, exc):
+    if operation not in allowed_operations:
+        operation = "unknown"
+    logger.warning("PA operation %s rejected: %s", operation, type(exc).__name__)
+    return json.dumps({"error": str(exc)[:500]}, ensure_ascii=False)
 
 
 def _skill_metadata(path):
@@ -24,7 +35,7 @@ def _skill_metadata(path):
 
 
 def register(ctx):
-    from .personal_assistant.entry import dispatch, SCHEMA
+    from .personal_assistant.entry import dispatch, OPERATIONS, SCHEMA
     from .personal_assistant.action_gateway import GatewayPolicy
     from .personal_assistant.native_gateway_runtime import (
         NativeActionAuthorizationStore,
@@ -55,24 +66,33 @@ def register(ctx):
 
     def handle(args, **kwargs):
         active_gateway = runtime_gateway()
-        return json.dumps(dispatch(root, args, runtime_scope={
+        runtime_scope = {
             "session_id": kwargs.get("session_id"),
             "task_id": kwargs.get("task_id"),
             "observe_settings": get_config("observe", {}) if callable(get_config) else {},
             "get_config": get_config,
             "authorization_store": active_gateway.store,
-        }), ensure_ascii=False)
+        }
+        try:
+            result = dispatch(root, args, runtime_scope=runtime_scope)
+        except ValueError as exc:
+            return _input_error(args.get("operation", "status"), OPERATIONS, exc)
+        return json.dumps(result, ensure_ascii=False)
 
     ctx.register_tool(name="pa", toolset="personal_assistant", schema=SCHEMA,
                       handler=handle, description=SCHEMA["description"])
 
     from .personal_assistant.calls import dispatch as call_dispatch, SCHEMA as CALL_SCHEMA
+    call_actions = CALL_SCHEMA["parameters"]["properties"]["action"]["enum"]
 
     def handle_call(args, **kwargs):
         get_calls_config = getattr(ctx, "get_config", None)
         config = get_calls_config("calls", {}) if callable(get_calls_config) else {}
-        return json.dumps(call_dispatch(root, args, config=config,
-                                       session_id=kwargs.get("session_id")), ensure_ascii=False)
+        try:
+            result = call_dispatch(root, args, config=config, session_id=kwargs.get("session_id"))
+        except ValueError as exc:
+            return _input_error(args.get("action"), call_actions, exc)
+        return json.dumps(result, ensure_ascii=False)
 
     ctx.register_tool(name="pa_call", toolset="personal_assistant", schema=CALL_SCHEMA,
                       handler=handle_call, description=CALL_SCHEMA["description"])
