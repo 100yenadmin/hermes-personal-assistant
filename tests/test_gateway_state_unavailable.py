@@ -1,11 +1,13 @@
 """Degraded native gateway behavior when PA durable state cannot initialize (#71)."""
 import importlib.util
+import json
 import os
 import sqlite3
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -193,12 +195,69 @@ class GatewayStateUnavailableTests(unittest.TestCase):
         replay = callback(tool_name=FUTURE_TOOL, args=ARGS, session_id="s", task_id="t")
         self.assertEqual(replay["reason_code"], "DENY_ALREADY_CLAIMED")
 
+    def test_missing_action_returns_context_hint(self):
+        profile = Path(self.tmp.name) / "profile"
+        profile.mkdir(mode=0o700)
+        context, _ = self.register(profile)
+        action_id = "fixture-missing-action"
+        result = json.loads(context.tools["pa"]["handler"]({
+            "operation": "context", "data": {"kind": "action", "action_id": action_id},
+        }))
+        self.assertEqual(result, {"error": "action not found; list current actions with operation next_action"})
+        self.assertNotIn(action_id, result["error"])
+
+    def test_missing_trip_returns_context_list_hint(self):
+        profile = Path(self.tmp.name) / "profile"
+        profile.mkdir(mode=0o700)
+        context, _ = self.register(profile)
+        handler = context.tools["pa"]["handler"]
+        for kind in ("trip", "guide"):
+            with self.subTest(kind=kind):
+                trip_id = "fixture-missing-trip"
+                result = json.loads(handler({
+                    "operation": "context", "data": {"kind": kind, "trip_id": trip_id},
+                }))
+                self.assertEqual(result, {"error": "trip not found; list trips with operation context, kind trip, and no trip_id"})
+                self.assertNotIn(trip_id, result["error"])
+
+    def test_input_error_warning_omits_message_and_traceback(self):
+        profile = Path(self.tmp.name) / "profile"
+        profile.mkdir(mode=0o700)
+        context, _ = self.register(profile)
+        logger = "personal_assistant_state_unavailable_test"
+        with self.assertLogs(logger, level="WARNING") as captured:
+            context.tools["pa"]["handler"]({
+                "operation": "context", "data": {"kind": "action", "action_id": "fixture-missing-action"},
+            })
+        self.assertEqual(captured.output, [f"WARNING:{logger}:PA operation context rejected: ValueError"])
+        self.assertIsNone(captured.records[0].exc_info)
+
+    def test_dispatch_catches_only_value_error_and_bounds_unicode_message(self):
+        profile = Path(self.tmp.name) / "profile"
+        profile.mkdir(mode=0o700)
+        self.register(profile)
+        package = "personal_assistant_state_unavailable_test.personal_assistant"
+        for tool, module, args in (
+            ("pa", "entry", {"operation": "context"}),
+            ("pa_call", "calls", {"action": "compile"}),
+        ):
+            with self.subTest(tool=tool):
+                bug = RuntimeError("fixture dispatch bug")
+                with patch(f"{package}.{module}.dispatch", side_effect=[bug, ValueError("é" * 501)]):
+                    context, _ = self.register(profile)
+                    handler = context.tools[tool]["handler"]
+                    with self.assertRaises(RuntimeError) as raised:
+                        handler(args)
+                    self.assertIs(raised.exception, bug)
+                    result = handler(args)
+                self.assertEqual(result, json.dumps({"error": "é" * 500}, ensure_ascii=False))
+
     def test_diagnostic_tools_cannot_carry_a_governed_scope(self):
         profile = Path(self.tmp.name) / "profile"
         profile.mkdir(mode=0o700)
         context, _ = self.register(profile)
-        with self.assertRaisesRegex(ValueError, "cannot carry a governed scope"):
-            context.tools["pa"]["handler"](
+        handler = context.tools["pa"]["handler"]
+        result = json.loads(handler(
             {"operation": "authorization_prepare", "data": {
                 "protocol": "pa.action-authorization/v1",
                 "action_id": "fixture-diagnostic-scope",
@@ -218,7 +277,12 @@ class GatewayStateUnavailableTests(unittest.TestCase):
             }},
             session_id="s",
             task_id="t",
-            )
+        ))
+        self.assertIn("cannot carry a governed scope", result["error"])
+        status = json.loads(handler({
+            "operation": "authorization_status", "data": {"action_id": "fixture-diagnostic-scope"},
+        }))
+        self.assertEqual(status, {"error": "unknown action authorization"})
 
     def test_scope_without_trusted_runtime_identity_is_rejected(self):
         # Outside the native hook (CLI/__main__ dispatch) there is no trusted

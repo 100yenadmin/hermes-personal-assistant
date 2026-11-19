@@ -366,7 +366,7 @@ def retrieve(ledger, data: dict[str, Any]) -> dict[str, Any]:
             return {"kind": kind, **_page([_trip_summary(row) for row in ledger.list("trip")], limit, offset)}
         row = ledger.get("trip", trip_id)
         if not row:
-            raise ValueError("trip not found")
+            raise ValueError("trip not found; list trips with operation context, kind trip, and no trip_id")
         events = list(row.get("fields", {}).get("events", []))
         event_page = _page(events, limit, offset)
         bounded, cut = _bounded(event_page["items"])
@@ -379,7 +379,7 @@ def retrieve(ledger, data: dict[str, Any]) -> dict[str, Any]:
             return {"kind": kind, **_page([_action_summary(row) for row in ledger.list("action") if row["action_type"] not in _PROFILE_TYPES and row["action_type"] not in EVIDENCE_TYPES | {"expense"}], limit, offset)}
         row = ledger.get("action", action_id)
         if not row:
-            raise ValueError("action not found")
+            raise ValueError("action not found; list current actions with operation next_action")
         bounded, cut = _bounded(row)
         return {"kind": kind, "action": bounded, "truncated": cut}
     if kind == "source":
@@ -402,7 +402,7 @@ def retrieve(ledger, data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("guide context requires trip_id")
     trip = ledger.get("trip", trip_id)
     if not trip:
-        raise ValueError("trip not found")
+        raise ValueError("trip not found; list trips with operation context, kind trip, and no trip_id")
     guide = str(trip.get("fields", {}).get("guide") or "")
     query = str(data.get("query") or "").strip()
     if query:
