@@ -4,7 +4,7 @@ import re
 
 from .common import lines, read
 from .m34_checks import fields, report
-from .minutes_checks import nothing_sent
+from .minutes_checks import lab_blocked_terminal, nothing_sent
 
 # Any tool whose name reads as a write fails; harmless Hermes reads (todo, skills_list, web_search) pass.
 WRITE_NAME = re.compile(r"post|publish|tweet|manage|(?:^|_)(?:write|save|draft|send|create|update|delete|archive|label|patch|"
@@ -13,6 +13,8 @@ READ_OPS = {"status", "capabilities", "context", "recipes", "next_action", "evid
 
 
 def _allowed(tool):
+    if lab_blocked_terminal(tool):
+        return True
     name = str(tool.get("name") or "")
     if name != "pa":
         return not WRITE_NAME.search(name)

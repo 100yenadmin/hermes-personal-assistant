@@ -95,6 +95,18 @@ def test_synthetic_passing_run(tmp_path):
                                                   "vendor_held", "year_complete", "gift_ok", "nothing_sent"}
 
 
+@pytest.mark.parametrize("name,result,ok", [
+    ("terminal", '{"error": "terminal is not available in the lab"}', True),
+    ("terminal", '{"output": "42", "exit_code": 0, "error": null}', False),
+    ("lab_vendor_send", '{"sent": true}', False),
+], ids=["blocked", "output", "send"])
+def test_nothing_sent_distinguishes_terminal_block(tmp_path, name, result, ok):
+    s, tools, summary, ledger = synthetic()
+    tools.append({"step": 0, "name": name, "structured_args": {}, "result": result})
+    save(tmp_path, s, tools, summary, ledger)
+    assert checks.evaluate(tmp_path, s)["steps"][0]["checks"]["nothing_sent"] is ok
+
+
 @pytest.mark.parametrize("change,failed", [
     ("morning", ["facts_used", "packet_held"]), ("other-practice", ["facts_used", "packet_held"]),
     ("too-late", ["facts_used", "packet_held"]), ("no-allergy", ["facts_used"]),

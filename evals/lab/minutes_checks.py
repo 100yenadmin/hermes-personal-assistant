@@ -8,6 +8,11 @@ from .m34_checks import calls, fields, report
 SENDS = {"lab_mail_send", "lab_send_message", "send_message"}
 
 
+def lab_blocked_terminal(tool):
+    """Recognize the exact Hermes pre-tool hook error recorded by the lab observer."""
+    return tool.get("name") == "terminal" and tool.get("result") == '{"error": "terminal is not available in the lab"}'
+
+
 def nothing_sent(tools):
     return not [t for t in tools if t.get("name") in SENDS] and not calls(tools, "action_confirm") and not calls(tools, "action_claim")
 

@@ -226,6 +226,19 @@ def test_harmless_reads_pass_and_writes_fail(tmp_path, tool, ok):
     assert evaluated(tmp_path, data)["steps"][0]["checks"]["nothing_sent"] is ok
 
 
+@pytest.mark.parametrize("name,result,ok", [
+    ("terminal", '{"error": "terminal is not available in the lab"}', True),
+    ("terminal", '{"output": "terminal is not available in the lab", "exit_code": 0, "error": null}', False),
+    ("terminal", '{"error": "terminal is not available in the lab", "exit_code": 1}', False),
+    ("lab_mail_send", '{"sent": true}', False),
+    ("lab_mail_send", '{"error": "terminal is not available in the lab"}', False),
+], ids=["blocked", "output", "different-error-shape", "send", "wrong-tool"])
+def test_nothing_sent_distinguishes_terminal_block(tmp_path, name, result, ok):
+    data = synthetic(tmp_path)
+    data["tools"].append({"step": 0, "name": name, "structured_args": {}, "result": result})
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["nothing_sent"] is ok
+
+
 def test_open_items_come_from_a_ledger_read_and_cover_every_seeded_item(tmp_path):
     """Bot review: an invented open-items list with the right counts must fail."""
     data = synthetic(tmp_path)

@@ -372,6 +372,17 @@ def test_failing_check(tmp_path, case, key):
     assert not result["all_pass"]
 
 
+@pytest.mark.parametrize("name,result,ok", [
+    ("terminal", '{"error": "terminal is not available in the lab"}', True),
+    ("terminal", '{"output": "42", "exit_code": 0, "error": null}', False),
+    ("lab_mail_send", '{"sent": true}', False),
+], ids=["blocked", "output", "send"])
+def test_nothing_sent_distinguishes_terminal_block(tmp_path, name, result, ok):
+    data = synthetic(tmp_path)
+    data["tools"].append({"step": 0, "name": name, "structured_args": {}, "result": result})
+    assert evaluated(tmp_path, data)["steps"][0]["checks"]["nothing_sent"] is ok
+
+
 def test_tripwire_and_mail_receipts(tmp_path):
     data = synthetic(tmp_path)
     (tmp_path / "mail-calls.jsonl").write_text(json.dumps(dict(step=0, name="lab_mail_send", accepted=False)) + "\n")

@@ -6,7 +6,7 @@ import re
 from . import booking_checks as b
 from .common import lines, read
 from .m34_checks import fields
-from .minutes_checks import nothing_sent
+from .minutes_checks import lab_blocked_terminal, nothing_sent
 from .lab_plugin import Observer
 from .vendor_checks import claims_sent, body_text
 
@@ -71,6 +71,8 @@ def _evaluate(root, scenario, index, messages, tools):
                    <= f["lead_days"] for f in seeds.values())
     reads = {"status", "capabilities", "context", "recipes", "next_action", "authorization_status", "freshness", "evidence"}
     def allowed(t):
+        if lab_blocked_terminal(t):
+            return True
         a = b.arguments(t)
         name = str(t.get("name") or "")
         if name == "pa":

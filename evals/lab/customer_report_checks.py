@@ -5,7 +5,7 @@ import re
 from .calendar_checks import instant
 from .common import lines
 from .m34_checks import report
-from .minutes_checks import nothing_sent
+from .minutes_checks import lab_blocked_terminal, nothing_sent
 
 
 # Any tool whose name reads as a write fails; harmless Hermes reads (todo, skills_list, web_search) pass.
@@ -14,6 +14,8 @@ WRITE_NAME = re.compile(r"post|publish|tweet|manage|(?:^|_)(?:write|save|draft|s
 
 
 def _read_only(tool):
+    if lab_blocked_terminal(tool):
+        return True
     name = str(tool.get("name") or "")
     if name != "pa":
         return not WRITE_NAME.search(name) and (not name.startswith("lab_") or name in {"lab_mail_search", "lab_mail_get"})
