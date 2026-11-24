@@ -12,10 +12,22 @@ REDACTED = "[REDACTED]"
 CONNECT_KEYS = re.compile(r"((?:signingKey|apiKey|api_key)=)[^&\s\"'\\]+")  # Stops at JSON escapes.
 DEVTOOLS_URL = re.compile(r"https?://(?:www\.)?browserbase\.com/devtools[^\s\"'\\]*")
 
-_EXEC_STRING = r"""(?:"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')"""
+EXEC_CODE_LIMIT = 20_000
+# Match triple quotes first, and consume unfinished strings in truncated code.
+_EXEC_STRING = (
+    r"""(?>"{3}[\s\S]*?(?:"{3}|\Z)|'{3}[\s\S]*?(?:'{3}|\Z)"""
+    r"""|"(?:\\[\s\S]|[^"\\])*+(?:"|\\?\Z)|'(?:\\[\s\S]|[^'\\])*+(?:'|\\?\Z))"""
+)
+_EXEC_NETWORK_MODULE = r"(?:requests|httpx|aiohttp|socket|smtplib|ftplib|websocket)"
+_EXEC_IMPORT_PREFIX = r"(?:\w+(?:\.\w+)*(?:[ \t]+as[ \t]+\w+)?[ \t]*,[ \t]*)*"
 _EXEC_PYTHON_NETWORK = re.compile(
-    rf"{_EXEC_STRING}|\#[^\n]*|(?P<network>\b(?:urllib\s*\.\s*request|urllib\s+import\s+[\w ,]*\brequest|urlopen|requests|http\s*\.\s*client|httpx|aiohttp|"
-    r"socket|smtplib|ftplib|websocket)\b)"
+    rf"{_EXEC_STRING}|#[^\n]*|(?P<network>\b(?:"
+    rf"import[ \t]+{_EXEC_IMPORT_PREFIX}{_EXEC_NETWORK_MODULE}\b"
+    rf"|from[ \t]+{_EXEC_NETWORK_MODULE}[ \t]+import\b"
+    rf"|{_EXEC_NETWORK_MODULE}\s*\.\s*\w"
+    r"|(?:urllib\s*\.\s*request|http\s*\.\s*client|importlib)\b"
+    rf"|from[ \t]+urllib[ \t]+import[ \t(]+{_EXEC_IMPORT_PREFIX}request\b"
+    r"|urlopen\s*\())"
 )
 _EXEC_JS_NETWORK = re.compile(r"\b(?:fetch\s*\(|XMLHttpRequest\b|sendBeacon\b|new\s+WebSocket\b)")
 # An open() path can contain quoted commas and calls such as Path.home().
@@ -28,23 +40,35 @@ _EXEC_WRITE = re.compile(
     r"|\.\s*(?:write_text|write_bytes|mkdir|touch)\s*\("
     r"|\bos\s*\.\s*(?:rename|replace|makedirs|mkdir)\b"
 )
+# A slash appended to the workspace variable is a separator, so only skip
+# that prefix. Any traversal marker or separate absolute literal still counts.
+_EXEC_WORKSPACE_SUFFIX = (
+    r"""\bos\s*\.\s*(?:environ\s*\[\s*(?P<env>["'])BH_AGENT_WORKSPACE(?P=env)\s*\]"""
+    r"""|getenv\s*\(\s*(?P<get>["'])BH_AGENT_WORKSPACE(?P=get)\s*\))\s*\+\s*["']/"""
+)
 _EXEC_OUTSIDE = re.compile(
-    r"""["'][/~]|\b(?:expanduser|Path\s*\.\s*home|os\s*\.\s*environ|HOME|HERMES_HOME)\b"""
-    r"""|\.hermes\b|(?<=[/'"])\.\.(?=[/'"]|$)"""
+    rf"""{_EXEC_WORKSPACE_SUFFIX}|(?P<outside>["'](?:~|/[\w.~])"""
+    r"""|\b(?:expanduser|Path\s*\.\s*home|HOME|HERMES_HOME)\b"""
+    r"""|\.hermes\b|(?<=[/'"])\.\.(?=[/'"]|$))"""
 )
 
 
 def exec_effects(code: str) -> list[str]:
-    """Flag network tokens and writes alongside outside-path markers in browser_exec code.
+    """Flag network use and writes alongside outside-path markers in browser_exec code.
 
-    This static scan recognizes common spellings and literal modes. It can
-    flag unused tokens, does not tie paths to a particular write or prove
-    execution, and can miss computed or obfuscated code.
+    This static scan recognizes common spellings and literal modes. It does
+    not resolve aliases, tie paths to a particular write, or prove execution,
+    and it can miss computed or obfuscated code. Code past the cap is flagged
+    as unscanned.
     """
+    truncated = len(code) > EXEC_CODE_LIMIT
+    code = code[:EXEC_CODE_LIMIT]
     effects = []
     if _EXEC_JS_NETWORK.search(code) or any(m["network"] for m in _EXEC_PYTHON_NETWORK.finditer(code)):
         effects.append("network")
-    if _EXEC_WRITE.search(code) and _EXEC_OUTSIDE.search(code):
+    if truncated:
+        effects.append("unscanned")
+    if _EXEC_WRITE.search(code) and any(m["outside"] for m in _EXEC_OUTSIDE.finditer(code)):
         effects.append("write")
     return effects
 

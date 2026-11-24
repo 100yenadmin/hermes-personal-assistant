@@ -8,7 +8,7 @@ import re
 import threading
 import time
 from pathlib import Path
-from evals.lab.common import append, encodable, exec_effects, read, scrub
+from evals.lab.common import EXEC_CODE_LIMIT, append, encodable, exec_effects, read, scrub
 
 # Inspect executable tool arguments, never quoted research results or assistant prose.
 INSTALL = re.compile(r"\b(?:hermes\s+plugins\s+install|(?:pip\d*|uv(?:\s+(?:pip|tool))?|npm|pnpm|yarn|bun|brew|apt(?:-get)?|dnf|yum|conda|mamba|gem|cargo|go|poetry)\s+(?:--?[\w=-]+\s+)*(?:install|add)\b|python[\d.]*\s+-m\s+pip\s+install|(?:curl|wget)\b[^\n]*\|\s*(?:ba)?sh\b)", re.I)
@@ -401,7 +401,7 @@ class Observer:
                 code = code.split(EXEC_CODE_START, 1)[-1]
             if effects := exec_effects(code):
                 page["exec_effects"] = effects
-            args = {**args, "code": scrub(code, limit=20000)}
+            args = {**args, "code": scrub(code, limit=EXEC_CODE_LIMIT)}
         with self.lock:
             if self.browser_shape == "exec" and tool_name in {"write_file", "patch"}:
                 self.file_calls.pop(kw.get("tool_call_id"), None)

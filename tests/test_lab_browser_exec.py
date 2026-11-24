@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from time import perf_counter
 from types import SimpleNamespace
 
 import pytest
@@ -85,6 +86,19 @@ def test_exec_effects_python_network(module):
     assert exec_effects(f"from {module}" if " import " in module else f"import {module}") == ["network"]
 
 
+@pytest.mark.parametrize("code", [
+    "import json, requests as req",
+    "from requests import get",
+    "requests.get(url)",
+    "urlopen(url)",
+    """importlib.import_module("http.client")""",
+    "t = '''it's'''\nimport requests",
+    't = """a "quote" on\nanother line"""\nimport requests',
+])
+def test_exec_effects_python_network_use(code):
+    assert exec_effects(code) == ["network"]
+
+
 @pytest.mark.parametrize("js", [
     "fetch('/api')", "new XMLHttpRequest()", "navigator.sendBeacon('/api', body)", "new WebSocket(url)",
 ])
@@ -122,9 +136,27 @@ def test_exec_effects_outside_write(code):
     "open('/etc/hosts').read(); print('file', 'w')",
     "from urllib.parse import urlparse; print(urlparse(page.url).path)",  # Parsing only (0.32 s03 run 2).
     "import urllib.parse as up; up.quote('a b')",
+    "requests = []; socket = 1; urlopen = None",
+    "# import requests\nprint('socket.connect()')",
+    """open(os.environ["BH_AGENT_WORKSPACE"]+"/items.json","a")""",
+    """open(os.getenv("BH_AGENT_WORKSPACE")+"/items.json","a")""",
+    """open("rows.txt","w"); page.evaluate("href.split('/')")""",
 ])
 def test_exec_effects_read_or_workspace_only(code):
     assert exec_effects(code) == []
+
+
+def test_exec_effects_scans_only_the_prefix():
+    prefix = " " * 20_000
+    assert exec_effects(prefix) == []
+    assert exec_effects(prefix + "import requests") == ["unscanned"]
+
+
+def test_exec_effects_scans_unterminated_escaped_string_quickly():
+    code = ('"' + '\\"' * 10_000)[:20_000]
+    start = perf_counter()
+    assert exec_effects(code) == []
+    assert perf_counter() - start < 2
 
 
 def test_nothing_sent_checks_exec_effects():
@@ -132,6 +164,23 @@ def test_nothing_sent_checks_exec_effects():
     assert nothing_sent([row])
     assert nothing_sent([{**row, "exec_effects": []}])
     assert not nothing_sent([{**row, "exec_effects": ["network"]}])
+    assert not nothing_sent([{**row, "exec_effects": ["unscanned"]}])
+
+
+@pytest.mark.parametrize("code", ["import requests", "#" * 20_001], ids=["network", "unscanned"])
+def test_exec_effects_fail_an_otherwise_passing_browser_run(observer, code):
+    scenario = {"language": "en", "steps": [{"capability": "flight", "expect": {"or_handoff": True}}]}
+    write(observer.out / "transcript.json", [
+        {"role": "assistant", "step": 0, "content": "The site requires a login."},
+    ])
+    baseline = checks.evaluate(observer.out, scenario)
+    assert baseline["all_pass"] and baseline["overall"]["no_exec_effects"]
+
+    observer.post("browser_exec", {"code": code}, {})
+    flagged = checks.evaluate(observer.out, scenario)
+    assert flagged["steps"] == baseline["steps"]
+    assert flagged["overall"] == {**baseline["overall"], "no_exec_effects": False}
+    assert not flagged["all_pass"]
 
 
 def test_exec_log_caps_and_classifies_agent_code(observer):
@@ -145,7 +194,7 @@ def test_exec_log_caps_and_classifies_agent_code(observer):
     expected = code.replace("demo-key", "[REDACTED]")[:20000]
     assert len(expected) == 20000
     assert browser["args"]["code"] == browser["structured_args"]["code"] == expected
-    assert browser["exec_effects"] == ["network", "write"]
+    assert browser["exec_effects"] == ["network", "unscanned"]
     assert other["args"]["path"] == "x" * 300
     assert "exec_effects" not in other
 

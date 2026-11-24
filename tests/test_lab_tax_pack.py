@@ -79,6 +79,20 @@ def test_passing_tax_pack_run_and_seed_cross_checks(run):
     assert all(Path(path).is_file() for path in run.packet["export"].values())
 
 
+def test_exec_effects_fail_an_otherwise_passing_tax_pack_run(run):
+    assert all(evaluated(run).values())
+    baseline = checks.evaluate(run.root, run.s)
+    assert baseline["all_pass"] and baseline["overall"]["no_exec_effects"]
+
+    common.append(run.root / "tools.jsonl", {
+        "name": "browser_exec", "step": 0, "exec_effects": ["network"],
+    })
+    flagged = checks.evaluate(run.root, run.s)
+    assert flagged["steps"] == baseline["steps"]
+    assert flagged["overall"] == {**baseline["overall"], "no_exec_effects": False}
+    assert not flagged["all_pass"]
+
+
 @pytest.mark.parametrize("change", ["missing", "wrong_start", "wrong_end", "no_export", "failed", "error", "wrong_operation"])
 def test_pack_requires_successful_exact_export_call(run, change):
     if change == "missing":
