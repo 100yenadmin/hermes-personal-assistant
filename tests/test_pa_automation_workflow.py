@@ -107,10 +107,19 @@ def test_timezone_write_reports_accepted_rules_pinned_elsewhere(tmp_path):
 
     result = dispatch(ledger, {"action": "preferences", "changes": {"timezone": "Asia/Tokyo"}})
     assert result["timezone"] == "Asia/Tokyo"
-    assert result["routines_pinned_elsewhere"] == [
-        {"rule_id": "a-seoul", "kind": "cos_weekly", "timezone": "Asia/Seoul"},
-        {"rule_id": "z-bangkok", "kind": "cos_daily", "timezone": "Asia/Bangkok"},
+    listed = result["routines_pinned_elsewhere"]
+    assert [{k: e[k] for k in ("rule_id", "kind", "timezone", "paused")} for e in listed] == [
+        {"rule_id": "a-seoul", "kind": "cos_weekly", "timezone": "Asia/Seoul", "paused": False},
+        {"rule_id": "z-bangkok", "kind": "cos_daily", "timezone": "Asia/Bangkok", "paused": True},
     ]
+    # Each entry carries its stored rule; writing that back unpinned keeps the routine running as before.
+    entry = listed[1]
+    assert entry["rule"] == ledger.get("action", ledger.action_id("pa-automation-rule", "rule", "z-bangkok"))["fields"]["automation_rule"]
+    row = dispatch(ledger, {"action": "rule", "rule_id": entry["rule_id"], "rule": {**entry["rule"], "timezone_pinned": False}})
+    kept = row["fields"]["automation_rule"]
+    assert kept["accepted"] is True and kept["paused"] is True and kept["kind"] == "cos_daily"
+    assert "timezone" not in kept and "timezone_pinned" not in kept
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Tokyo"
     assert "routines_pinned_elsewhere" not in ledger.get("action", "pa:preferences")["fields"]
     status = dispatch(ledger, {"action": "status"})
     assert "routines_pinned_elsewhere" not in status
