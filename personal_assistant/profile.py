@@ -113,8 +113,7 @@ def _unknown_keys(action, unknown):
     return message[:300]
 
 
-def _shape_hint(kind, allowed, unknown):
-    """Keep corrective hints bounded and value-free, with a complete valid example."""
+def _remember_example(kind):
     examples = {
         "preference": {"text": "Prefers aisle seats", "category": "travel", "source": "said", "evidence": "Owner said so"},
         "person": {"name": "Alex", "rules": ["Formal greeting"], "source": "said"},
@@ -122,6 +121,28 @@ def _shape_hint(kind, allowed, unknown):
                 "done_when": "Tasks reviewed", "escalation": "Ask owner"},
         "trust": {"task_type": "Weekly prep"},
     }
+    return ". Example: " + json.dumps({"action": "remember", "kind": kind, **examples[kind]}, separators=(",", ":"))
+
+
+def _remember_hint(message, kind):
+    example = _remember_example(kind)
+    return message[:600 - len(example)] + example
+
+
+def _validation_hint(kind, error):
+    field = ".".join(map(str, error.path)) or "data"
+    if error.validator == "enum":
+        issue = "must be one of " + ", ".join(error.validator_value)
+    elif error.validator in {"maxLength", "maxItems"}:
+        unit = "characters" if error.validator == "maxLength" else "items"
+        issue = f"allows at most {error.validator_value} {unit}"
+    else:
+        issue = "is invalid"
+    return _remember_hint(f"profile field {field} {issue}", kind)
+
+
+def _shape_hint(kind, allowed, unknown):
+    """Keep corrective hints bounded and value-free, with a complete valid example."""
     head = f"remember {kind} takes flat data: " + ", ".join(sorted(allowed))
     named = _safe_names(unknown)
     extra = "; not accepted: " + ", ".join(named) if named else ""
@@ -130,7 +151,7 @@ def _shape_hint(kind, allowed, unknown):
         tail += f"; plus {len(unknown) - len(named)} other keys not accepted"
     if "fields" in unknown:
         tail += "; fields is for action_upsert, send these keys at the top level of data"
-    tail += ". Example: " + json.dumps({"action": "remember", "kind": kind, **examples[kind]}, separators=(",", ":"))
+    tail += _remember_example(kind)
     budget = 600 - len(head) - len(tail)
     if len(extra) > budget:
         extra = extra[:max(budget - 1, 0)] + "…"
@@ -142,7 +163,8 @@ def remember(ledger, data):
         raise ValueError("profile records prohibit credentials, card/account/passport numbers and raw message bodies")
     kind = data.get("kind")
     if not isinstance(kind, str) or kind not in KINDS:
-        raise ValueError("profile kind must be preference, person, sop or trust; accepted kinds: " + ", ".join(sorted(KINDS)))
+        message = "profile kind must be preference, person, sop or trust; accepted kinds: " + ", ".join(sorted(KINDS))
+        raise ValueError(_remember_hint(message, "preference"))
     allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "filed_text", "since"} | {"kind", "slug", "change"}
     unknown = set(data) - allowed
     if unknown:
@@ -217,11 +239,11 @@ def remember(ledger, data):
     try:
         validate(fields, SCHEMA, format_checker=FormatChecker())
     except ValidationError as exc:
-        raise ValueError("invalid profile field: " + ".".join(map(str, exc.path))) from None
+        raise ValueError(_validation_hint(kind, exc)) from None
     states = {"preference": {"active", "proposed", "filed", "retired"}, "person": {"active", "filed", "retired"},
               "sop": {"draft", "owned", "retired"}, "trust": {"active", "retired"}}
     if fields["state"] not in states[kind]:
-        raise ValueError("invalid profile state")
+        raise ValueError(_remember_hint("invalid profile state", kind))
     prior = None
     if kind == "preference" and fields["source"] == "corrected" and fields["supersedes"]:
         prior = _get(ledger, fields["supersedes"])

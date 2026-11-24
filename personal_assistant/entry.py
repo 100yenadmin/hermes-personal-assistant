@@ -126,9 +126,25 @@ SCHEMA = {
 }
 
 from .profile import SCHEMA as PROFILE_SCHEMA
+
+
+def _strip_profile_limits(schema):
+    if isinstance(schema, dict):
+        schema.pop("maxLength", None)
+        schema.pop("maxItems", None)
+        for child in schema.values():
+            _strip_profile_limits(child)
+    elif isinstance(schema, list):
+        for child in schema:
+            _strip_profile_limits(child)
+
+
 PROFILE_DATA_SCHEMA = deepcopy(PROFILE_SCHEMA)
-# Let PA return bounded shape hints; stored profile fields still use the strict schema.
+# Let PA return bounded shape and value hints; stored profile fields still use the strict schema.
 PROFILE_DATA_SCHEMA.pop("additionalProperties")
+for field in ("kind", "source", "category", "level"):
+    PROFILE_DATA_SCHEMA["properties"][field] = {"type": "string"}
+_strip_profile_limits(PROFILE_DATA_SCHEMA)
 SCHEMA["parameters"]["allOf"].append({
     "if": {"properties": {"operation": {"const": "profile"}}},
     "then": {"properties": {"data": PROFILE_DATA_SCHEMA}},
