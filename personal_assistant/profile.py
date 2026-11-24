@@ -2,6 +2,7 @@
 import json
 import re
 import unicodedata
+from itertools import groupby
 
 from .phone_safety import phone_card_spans
 from .privacy import clean
@@ -113,8 +114,7 @@ def _unknown_keys(action, unknown):
     return message[:300]
 
 
-def _shape_hint(kind, allowed, unknown):
-    """Keep corrective hints bounded and value-free, with a complete valid example."""
+def _remember_example(kind):
     examples = {
         "preference": {"text": "Prefers aisle seats", "category": "travel", "source": "said", "evidence": "Owner said so"},
         "person": {"name": "Alex", "rules": ["Formal greeting"], "source": "said"},
@@ -122,6 +122,62 @@ def _shape_hint(kind, allowed, unknown):
                 "done_when": "Tasks reviewed", "escalation": "Ask owner"},
         "trust": {"task_type": "Weekly prep"},
     }
+    return ". Example: " + json.dumps({"action": "remember", "kind": kind, **examples[kind]}, separators=(",", ":"))
+
+
+def _remember_hint(message, kind):
+    example = _remember_example(kind)
+    return message[:600 - len(example)] + example
+
+
+def _validation_issue(error):
+    if error.validator == "enum":
+        return "must be one of " + ", ".join(error.validator_value)
+    if error.validator in {"maxLength", "maxItems"}:
+        unit = "characters" if error.validator == "maxLength" else "items"
+        return f"allows at most {error.validator_value} {unit}"
+    if error.validator == "type":
+        types = error.validator_value
+        return "must have type " + (types if isinstance(types, str) else " or ".join(types))
+    if error.validator == "format":
+        return f"must use {error.validator_value} format"
+    if error.validator == "minimum":
+        return f"must be at least {error.validator_value}"
+    if error.validator == "required":
+        missing = [key for key in error.validator_value if key not in error.instance]
+        return "requires " + ", ".join(missing)
+    if error.validator == "additionalProperties":
+        return "does not accept extra keys"
+    return "is invalid"
+
+
+def _validation_hint(kind, errors, extra=()):
+    details = list(extra)
+    for path, field_errors in groupby(errors, key=lambda error: tuple(error.path)):
+        field = ".".join(map(str, path)) or "data"
+        issues = dict.fromkeys(_validation_issue(error) for error in field_errors)
+        details.append(f"{field} " + " and ".join(issues))
+
+    prefix = "profile field "
+    example = _remember_example(kind)
+    budget = 600 - len(prefix) - len(example)
+    description = "; ".join(details)
+    if len(description) > budget:
+        shown = []
+        length = 0
+        for detail in details:
+            next_length = length + len(detail) + (2 if shown else 0)
+            remaining = len(details) - len(shown) - 1
+            if next_length + len(f"; plus {remaining} more") > budget:
+                break
+            shown.append(detail)
+            length = next_length
+        description = "; ".join([*shown, f"plus {len(details) - len(shown)} more"])
+    return prefix + description + example
+
+
+def _shape_hint(kind, allowed, unknown):
+    """Keep corrective hints bounded and value-free, with a complete valid example."""
     head = f"remember {kind} takes flat data: " + ", ".join(sorted(allowed))
     named = _safe_names(unknown)
     extra = "; not accepted: " + ", ".join(named) if named else ""
@@ -130,7 +186,7 @@ def _shape_hint(kind, allowed, unknown):
         tail += f"; plus {len(unknown) - len(named)} other keys not accepted"
     if "fields" in unknown:
         tail += "; fields is for action_upsert, send these keys at the top level of data"
-    tail += ". Example: " + json.dumps({"action": "remember", "kind": kind, **examples[kind]}, separators=(",", ":"))
+    tail += _remember_example(kind)
     budget = 600 - len(head) - len(tail)
     if len(extra) > budget:
         extra = extra[:max(budget - 1, 0)] + "…"
@@ -142,7 +198,8 @@ def remember(ledger, data):
         raise ValueError("profile records prohibit credentials, card/account/passport numbers and raw message bodies")
     kind = data.get("kind")
     if not isinstance(kind, str) or kind not in KINDS:
-        raise ValueError("profile kind must be preference, person, sop or trust; accepted kinds: " + ", ".join(sorted(KINDS)))
+        message = "profile kind must be preference, person, sop or trust; accepted kinds: " + ", ".join(sorted(KINDS))
+        raise ValueError(_remember_hint(message, "preference"))
     allowed = set(FIELDS[kind].split()) - {"remove_from_files", "owner_confirmed_at", "filed_text", "since"} | {"kind", "slug", "change"}
     unknown = set(data) - allowed
     if unknown:
@@ -151,10 +208,10 @@ def remember(ledger, data):
         raise ValueError("filed is set only by mark_filed after a reviewed write")
     label = data.get({"preference": "text", "person": "name", "sop": "title", "trust": "task_type"}[kind])
     if not isinstance(label, str) or not label.strip():
-        raise ValueError("profile text, name, title or task_type is required")
+        raise ValueError(_remember_hint("profile text, name, title or task_type is required", kind))
     slug = re.sub(r"[^\w]+", "-", unicodedata.normalize("NFKC", data.get("slug") or label).casefold()).strip("-")
     if not slug:
-        raise ValueError("profile slug must contain letters or numbers")
+        raise ValueError(_remember_hint("profile slug must contain letters or numbers", kind))
     identity = KINDS[kind] + ":" + slug
     old = ledger.get("action", identity)
     if old and not _is_profile(old) or old and old["action_type"] != kind:
@@ -200,7 +257,7 @@ def remember(ledger, data):
     if kind == "sop":
         content = ("title", "trigger", "steps", "tools", "done_when", "escalation")
         if any(k not in fields for k in content):
-            raise ValueError("SOP needs title, trigger, steps, tools, done_when and escalation")
+            raise ValueError(_remember_hint("SOP needs title, trigger, steps, tools, done_when and escalation", kind))
         changed = old and any(fields[k] != old["fields"].get(k) for k in content)
         fields["version"] = old["fields"]["version"] + bool(changed) if old else 1
         fields["changelog"] = old["fields"]["changelog"] if old else []
@@ -213,15 +270,19 @@ def remember(ledger, data):
             }])[-10:]
         if changed:
             fields["state"] = "draft"
-    from jsonschema import validate, FormatChecker, ValidationError
-    try:
-        validate(fields, SCHEMA, format_checker=FormatChecker())
-    except ValidationError as exc:
-        raise ValueError("invalid profile field: " + ".".join(map(str, exc.path))) from None
+    from jsonschema import Draft7Validator, FormatChecker
+    validator = Draft7Validator(SCHEMA, format_checker=FormatChecker())
+    errors = sorted(validator.iter_errors(fields), key=lambda error: tuple(error.path))
     states = {"preference": {"active", "proposed", "filed", "retired"}, "person": {"active", "filed", "retired"},
               "sop": {"draft", "owned", "retired"}, "trust": {"active", "retired"}}
-    if fields["state"] not in states[kind]:
-        raise ValueError("invalid profile state")
+    # The state rule is kind-specific, so report it in the same hint as the schema errors (one try to fix).
+    bad_state = fields.get("state") not in states[kind]
+    if errors:
+        state_detail = ["state must be one of " + ", ".join(sorted(states[kind]))] if bad_state else []
+        raise ValueError(_validation_hint(kind, errors, state_detail))
+    if bad_state:
+        message = "invalid profile state; must be one of " + ", ".join(sorted(states[kind]))
+        raise ValueError(_remember_hint(message, kind))
     prior = None
     if kind == "preference" and fields["source"] == "corrected" and fields["supersedes"]:
         prior = _get(ledger, fields["supersedes"])
@@ -252,6 +313,10 @@ def dispatch(ledger, data):
     if unknown and action in {"list", "pending_files", "confirm", "forget", "mark_filed"}:
         # A misspelled list filter would otherwise be ignored and list every record (review of #266).
         raise ValueError(_unknown_keys(action, unknown))
+    if action == "list":
+        for field, allowed in (("kind", tuple(KINDS)), ("category", CATEGORIES)):
+            if field in data and data[field] not in allowed:
+                raise ValueError(f"profile list {field} must be one of " + ", ".join(allowed))
     if action in {"list", "pending_files"}:
         rows = sorted(_rows(ledger), key=lambda r: (r["fields"].get("source") == "corrected", r["updated_at"]), reverse=True)
         if action == "list" and not data.get("state"):

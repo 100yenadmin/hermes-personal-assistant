@@ -13,6 +13,7 @@ from personal_assistant.entry import dispatch, SCHEMA
 from personal_assistant.onboarding_hook import OWNER_MEMORY, make_pre_llm_call
 from personal_assistant.state import Ledger, legacy
 from personal_assistant.profile import SCHEMA as PROFILE_SCHEMA, _shape_hint, remember, session_note
+from personal_assistant.profile import SOURCES
 
 
 def call(root, action="remember", **data):
@@ -75,7 +76,38 @@ def test_profile_wire_schema_copy_preserves_strict_storage_validation(tmp_path):
                  if b.get("if", {}).get("properties", {}).get("operation", {}).get("const") == "profile")
     assert "additionalProperties" not in wired
     assert PROFILE_SCHEMA["additionalProperties"] is False
-    assert {**wired, "additionalProperties": False} == PROFILE_SCHEMA
+    def relaxed(schema):
+        from copy import deepcopy
+        from personal_assistant.profile import CATEGORIES, KINDS
+
+        def without_limits(node):
+            for key in ("maxLength", "maxItems"):
+                node.pop(key, None)
+            for child in node.get("properties", {}).values():
+                without_limits(child)
+            if "items" in node:
+                without_limits(node["items"])
+
+        copy = deepcopy(schema)
+        copy.pop("additionalProperties")
+        allowed_values = {"kind": KINDS, "source": SOURCES, "category": CATEGORIES,
+                          "level": schema["properties"]["level"]["enum"]}
+        for field, values in allowed_values.items():
+            copy["properties"][field] = {"type": "string", "description": "One of: " + ", ".join(values)}
+        without_limits(copy)
+        return copy
+
+    assert wired == relaxed(PROFILE_SCHEMA)
+    assert PROFILE_SCHEMA["properties"]["source"]["enum"] == SOURCES
+    assert PROFILE_SCHEMA["properties"]["text"]["maxLength"] == 300
+    ledger = Ledger(tmp_path)
+    for invalid in ({"source": "owner"}, {"text": "x" * 301}):
+        data = {"action": "remember", "kind": "preference", "text": "Prefer short replies", **invalid}
+        with pytest.raises(ValidationError):
+            validate(data, PROFILE_SCHEMA)
+        with pytest.raises(ValueError):
+            dispatch(tmp_path, {"operation": "profile", "data": data})
+        assert ledger.list("action") == []
     assert wired["properties"] is not PROFILE_SCHEMA["properties"]
     assert wired["properties"]["changelog"] is not PROFILE_SCHEMA["properties"]["changelog"]
     args = {"operation": "profile", "data": {"action": "remember", "kind": "preference",
@@ -85,6 +117,69 @@ def test_profile_wire_schema_copy_preserves_strict_storage_validation(tmp_path):
     validate(dispatch(tmp_path, args)["fields"], PROFILE_SCHEMA)
     with pytest.raises(ValidationError):
         validate({**args["data"], "fields": {}}, PROFILE_SCHEMA)
+
+
+def test_profile_wire_schema_advertises_allowed_values():
+    from personal_assistant.entry import PROFILE_DATA_SCHEMA
+
+    properties = PROFILE_DATA_SCHEMA["properties"]
+    assert {field: properties[field]["description"] for field in ("kind", "source", "category", "level")} == {
+        "kind": "One of: preference, person, sop, trust",
+        "source": "One of: said, inferred, corrected",
+        "category": "One of: general, communication, voice, calendar, travel, food, people, work",
+        "level": "One of: shadow, own, independent",
+    }
+
+
+def test_remember_reports_multiple_invalid_fields_in_one_hint(tmp_path):
+    rejected_text = "x" * 400
+    with pytest.raises(ValueError) as exc:
+        pref(tmp_path, rejected_text, source="owner", category="diet")
+
+    message = str(exc.value)
+    description, example_json = message.split(". Example: ")
+    assert description.split("; ") == [
+        "profile field category must be one of general, communication, voice, calendar, travel, food, people, work",
+        "source must be one of said, inferred, corrected",
+        "text allows at most 300 characters",
+    ]
+    assert all(value not in description for value in ("owner", "diet", rejected_text))
+    assert len(message) <= 600
+    assert Ledger(tmp_path).list("action") == []
+    assert call(tmp_path, **json.loads(example_json))["action_type"] == "preference"
+
+
+def test_invalid_remember_state_hint_lists_states_for_the_kind(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, kind="trust", task_type="Weekly prep", state="fixture-state")
+
+    description, example_json = str(exc.value).split(". Example: ")
+    assert description == "invalid profile state; must be one of active, retired"
+    assert json.loads(example_json)["kind"] == "trust"
+    assert Ledger(tmp_path).list("action") == []
+
+
+@pytest.mark.parametrize("kind,data,field,detail,rejected", [
+    ("preference", {"text": "Prefer short replies", "source": "owner"}, "source", ", ".join(SOURCES), "owner"),
+    ("preference", {"text": "x" * 301}, "text", "300 characters", "x" * 301),
+    ("preference", {"text": "Prefer short replies", "category": "fixture-category"}, "category",
+     "general, communication, voice, calendar, travel, food, people, work", "fixture-category"),
+    ("trust", {"task_type": "Weekly prep", "level": "fixture-level"}, "level", "shadow, own, independent", "fixture-level"),
+    ("person", {"name": "Alex", "state": "fixture-state"}, "state", "invalid profile state", "fixture-state"),
+    ("fixture-kind", {}, "kind", "person, preference, sop, trust", "fixture-kind"),
+])
+def test_invalid_remember_values_get_a_valid_example(tmp_path, kind, data, field, detail, rejected):
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, kind=kind, **data)
+    message = str(exc.value)
+    description, example_json = message.split(". Example: ", 1)
+    assert field in description and detail in description
+    assert len(message) <= 600 and "\n" not in message and rejected not in message
+    assert Ledger(tmp_path).list("action") == []
+    example = json.loads(example_json)
+    expected_kind = "preference" if field == "kind" else kind
+    assert example["action"] == "remember" and example["kind"] == expected_kind
+    assert call(tmp_path, **example)["action_type"] == expected_kind
 
 
 @pytest.mark.parametrize("overflow", [0, 7])
@@ -125,6 +220,15 @@ def test_list_with_valid_filters_still_lists(tmp_path):
     rows = dispatch(tmp_path, {"operation": "profile", "data": {"action": "list", "category": "travel"}})
     assert [r["text"] for r in rows] == ["Prefers aisle seats"]
     assert dispatch(tmp_path, {"operation": "profile", "data": {"action": "list", "category": "food"}}) == []
+
+
+def test_list_rejects_invalid_kind_and_category_with_allowed_values(tmp_path):
+    from personal_assistant.profile import CATEGORIES, KINDS
+
+    for field, allowed in (("kind", KINDS), ("category", CATEGORIES)):
+        with pytest.raises(ValueError) as exc:
+            call(tmp_path, "list", **{field: "fixture-invalid"})
+        assert str(exc.value) == f"profile list {field} must be one of " + ", ".join(allowed)
 
 
 def test_shape_hint_caps_fixed_text_that_exceeds_budget():
@@ -182,7 +286,8 @@ def test_invalid_kind_hint_names_accepted_kinds(tmp_path, kind):
         remember(Ledger(tmp_path), {"kind": kind})
     message = str(exc.value)
     assert message.startswith("profile kind must be preference, person, sop or trust")
-    assert message.endswith("accepted kinds: person, preference, sop, trust") and len(message) <= 600
+    assert "accepted kinds: person, preference, sop, trust. Example: " in message and len(message) <= 600
+    assert message.endswith('"evidence":"Owner said so"}')  # The kind list, then one valid example.
     assert Ledger(tmp_path).list("action") == []
 
 
@@ -557,9 +662,18 @@ def test_owner_memory_is_routed_in_a_chat_other_than_active_setup(tmp_path, huma
 
 
 def test_schema_limits_and_review_paths(tmp_path):
+    data = {"kind": "person", "name": "Alex", "rules": ["x"] * 6}
+    before = call(tmp_path, "list", kind="person")
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, **data)
+    message = str(exc.value)
+    assert len(message) <= 600 and "rules" in message and "5 items" in message
+    example = json.loads(message.split(". Example: ", 1)[1])
+    assert example["action"] == "remember" and example["kind"] == "person"
+    assert call(tmp_path, "list", kind="person") == before
     with pytest.raises(ValidationError):
-        call(tmp_path, kind="person", name="Alex", rules=["x"] * 6)
-    with pytest.raises(ValueError, match="invalid profile field"):
+        validate(data, PROFILE_SCHEMA)
+    with pytest.raises(ValueError, match="profile field text allows at most 300 characters"):
         dispatch(tmp_path, {"operation": "profile", "data": {"action": "remember", "kind": "preference", "text": "x" * 301}})
     root = Path(__file__).resolve().parents[1] / "skills"
     for path in ("cos-weekly/SKILL.md", "daily-ops/SKILL.md"):
@@ -668,8 +782,18 @@ def test_review_round_three_lifecycle(tmp_path):
     assert [r["fields"]["state"] for r in filed] == ["filed", "filed"]
     retired = call(tmp_path, kind="person", name="Synthetic Alex", rules=["Formal greeting"], state="retired")
     assert retired["fields"]["remove_from_files"] is True
+    data = {"kind": "sop", "title": "Prep", "trigger": "Fri", "steps": ["x" * 301], "tools": ["cal"],
+            "done_when": "ok", "escalation": "ask"}
+    before = call(tmp_path, "list", kind="sop")
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, **data)
+    message = str(exc.value)
+    assert len(message) <= 600 and "steps" in message and "300 characters" in message
+    example = json.loads(message.split(". Example: ", 1)[1])
+    assert example["action"] == "remember" and example["kind"] == "sop"
+    assert call(tmp_path, "list", kind="sop") == before
     with pytest.raises(ValidationError):
-        call(tmp_path, kind="sop", title="Prep", trigger="Fri", steps=["x" * 301], tools=["cal"], done_when="ok", escalation="ask")
+        validate(data, PROFILE_SCHEMA)
 
 
 def test_account_shaped_key_names_are_counted_not_named(tmp_path):
@@ -680,3 +804,26 @@ def test_account_shaped_key_names_are_counted_not_named(tmp_path):
     with _pytest.raises(ValueError) as caught:
         remember(Ledger(tmp_path), {"kind": "preference", "text": "x", "iban_gb29nwbk60161331926819": "y"})
     assert "60161331926819" not in str(caught.value) and "1 other key" in str(caught.value)
+
+
+@pytest.mark.parametrize("kind,data,start", [
+    ("preference", {}, "profile text, name, title or task_type is required"),
+    ("preference", {"text": "Prefers aisle seats", "slug": "!!!"}, "profile slug must contain letters or numbers"),
+    ("sop", {"title": "Weekly prep"}, "SOP needs title, trigger, steps, tools, done_when and escalation"),
+])
+def test_shape_errors_end_with_a_valid_example(tmp_path, kind, data, start):
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, kind=kind, **data)
+    message = str(exc.value)
+    assert message.startswith(start) and ". Example: " in message and len(message) <= 600
+    example = json.loads(message.split(". Example: ", 1)[1])
+    assert call(tmp_path, **example)["action_type"] == kind
+
+
+def test_bad_state_is_reported_with_schema_errors_in_one_hint(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, kind="trust", task_type="Weekly prep", level="fixture-level", state="fixture-state")
+    message = str(exc.value)
+    assert "level must be one of" in message and "state must be one of active, retired" in message
+    assert "fixture-" not in message and len(message) <= 600
+    assert Ledger(tmp_path).list("action") == []
