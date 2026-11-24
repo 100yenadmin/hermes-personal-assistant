@@ -2,6 +2,7 @@ import datetime as dt
 import hashlib
 import json
 import sys
+from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -34,7 +35,7 @@ def _facts(ledger, *segments, identity="synthetic"):
 
 
 def test_hermes_setting_suggests_when_no_flight_evidence(ledger, hermes_time):
-    hermes_time.get_timezone_name = lambda: "Asia/Tokyo"
+    hermes_time.get_timezone = lambda: ZoneInfo("Asia/Tokyo")
     preferences(ledger, {"timezone": "Asia/Bangkok"})
     item = timezone_check(ledger, MOMENT)
     assert item["suggested"] == "Asia/Tokyo"
@@ -44,19 +45,19 @@ def test_hermes_setting_suggests_when_no_flight_evidence(ledger, hermes_time):
 
 
 def test_hermes_setting_beats_home(ledger, hermes_time):
-    hermes_time.get_timezone_name = lambda: "Asia/Tokyo"
+    hermes_time.get_timezone = lambda: ZoneInfo("Asia/Tokyo")
     preferences(ledger, {"timezone": "Asia/Bangkok", "home_timezone": "America/New_York"})
     assert timezone_check(ledger, MOMENT)["suggested"] == "Asia/Tokyo"
 
 
 def test_flight_evidence_beats_hermes_setting(ledger, hermes_time):
-    hermes_time.get_timezone_name = Mock(return_value="Asia/Tokyo")
+    hermes_time.get_timezone = Mock(return_value=ZoneInfo("Asia/Tokyo"))
     preferences(ledger, {"timezone": "Asia/Bangkok"})
     _facts(ledger, _segment(destination="LHR", destination_timezone="Europe/London"))
     item = timezone_check(ledger, MOMENT)
     assert item["suggested"] == "Europe/London"
     assert item["evidence"]["kind"] == "landed"
-    hermes_time.get_timezone_name.assert_not_called()
+    hermes_time.get_timezone.assert_not_called()
 
 
 @pytest.mark.parametrize("case", ["server-local", "missing", "error", "invalid"])
@@ -64,9 +65,9 @@ def test_hermes_server_local_or_missing_is_not_evidence(ledger, hermes_time, mon
     if case == "missing":
         monkeypatch.setitem(sys.modules, "hermes_time", None)
     elif case == "error":
-        hermes_time.get_timezone_name = Mock(side_effect=RuntimeError("unavailable"))
+        hermes_time.get_timezone = Mock(side_effect=RuntimeError("unavailable"))
     elif case == "invalid":
-        hermes_time.get_timezone_name = lambda: "Mars/Olympus"
+        hermes_time.get_timezone = lambda: SimpleNamespace(key="Mars/Olympus")
 
     preferences(ledger, {"timezone": "Asia/Bangkok"})
     assert timezone_check(ledger, MOMENT) is None
@@ -79,7 +80,7 @@ def test_hermes_server_local_or_missing_is_not_evidence(ledger, hermes_time, mon
 @pytest.mark.parametrize("changes", [{"timezone": "Asia/Bangkok", "timezone_kept": "hermes:Asia/Tokyo"},
                                      {"timezone": "Asia/Seoul"}])
 def test_hermes_setting_kept_key_and_same_offset_suppress(ledger, hermes_time, changes):
-    hermes_time.get_timezone_name = lambda: "Asia/Tokyo"
+    hermes_time.get_timezone = lambda: ZoneInfo("Asia/Tokyo")
     preferences(ledger, changes)
     assert timezone_check(ledger, MOMENT) is None
 
@@ -353,3 +354,12 @@ def test_switch_needs_a_confirmed_landing(ledger, status, expected):
     _facts(ledger, _segment(status=status))
     item = timezone_check(ledger, MOMENT)
     assert item["evidence"]["kind"] == "landed" and item["suggested"] == "Asia/Bangkok" and item["switch"] is expected
+
+
+def test_hermes_setting_works_without_get_timezone_name(ledger, monkeypatch):
+    # Supported pin 6e2b8e0 exposes get_timezone() but not get_timezone_name().
+    old_hermes = ModuleType("hermes_time")
+    old_hermes.get_timezone = lambda: ZoneInfo("Asia/Tokyo")
+    monkeypatch.setitem(sys.modules, "hermes_time", old_hermes)
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    assert timezone_check(ledger, MOMENT)["evidence"] == {"kind": "hermes_setting"}

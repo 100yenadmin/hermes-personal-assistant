@@ -13,10 +13,11 @@ def _zone(value):
 
 
 def _hermes_zone():
-    """The Hermes timezone the owner configured (HERMES_TIMEZONE or config `timezone`); None when unset or unavailable."""
+    """The Hermes timezone the owner configured (HERMES_TIMEZONE or config `timezone`); None when unset (server-local) or unavailable."""
     try:
-        from hermes_time import get_timezone_name
-        return _zone(get_timezone_name() or None)
+        # get_timezone() is on every supported Hermes; get_timezone_name() is not (6e2b8e0 lacks it).
+        from hermes_time import get_timezone
+        return _zone(getattr(get_timezone(), "key", None))
     except Exception:
         return None
 

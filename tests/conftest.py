@@ -34,5 +34,5 @@ def hermes_time(monkeypatch):
     else:
         # Some tests import native Hermes cron, which needs the other clock APIs.
         module = importlib.import_module("hermes_time")
-    monkeypatch.setattr(module, "get_timezone_name", lambda: "", raising=False)
+    monkeypatch.setattr(module, "get_timezone", lambda: None, raising=False)  # None = server-local, as Hermes reports it
     return module
