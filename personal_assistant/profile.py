@@ -151,8 +151,8 @@ def _validation_issue(error):
     return "is invalid"
 
 
-def _validation_hint(kind, errors):
-    details = []
+def _validation_hint(kind, errors, extra=()):
+    details = list(extra)
     for path, field_errors in groupby(errors, key=lambda error: tuple(error.path)):
         field = ".".join(map(str, path)) or "data"
         issues = dict.fromkeys(_validation_issue(error) for error in field_errors)
@@ -273,11 +273,14 @@ def remember(ledger, data):
     from jsonschema import Draft7Validator, FormatChecker
     validator = Draft7Validator(SCHEMA, format_checker=FormatChecker())
     errors = sorted(validator.iter_errors(fields), key=lambda error: tuple(error.path))
-    if errors:
-        raise ValueError(_validation_hint(kind, errors))
     states = {"preference": {"active", "proposed", "filed", "retired"}, "person": {"active", "filed", "retired"},
               "sop": {"draft", "owned", "retired"}, "trust": {"active", "retired"}}
-    if fields["state"] not in states[kind]:
+    # The state rule is kind-specific, so report it in the same hint as the schema errors (one try to fix).
+    bad_state = fields.get("state") not in states[kind]
+    if errors:
+        state_detail = ["state must be one of " + ", ".join(sorted(states[kind]))] if bad_state else []
+        raise ValueError(_validation_hint(kind, errors, state_detail))
+    if bad_state:
         message = "invalid profile state; must be one of " + ", ".join(sorted(states[kind]))
         raise ValueError(_remember_hint(message, kind))
     prior = None

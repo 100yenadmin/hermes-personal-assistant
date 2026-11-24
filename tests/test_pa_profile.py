@@ -818,3 +818,12 @@ def test_shape_errors_end_with_a_valid_example(tmp_path, kind, data, start):
     assert message.startswith(start) and ". Example: " in message and len(message) <= 600
     example = json.loads(message.split(". Example: ", 1)[1])
     assert call(tmp_path, **example)["action_type"] == kind
+
+
+def test_bad_state_is_reported_with_schema_errors_in_one_hint(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, kind="trust", task_type="Weekly prep", level="fixture-level", state="fixture-state")
+    message = str(exc.value)
+    assert "level must be one of" in message and "state must be one of active, retired" in message
+    assert "fixture-" not in message and len(message) <= 600
+    assert Ledger(tmp_path).list("action") == []
