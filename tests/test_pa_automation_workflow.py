@@ -93,6 +93,63 @@ def test_acceptance_inherits_later_preferences_and_explicit_update_pins(tmp_path
     assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Bangkok"
 
 
+def test_timezone_write_reports_accepted_rules_pinned_elsewhere(tmp_path):
+    from personal_assistant.automation_workflow import dispatch
+
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    rule = {"kind": "cos_daily", "accepted": True, "timezone_pinned": True}
+    upsert_automation_rule(ledger, "z-bangkok", {**rule, "timezone": "Asia/Bangkok", "paused": True})
+    upsert_automation_rule(ledger, "a-seoul", {**rule, "kind": "cos_weekly", "timezone": "Asia/Seoul"})
+    upsert_automation_rule(ledger, "tokyo", {**rule, "timezone": "Asia/Tokyo"})
+    upsert_automation_rule(ledger, "legacy-copy", {"kind": "cos_daily", "accepted": True, "timezone": "Asia/Bangkok"})
+    upsert_automation_rule(ledger, "unaccepted", {**rule, "accepted": False, "timezone": "Asia/Bangkok"})
+
+    result = dispatch(ledger, {"action": "preferences", "changes": {"timezone": "Asia/Tokyo"}})
+    assert result["timezone"] == "Asia/Tokyo"
+    listed = result["routines_pinned_elsewhere"]
+    assert [{k: e[k] for k in ("rule_id", "kind", "timezone", "paused")} for e in listed] == [
+        {"rule_id": "a-seoul", "kind": "cos_weekly", "timezone": "Asia/Seoul", "paused": False},
+        {"rule_id": "z-bangkok", "kind": "cos_daily", "timezone": "Asia/Bangkok", "paused": True},
+    ]
+    # Each entry carries its stored rule; writing that back unpinned keeps the routine running as before.
+    entry = listed[1]
+    assert entry["rule"] == ledger.get("action", ledger.action_id("pa-automation-rule", "rule", "z-bangkok"))["fields"]["automation_rule"]
+    row = dispatch(ledger, {"action": "rule", "rule_id": entry["rule_id"], "rule": {**entry["rule"], "timezone_pinned": False}})
+    kept = row["fields"]["automation_rule"]
+    assert kept["accepted"] is True and kept["paused"] is True and kept["kind"] == "cos_daily"
+    assert "timezone" not in kept and "timezone_pinned" not in kept
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Tokyo"
+    assert "routines_pinned_elsewhere" not in ledger.get("action", "pa:preferences")["fields"]
+    status = dispatch(ledger, {"action": "status"})
+    assert "routines_pinned_elsewhere" not in status
+    assert "routines_pinned_elsewhere" not in status["preferences"]
+    result = dispatch(ledger, {"action": "preferences", "changes": {"brief_time": "08:00"}})
+    assert "routines_pinned_elsewhere" not in result
+
+
+def test_unpinning_full_rule_keeps_pause_and_follows_preferences(tmp_path):
+    from personal_assistant.automation_workflow import dispatch
+
+    ledger = Ledger(tmp_path)
+    preferences(ledger, {"timezone": "Asia/Tokyo"})
+    rule = {"kind": "cos_daily", "accepted": True, "timezone": "Asia/Bangkok",
+            "timezone_pinned": True, "paused": True}
+    row = dispatch(ledger, {"action": "rule", "rule_id": "daily", "rule": rule})
+    assert auto.rule_timezone(row, preferences(ledger)) == "Asia/Bangkok"
+
+    full_rule = row["fields"]["automation_rule"]
+    dispatch(ledger, {"action": "rule", "rule_id": "daily", "rule": {**full_rule, "timezone_pinned": False}})
+    stored = ledger.get("action", row["action_id"])
+    stored_rule = stored["fields"]["automation_rule"]
+    assert stored_rule["paused"] is True
+    assert "timezone" not in stored_rule
+    assert "timezone_pinned" not in stored_rule
+    result = dispatch(ledger, {"action": "preferences", "changes": {"timezone": "Asia/Seoul"}})
+    assert "routines_pinned_elsewhere" not in result
+    assert auto.rule_timezone(stored, preferences(ledger)) == "Asia/Seoul"
+
+
 @pytest.mark.parametrize("pinned,expected", [(False, []), (True, ["feed"])])
 def test_due_source_naive_clock_uses_effective_zone(tmp_path, pinned, expected):
     rule = {"kind": "due_source_check", "accepted": True, "source_ref": "feed",

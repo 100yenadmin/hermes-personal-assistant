@@ -243,14 +243,42 @@ class GatewayStateUnavailableTests(unittest.TestCase):
         ):
             with self.subTest(tool=tool):
                 bug = RuntimeError("fixture dispatch bug")
-                with patch(f"{package}.{module}.dispatch", side_effect=[bug, ValueError("é" * 501)]):
+                with patch(f"{package}.{module}.dispatch", side_effect=[bug, ValueError("é" * 701)]):
                     context, _ = self.register(profile)
                     handler = context.tools[tool]["handler"]
                     with self.assertRaises(RuntimeError) as raised:
                         handler(args)
                     self.assertIs(raised.exception, bug)
                     result = handler(args)
-                self.assertEqual(result, json.dumps({"error": "é" * 500}, ensure_ascii=False))
+                self.assertEqual(result, json.dumps({"error": "é" * 700}, ensure_ascii=False))
+
+    def test_native_handler_returns_a_full_600_character_profile_hint(self):
+        from jsonschema import validate
+        from personal_assistant.entry import dispatch
+
+        profile = Path(self.tmp.name) / "profile"
+        profile.mkdir(mode=0o700)
+        context, _ = self.register(profile)
+        # All rule paths fit in order, with just the source error counted in the overflow.
+        args = {"operation": "profile", "data": {
+            "action": "remember", "kind": "person", "name": "Alex", "source": "fixture-source",
+            "relationship": "x" * 121, "rules": ["Valid rule"] * 5 + ["x" * 161] * 10,
+        }}
+        validate(args, context.tools["pa"]["schema"]["parameters"])
+        with self.assertRaises(ValueError) as raised:
+            dispatch(profile, args)
+        hint = str(raised.exception)
+        self.assertEqual(len(hint), 600)
+        description, example_json = hint.split(". Example: ")
+        self.assertIn("rules.9 allows at most 160 characters; rules.10 allows at most 160 characters", description)
+        self.assertTrue(description.endswith("rules.14 allows at most 160 characters; plus 1 more"))
+        self.assertNotIn("x" * 121, hint)
+        self.assertNotIn("fixture-source", hint)
+
+        handler = context.tools["pa"]["handler"]
+        self.assertEqual(json.loads(handler(args)), {"error": hint})
+        result = json.loads(handler({"operation": "profile", "data": json.loads(example_json)}))
+        self.assertEqual(result["action_type"], "person")
 
     def test_diagnostic_tools_cannot_carry_a_governed_scope(self):
         profile = Path(self.tmp.name) / "profile"

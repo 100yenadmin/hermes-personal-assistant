@@ -12,7 +12,7 @@ def _input_error(operation, allowed_operations, exc):
     if operation not in allowed_operations:
         operation = "unknown"
     logger.warning("PA operation %s rejected: %s", operation, type(exc).__name__)
-    return json.dumps({"error": str(exc)[:500]}, ensure_ascii=False)
+    return json.dumps({"error": str(exc)[:700]}, ensure_ascii=False)
 
 
 def _skill_metadata(path):
