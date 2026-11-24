@@ -40,26 +40,58 @@ _EXEC_WRITE = re.compile(
     r"|\.\s*(?:write_text|write_bytes|mkdir|touch)\s*\("
     r"|\bos\s*\.\s*(?:rename|replace|makedirs|mkdir)\b"
 )
-# A slash appended to the workspace variable is a separator, so only skip
-# that prefix. Any traversal marker or separate absolute literal still counts.
-_EXEC_WORKSPACE_SUFFIX = (
-    r"""\bos\s*\.\s*(?:environ\s*\[\s*(?P<env>["'])BH_AGENT_WORKSPACE(?P=env)\s*\]"""
-    r"""|getenv\s*\(\s*(?P<get>["'])BH_AGENT_WORKSPACE(?P=get)\s*\))\s*\+\s*["']/"""
+_EXEC_WORKSPACE_SOURCE = (
+    r"""\bos\s*\.\s*(?:environ\s*\[\s*(?:"BH_AGENT_WORKSPACE"|'BH_AGENT_WORKSPACE')\s*\]"""
+    r"""|getenv\s*\(\s*(?:"BH_AGENT_WORKSPACE"|'BH_AGENT_WORKSPACE')\s*\))"""
 )
+_EXEC_NAME = r"[^\W\d]\w*"
+_EXEC_PATH_TOKENS = re.compile(
+    rf"(?:^|(?<=[;\n]))[ \t]*(?P<assigned>{_EXEC_NAME})[ \t]*=(?!=)[ \t]*"
+    rf"(?P<workspace>(?:{_EXEC_WORKSPACE_SOURCE}|Path\s*\(\s*{_EXEC_WORKSPACE_SOURCE}\s*\))"
+    r"(?=[ \t]*(?:[;#\r\n]|$)))?"
+    rf"|(?:(?P<direct>{_EXEC_WORKSPACE_SOURCE})|(?<![\w.])(?P<base>{_EXEC_NAME}))"
+    rf"""\s*\+\s*(?P<suffix>(?=["']/){_EXEC_STRING})"""
+    rf"|(?P<literal>{_EXEC_STRING})|#[^\n]*"
+)
+_EXEC_WORKSPACE_CACHE = "/cache/browser-use/workspace/"
+_EXEC_TRAVERSAL = re.compile(r"""(?<=[/'"])\.\.(?=[/'"]|$)""")
 _EXEC_OUTSIDE = re.compile(
-    rf"""{_EXEC_WORKSPACE_SUFFIX}|(?P<outside>["'](?:~|/[\w.~])"""
+    r"""["'](?:~|/[\w.~])"""
     r"""|\b(?:expanduser|Path\s*\.\s*home|HOME|HERMES_HOME)\b"""
-    r"""|\.hermes\b|(?<=[/'"])\.\.(?=[/'"]|$))"""
+    r"""|\.hermes\b"""
 )
+
+
+def _exec_has_outside_path(code: str) -> bool:
+    if _EXEC_TRAVERSAL.search(code):
+        return True
+    if not _EXEC_OUTSIDE.search(code):
+        return False
+
+    workspace_names = set()
+    path_markers = list(code)
+    for token in _EXEC_PATH_TOKENS.finditer(code):
+        if name := token["assigned"]:
+            if token["workspace"]:
+                workspace_names.add(name)
+            else:
+                workspace_names.discard(name)
+        elif token["suffix"] and (token["direct"] or token["base"] in workspace_names):
+            # Concatenation adds a separator. A slash argument to join() or Path / can reset the path.
+            path_markers[token.start("suffix")] = " "
+        elif (literal := token["literal"]) and literal[1:2] == "/" and _EXEC_WORKSPACE_CACHE in literal[2:]:
+            # Hermes puts this cache under its default or configured profile home.
+            path_markers[token.start():token.end()] = " " * len(literal)
+    return bool(_EXEC_OUTSIDE.search("".join(path_markers)))
 
 
 def exec_effects(code: str) -> list[str]:
     """Flag network use and writes alongside outside-path markers in browser_exec code.
 
-    This static scan recognizes common spellings and literal modes. It does
-    not resolve aliases, tie paths to a particular write, or prove execution,
-    and it can miss computed or obfuscated code. Code past the cap is flagged
-    as unscanned.
+    This static scan recognizes common spellings, literal modes, and simple
+    workspace assignments. It does not track scopes or control flow, tie paths
+    to a particular write, or prove execution, and it can miss computed or
+    obfuscated code. Code past the cap is flagged as unscanned.
     """
     truncated = len(code) > EXEC_CODE_LIMIT
     code = code[:EXEC_CODE_LIMIT]
@@ -68,7 +100,7 @@ def exec_effects(code: str) -> list[str]:
         effects.append("network")
     if truncated:
         effects.append("unscanned")
-    if _EXEC_WRITE.search(code) and any(m["outside"] for m in _EXEC_OUTSIDE.finditer(code)):
+    if _EXEC_WRITE.search(code) and _exec_has_outside_path(code):
         effects.append("write")
     return effects
 

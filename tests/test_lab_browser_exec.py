@@ -120,6 +120,12 @@ def test_exec_effects_js_network(js):
     "os.mkdir('/etc/demo')",
     "Path('.hermes/demo').mkdir()",
     "Path(HERMES_HOME, 'demo').touch()",
+    """w = os.environ["BH_AGENT_WORKSPACE"]; open(w + "/../USER.md", "w")""",
+    """open("/Users/o/.hermes/config.yaml", "w")""",
+    """open("/Users/o/.hermes/cache/browser-use/workspace/t1/../items.json", "a")""",
+    """w = os.getenv("BH_AGENT_WORKSPACE"); open(os.path.join(w, "/etc/x"), "w")""",
+    """w = os.getenv("BH_AGENT_WORKSPACE"); open(w + "/x", "w"); open("/etc/x", "w")""",
+    """w = os.getenv("BH_AGENT_WORKSPACE"); w = root; open(w + "/x", "w")""",
 ])
 def test_exec_effects_outside_write(code):
     assert exec_effects(code) == ["write"]
@@ -140,6 +146,14 @@ def test_exec_effects_outside_write(code):
     "# import requests\nprint('socket.connect()')",
     """open(os.environ["BH_AGENT_WORKSPACE"]+"/items.json","a")""",
     """open(os.getenv("BH_AGENT_WORKSPACE")+"/items.json","a")""",
+    """w = os.environ["BH_AGENT_WORKSPACE"]; open(w + "/items.json", "a")""",
+    """w = os.getenv("BH_AGENT_WORKSPACE"); open(w + "/x", "a"); open(w + "/y", "a")""",
+    """w = os.getenv("BH_AGENT_WORKSPACE"); open(f"{w}/x", "a")""",
+    """w = os.getenv("BH_AGENT_WORKSPACE"); open(os.path.join(w, "x"), "a")""",
+    """w = Path(os.environ["BH_AGENT_WORKSPACE"]); (Path(w) / "x").write_text("demo")""",
+    """open("/Users/o/.hermes/cache/browser-use/workspace/t1/items.json", "a")""",
+    """open("/Users/o/.hermes/profiles/demo/cache/browser-use/workspace/t1/items.json", "a")""",
+    """open("/tmp/demo-profile/cache/browser-use/workspace/t1/items.json", "a")""",
     """open("rows.txt","w"); page.evaluate("href.split('/')")""",
 ])
 def test_exec_effects_read_or_workspace_only(code):
