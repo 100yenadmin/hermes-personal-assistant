@@ -44,6 +44,7 @@ set `completed` or `cancelled` only when it should leave the radar for good.
 When `switch` is true (a flight marked landed arrived in the last 48 hours), switch and tell the owner in the same message, naming the flight and both zones; when `stored` is set, explain how to undo: "say 'keep Seoul time'" (use the old zone's name).
 Otherwise ask once in the owner's language before switching.
 Write `pa(operation="automations", data={"action":"preferences","changes":{"timezone":"<suggested>"}})`, then read back with `{"action":"status"}`.
+When a timezone write returns `routines_pinned_elsewhere`, tell the owner which routines keep their own zones and offer to unpin them by writing each full rule back with `{"action":"rule","rule_id":...,"rule":{<its full rule>,"timezone_pinned":false}}` if the owner agrees.
 If the owner says keep before a switch, write `{"timezone_kept":"<evidence_key>"}` the same way so this evidence does not ask again. If they undo after a switch, write `{"timezone":"<stored>","timezone_kept":"<evidence_key>"}` and read back.
 If the owner names their home timezone, save `home_timezone` the same way.
 Routines follow the preference unless pinned. Existing Hermes cron jobs keep their creation zone; if the owner has them, say their times did not move.

@@ -41,6 +41,7 @@ chat that should receive it. If this surface cannot receive pushed messages (the
 CLI or Desktop), ask the owner to continue in that chat; never guess a chat ID.
 
 1. Save their clock: `{"operation":"automations","data":{"action":"preferences","changes":{"timezone":"<IANA zone>","brief_time":"HH:MM"}}}`.
+   When a timezone write returns `routines_pinned_elsewhere`, tell the owner which routines keep their own zones and offer to unpin them by writing each full rule back with `{"action":"rule","rule_id":...,"rule":{<its full rule>,"timezone_pinned":false}}` if the owner agrees.
 2. Record their acceptance: `{"operation":"automations","data":{"action":"rule","rule_id":"daily_brief","rule":{"kind":"daily_brief","accepted":true,"destination":"origin","destination_verified":true}}}`.
    Omit timezone to follow the owner's preferences. Only if the owner explicitly
    pins this routine's zone, add `"timezone":"<IANA zone>","timezone_pinned":true`.

@@ -2,7 +2,6 @@ import datetime as dt
 import hashlib
 import json
 import sys
-from types import ModuleType
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -16,14 +15,6 @@ from personal_assistant.state import Ledger
 from personal_assistant.trip_facts import record_facts
 
 MOMENT = dt.datetime.fromisoformat("2026-11-14T12:00:00+00:00")
-
-
-@pytest.fixture(autouse=True)
-def hermes_time(monkeypatch):
-    module = ModuleType("hermes_time")
-    module.get_timezone_name = lambda: ""
-    monkeypatch.setitem(sys.modules, "hermes_time", module)
-    return module
 
 
 @pytest.fixture
