@@ -446,3 +446,13 @@ def test_failed_guard_reinstall_retries_on_next_call(observer, monkeypatch, fail
     before = state["installs"]
     namespace["type_text"]("hello")  # typing re-installs only when a retry is pending
     assert state["installs"] == before + 1 and namespace["_pa_retry"] is False
+
+
+@pytest.mark.parametrize("code,expected", [
+    ("open('/etc/x', encoding='utf-8', mode='w')", ["write"]),
+    ("Path('/etc/a').rename('/etc/b')", ["write"]),
+    ("print('/etc/x'.replace('x', 'y'))", []),  # str.replace is not a write; Path.replace is a documented gap
+    ("open('/etc/x', encoding='utf-8', mode='r').read()", []),
+])
+def test_exec_effects_keyword_mode_and_rename(code, expected):
+    assert exec_effects(code) == expected

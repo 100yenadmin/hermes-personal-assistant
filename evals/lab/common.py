@@ -37,7 +37,8 @@ _EXEC_WRITE = re.compile(
     rf"\bopen\s*\((?:{_EXEC_OPEN_PATH},\s*(?:mode\s*=\s*)?|\s*mode\s*=\s*)"
     r"""(["'])[rbt]*[wax+][rwaxbt+]*\1"""
     r"""|\.\s*open\s*\(\s*(?:mode\s*=\s*)?(["'])[rbt]*[wax+][rwaxbt+]*\2"""
-    r"|\.\s*(?:write_text|write_bytes|mkdir|touch)\s*\("
+    r"""|\bopen\s*\([^()]*?\bmode\s*=\s*(["'])[rbt]*[wax+][rwaxbt+]*\3"""  # mode= after other keywords
+    r"|\.\s*(?:write_text|write_bytes|mkdir|touch|rename)\s*\("  # not .replace(: str.replace is everywhere
     r"|\bos\s*\.\s*(?:rename|replace|makedirs|mkdir)\b"
 )
 _EXEC_WORKSPACE_SOURCE = (
