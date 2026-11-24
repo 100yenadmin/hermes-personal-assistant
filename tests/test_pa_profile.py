@@ -78,6 +78,7 @@ def test_profile_wire_schema_copy_preserves_strict_storage_validation(tmp_path):
     assert PROFILE_SCHEMA["additionalProperties"] is False
     def relaxed(schema):
         from copy import deepcopy
+        from personal_assistant.profile import CATEGORIES, KINDS
 
         def without_limits(node):
             for key in ("maxLength", "maxItems"):
@@ -89,8 +90,10 @@ def test_profile_wire_schema_copy_preserves_strict_storage_validation(tmp_path):
 
         copy = deepcopy(schema)
         copy.pop("additionalProperties")
-        for field in ("kind", "source", "category", "level"):
-            copy["properties"][field] = {"type": "string"}
+        allowed_values = {"kind": KINDS, "source": SOURCES, "category": CATEGORIES,
+                          "level": schema["properties"]["level"]["enum"]}
+        for field, values in allowed_values.items():
+            copy["properties"][field] = {"type": "string", "description": "One of: " + ", ".join(values)}
         without_limits(copy)
         return copy
 
@@ -114,6 +117,46 @@ def test_profile_wire_schema_copy_preserves_strict_storage_validation(tmp_path):
     validate(dispatch(tmp_path, args)["fields"], PROFILE_SCHEMA)
     with pytest.raises(ValidationError):
         validate({**args["data"], "fields": {}}, PROFILE_SCHEMA)
+
+
+def test_profile_wire_schema_advertises_allowed_values():
+    from personal_assistant.entry import PROFILE_DATA_SCHEMA
+
+    properties = PROFILE_DATA_SCHEMA["properties"]
+    assert {field: properties[field]["description"] for field in ("kind", "source", "category", "level")} == {
+        "kind": "One of: preference, person, sop, trust",
+        "source": "One of: said, inferred, corrected",
+        "category": "One of: general, communication, voice, calendar, travel, food, people, work",
+        "level": "One of: shadow, own, independent",
+    }
+
+
+def test_remember_reports_multiple_invalid_fields_in_one_hint(tmp_path):
+    rejected_text = "x" * 400
+    with pytest.raises(ValueError) as exc:
+        pref(tmp_path, rejected_text, source="owner", category="diet")
+
+    message = str(exc.value)
+    description, example_json = message.split(". Example: ")
+    assert description.split("; ") == [
+        "profile field category must be one of general, communication, voice, calendar, travel, food, people, work",
+        "source must be one of said, inferred, corrected",
+        "text allows at most 300 characters",
+    ]
+    assert all(value not in description for value in ("owner", "diet", rejected_text))
+    assert len(message) <= 600
+    assert Ledger(tmp_path).list("action") == []
+    assert call(tmp_path, **json.loads(example_json))["action_type"] == "preference"
+
+
+def test_invalid_remember_state_hint_lists_states_for_the_kind(tmp_path):
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, kind="trust", task_type="Weekly prep", state="fixture-state")
+
+    description, example_json = str(exc.value).split(". Example: ")
+    assert description == "invalid profile state; must be one of active, retired"
+    assert json.loads(example_json)["kind"] == "trust"
+    assert Ledger(tmp_path).list("action") == []
 
 
 @pytest.mark.parametrize("kind,data,field,detail,rejected", [
@@ -177,6 +220,15 @@ def test_list_with_valid_filters_still_lists(tmp_path):
     rows = dispatch(tmp_path, {"operation": "profile", "data": {"action": "list", "category": "travel"}})
     assert [r["text"] for r in rows] == ["Prefers aisle seats"]
     assert dispatch(tmp_path, {"operation": "profile", "data": {"action": "list", "category": "food"}}) == []
+
+
+def test_list_rejects_invalid_kind_and_category_with_allowed_values(tmp_path):
+    from personal_assistant.profile import CATEGORIES, KINDS
+
+    for field, allowed in (("kind", KINDS), ("category", CATEGORIES)):
+        with pytest.raises(ValueError) as exc:
+            call(tmp_path, "list", **{field: "fixture-invalid"})
+        assert str(exc.value) == f"profile list {field} must be one of " + ", ".join(allowed)
 
 
 def test_shape_hint_caps_fixed_text_that_exceeds_budget():
