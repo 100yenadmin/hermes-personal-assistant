@@ -208,10 +208,10 @@ def remember(ledger, data):
         raise ValueError("filed is set only by mark_filed after a reviewed write")
     label = data.get({"preference": "text", "person": "name", "sop": "title", "trust": "task_type"}[kind])
     if not isinstance(label, str) or not label.strip():
-        raise ValueError("profile text, name, title or task_type is required")
+        raise ValueError(_remember_hint("profile text, name, title or task_type is required", kind))
     slug = re.sub(r"[^\w]+", "-", unicodedata.normalize("NFKC", data.get("slug") or label).casefold()).strip("-")
     if not slug:
-        raise ValueError("profile slug must contain letters or numbers")
+        raise ValueError(_remember_hint("profile slug must contain letters or numbers", kind))
     identity = KINDS[kind] + ":" + slug
     old = ledger.get("action", identity)
     if old and not _is_profile(old) or old and old["action_type"] != kind:
@@ -257,7 +257,7 @@ def remember(ledger, data):
     if kind == "sop":
         content = ("title", "trigger", "steps", "tools", "done_when", "escalation")
         if any(k not in fields for k in content):
-            raise ValueError("SOP needs title, trigger, steps, tools, done_when and escalation")
+            raise ValueError(_remember_hint("SOP needs title, trigger, steps, tools, done_when and escalation", kind))
         changed = old and any(fields[k] != old["fields"].get(k) for k in content)
         fields["version"] = old["fields"]["version"] + bool(changed) if old else 1
         fields["changelog"] = old["fields"]["changelog"] if old else []

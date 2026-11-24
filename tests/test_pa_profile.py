@@ -804,3 +804,17 @@ def test_account_shaped_key_names_are_counted_not_named(tmp_path):
     with _pytest.raises(ValueError) as caught:
         remember(Ledger(tmp_path), {"kind": "preference", "text": "x", "iban_gb29nwbk60161331926819": "y"})
     assert "60161331926819" not in str(caught.value) and "1 other key" in str(caught.value)
+
+
+@pytest.mark.parametrize("kind,data,start", [
+    ("preference", {}, "profile text, name, title or task_type is required"),
+    ("preference", {"text": "Prefers aisle seats", "slug": "!!!"}, "profile slug must contain letters or numbers"),
+    ("sop", {"title": "Weekly prep"}, "SOP needs title, trigger, steps, tools, done_when and escalation"),
+])
+def test_shape_errors_end_with_a_valid_example(tmp_path, kind, data, start):
+    with pytest.raises(ValueError) as exc:
+        call(tmp_path, kind=kind, **data)
+    message = str(exc.value)
+    assert message.startswith(start) and ". Example: " in message and len(message) <= 600
+    example = json.loads(message.split(". Example: ", 1)[1])
+    assert call(tmp_path, **example)["action_type"] == kind
