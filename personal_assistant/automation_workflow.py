@@ -496,7 +496,24 @@ def dispatch(ledger, data, *, get_config=None):
         data["rule"] = rule
         return auto.upsert_automation_rule(ledger, **data)
     if action == "preferences":
-        return preferences(ledger, data["changes"])
+        changes = data["changes"]
+        prefs = preferences(ledger, changes)
+        if not changes or "timezone" not in changes:
+            return prefs
+        pinned = []
+        for row in ledger.list("action"):
+            if row["action_type"] != "automation_rule":
+                continue
+            rule = auto._rule_data(row)
+            zone = rule.get("timezone")
+            if auto._accepted(rule) and rule.get("timezone_pinned") is True and zone and zone != changes["timezone"]:
+                # The stored rule rides along, so an unpin can write it back whole (a partial rule would stop the routine).
+                pinned.append({"rule_id": rule.get("automation_rule_id") or row["action_id"], "kind": rule.get("kind"),
+                               "timezone": zone, "paused": rule.get("paused") is True,
+                               "rule": row["fields"].get("automation_rule", rule)})
+        if pinned:
+            return {**prefs, "routines_pinned_elsewhere": sorted(pinned, key=lambda rule: rule["rule_id"])}
+        return prefs
     if action in {"pause", "resume", "snooze"}:
         return preferences(ledger, {"snooze_until": data["until"]} if action == "snooze" else {"paused": action == "pause"})
     if action == "claim":

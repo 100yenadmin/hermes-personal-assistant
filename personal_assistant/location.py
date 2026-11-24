@@ -12,6 +12,16 @@ def _zone(value):
         return None
 
 
+def _hermes_zone():
+    """The Hermes timezone the owner configured (HERMES_TIMEZONE or config `timezone`); None when unset (server-local) or unavailable."""
+    try:
+        # get_timezone() is on every supported Hermes; get_timezone_name() is not (6e2b8e0 lacks it).
+        from hermes_time import get_timezone
+        return _zone(getattr(get_timezone(), "key", None))
+    except Exception:
+        return None
+
+
 def timezone_check(ledger, moment) -> dict | None:
     """Suggest a zone only when nearby evidence disagrees with the stored clock."""
     moment = moment.astimezone(dt.timezone.utc)
@@ -63,6 +73,8 @@ def timezone_check(ledger, moment) -> dict | None:
         key = kind + ":" + seg["segment_id"]
         evidence = {"kind": kind, "segment_id": seg["segment_id"], "flight": seg["carrier"] + seg["number"],
                     "airport": airport, "at": at.astimezone(zone).isoformat()}
+    elif (hermes := _hermes_zone()):
+        zone, key, evidence = hermes, "hermes:" + str(hermes), {"kind": "hermes_setting"}
     elif home:
         zone, key, evidence = home, "home:" + str(home), {"kind": "home"}
     else:
