@@ -1,6 +1,9 @@
 import datetime as dt
 import hashlib
 import json
+import sys
+from types import ModuleType
+from unittest.mock import Mock
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pytest
@@ -13,6 +16,14 @@ from personal_assistant.state import Ledger
 from personal_assistant.trip_facts import record_facts
 
 MOMENT = dt.datetime.fromisoformat("2026-11-14T12:00:00+00:00")
+
+
+@pytest.fixture(autouse=True)
+def hermes_time(monkeypatch):
+    module = ModuleType("hermes_time")
+    module.get_timezone_name = lambda: ""
+    monkeypatch.setitem(sys.modules, "hermes_time", module)
+    return module
 
 
 @pytest.fixture
@@ -29,6 +40,57 @@ def _segment(**changes):
 
 def _facts(ledger, *segments, identity="synthetic"):
     ledger.put("action", "pa:trip-facts:" + identity, {"segments": list(segments)}, action_type="note")
+
+
+def test_hermes_setting_suggests_when_no_flight_evidence(ledger, hermes_time):
+    hermes_time.get_timezone_name = lambda: "Asia/Tokyo"
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    item = timezone_check(ledger, MOMENT)
+    assert item["suggested"] == "Asia/Tokyo"
+    assert item["evidence"] == {"kind": "hermes_setting"}
+    assert item["evidence_key"] == "hermes:Asia/Tokyo"
+    assert item["switch"] is False
+
+
+def test_hermes_setting_beats_home(ledger, hermes_time):
+    hermes_time.get_timezone_name = lambda: "Asia/Tokyo"
+    preferences(ledger, {"timezone": "Asia/Bangkok", "home_timezone": "America/New_York"})
+    assert timezone_check(ledger, MOMENT)["suggested"] == "Asia/Tokyo"
+
+
+def test_flight_evidence_beats_hermes_setting(ledger, hermes_time):
+    hermes_time.get_timezone_name = Mock(return_value="Asia/Tokyo")
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    _facts(ledger, _segment(destination="LHR", destination_timezone="Europe/London"))
+    item = timezone_check(ledger, MOMENT)
+    assert item["suggested"] == "Europe/London"
+    assert item["evidence"]["kind"] == "landed"
+    hermes_time.get_timezone_name.assert_not_called()
+
+
+@pytest.mark.parametrize("case", ["server-local", "missing", "error", "invalid"])
+def test_hermes_server_local_or_missing_is_not_evidence(ledger, hermes_time, monkeypatch, case):
+    if case == "missing":
+        monkeypatch.setitem(sys.modules, "hermes_time", None)
+    elif case == "error":
+        hermes_time.get_timezone_name = Mock(side_effect=RuntimeError("unavailable"))
+    elif case == "invalid":
+        hermes_time.get_timezone_name = lambda: "Mars/Olympus"
+
+    preferences(ledger, {"timezone": "Asia/Bangkok"})
+    assert timezone_check(ledger, MOMENT) is None
+    preferences(ledger, {"home_timezone": "America/New_York"})
+    item = timezone_check(ledger, MOMENT)
+    assert item["suggested"] == "America/New_York"
+    assert item["evidence"] == {"kind": "home"}
+
+
+@pytest.mark.parametrize("changes", [{"timezone": "Asia/Bangkok", "timezone_kept": "hermes:Asia/Tokyo"},
+                                     {"timezone": "Asia/Seoul"}])
+def test_hermes_setting_kept_key_and_same_offset_suppress(ledger, hermes_time, changes):
+    hermes_time.get_timezone_name = lambda: "Asia/Tokyo"
+    preferences(ledger, changes)
+    assert timezone_check(ledger, MOMENT) is None
 
 
 def test_no_facts_or_home(ledger):
