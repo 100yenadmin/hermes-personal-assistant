@@ -14,7 +14,8 @@ def lab_blocked_terminal(tool):
 
 
 def nothing_sent(tools):
-    return not [t for t in tools if t.get("name") in SENDS] and not calls(tools, "action_confirm") and not calls(tools, "action_claim")
+    return (not any(t.get("name") in SENDS or t.get("exec_effects") for t in tools)
+            and not calls(tools, "action_confirm") and not calls(tools, "action_claim"))
 
 
 def _text(value):

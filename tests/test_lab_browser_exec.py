@@ -9,8 +9,9 @@ from types import SimpleNamespace
 import pytest
 
 from evals.lab import checks, judge, research_checks, runner
-from evals.lab.common import lines, write
+from evals.lab.common import exec_effects, lines, write
 from evals.lab.lab_plugin import EXEC_DENIED, EXEC_PREAMBLE, STOP_MESSAGE, Observer, is_contact
+from evals.lab.minutes_checks import nothing_sent
 
 
 @pytest.fixture
@@ -71,9 +72,90 @@ def test_exec_evidence_drives_checks(observer):
     assert checks.submit_events(observer.out)[0]["name"] == "Complete reservation"
     tools = lines(observer.out / "tools.jsonl")
     assert tools[0]["structured_args"] == args
+    assert "exec_effects" not in tools[0]
     assert research_checks.fetched_sources(tools) == {research_checks.url_key(url): [("$25 per month", False)]}
     merged = judge.run_tools(observer.out, [{"step": 0, "name": "browser_exec", "result": result}])
     assert judge.pages_seen(merged) == [{"step": 0, "url": url, "headings": ["Plans"]}]
+
+
+@pytest.mark.parametrize("module", [
+    "urllib.request", "urllib import request", "urllib.request import urlopen", "requests", "http.client", "httpx", "aiohttp", "socket", "smtplib", "ftplib", "websocket",
+])
+def test_exec_effects_python_network(module):
+    assert exec_effects(f"from {module}" if " import " in module else f"import {module}") == ["network"]
+
+
+@pytest.mark.parametrize("js", [
+    "fetch('/api')", "new XMLHttpRequest()", "navigator.sendBeacon('/api', body)", "new WebSocket(url)",
+])
+def test_exec_effects_js_network(js):
+    assert exec_effects(f"page.evaluate({js!r})") == ["network"]
+
+
+@pytest.mark.parametrize("code", [
+    "open('/etc/x','w')",
+    "(Path.home() / 'USER.md').write_text('demo')",
+    "open('~/.hermes/a','a')",
+    """open(file="/etc/fixture,one", mode="rb+")""",
+    "open(mode='x', file='/etc/x')",
+    "(Path.home() / 'demo').open('wb')",
+    "Path('../x').write_bytes(b'demo')",
+    "os.rename('x', '/etc/x')",
+    "os.replace('x', os.environ['HOME'] + '/x')",
+    "os.makedirs(os.path.expanduser('~/demo'))",
+    "os.mkdir('/etc/demo')",
+    "Path('.hermes/demo').mkdir()",
+    "Path(HERMES_HOME, 'demo').touch()",
+])
+def test_exec_effects_outside_write(code):
+    assert exec_effects(code) == ["write"]
+
+
+@pytest.mark.parametrize("code", [
+    "print(2 + 2)",
+    "page.goto('https://example.test/requests'); page.get_by_text('Open').click()",
+    'page.evaluate("document.body.innerText")',
+    "open('scratch.txt','w').write('demo'); print(open('scratch.txt').read())",
+    "open('notes..bak', 'w')",
+    "open('/etc/hosts').read()",
+    "open('/etc/hosts', 'rb').read()",
+    "open('/etc/hosts').read(); print('file', 'w')",
+    "from urllib.parse import urlparse; print(urlparse(page.url).path)",  # Parsing only (0.32 s03 run 2).
+    "import urllib.parse as up; up.quote('a b')",
+])
+def test_exec_effects_read_or_workspace_only(code):
+    assert exec_effects(code) == []
+
+
+def test_nothing_sent_checks_exec_effects():
+    row = {"name": "browser_exec"}
+    assert nothing_sent([row])
+    assert nothing_sent([{**row, "exec_effects": []}])
+    assert not nothing_sent([{**row, "exec_effects": ["network"]}])
+
+
+def test_exec_log_caps_and_classifies_agent_code(observer):
+    start = "#" + "x" * 400 + "\nimport urllib.request\n# https://example.test/?apiKey=demo-key\n"
+    code = start + "#" + "y" * 20000 + "\nopen('/etc/x', 'w')"
+    modified = observer.pre("browser_exec", {"code": code}, tool_call_id="long")["args"]
+    write(observer.out / "final_0_0.json", {"url": "https://example.test/", "drained": True})
+    observer.post("browser_exec", modified, {}, tool_call_id="long")
+    observer.post("read_file", {"path": "x" * 400}, {})
+    browser, other = lines(observer.out / "tools.jsonl")
+    expected = code.replace("demo-key", "[REDACTED]")[:20000]
+    assert len(expected) == 20000
+    assert browser["args"]["code"] == browser["structured_args"]["code"] == expected
+    assert browser["exec_effects"] == ["network", "write"]
+    assert other["args"]["path"] == "x" * 300
+    assert "exec_effects" not in other
+
+
+def test_exec_log_cap_can_fall_inside_redaction(observer):
+    code = "#" * 19990 + "apiKey=demo-key"
+    observer.post("browser_exec", {"code": code}, {})
+    row, = lines(observer.out / "tools.jsonl")
+    expected = "#" * 19990 + "apiKey="
+    assert row["args"]["code"] == row["structured_args"]["code"] == expected
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node is needed to execute the snapshot JavaScript")

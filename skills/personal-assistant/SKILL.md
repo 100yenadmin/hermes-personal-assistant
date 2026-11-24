@@ -170,6 +170,8 @@ binds it to this action. `risk_class` defaults to `external_write`. The shape:
  "expected_readback":"<what the provider must show afterwards>"}}
 ```
 
+Use PA tools such as `pa(operation="profile", data={"action":"list"})` to read profile and owner data, and reserve `browser_exec` for browser pages and `terminal` for computation.
+
 - `tool_args` are the exact arguments of the later provider call. After the
   owner's yes the gateway lets exactly that call through once; it does not
   block a different call, which is simply outside the approval. Never change
