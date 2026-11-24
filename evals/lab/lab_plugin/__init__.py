@@ -8,7 +8,7 @@ import re
 import threading
 import time
 from pathlib import Path
-from evals.lab.common import append, encodable, read, scrub
+from evals.lab.common import EXEC_CODE_LIMIT, append, encodable, exec_effects, read, scrub
 
 # Inspect executable tool arguments, never quoted research results or assistant prose.
 INSTALL = re.compile(r"\b(?:hermes\s+plugins\s+install|(?:pip\d*|uv(?:\s+(?:pip|tool))?|npm|pnpm|yarn|bun|brew|apt(?:-get)?|dnf|yum|conda|mamba|gem|cargo|go|poetry)\s+(?:--?[\w=-]+\s+)*(?:install|add)\b|python[\d.]*\s+-m\s+pip\s+install|(?:curl|wget)\b[^\n]*\|\s*(?:ba)?sh\b)", re.I)
@@ -383,10 +383,9 @@ class Observer:
     def post(self, tool_name, args, result, task_id="", **kw):
         seen = time.monotonic()  # The tool's result (and any snapshot in it) was observed before this hook started.
         page = {}
-        if self.browser_shape == "exec" and tool_name == "browser_exec":
+        is_exec = tool_name == "browser_exec"
+        if self.browser_shape == "exec" and is_exec:
             page = self.post_exec(task_id, kw.get("tool_call_id"))
-            if EXEC_CODE_START in str(args.get("code", "")):
-                args = {**args, "code": args["code"].split(EXEC_CODE_START, 1)[1]}
         elif tool_name.startswith("browser_"):
             try:
                 from tools import browser_tool as bt, browser_tool_session as session
@@ -396,6 +395,13 @@ class Observer:
                 page["page_url"], unknown = self.live_url(bt, session, task_id or "default")
                 if unknown:
                     page["page_unknown"] = True  # research_checks: this row's text grounds no source.
+        code = args.get("code") if is_exec else None
+        if isinstance(code, str):
+            if self.browser_shape == "exec":
+                code = code.split(EXEC_CODE_START, 1)[-1]
+            if effects := exec_effects(code):
+                page["exec_effects"] = effects
+            args = {**args, "code": scrub(code, limit=EXEC_CODE_LIMIT)}
         with self.lock:
             if self.browser_shape == "exec" and tool_name in {"write_file", "patch"}:
                 self.file_calls.pop(kw.get("tool_call_id"), None)
@@ -406,7 +412,7 @@ class Observer:
             if removed > 0 and tool_name.startswith(("browser_", "web_")):
                 kept += f" …[lab cut {removed} chars]"
             append(self.out / "tools.jsonl", {"name": tool_name, "step": self.step,
-                   "args": {k: scrub(v)[:300] for k, v in args.items()},
+                   "args": {k: v if k == "code" and isinstance(code, str) else scrub(v)[:300] for k, v in args.items()},
                    "structured_args": json.loads(scrub(json.dumps(args, ensure_ascii=False))),
                    "result": kept, **page})
             data = payload(result)
